@@ -29,6 +29,7 @@ interface ProjectsProps {
   currentUser: { id: string; role: UserRole };
   onViewProject: (id: string) => void;
   onNavigate?: (tab: string) => void;
+  selectedProjectId?: string | null;
 }
 
 // Safety Pyramid Component - Centered pyramid with legends alongside
@@ -211,7 +212,7 @@ const DonutChart: React.FC<{
   );
 };
 
-const Projects: React.FC<ProjectsProps> = ({ projects, currentUser, onViewProject, onNavigate }) => {
+const Projects: React.FC<ProjectsProps> = ({ projects, currentUser, onViewProject, onNavigate, selectedProjectId: globalSelectedProjectId }) => {
   const { isDarkTheme } = useTheme();
   const themeClasses = getThemeClasses(isDarkTheme);
   const allProjects = projects;
@@ -231,8 +232,15 @@ const Projects: React.FC<ProjectsProps> = ({ projects, currentUser, onViewProjec
   };
 
   const [selectedProjectId, setSelectedProjectId] = useState<string>(
-    allProjects.length > 0 ? allProjects[0].id : ''
+    globalSelectedProjectId || (allProjects.length > 0 ? allProjects[0].id : '')
   );
+
+  // Sync with global state from header
+  useEffect(() => {
+    if (globalSelectedProjectId) {
+      setSelectedProjectId(globalSelectedProjectId);
+    }
+  }, [globalSelectedProjectId]);
   const [dashboardData, setDashboardData] = useState<any>(null);
   const [isImporting, setIsImporting] = useState(false);
   const [importError, setImportError] = useState<string | null>(null);
@@ -684,7 +692,8 @@ const Projects: React.FC<ProjectsProps> = ({ projects, currentUser, onViewProjec
     return `${day}-${month}-${year}`;
   };
 
-  const currentDate = formatDate(new Date());
+  const currentDate = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'long', year: 'numeric' });
+  const currentDay = new Date().toLocaleDateString('en-US', { weekday: 'long' });
 
   // Project dates from dashboard data
   const projectDates = {
@@ -889,48 +898,39 @@ const Projects: React.FC<ProjectsProps> = ({ projects, currentUser, onViewProjec
   return (
     <div className="space-y-4 animate-in fade-in duration-500 relative">
       {/* Header */}
-      <div className={`p-6 rounded-2xl border ${themeClasses.glassCard} ${themeClasses.border}`}>
-        <div className="flex items-center justify-between mb-4">
-          {/* Left: Project Selection Dropdown */}
-          <div className="flex items-center gap-4">
-            <label className="text-sm font-black text-amber-500 uppercase tracking-widest whitespace-nowrap flex items-center gap-2">
-              <Icons.Project size={18} />
-              Select:
-            </label>
-            <select
-              value={selectedProjectId}
-              onChange={(e) => setSelectedProjectId(e.target.value)}
-              className={`px-5 py-3 border-2 rounded-xl text-sm font-bold outline-none focus:ring-2 focus:ring-amber-500/50 focus:border-amber-500 transition-all min-w-[180px] ${themeClasses.input} ${themeClasses.border} ${themeClasses.textPrimary} ${themeClasses.bgHover}`}
-            >
-              {allProjects.map((project) => {
-                // Shorten project title - take first 2-3 words or limit to 20 chars
-                const words = project.title.split(' ');
-                let shortTitle = words.slice(0, 2).join(' ');
-                if (shortTitle.length > 20) {
-                  shortTitle = words[0] + (words[1] ? ' ' + words[1].substring(0, 8) : '');
-                }
-                const displayTitle = shortTitle.length > 20 ? shortTitle.substring(0, 17) + '...' : shortTitle;
-                return (
-                  <option key={project.id} value={project.id} className={isDarkTheme ? "bg-slate-900" : "bg-white"}>
-                    {displayTitle}
-                  </option>
-                );
-              })}
-            </select>
+      <div className={`p-4 rounded-[2rem] border ${themeClasses.glassCard} ${themeClasses.border} shadow-sm`}>
+        <div className="flex items-center justify-between px-2">
+          {/* Project Name Section */}
+          <div className="flex items-center gap-5">
+            <div className={`p-4 rounded-[1.25rem] ${isDarkTheme ? 'bg-indigo-500/10 text-indigo-400' : 'bg-indigo-50 text-indigo-600'}`}>
+              <Icons.Building size={28} />
+            </div>
+            <div>
+              <p className={`text-[9px] font-black uppercase tracking-[0.2em] mb-1 ${themeClasses.textSecondary}`}>
+                Project Name
+              </p>
+              <h2 className={`text-base font-bold uppercase tracking-tight leading-none ${themeClasses.textPrimary}`}>
+                {selectedProject.title}. {selectedProject.location}.
+              </h2>
+            </div>
           </div>
 
-          {/* Center: Project Name */}
-          <div className="flex-1 flex flex-col items-center text-center">
-            <p className={`text-lg font-bold uppercase tracking-tight ${themeClasses.textPrimary}`}>
-              PROJECT NAME: {selectedProject.title}. {selectedProject.location}.
-            </p>
-          </div>
-
-          {/* Right: Date */}
-          <div className="text-right">
-            <p className={`text-sm font-black uppercase ${themeClasses.textPrimary}`}>
-              REPORT DATE {currentDate}
-            </p>
+          {/* Date Section */}
+          <div className="flex items-center gap-5">
+            <div className={`p-4 rounded-[1.25rem] ${isDarkTheme ? 'bg-indigo-500/10 text-indigo-400' : 'bg-indigo-50 text-indigo-600'}`}>
+              <Icons.Calendar size={28} />
+            </div>
+            <div>
+              <p className={`text-[9px] font-black uppercase tracking-[0.2em] mb-1 ${themeClasses.textSecondary}`}>
+                Report Date
+              </p>
+              <h2 className={`text-base font-bold leading-none ${themeClasses.textPrimary}`}>
+                {currentDate}
+              </h2>
+              <p className={`text-[9px] font-bold mt-1 uppercase tracking-widest ${themeClasses.textSecondary}`}>
+                {currentDay}
+              </p>
+            </div>
           </div>
         </div>
       </div>

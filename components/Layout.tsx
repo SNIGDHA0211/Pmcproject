@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Icons } from './Icons';
-import { User, UserRole, AppNotification } from '../types';
+import { User, UserRole, AppNotification, Project } from '../types';
 import { ROLE_LABELS } from '../constants';
 import { useTheme, getThemeClasses } from '../utils/theme';
 
@@ -13,9 +13,23 @@ interface LayoutProps {
   setActiveTab: (tab: string) => void;
   notifications: AppNotification[];
   onMarkRead: (id: string) => void;
+  projects?: Project[];
+  selectedProjectId?: string | null;
+  onSelectProject?: (id: string | null) => void;
 }
 
-const Layout: React.FC<LayoutProps> = ({ children, user, onLogout, activeTab, setActiveTab, notifications, onMarkRead }) => {
+const Layout: React.FC<LayoutProps> = ({ 
+  children, 
+  user, 
+  onLogout, 
+  activeTab, 
+  setActiveTab, 
+  notifications, 
+  onMarkRead,
+  projects = [],
+  selectedProjectId = null,
+  onSelectProject
+}) => {
   const { isDarkTheme, setIsDarkTheme } = useTheme();
 
   useEffect(() => {
@@ -30,6 +44,9 @@ const Layout: React.FC<LayoutProps> = ({ children, user, onLogout, activeTab, se
   const themeClasses = getThemeClasses(isDarkTheme);
   const [showNotifications, setShowNotifications] = useState(false);
   const [sidebarOverlayOpen, setSidebarOverlayOpen] = useState(false);
+  const [isProjectDropdownOpen, setIsProjectDropdownOpen] = useState(false);
+
+  const selectedProject = projects.find(p => p.id === selectedProjectId);
 
   const userNotifications = notifications
     .filter(n => n.userId === user.id)
@@ -158,7 +175,54 @@ const Layout: React.FC<LayoutProps> = ({ children, user, onLogout, activeTab, se
                   Back
                 </button>
               )}
-              <h2 className={`text-sm font-black uppercase tracking-widest ${themeClasses.textPrimary}`}>MCS Terminal</h2>
+
+              {/* Project Selection Dropdown - Restricted to Projects Tab */}
+              {activeTab === 'team_projects' && projects.length > 0 && (
+                <div className="relative mr-4">
+                  <button
+                    onClick={() => setIsProjectDropdownOpen(!isProjectDropdownOpen)}
+                    className={`flex items-center gap-3 px-4 py-2 border rounded-xl transition-all ${
+                      isDarkTheme 
+                        ? 'bg-white/5 border-white/10 hover:bg-white/10 text-white' 
+                        : 'bg-white border-slate-200 hover:border-indigo-300 shadow-sm text-slate-900'
+                    }`}
+                  >
+                    <span className="text-xs font-bold truncate max-w-[200px]">
+                      {selectedProject ? selectedProject.title : "Select Project"}
+                    </span>
+                    <Icons.ChevronRight className={`transition-transform duration-200 ${isProjectDropdownOpen ? 'rotate-90' : 'rotate-0'} ${themeClasses.textMuted}`} size={14} />
+                  </button>
+
+                  {isProjectDropdownOpen && (
+                    <>
+                      <div className="fixed inset-0 z-40" onClick={() => setIsProjectDropdownOpen(false)} />
+                      <div className={`absolute top-full left-0 mt-2 w-64 rounded-2xl shadow-2xl z-50 overflow-hidden border animate-in fade-in slide-in-from-top-2 ${
+                        isDarkTheme ? 'bg-slate-800 border-white/10' : 'bg-white border-slate-200'
+                      }`}>
+                        <div className="max-h-80 overflow-y-auto py-2">
+                          {projects.map(p => (
+                            <button
+                              key={p.id}
+                              onClick={() => {
+                                onSelectProject?.(p.id);
+                                setIsProjectDropdownOpen(false);
+                              }}
+                              className={`w-full px-4 py-3 text-left text-xs font-bold transition-colors flex items-center justify-between group ${
+                                selectedProjectId === p.id
+                                  ? (isDarkTheme ? 'bg-indigo-500/20 text-indigo-400' : 'bg-indigo-50 text-indigo-600')
+                                  : (isDarkTheme ? 'text-slate-300 hover:bg-white/5' : 'text-slate-600 hover:bg-slate-50')
+                              }`}
+                            >
+                              <span className="truncate">{p.title}</span>
+                              {selectedProjectId === p.id && <Icons.Check size={12} />}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
               <div className="relative w-full max-w-md hidden md:block ml-8">
                 <Icons.Search className={`absolute left-3 top-1/2 -translate-y-1/2 ${themeClasses.textMuted}`} size={16} />
                 <input

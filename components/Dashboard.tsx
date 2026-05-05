@@ -898,21 +898,6 @@ const Dashboard: React.FC<DashboardProps> = ({ user, projects, dprs, projectDocu
             <div>
               <h2 className="text-2xl font-black text-white uppercase tracking-tighter">PMC COMMAND CENTER // {user.role.replace('_', ' ')}</h2>
               <p className="text-white/70 font-bold text-sm tracking-tight uppercase tracking-widest text-[10px]">Strategic Asset Management & Workflow</p>
-              {isPMCHead && projects.length > 0 && (
-                <div className="mt-3">
-                  <select
-                    value={selectedProjectId || ''}
-                    onChange={(e) => setSelectedProjectId(e.target.value)}
-                    className="bg-white/10 border border-white/20 rounded-lg px-3 py-1.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-white/30"
-                  >
-                    {projects.map((project) => (
-                      <option key={project.id} value={project.id} className="bg-slate-800 text-white">
-                        {project.title}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              )}
             </div>
             <div className="text-right flex items-center gap-4">
               <div className="text-right">

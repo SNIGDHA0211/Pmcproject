@@ -1068,8 +1068,13 @@ const App: React.FC = () => {
         }}
         notifications={notifications}
         onMarkRead={handleMarkRead}
+        projects={projects}
+        selectedProjectId={selectedProjectId}
+        onSelectProject={(id) => {
+          setSelectedProjectId(id);
+        }}
       >
-      {selectedProject ? (
+      {activeTab === "projects" && selectedProject ? (
         <ProjectDetails
           project={selectedProject}
           currentUser={currentUser}
@@ -1112,6 +1117,7 @@ const App: React.FC = () => {
         <Projects
           projects={projects}
           currentUser={currentUser}
+          selectedProjectId={selectedProjectId}
           onViewProject={(id) => {
             setSelectedProjectId(id);
             setActiveTab("projects");

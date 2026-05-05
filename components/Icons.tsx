@@ -92,5 +92,6 @@ export const Icons = {
   Eye: Eye,
   EyeOff: EyeOff,
   Sun: Sun,
-  Moon: Moon
+  Moon: Moon,
+  Check: CheckCircle2
 };
