@@ -1,0 +1,7 @@
+{
+  "name": "PMC Portal - Enterprise Workflow System",
+  "description": "A robust, role-based project management consultancy workflow application designed for construction and operations management, featuring multi-stage approvals and document tracking.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
