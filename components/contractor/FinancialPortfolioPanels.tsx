@@ -7,12 +7,13 @@ import type {
   InvoicingDashboard,
 } from '../../types/contractorManagement';
 import {
-  mapContractValueApiRecord,
-  mapContractValueSummary,
-  mapInvoicingApiRecord,
-  mapInvoicingSummary,
+  resolveCmContractValuesPanel,
+  resolveCmInvoicingPanel,
 } from '../../utils/contractorDashboardMappers';
-import { useCmTheme } from './enterpriseTheme';
+import {
+  contractValuesSectionTitle,
+  invoicingSectionTitle,
+} from '../../utils/dashboardContractorLabels';
 import CmButton from './ui/CmButton';
 
 export type FinancialPanelMode = 'contract_values' | 'invoicing';
@@ -34,8 +35,8 @@ const FinancialPortfolioPanels: React.FC<FinancialPortfolioPanelsProps> = ({
   selectedContractorMasterId,
   onEditInFinancialManagement,
 }) => {
-  const theme = useCmTheme();
-  const contractorLabel = contractorDisplayName ?? 'All Contractors';
+  const contractorLabel = contractorDisplayName ?? 'Contractor';
+  const isCumulativeView = selectedContractorMasterId == null;
 
   const editToolbar = onEditInFinancialManagement ? (
     <div className="mb-3 flex justify-end">
@@ -47,72 +48,60 @@ const FinancialPortfolioPanels: React.FC<FinancialPortfolioPanelsProps> = ({
 
   const contractPanel = useMemo(() => {
     if (!contractValues) return null;
-
-    const sclCv = contractValues.scl ? mapContractValueApiRecord(contractValues.scl) : null;
-
-    const selectedRow = selectedContractorMasterId
-      ? contractValues.contractors.find((c) => c.contractor?.id === selectedContractorMasterId)
-      : null;
-
-    const contractorCv = selectedRow
-      ? mapContractValueApiRecord(selectedRow.contract_values, selectedRow.contractor_name)
-      : mapContractValueSummary(
-          contractValues.project_name,
-          contractValues.contractor_summary,
-          contractorLabel,
-        );
+    const { sclCv, contractorSummaryCv, selectedContractorCv, contractorLabel: label } =
+      resolveCmContractValuesPanel(
+        contractValues,
+        selectedContractorMasterId ?? null,
+        contractorLabel,
+      );
 
     return (
-      <div className={theme.financialWrap.contract}>
-        <ContractValuesGroupCard
-          sclData={sclCv}
-          contractorData={contractorCv}
-          contractorDisplayName={selectedRow?.contractor_name ?? contractorLabel}
-          onEdit={onEditInFinancialManagement ? () => onEditInFinancialManagement() : undefined}
-        />
-      </div>
+      <ContractValuesGroupCard
+        sclData={sclCv}
+        contractorData={isCumulativeView ? contractorSummaryCv : selectedContractorCv}
+        contractorSectionTitle={
+          isCumulativeView
+            ? contractValuesSectionTitle('ContractorSummary')
+            : contractValuesSectionTitle('SelectedContractor', label)
+        }
+        onEdit={onEditInFinancialManagement ? () => onEditInFinancialManagement() : undefined}
+      />
     );
   }, [
     contractValues,
     contractorLabel,
+    isCumulativeView,
     onEditInFinancialManagement,
     selectedContractorMasterId,
-    theme.financialWrap.contract,
   ]);
 
   const invoicingPanel = useMemo(() => {
     if (!invoicing) return null;
-
-    const sclInv = invoicing.scl ? mapInvoicingApiRecord(invoicing.scl) : null;
-
-    const selectedRow = selectedContractorMasterId
-      ? invoicing.contractors.find((c) => c.contractor?.id === selectedContractorMasterId)
-      : null;
-
-    const contractorInv = selectedRow
-      ? mapInvoicingApiRecord(selectedRow.invoicing, selectedRow.contractor_name)
-      : mapInvoicingSummary(
-          invoicing.project_name,
-          invoicing.contractor_summary,
-          contractorLabel,
-        );
+    const { sclInv, contractorSummaryInv, selectedContractorInv, contractorLabel: label } =
+      resolveCmInvoicingPanel(
+        invoicing,
+        selectedContractorMasterId ?? null,
+        contractorLabel,
+      );
 
     return (
-      <div className={theme.financialWrap.invoicing}>
-        <InvoicingGroupCard
-          pmcData={sclInv}
-          contractorData={contractorInv}
-          contractorDisplayName={selectedRow?.contractor_name ?? contractorLabel}
-          onEdit={onEditInFinancialManagement ? () => onEditInFinancialManagement() : undefined}
-        />
-      </div>
+      <InvoicingGroupCard
+        pmcData={sclInv}
+        contractorData={isCumulativeView ? contractorSummaryInv : selectedContractorInv}
+        contractorSectionTitle={
+          isCumulativeView
+            ? invoicingSectionTitle('ContractorSummary')
+            : invoicingSectionTitle('SelectedContractor', label)
+        }
+        onEdit={onEditInFinancialManagement ? () => onEditInFinancialManagement() : undefined}
+      />
     );
   }, [
     contractorLabel,
     invoicing,
+    isCumulativeView,
     onEditInFinancialManagement,
     selectedContractorMasterId,
-    theme.financialWrap.invoicing,
   ]);
 
   if (mode === 'contract_values') {

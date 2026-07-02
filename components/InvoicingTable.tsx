@@ -27,6 +27,8 @@ interface InvoicingTableProps {
   onEdit?: (invoiceType: InvoiceType) => void;
   embedded?: boolean;
   contractorDisplayName?: string;
+  /** Override embedded section heading */
+  embeddedSectionTitle?: string;
 }
 
 type CertificationTone = DashboardSemanticTone;
@@ -112,9 +114,8 @@ const InvoicingSectionBody: React.FC<{
           return (
             <div
               key={item.label}
-              className={`flex min-h-[5.5rem] min-w-0 flex-col overflow-hidden rounded-lg border border-b-[3px] px-2.5 py-2.5 ${
-                item.border
-              } ${isDarkTheme ? 'border-white/10 bg-white/5' : 'border-slate-200 bg-white'}`}
+              className={`flex min-h-[5.5rem] min-w-0 flex-col overflow-hidden rounded-lg border border-b-[3px] px-2.5 py-2.5 ${item.border
+                } ${isDarkTheme ? 'border-white/10 bg-white/5' : 'border-slate-200 bg-white'}`}
             >
               <div className="flex min-w-0 flex-col gap-1">
                 <div className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-md ${item.iconBg}`}>
@@ -177,15 +178,18 @@ const InvoicingTable: React.FC<InvoicingTableProps> = ({
   onEdit,
   embedded = false,
   contractorDisplayName,
+  embeddedSectionTitle,
 }) => {
   const { isDarkTheme } = useTheme();
   const themeClasses = getThemeClasses(isDarkTheme);
   const typo = useProjectsDashboardTypo();
   const party: 'SCL' | 'Contractor' = invoiceType === 'PMC' ? 'SCL' : 'Contractor';
-  const sectionTitle = invoicingSectionTitle(
-    party,
-    party === 'Contractor' ? contractorDisplayName : undefined,
-  );
+  const sectionTitle =
+    embeddedSectionTitle ??
+    invoicingSectionTitle(
+      party,
+      party === 'Contractor' ? contractorDisplayName : undefined,
+    );
 
   if (embedded) {
     return (
@@ -212,11 +216,10 @@ const InvoicingTable: React.FC<InvoicingTableProps> = ({
 
   return (
     <div
-      className={`invoicing-card flex min-h-[250px] flex-col overflow-hidden rounded-2xl border p-3.5 transition-shadow hover:shadow-md ${
-        isDarkTheme
-          ? `${themeClasses.glassCard} ${themeClasses.border} shadow-sm`
-          : 'border-slate-200 bg-white shadow-[0_6px_20px_rgba(15,23,42,0.06)]'
-      }`}
+      className={`invoicing-card flex min-h-[250px] flex-col overflow-hidden rounded-2xl border p-3.5 transition-shadow hover:shadow-md ${isDarkTheme
+        ? `${themeClasses.glassCard} ${themeClasses.border} shadow-sm`
+        : 'border-slate-200 bg-white shadow-[0_6px_20px_rgba(15,23,42,0.06)]'
+        }`}
     >
       <div className={`mb-2.5 flex items-center justify-between gap-3 border-b pb-2.5 ${themeClasses.border}`}>
         <div className="flex min-w-0 items-center gap-3">
@@ -249,34 +252,40 @@ const InvoicingTable: React.FC<InvoicingTableProps> = ({
 
 interface InvoicingGroupCardProps {
   contractorData: InvoicingRecord | null;
+  contractorSectionTitle: string;
   pmcData: InvoicingRecord | null;
-  contractorDisplayName?: string;
+  groupSubtitle?: string;
+  className?: string;
   isLoading?: boolean;
   contractorError?: string | null;
   pmcError?: string | null;
+  contractorLoading?: boolean;
   onEdit?: (invoiceType: InvoiceType) => void;
 }
 
 export const InvoicingGroupCard: React.FC<InvoicingGroupCardProps> = ({
   contractorData,
+  contractorSectionTitle,
   pmcData,
-  contractorDisplayName,
+  groupSubtitle,
+  className = '',
   isLoading = false,
   contractorError = null,
   pmcError = null,
+  contractorLoading = false,
   onEdit,
 }) => {
   const { isDarkTheme } = useTheme();
   const themeClasses = getThemeClasses(isDarkTheme);
   const typo = useProjectsDashboardTypo();
+  const subtitle = groupSubtitle ?? 'SCL (owner) + contractor billing';
 
   return (
     <div
-      className={`invoicing-group relative flex h-full min-h-0 flex-col overflow-hidden rounded-2xl border ${DASHBOARD_FINANCIAL_CARD_PADDING} transition-shadow hover:shadow-md sm:min-h-[460px] lg:min-h-[520px] ${
-        isDarkTheme
-          ? `${themeClasses.glassCard} ${themeClasses.border} shadow-sm`
-          : 'border-slate-200 bg-white shadow-[0_6px_20px_rgba(15,23,42,0.06)]'
-      }`}
+      className={`invoicing-group relative flex h-full min-h-0 flex-col overflow-hidden rounded-2xl border ${DASHBOARD_FINANCIAL_CARD_PADDING} transition-shadow hover:shadow-md sm:min-h-[460px] lg:min-h-[520px] ${isDarkTheme
+        ? `${themeClasses.glassCard} ${themeClasses.border} shadow-sm`
+        : 'border-slate-200 bg-white shadow-[0_6px_20px_rgba(15,23,42,0.06)]'
+        } ${className}`}
     >
       <DashboardCardTopAccent />
       <div className={`mb-3 ${DASHBOARD_CARD_HEADER_ROW_CLASS(themeClasses.border)}`}>
@@ -286,12 +295,7 @@ export const InvoicingGroupCard: React.FC<InvoicingGroupCardProps> = ({
           </div>
           <div className="min-w-0">
             <h3 className={typo.financialGroupTitle}>Invoicing Information</h3>
-            <p className={typo.financialGroupSubtitle(isDarkTheme)}>
-              SCL (owner) +{' '}
-              {contractorDisplayName
-                ? `selected contractor: ${contractorDisplayName}`
-                : 'selected contractor'}
-            </p>
+            <p className={typo.financialGroupSubtitle(isDarkTheme)}>{subtitle}</p>
           </div>
         </div>
         {onEdit && <CardEditButton onClick={() => onEdit('Contractor')} title="Edit invoicing" />}
@@ -308,9 +312,10 @@ export const InvoicingGroupCard: React.FC<InvoicingGroupCardProps> = ({
           embedded
           invoiceType="Contractor"
           data={contractorData}
-          contractorDisplayName={contractorDisplayName}
-          isLoading={isLoading}
+          embeddedSectionTitle={contractorSectionTitle}
+          isLoading={isLoading || contractorLoading}
           error={contractorError}
+          onEdit={onEdit}
         />
       </div>
     </div>

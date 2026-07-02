@@ -43,6 +43,10 @@ import {
 import { MONTH_OPTIONS } from '../utils/healthSafety';
 import { fetchProjectProgressTrend } from '../services/financialDataService';
 import { deriveFinancialExecutiveMetrics } from '../utils/financialDashboardMetrics';
+import { contractorMasterApi } from '../services/contractorManagementApi';
+import type { ContractorMasterRecord } from '../types/contractorManagement';
+import FinancialContractorSelectBar from './financial/FinancialContractorSelectBar';
+import { loadContractorFinancialBuckets } from '../utils/financialContractorForms';
 
 interface FinancialManagementProps {
   projects?: Project[];
@@ -245,6 +249,9 @@ const FinancialManagement: React.FC<FinancialManagementProps> = ({
     SCL: false,
     Contractor: false,
   });
+  const [contractors, setContractors] = useState<ContractorMasterRecord[]>([]);
+  const [selectedContractorMasterId, setSelectedContractorMasterId] = useState<number | null>(null);
+  const [loadingContractorFinancial, setLoadingContractorFinancial] = useState(false);
   const dismissSaveNotification = useCallback((id: number) => {
     setSaveNotifications((prev) => prev.filter((n) => n.id !== id));
   }, []);
@@ -279,6 +286,11 @@ const FinancialManagement: React.FC<FinancialManagementProps> = ({
   const projectName = projects.find(p => p.id === selectedProject)?.title || selectedProject;
   const selectedMonthNumber = MONTHS.indexOf(selectedMonth) + 1;
   const selectedYearNumber = parseInt(selectedYear, 10) || new Date().getFullYear();
+
+  const selectedContractor = useMemo(
+    () => contractors.find((c) => c.id === selectedContractorMasterId) ?? null,
+    [contractors, selectedContractorMasterId],
+  );
 
   const applyPlannedEarnedPeriod = (period: ReturnType<typeof normalizePlannedEarnedByPeriod>) => {
     setPevForms({
@@ -397,14 +409,14 @@ const FinancialManagement: React.FC<FinancialManagementProps> = ({
 
   // Derive role for backend submission (use authenticated user role)
   const userRole = currentUser?.role || '';
-  const roleForSubmission = 
+  const roleForSubmission =
     userRole === 'TEAM_LEAD' ? 'Team Leader' :
-    userRole === 'BILLING_SITE_ENGINEER' ? 'Billing Site Engineer' :
-    userRole === 'PMC_HEAD' ? 'PMC Head' :
-    userRole; // fallback
+      userRole === 'BILLING_SITE_ENGINEER' ? 'Billing Site Engineer' :
+        userRole === 'PMC_HEAD' ? 'PMC Head' :
+          userRole; // fallback
 
   // Auto-generate created_by from logged-in user (required by backend)
-  const createdBy = 
+  const createdBy =
     currentUser?.name ||
     currentUser?.username ||
     currentUser?.email ||
@@ -429,8 +441,8 @@ const FinancialManagement: React.FC<FinancialManagementProps> = ({
     if (typeof data === "object" && data !== null) {
       return Object.entries(data)
         .map(([field, messages]) => {
-          const msgStr = Array.isArray(messages) 
-            ? messages.join(", ") 
+          const msgStr = Array.isArray(messages)
+            ? messages.join(", ")
             : String(messages);
           return `${field}: ${msgStr}`;
         })
@@ -466,6 +478,108 @@ const FinancialManagement: React.FC<FinancialManagementProps> = ({
     selectedYearNumber,
     applyFinancialSnapshot,
     forceRefresh,
+  ]);
+
+  useEffect(() => {
+    if (!projectName) {
+      setContractors([]);
+      setSelectedContractorMasterId(null);
+      return;
+    }
+
+    let cancelled = false;
+    contractorMasterApi
+      .list(projectName)
+      .then((list) => {
+        if (cancelled) return;
+        const active = list.filter((c) => c.status === 'ACTIVE');
+        setContractors(list);
+        setSelectedContractorMasterId((prev) => {
+          if (prev && active.some((c) => c.id === prev)) return prev;
+          return active[0]?.id ?? null;
+        });
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          console.error('Failed to load contractors for Financial Management:', err);
+          setContractors([]);
+          setSelectedContractorMasterId(null);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [projectName]);
+
+  useEffect(() => {
+    if (
+      !projectName ||
+      !selectedContractor ||
+      isInitialLoading ||
+      isForceRefreshing
+    ) {
+      return;
+    }
+
+    let cancelled = false;
+    setLoadingContractorFinancial(true);
+
+    loadContractorFinancialBuckets(projectName, selectedContractor.contractor_name, selectedContractor.id)
+      .then(({ contractValue, invoicing }) => {
+        if (cancelled) return;
+
+        const contractorName = selectedContractor.contractor_name;
+        const contractorId = selectedContractor.id;
+
+        setContractValuesForms((prev) => {
+          const next = {
+            ...prev,
+            Contractor:
+              contractValue ??
+              ({
+                ...emptyContractValue(projectName, 'Contractor'),
+                contractorName,
+                contractorId,
+              } as ContractValueRecord),
+          };
+          patchFinancialCache({ contractValuesForms: next });
+          return next;
+        });
+
+        setInvoicingForms((prev) => {
+          const next = {
+            ...prev,
+            Contractor:
+              invoicing ??
+              ({
+                ...emptyInvoicingRecord(projectName, 'Contractor'),
+                contractorName,
+                contractorId,
+              } as InvoicingRecord),
+          };
+          patchFinancialCache({ invoicingForms: next });
+          return next;
+        });
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          console.error('Failed to load contractor financial records:', err);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingContractorFinancial(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    projectName,
+    selectedContractor,
+    isInitialLoading,
+    isForceRefreshing,
+    patchFinancialCache,
   ]);
 
   const handleTabChange = useCallback((tab: SubTab) => {
@@ -665,9 +779,25 @@ const FinancialManagement: React.FC<FinancialManagementProps> = ({
     }));
   };
 
+  const resolveContractorScopedRecordId = (
+    form: { id?: string | number; contractorId?: number; contractorName?: string },
+    contractor: ContractorMasterRecord | null,
+  ): string | number | undefined => {
+    if (!contractor) return form.id;
+    if (form.contractorId != null && form.contractorId !== contractor.id) return undefined;
+    const formName = form.contractorName?.trim().toLowerCase();
+    const masterName = contractor.contractor_name.trim().toLowerCase();
+    if (formName && formName !== masterName) return undefined;
+    return form.id;
+  };
+
   const handleContractValueSave = async (contractType: ContractValueType) => {
     if (!projectName) {
       showSaveNotification('Select a project before saving.', 'error');
+      return;
+    }
+    if (contractType === 'Contractor' && !selectedContractor) {
+      showSaveNotification('Select a contractor before saving contractor contract values.', 'error');
       return;
     }
     const form = contractValuesForms[contractType] || emptyContractValue(projectName, contractType);
@@ -677,11 +807,22 @@ const FinancialManagement: React.FC<FinancialManagementProps> = ({
       originalContractValue: parseNumericValue(form.originalContractValue),
       approvedVO: parseNumericValue(form.approvedVO),
       potentialPendingVO: parseNumericValue(form.potentialPendingVO),
+      ...(contractType === 'Contractor' && selectedContractor
+        ? {
+          contractorId: selectedContractor.id,
+          contractorName: selectedContractor.contractor_name,
+        }
+        : {}),
     };
 
     setSavingContractValues(prev => ({ ...prev, [contractType]: true }));
     try {
-      const response = await saveContractValueRecord(payload, form.id);
+      const response = await saveContractValueRecord(
+        payload,
+        contractType === 'Contractor'
+          ? resolveContractorScopedRecordId(form, selectedContractor)
+          : form.id,
+      );
       const row = unwrapList<Record<string, unknown>>(response.data)[0];
       const savedRecord: ContractValueRecord = row
         ? normalizeContractValueRecord(row, projectName, contractType)
@@ -695,7 +836,11 @@ const FinancialManagement: React.FC<FinancialManagementProps> = ({
         });
         return next;
       });
-      showSaveNotification(`Contract Values (${contractType}) saved for ${projectName}.`);
+      showSaveNotification(
+        contractType === 'Contractor' && selectedContractor
+          ? `Contract Values (Contractor: ${selectedContractor.contractor_name}) saved for ${projectName}.`
+          : `Contract Values (${contractType}) saved for ${projectName}.`,
+      );
       onSaveSuccess?.();
     } catch (err: any) {
       console.error(`Contract Values (${contractType}) save error:`, err);
@@ -744,10 +889,10 @@ const FinancialManagement: React.FC<FinancialManagementProps> = ({
       const savedRecord: ContractPerformanceRecord = row
         ? normalizeContractPerformanceRecord(row)
         : {
-            ...form,
-            ...calculateContractPerformance(payload.billedValue, payload.actualReceiptValue),
-            id: extractRecordId(row) ?? form.id,
-          };
+          ...form,
+          ...calculateContractPerformance(payload.billedValue, payload.actualReceiptValue),
+          id: extractRecordId(row) ?? form.id,
+        };
       setContractForm(savedRecord);
       setContractFormError(null);
       patchFinancialCache({ contractForm: savedRecord, contractFormError: null });
@@ -780,17 +925,32 @@ const FinancialManagement: React.FC<FinancialManagementProps> = ({
       showSaveNotification('Select a project before saving.', 'error');
       return;
     }
+    if (invoiceType === 'Contractor' && !selectedContractor) {
+      showSaveNotification('Select a contractor before saving contractor invoicing.', 'error');
+      return;
+    }
     const form = invoicingForms[invoiceType] || emptyInvoicingRecord(projectName, invoiceType);
     const payload = {
       projectName,
       invoiceType,
       grossBilled: parseNumericValue(form.grossBilled),
       netBilledWithoutVAT: parseNumericValue(form.netBilledWithoutVAT),
+      ...(invoiceType === 'Contractor' && selectedContractor
+        ? {
+          contractorId: selectedContractor.id,
+          contractorName: selectedContractor.contractor_name,
+        }
+        : {}),
     };
 
     setSavingInvoicing(prev => ({ ...prev, [invoiceType]: true }));
     try {
-      const response = await saveInvoicingRecord(payload, form.id);
+      const response = await saveInvoicingRecord(
+        payload,
+        invoiceType === 'Contractor'
+          ? resolveContractorScopedRecordId(form, selectedContractor)
+          : form.id,
+      );
       const row = unwrapList<Record<string, unknown>>(response.data)[0];
       const savedRecord: InvoicingRecord = row
         ? normalizeInvoicingRecord(row, projectName, invoiceType)
@@ -804,7 +964,11 @@ const FinancialManagement: React.FC<FinancialManagementProps> = ({
         });
         return next;
       });
-      showSaveNotification(`${getInvoiceTypeLabel(invoiceType)} Invoicing saved for ${projectName}.`);
+      showSaveNotification(
+        invoiceType === 'Contractor' && selectedContractor
+          ? `Contractor Invoicing (${selectedContractor.contractor_name}) saved for ${projectName}.`
+          : `${getInvoiceTypeLabel(invoiceType)} Invoicing saved for ${projectName}.`,
+      );
       onSaveSuccess?.();
     } catch (err: any) {
       console.error(`${invoiceType} Invoicing save error:`, err);
@@ -847,11 +1011,10 @@ const FinancialManagement: React.FC<FinancialManagementProps> = ({
             <button
               type="button"
               onClick={onReturnToProject}
-              className={`inline-flex h-10 shrink-0 items-center gap-2 rounded-xl border px-4 text-sm font-semibold transition-colors ${themeClasses.border} ${
-                isDarkTheme
-                  ? 'bg-white/5 text-white hover:bg-white/10'
-                  : 'bg-white text-slate-700 hover:bg-slate-50'
-              }`}
+              className={`inline-flex h-10 shrink-0 items-center gap-2 rounded-xl border px-4 text-sm font-semibold transition-colors ${themeClasses.border} ${isDarkTheme
+                ? 'bg-white/5 text-white hover:bg-white/10'
+                : 'bg-white text-slate-700 hover:bg-slate-50'
+                }`}
             >
               <Icons.ChevronRight size={16} className="rotate-180" aria-hidden />
               Back to Project
@@ -908,470 +1071,494 @@ const FinancialManagement: React.FC<FinancialManagementProps> = ({
             <FinancialManagementLoadingOverlay message="Loading financial data…" />
           </>
         ) : (
-        <>
-        {isForceRefreshing && projectName && (
-          <FinancialManagementLoadingOverlay message="Refreshing financial data…" />
-        )}
-      {/* TAB 1: Physical Progress */}
-      {activeSubTab === 'progress' && (
-        <div className="space-y-5 financial-tab-content">
-          <FinancialQuickUpdateCard
-            title="Update Physical Progress"
-            projectName={projectName}
-            periodLabel={periodNote}
-            successBanner={formSuccessBanner}
-            sectionRef={formEntryRef}
-            className="financial-progress-form"
-            onSave={() =>
-              handleSafeSave(
-                progressForm,
-                ['progress_month', 'monthly_plan', 'cumulative_plan', 'monthly_actual', 'cumulative_actual'],
-                { role: roleForSubmission },
-                'Physical progress saved successfully',
-                'progress'
-              )
-            }
-            onReset={handleFormReset}
-            onRefresh={forceRefresh}
-            refreshDisabled={isForceRefreshing}
-            footerNote={!progressForm?.id ? 'No saved record for this period — enter values and save.' : undefined}
-            isDarkTheme={isDarkTheme}
-            themeClasses={themeClasses}
-          >
-            <FinancialFormGrid>
-              {[
-                { key: 'progress_month', label: 'Progress Month (YYYY-MM-DD)', tour: 'progress-month-field' },
-                { key: 'monthly_plan', label: 'Monthly Plan (%)', tour: 'monthly-plan-field' },
-                { key: 'monthly_actual', label: 'Monthly Actual (%)', tour: 'monthly-actual-field' },
-                { key: 'cumulative_plan', label: 'Cumulative Plan (%)', tour: 'cumulative-plan-field' },
-                { key: 'cumulative_actual', label: 'Cumulative Actual (%)', tour: 'cumulative-actual-field' },
-              ].map((field) => (
-                <div
-                  key={field.key}
-                  className={`financial-progress-${field.key.replace(/_/g, '-')} ${field.tour}`}
-                >
-                  <label className={fieldLabel}>{field.label}</label>
-                  <input
-                    type="text"
-                    value={String(progressForm[field.key] ?? '')}
-                    onChange={(e) => setProgressForm({ ...progressForm, [field.key]: e.target.value })}
-                    className={fieldInput}
-                  />
-                </div>
-              ))}
-            </FinancialFormGrid>
-          </FinancialQuickUpdateCard>
-
-          <FinancialTabAnalytics
-            variant="progress"
-            metrics={executiveMetrics}
-            isDarkTheme={isDarkTheme}
-            themeClasses={themeClasses}
-            projectName={projectName}
-            progressTrendData={progressTrendData}
-            isLoadingProgressTrend={isLoadingProgressTrend}
-            monthlyPlan={parseNumericValue(progressForm.monthly_plan)}
-            monthlyActual={parseNumericValue(progressForm.monthly_actual)}
-            cumulativePlan={parseNumericValue(progressForm.cumulative_plan)}
-            cumulativeActual={parseNumericValue(progressForm.cumulative_actual)}
-          />
-        </div>
-      )}
-
-      {/* TAB 1.5: Planned vs Actual Value — SCL & Contractor */}
-      {activeSubTab === 'earned_value' && (
-        <div className="space-y-8 financial-tab-content">
-          <PlannedEarnedValueFormSection
-            party="SCL"
-            projectName={projectName}
-            periodLabel={periodNote}
-            values={pevForms.SCL}
-            error={pevErrors.SCL}
-            isSaving={savingPev.SCL}
-            successBanner={pevSuccessParty === 'SCL' ? formSuccessBanner : null}
-            sectionRef={formEntryRef}
-            onChange={(field, value) => updatePevField('SCL', field, value)}
-            onSave={() => handlePlannedEarnedSave('SCL')}
-            onReset={handleFormReset}
-            onRefresh={forceRefresh}
-            refreshDisabled={isForceRefreshing}
-          />
-          <PlannedEarnedValueFormSection
-            party="CONTRACTOR"
-            projectName={projectName}
-            periodLabel={periodNote}
-            values={pevForms.CONTRACTOR}
-            error={pevErrors.CONTRACTOR}
-            isSaving={savingPev.CONTRACTOR}
-            successBanner={pevSuccessParty === 'CONTRACTOR' ? formSuccessBanner : null}
-            onChange={(field, value) => updatePevField('CONTRACTOR', field, value)}
-            onSave={() => handlePlannedEarnedSave('CONTRACTOR')}
-            onReset={handleFormReset}
-            onRefresh={forceRefresh}
-            refreshDisabled={isForceRefreshing}
-          />
-
-          <FinancialTabAnalytics
-            variant="earned_value"
-            metrics={executiveMetrics}
-            isDarkTheme={isDarkTheme}
-            themeClasses={themeClasses}
-            projectName={projectName}
-          />
-        </div>
-      )}
-
-      {/* TAB 2: Contract Performance */}
-      {activeSubTab === 'contract' && (
-        <div className="space-y-5">
-          <FinancialQuickUpdateCard
-            title="Update Contract Performance"
-            projectName={projectName}
-            periodLabel={periodNote}
-            successBanner={formSuccessBanner}
-            sectionRef={formEntryRef}
-            className="financial-contract-form"
-            onSave={handleContractPerformanceSave}
-            onReset={handleFormReset}
-            onRefresh={forceRefresh}
-            saving={isSavingContractPerformance}
-            isDarkTheme={isDarkTheme}
-            themeClasses={themeClasses}
-          >
-            {contractFormError && (
-              <p className="mb-5 text-sm font-medium text-rose-500">{contractFormError}</p>
+          <>
+            {isForceRefreshing && projectName && (
+              <FinancialManagementLoadingOverlay message="Refreshing financial data…" />
             )}
-            <FinancialFormGrid>
-              {[
-                { key: 'billedValue' as const, label: 'Billed Value', cls: 'billed-value-field' },
-                { key: 'actualReceiptValue' as const, label: 'Actual Receipt Value', cls: 'actual-receipt-value-field' },
-              ].map((field) => (
-                <div key={field.key} className={`financial-contract-${field.key} ${field.cls}`}>
-                  <label className={fieldLabel}>{field.label}</label>
-                  <input
-                    type="number"
-                    min="0"
-                    value={displayedContractForm[field.key]}
-                    onChange={(e) => updateContractPerformanceField(field.key, e.target.value)}
-                    className={fieldInput}
-                  />
-                </div>
-              ))}
-            </FinancialFormGrid>
-          </FinancialQuickUpdateCard>
+            {/* TAB 1: Physical Progress */}
+            {activeSubTab === 'progress' && (
+              <div className="space-y-5 financial-tab-content">
+                <FinancialQuickUpdateCard
+                  title="Update Physical Progress"
+                  projectName={projectName}
+                  periodLabel={periodNote}
+                  successBanner={formSuccessBanner}
+                  sectionRef={formEntryRef}
+                  className="financial-progress-form"
+                  onSave={() =>
+                    handleSafeSave(
+                      progressForm,
+                      ['progress_month', 'monthly_plan', 'cumulative_plan', 'monthly_actual', 'cumulative_actual'],
+                      { role: roleForSubmission },
+                      'Physical progress saved successfully',
+                      'progress'
+                    )
+                  }
+                  onReset={handleFormReset}
+                  onRefresh={forceRefresh}
+                  refreshDisabled={isForceRefreshing}
+                  footerNote={!progressForm?.id ? 'No saved record for this period — enter values and save.' : undefined}
+                  isDarkTheme={isDarkTheme}
+                  themeClasses={themeClasses}
+                >
+                  <FinancialFormGrid>
+                    {[
+                      { key: 'progress_month', label: 'Progress Month (YYYY-MM-DD)', tour: 'progress-month-field' },
+                      { key: 'monthly_plan', label: 'Monthly Plan (%)', tour: 'monthly-plan-field' },
+                      { key: 'monthly_actual', label: 'Monthly Actual (%)', tour: 'monthly-actual-field' },
+                      { key: 'cumulative_plan', label: 'Cumulative Plan (%)', tour: 'cumulative-plan-field' },
+                      { key: 'cumulative_actual', label: 'Cumulative Actual (%)', tour: 'cumulative-actual-field' },
+                    ].map((field) => (
+                      <div
+                        key={field.key}
+                        className={`financial-progress-${field.key.replace(/_/g, '-')} ${field.tour}`}
+                      >
+                        <label className={fieldLabel}>{field.label}</label>
+                        <input
+                          type="text"
+                          value={String(progressForm[field.key] ?? '')}
+                          onChange={(e) => setProgressForm({ ...progressForm, [field.key]: e.target.value })}
+                          className={fieldInput}
+                        />
+                      </div>
+                    ))}
+                  </FinancialFormGrid>
+                </FinancialQuickUpdateCard>
 
-          <FinancialTabAnalytics
-            variant="contract"
-            metrics={executiveMetrics}
-            isDarkTheme={isDarkTheme}
-            themeClasses={themeClasses}
-            projectName={projectName}
-            contractMetrics={displayedContractMetrics}
-          />
-        </div>
-      )}
+                <FinancialTabAnalytics
+                  variant="progress"
+                  metrics={executiveMetrics}
+                  isDarkTheme={isDarkTheme}
+                  themeClasses={themeClasses}
+                  projectName={projectName}
+                  progressTrendData={progressTrendData}
+                  isLoadingProgressTrend={isLoadingProgressTrend}
+                  monthlyPlan={parseNumericValue(progressForm.monthly_plan)}
+                  monthlyActual={parseNumericValue(progressForm.monthly_actual)}
+                  cumulativePlan={parseNumericValue(progressForm.cumulative_plan)}
+                  cumulativeActual={parseNumericValue(progressForm.cumulative_actual)}
+                />
+              </div>
+            )}
 
-      {/* TAB 3: Financial Progress */}
-      {activeSubTab === 'cost' && (
-        <div className="space-y-5">
-          <FinancialQuickUpdateCard
-            title="Update Financial Progress"
-            projectName={projectName}
-            periodLabel={periodNote}
-            successBanner={formSuccessBanner}
-            sectionRef={formEntryRef}
-            className="financial-cost-form"
-            onSave={() =>
-              handleSafeSave(
-                costForm,
-                [...COST_EVM_FORM_FIELDS],
-                { role: roleForSubmission },
-                'Financial progress saved',
-                'cost'
-              )
-            }
-            onReset={handleFormReset}
-            onRefresh={forceRefresh}
-            refreshDisabled={isForceRefreshing}
-            footerNote={
-              !costForm?.id ? 'No saved record for this period — enter EVM values and save.' : undefined
-            }
-            isDarkTheme={isDarkTheme}
-            themeClasses={themeClasses}
-          >
-            <FinancialFormGrid>
-              {COST_EVM_FORM_FIELDS.map((key) => (
-                <div key={key} className={`financial-cost-${key}`}>
-                  <label className={fieldLabel} htmlFor={`cost-evm-${key}`}>
-                    {COST_EVM_FIELD_LABELS[key]}
-                  </label>
-                  <input
-                    id={`cost-evm-${key}`}
-                    type="text"
-                    value={String(costForm[key] ?? '')}
-                    onChange={(e) => setCostForm({ ...costForm, [key]: e.target.value })}
-                    className={fieldInput}
-                  />
-                </div>
-              ))}
-            </FinancialFormGrid>
-          </FinancialQuickUpdateCard>
+            {/* TAB 1.5: Planned vs Actual Value — SCL & Contractor */}
+            {activeSubTab === 'earned_value' && (
+              <div className="space-y-8 financial-tab-content">
+                <PlannedEarnedValueFormSection
+                  party="SCL"
+                  projectName={projectName}
+                  periodLabel={periodNote}
+                  values={pevForms.SCL}
+                  error={pevErrors.SCL}
+                  isSaving={savingPev.SCL}
+                  successBanner={pevSuccessParty === 'SCL' ? formSuccessBanner : null}
+                  sectionRef={formEntryRef}
+                  onChange={(field, value) => updatePevField('SCL', field, value)}
+                  onSave={() => handlePlannedEarnedSave('SCL')}
+                  onReset={handleFormReset}
+                  onRefresh={forceRefresh}
+                  refreshDisabled={isForceRefreshing}
+                />
+                <PlannedEarnedValueFormSection
+                  party="CONTRACTOR"
+                  projectName={projectName}
+                  periodLabel={periodNote}
+                  values={pevForms.CONTRACTOR}
+                  error={pevErrors.CONTRACTOR}
+                  isSaving={savingPev.CONTRACTOR}
+                  successBanner={pevSuccessParty === 'CONTRACTOR' ? formSuccessBanner : null}
+                  onChange={(field, value) => updatePevField('CONTRACTOR', field, value)}
+                  onSave={() => handlePlannedEarnedSave('CONTRACTOR')}
+                  onReset={handleFormReset}
+                  onRefresh={forceRefresh}
+                  refreshDisabled={isForceRefreshing}
+                />
 
-          <FinancialTabAnalytics
-            variant="cost"
-            metrics={executiveMetrics}
-            isDarkTheme={isDarkTheme}
-            themeClasses={themeClasses}
-            projectName={projectName}
-            costForm={costForm}
-          />
-        </div>
-      )}
+                <FinancialTabAnalytics
+                  variant="earned_value"
+                  metrics={executiveMetrics}
+                  isDarkTheme={isDarkTheme}
+                  themeClasses={themeClasses}
+                  projectName={projectName}
+                />
+              </div>
+            )}
 
-      {/* TAB 4: Budget vs Cost Performance */}
-      {activeSubTab === 'budget' && (
-        <div className="space-y-5">
-          <FinancialQuickUpdateCard
-            title="Update Budget vs Cost"
-            projectName={projectName}
-            periodLabel={periodNote}
-            successBanner={formSuccessBanner}
-            sectionRef={formEntryRef}
-            className="financial-budget-form"
-            onSave={() =>
-              handleSafeSave(
-                budgetForm,
-                [...BUDGET_PERFORMANCE_FIELDS],
-                { role: roleForSubmission },
-                'Budget Performance saved',
-                'budget'
-              )
-            }
-            onReset={handleFormReset}
-            onRefresh={forceRefresh}
-            refreshDisabled={isForceRefreshing}
-            isDarkTheme={isDarkTheme}
-            themeClasses={themeClasses}
-          >
-            <FinancialFormGrid>
-              {BUDGET_PERFORMANCE_FIELDS.map((key) => {
-                const meta = BUDGET_PERFORMANCE_FIELD_META[key];
-                return (
-                  <div key={key} className={`financial-budget-${key}`}>
-                    <label className={fieldLabel} htmlFor={`budget-perf-${key}`} title={meta.tooltip}>
-                      {meta.label} ({meta.abbrev})
-                    </label>
-                    <input
-                      id={`budget-perf-${key}`}
-                      type="text"
-                      value={String(budgetForm[key] ?? '')}
-                      onChange={(e) => setBudgetForm({ ...budgetForm, [key]: e.target.value })}
-                      placeholder={meta.placeholder}
-                      title={meta.tooltip}
-                      aria-label={`${meta.label} (${meta.abbrev})`}
-                      className={fieldInput}
-                    />
-                  </div>
-                );
-              })}
-            </FinancialFormGrid>
-          </FinancialQuickUpdateCard>
+            {/* TAB 2: Contract Performance */}
+            {activeSubTab === 'contract' && (
+              <div className="space-y-5">
+                <FinancialQuickUpdateCard
+                  title="Update Contract Performance"
+                  projectName={projectName}
+                  periodLabel={periodNote}
+                  successBanner={formSuccessBanner}
+                  sectionRef={formEntryRef}
+                  className="financial-contract-form"
+                  onSave={handleContractPerformanceSave}
+                  onReset={handleFormReset}
+                  onRefresh={forceRefresh}
+                  saving={isSavingContractPerformance}
+                  isDarkTheme={isDarkTheme}
+                  themeClasses={themeClasses}
+                >
+                  {contractFormError && (
+                    <p className="mb-5 text-sm font-medium text-rose-500">{contractFormError}</p>
+                  )}
+                  <FinancialFormGrid>
+                    {[
+                      { key: 'billedValue' as const, label: 'Billed Value', cls: 'billed-value-field' },
+                      { key: 'actualReceiptValue' as const, label: 'Actual Receipt Value', cls: 'actual-receipt-value-field' },
+                    ].map((field) => (
+                      <div key={field.key} className={`financial-contract-${field.key} ${field.cls}`}>
+                        <label className={fieldLabel}>{field.label}</label>
+                        <input
+                          type="number"
+                          min="0"
+                          value={displayedContractForm[field.key]}
+                          onChange={(e) => updateContractPerformanceField(field.key, e.target.value)}
+                          className={fieldInput}
+                        />
+                      </div>
+                    ))}
+                  </FinancialFormGrid>
+                </FinancialQuickUpdateCard>
 
-          <FinancialTabAnalytics
-            variant="budget"
-            metrics={executiveMetrics}
-            isDarkTheme={isDarkTheme}
-            themeClasses={themeClasses}
-            projectName={projectName}
-            budgetForm={budgetForm}
-          />
-        </div>
-      )}
+                <FinancialTabAnalytics
+                  variant="contract"
+                  metrics={executiveMetrics}
+                  isDarkTheme={isDarkTheme}
+                  themeClasses={themeClasses}
+                  projectName={projectName}
+                  contractMetrics={displayedContractMetrics}
+                />
+              </div>
+            )}
 
-      {/* TAB 5: Invoicing */}
-      {activeSubTab === 'invoicing' && (
-        <div className="space-y-5">
-          {INVOICE_TYPES.map((invoiceType, index) => {
-            const form = invoicingForms[invoiceType] || emptyInvoicingRecord(projectName, invoiceType);
-            const certificationEfficiency = form.collectionPercentage ?? 0;
+            {/* TAB 3: Financial Progress */}
+            {activeSubTab === 'cost' && (
+              <div className="space-y-5">
+                <FinancialQuickUpdateCard
+                  title="Update Financial Progress"
+                  projectName={projectName}
+                  periodLabel={periodNote}
+                  successBanner={formSuccessBanner}
+                  sectionRef={formEntryRef}
+                  className="financial-cost-form"
+                  onSave={() =>
+                    handleSafeSave(
+                      costForm,
+                      [...COST_EVM_FORM_FIELDS],
+                      { role: roleForSubmission },
+                      'Financial progress saved',
+                      'cost'
+                    )
+                  }
+                  onReset={handleFormReset}
+                  onRefresh={forceRefresh}
+                  refreshDisabled={isForceRefreshing}
+                  footerNote={
+                    !costForm?.id ? 'No saved record for this period — enter EVM values and save.' : undefined
+                  }
+                  isDarkTheme={isDarkTheme}
+                  themeClasses={themeClasses}
+                >
+                  <FinancialFormGrid>
+                    {COST_EVM_FORM_FIELDS.map((key) => (
+                      <div key={key} className={`financial-cost-${key}`}>
+                        <label className={fieldLabel} htmlFor={`cost-evm-${key}`}>
+                          {COST_EVM_FIELD_LABELS[key]}
+                        </label>
+                        <input
+                          id={`cost-evm-${key}`}
+                          type="text"
+                          value={String(costForm[key] ?? '')}
+                          onChange={(e) => setCostForm({ ...costForm, [key]: e.target.value })}
+                          className={fieldInput}
+                        />
+                      </div>
+                    ))}
+                  </FinancialFormGrid>
+                </FinancialQuickUpdateCard>
 
-            return (
-              <FinancialQuickUpdateCard
-                key={invoiceType}
-                title={`Update ${getInvoiceTypeLabel(invoiceType)} Invoicing`}
-                projectName={projectName}
-                periodLabel={periodNote}
-                successBanner={index === 0 ? formSuccessBanner : null}
-                sectionRef={index === 0 ? formEntryRef : undefined}
-                className="financial-invoicing-form"
-                onSave={() => handleInvoicingSave(invoiceType)}
-                onReset={handleFormReset}
-                onRefresh={forceRefresh}
-                saving={savingInvoicing[invoiceType]}
-                refreshDisabled={isForceRefreshing}
-                saveLabel={`Save ${invoiceType}`}
-                isDarkTheme={isDarkTheme}
-                themeClasses={themeClasses}
-              >
-                {invoicingErrors[invoiceType] && (
-                  <p className="mb-5 text-sm font-medium text-rose-500">{invoicingErrors[invoiceType]}</p>
-                )}
-                <div className="mb-5 grid grid-cols-2 gap-5">
-                  <div className={`rounded-lg border p-3 ${isDarkTheme ? themeClasses.border : 'border-[#E2E8F0] bg-[#F8FAFC]'}`}>
-                    <p className="text-xs font-semibold text-[#64748B]">Net Collected</p>
-                    <p className="text-base font-bold">{(form.netCollected ?? 0).toLocaleString('en-IN')}</p>
-                  </div>
-                  <div className={`rounded-lg border p-3 ${isDarkTheme ? themeClasses.border : 'border-[#E2E8F0] bg-[#F8FAFC]'}`}>
-                    <p className="text-xs font-semibold text-[#64748B]">Cert. Efficiency</p>
-                    <p className="text-base font-bold text-[#16A34A]">{certificationEfficiency.toFixed(1)}%</p>
-                  </div>
-                </div>
-                <FinancialFormGrid>
-                  <div>
-                    <label className={fieldLabel}>Invoice Type</label>
-                    <select value={invoiceType} disabled className={`${fieldInput} opacity-80`}>
-                      <option value={invoiceType}>{invoiceType}</option>
-                    </select>
-                  </div>
-                  {[
-                    { key: 'grossBilled', label: 'Gross Billed' },
-                    { key: 'netBilledWithoutVAT', label: 'Gross Certified Billed' },
-                  ].map((field) => (
-                    <div key={field.key}>
-                      <label className={fieldLabel}>{field.label}</label>
-                      <input
-                        type="number"
-                        min="0"
-                        value={(form[field.key as keyof InvoicingRecord] as number) ?? ''}
-                        onChange={(e) =>
-                          updateInvoicingField(invoiceType, field.key as keyof InvoicingRecord, e.target.value)
-                        }
-                        className={fieldInput}
-                      />
-                    </div>
-                  ))}
-                </FinancialFormGrid>
-              </FinancialQuickUpdateCard>
-            );
-          })}
+                <FinancialTabAnalytics
+                  variant="cost"
+                  metrics={executiveMetrics}
+                  isDarkTheme={isDarkTheme}
+                  themeClasses={themeClasses}
+                  projectName={projectName}
+                  costForm={costForm}
+                />
+              </div>
+            )}
 
-          <FinancialTabAnalytics
-            variant="invoicing"
-            metrics={executiveMetrics}
-            isDarkTheme={isDarkTheme}
-            themeClasses={themeClasses}
-            projectName={projectName}
-          />
-        </div>
-      )}
+            {/* TAB 4: Budget vs Cost Performance */}
+            {activeSubTab === 'budget' && (
+              <div className="space-y-5">
+                <FinancialQuickUpdateCard
+                  title="Update Budget vs Cost"
+                  projectName={projectName}
+                  periodLabel={periodNote}
+                  successBanner={formSuccessBanner}
+                  sectionRef={formEntryRef}
+                  className="financial-budget-form"
+                  onSave={() =>
+                    handleSafeSave(
+                      budgetForm,
+                      [...BUDGET_PERFORMANCE_FIELDS],
+                      { role: roleForSubmission },
+                      'Budget Performance saved',
+                      'budget'
+                    )
+                  }
+                  onReset={handleFormReset}
+                  onRefresh={forceRefresh}
+                  refreshDisabled={isForceRefreshing}
+                  isDarkTheme={isDarkTheme}
+                  themeClasses={themeClasses}
+                >
+                  <FinancialFormGrid>
+                    {BUDGET_PERFORMANCE_FIELDS.map((key) => {
+                      const meta = BUDGET_PERFORMANCE_FIELD_META[key];
+                      return (
+                        <div key={key} className={`financial-budget-${key}`}>
+                          <label className={fieldLabel} htmlFor={`budget-perf-${key}`} title={meta.tooltip}>
+                            {meta.label} ({meta.abbrev})
+                          </label>
+                          <input
+                            id={`budget-perf-${key}`}
+                            type="text"
+                            value={String(budgetForm[key] ?? '')}
+                            onChange={(e) => setBudgetForm({ ...budgetForm, [key]: e.target.value })}
+                            placeholder={meta.placeholder}
+                            title={meta.tooltip}
+                            aria-label={`${meta.label} (${meta.abbrev})`}
+                            className={fieldInput}
+                          />
+                        </div>
+                      );
+                    })}
+                  </FinancialFormGrid>
+                </FinancialQuickUpdateCard>
 
-      {/* TAB 6: Contract Values */}
-      {activeSubTab === 'contracts' && (
-        <div className="space-y-5">
-          {CONTRACT_VALUE_TYPES.map((contractType, index) => {
-            const form = contractValuesForms[contractType] || emptyContractValue(projectName, contractType);
-            const growthPercentage = form.growthPercentage ?? form.approvedVOPercentage ?? 0;
-            return (
-              <FinancialQuickUpdateCard
-                key={contractType}
-                title={`Update Contract Values (${contractType})`}
-                projectName={projectName}
-                periodLabel={periodNote}
-                successBanner={index === 0 ? formSuccessBanner : null}
-                sectionRef={index === 0 ? formEntryRef : undefined}
-                className="financial-contracts-form"
-                onSave={() => handleContractValueSave(contractType)}
-                onReset={handleFormReset}
-                onRefresh={forceRefresh}
-                saving={savingContractValues[contractType]}
-                refreshDisabled={isForceRefreshing}
-                saveLabel={`Save ${contractType}`}
-                footerNote={
-                  !form.id
-                    ? `No saved ${contractType} record yet`
-                    : undefined
-                }
-                isDarkTheme={isDarkTheme}
-                themeClasses={themeClasses}
-              >
-                {contractValuesErrors[contractType] && (
-                  <p className="mb-5 text-sm font-medium text-rose-500">{contractValuesErrors[contractType]}</p>
-                )}
-                <FinancialFormGrid>
-                  <div>
-                    <label className={fieldLabel}>Contract Type</label>
-                    <select value={contractType} disabled className={`${fieldInput} opacity-80`}>
-                      <option value={contractType}>{contractType}</option>
-                    </select>
-                  </div>
-                  {[
-                    {
-                      key: 'originalContractValue',
-                      label: 'Original Contract Value',
-                      cls: contractType === 'SCL' ? 'original-contract-field' : '',
-                    },
-                    { key: 'approvedVO', label: 'Excess Value', cls: contractType === 'SCL' ? 'approved-vo-field' : '' },
-                  ].map((field) => (
-                    <div key={field.key} className={field.cls}>
-                      <label className={fieldLabel}>{field.label}</label>
-                      <input
-                        type="number"
-                        min="0"
-                        value={(form[field.key as keyof ContractValueRecord] as number) ?? ''}
-                        onChange={(e) =>
-                          updateContractValueField(
-                            contractType,
-                            field.key as keyof ContractValueRecord,
-                            e.target.value
-                          )
-                        }
-                        className={fieldInput}
-                      />
-                    </div>
-                  ))}
-                  <div className={contractType === 'SCL' ? 'revised-contract-card' : ''}>
-                    <label className={fieldLabel}>Revised Contract Value</label>
-                    <input
-                      type="number"
-                      value={form.revisedContractValue ?? ''}
-                      readOnly
-                      aria-label="Revised Contract Value from server"
-                      className={`${fieldInput} cursor-not-allowed opacity-80`}
-                    />
-                  </div>
-                  <div className={contractType === 'SCL' ? 'pending-vo-field' : ''}>
-                    <label className={fieldLabel}>Saving</label>
-                    <input
-                      type="number"
-                      min="0"
-                      value={form.potentialPendingVO ?? ''}
-                      onChange={(e) => updateContractValueField(contractType, 'potentialPendingVO', e.target.value)}
-                      className={fieldInput}
-                    />
-                  </div>
-                </FinancialFormGrid>
-                {contractType === 'SCL' && (
-                  <p
-                    className={`approved-vo-percent-card mt-5 text-xs font-semibold ${themeClasses.textSecondary}`}
-                  >
-                    Contract value growth: {growthPercentage.toFixed(0)}%
-                  </p>
-                )}
-              </FinancialQuickUpdateCard>
-            );
-          })}
+                <FinancialTabAnalytics
+                  variant="budget"
+                  metrics={executiveMetrics}
+                  isDarkTheme={isDarkTheme}
+                  themeClasses={themeClasses}
+                  projectName={projectName}
+                  budgetForm={budgetForm}
+                />
+              </div>
+            )}
 
-          <FinancialTabAnalytics
-            variant="contracts"
-            metrics={executiveMetrics}
-            isDarkTheme={isDarkTheme}
-            themeClasses={themeClasses}
-            projectName={projectName}
-          />
-        </div>
-      )}
+            {/* TAB 5: Invoicing */}
+            {activeSubTab === 'invoicing' && (
+              <div className="space-y-5">
+                {INVOICE_TYPES.map((invoiceType, index) => {
+                  const form = invoicingForms[invoiceType] || emptyInvoicingRecord(projectName, invoiceType);
+                  const certificationEfficiency = form.collectionPercentage ?? 0;
 
-        </>
+                  return (
+                    <FinancialQuickUpdateCard
+                      key={invoiceType}
+                      title={`Update ${getInvoiceTypeLabel(invoiceType)} Invoicing`}
+                      projectName={projectName}
+                      periodLabel={periodNote}
+                      successBanner={index === 0 ? formSuccessBanner : null}
+                      sectionRef={index === 0 ? formEntryRef : undefined}
+                      className="financial-invoicing-form"
+                      onSave={() => handleInvoicingSave(invoiceType)}
+                      onReset={handleFormReset}
+                      onRefresh={forceRefresh}
+                      saving={savingInvoicing[invoiceType]}
+                      refreshDisabled={isForceRefreshing || (invoiceType === 'Contractor' && loadingContractorFinancial)}
+                      saveLabel={`Save ${invoiceType}`}
+                      isDarkTheme={isDarkTheme}
+                      themeClasses={themeClasses}
+                    >
+                      {invoicingErrors[invoiceType] && (
+                        <p className="mb-5 text-sm font-medium text-rose-500">{invoicingErrors[invoiceType]}</p>
+                      )}
+                      {invoiceType === 'Contractor' && (
+                        <FinancialContractorSelectBar
+                          contractors={contractors}
+                          selectedContractorId={selectedContractorMasterId}
+                          onContractorChange={setSelectedContractorMasterId}
+                        />
+                      )}
+                      {invoiceType === 'Contractor' && loadingContractorFinancial && (
+                        <p className={`mb-4 text-xs ${themeClasses.textSecondary}`}>Loading contractor invoicing…</p>
+                      )}
+                      <div className="mb-5 grid grid-cols-2 gap-5">
+                        <div className={`rounded-lg border p-3 ${isDarkTheme ? themeClasses.border : 'border-[#E2E8F0] bg-[#F8FAFC]'}`}>
+                          <p className="text-xs font-semibold text-[#64748B]">Net Collected</p>
+                          <p className="text-base font-bold">{(form.netCollected ?? 0).toLocaleString('en-IN')}</p>
+                        </div>
+                        <div className={`rounded-lg border p-3 ${isDarkTheme ? themeClasses.border : 'border-[#E2E8F0] bg-[#F8FAFC]'}`}>
+                          <p className="text-xs font-semibold text-[#64748B]">Cert. Efficiency</p>
+                          <p className="text-base font-bold text-[#16A34A]">{certificationEfficiency.toFixed(1)}%</p>
+                        </div>
+                      </div>
+                      <FinancialFormGrid>
+                        <div>
+                          <label className={fieldLabel}>Invoice Type</label>
+                          <select value={invoiceType} disabled className={`${fieldInput} opacity-80`}>
+                            <option value={invoiceType}>{invoiceType}</option>
+                          </select>
+                        </div>
+                        {[
+                          { key: 'grossBilled', label: 'Gross Billed' },
+                          { key: 'netBilledWithoutVAT', label: 'Gross Certified Billed' },
+                        ].map((field) => (
+                          <div key={field.key}>
+                            <label className={fieldLabel}>{field.label}</label>
+                            <input
+                              type="number"
+                              min="0"
+                              value={(form[field.key as keyof InvoicingRecord] as number) ?? ''}
+                              onChange={(e) =>
+                                updateInvoicingField(invoiceType, field.key as keyof InvoicingRecord, e.target.value)
+                              }
+                              className={fieldInput}
+                            />
+                          </div>
+                        ))}
+                      </FinancialFormGrid>
+                    </FinancialQuickUpdateCard>
+                  );
+                })}
+
+                <FinancialTabAnalytics
+                  variant="invoicing"
+                  metrics={executiveMetrics}
+                  isDarkTheme={isDarkTheme}
+                  themeClasses={themeClasses}
+                  projectName={projectName}
+                />
+              </div>
+            )}
+
+            {/* TAB 6: Contract Values */}
+            {activeSubTab === 'contracts' && (
+              <div className="space-y-5">
+                {CONTRACT_VALUE_TYPES.map((contractType, index) => {
+                  const form = contractValuesForms[contractType] || emptyContractValue(projectName, contractType);
+                  const growthPercentage = form.growthPercentage ?? form.approvedVOPercentage ?? 0;
+                  return (
+                    <FinancialQuickUpdateCard
+                      key={contractType}
+                      title={`Update Contract Values (${contractType})`}
+                      projectName={projectName}
+                      periodLabel={periodNote}
+                      successBanner={index === 0 ? formSuccessBanner : null}
+                      sectionRef={index === 0 ? formEntryRef : undefined}
+                      className="financial-contracts-form"
+                      onSave={() => handleContractValueSave(contractType)}
+                      onReset={handleFormReset}
+                      onRefresh={forceRefresh}
+                      saving={savingContractValues[contractType]}
+                      refreshDisabled={isForceRefreshing || (contractType === 'Contractor' && loadingContractorFinancial)}
+                      saveLabel={`Save ${contractType}`}
+                      footerNote={
+                        contractType === 'Contractor' && selectedContractor
+                          ? !form.id
+                            ? `No saved record yet for ${selectedContractor.contractor_name}`
+                            : `Editing values for ${selectedContractor.contractor_name}`
+                          : !form.id
+                            ? `No saved ${contractType} record yet`
+                            : undefined
+                      }
+                      isDarkTheme={isDarkTheme}
+                      themeClasses={themeClasses}
+                    >
+                      {contractValuesErrors[contractType] && (
+                        <p className="mb-5 text-sm font-medium text-rose-500">{contractValuesErrors[contractType]}</p>
+                      )}
+                      {contractType === 'Contractor' && (
+                        <FinancialContractorSelectBar
+                          contractors={contractors}
+                          selectedContractorId={selectedContractorMasterId}
+                          onContractorChange={setSelectedContractorMasterId}
+                        />
+                      )}
+                      {contractType === 'Contractor' && loadingContractorFinancial && (
+                        <p className={`mb-4 text-xs ${themeClasses.textSecondary}`}>Loading contractor contract values…</p>
+                      )}
+                      <FinancialFormGrid>
+                        <div>
+                          <label className={fieldLabel}>Contract Type</label>
+                          <select value={contractType} disabled className={`${fieldInput} opacity-80`}>
+                            <option value={contractType}>{contractType}</option>
+                          </select>
+                        </div>
+                        {[
+                          {
+                            key: 'originalContractValue',
+                            label: 'Original Contract Value',
+                            cls: contractType === 'SCL' ? 'original-contract-field' : '',
+                          },
+                          { key: 'approvedVO', label: 'Excess Value', cls: contractType === 'SCL' ? 'approved-vo-field' : '' },
+                        ].map((field) => (
+                          <div key={field.key} className={field.cls}>
+                            <label className={fieldLabel}>{field.label}</label>
+                            <input
+                              type="number"
+                              min="0"
+                              value={(form[field.key as keyof ContractValueRecord] as number) ?? ''}
+                              onChange={(e) =>
+                                updateContractValueField(
+                                  contractType,
+                                  field.key as keyof ContractValueRecord,
+                                  e.target.value
+                                )
+                              }
+                              className={fieldInput}
+                            />
+                          </div>
+                        ))}
+                        <div className={contractType === 'SCL' ? 'revised-contract-card' : ''}>
+                          <label className={fieldLabel}>Revised Contract Value</label>
+                          <input
+                            type="number"
+                            value={form.revisedContractValue ?? ''}
+                            readOnly
+                            aria-label="Revised Contract Value from server"
+                            className={`${fieldInput} cursor-not-allowed opacity-80`}
+                          />
+                        </div>
+                        <div className={contractType === 'SCL' ? 'pending-vo-field' : ''}>
+                          <label className={fieldLabel}>Saving</label>
+                          <input
+                            type="number"
+                            min="0"
+                            value={form.potentialPendingVO ?? ''}
+                            onChange={(e) => updateContractValueField(contractType, 'potentialPendingVO', e.target.value)}
+                            className={fieldInput}
+                          />
+                        </div>
+                      </FinancialFormGrid>
+                      {contractType === 'SCL' && (
+                        <p
+                          className={`approved-vo-percent-card mt-5 text-xs font-semibold ${themeClasses.textSecondary}`}
+                        >
+                          Contract value growth: {growthPercentage.toFixed(0)}%
+                        </p>
+                      )}
+                    </FinancialQuickUpdateCard>
+                  );
+                })}
+
+                <FinancialTabAnalytics
+                  variant="contracts"
+                  metrics={executiveMetrics}
+                  isDarkTheme={isDarkTheme}
+                  themeClasses={themeClasses}
+                  projectName={projectName}
+                />
+              </div>
+            )}
+
+          </>
         )}
       </div>
 

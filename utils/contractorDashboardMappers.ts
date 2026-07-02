@@ -10,6 +10,7 @@ import type { ContractValueRecord, InvoicingRecord } from '../types';
 import type { ProjectDatesRecord } from '../services/api';
 import type { BGEntry, BgEntryStatus } from '../types/bgStatus';
 import { parseApiAmount } from '../components/contractor/enterpriseTheme';
+import { findContractorDashboardRow } from './contractorFinancialRecords';
 
 function normalizeBgEntryStatus(status: string): BgEntryStatus {
   const raw = status.toUpperCase();
@@ -91,12 +92,10 @@ export function mapContractValueApiRecord(
 export function mapContractValueSummary(
   projectName: string,
   summary: ContractValuesContractorSummary,
-  contractorLabel?: string,
 ): ContractValueRecord {
   return {
     projectName,
     contractType: 'Contractor',
-    contractorName: contractorLabel,
     originalContractValue: parseApiAmount(summary.original_contract_value),
     approvedVO: parseApiAmount(summary.excess_value),
     revisedContractValue: parseApiAmount(summary.revised_value),
@@ -125,15 +124,136 @@ export function mapInvoicingApiRecord(
 export function mapInvoicingSummary(
   projectName: string,
   summary: InvoicingContractorSummary,
-  contractorLabel?: string,
+): InvoicingRecord {
+  return {
+    projectName,
+    invoiceType: 'Contractor',
+    grossBilled: parseApiAmount(summary.gross_billed),
+    netBilledWithoutVAT: parseApiAmount(summary.gross_certified_billed),
+    netCollected: parseApiAmount(summary.difference),
+    collectionPercentage: parseApiAmount(summary.certification_efficiency),
+  };
+}
+
+function emptyContractorContractValue(
+  projectName: string,
+  contractorLabel: string,
+  contractorId?: number,
+): ContractValueRecord {
+  return {
+    projectName,
+    contractType: 'Contractor',
+    contractorName: contractorLabel,
+    contractorId,
+    originalContractValue: 0,
+    approvedVO: 0,
+    revisedContractValue: 0,
+    potentialPendingVO: 0,
+    growthPercentage: 0,
+    approvedVOPercentage: 0,
+  };
+}
+
+function emptyContractorInvoicing(
+  projectName: string,
+  contractorLabel: string,
+  contractorId?: number,
 ): InvoicingRecord {
   return {
     projectName,
     invoiceType: 'Contractor',
     contractorName: contractorLabel,
-    grossBilled: parseApiAmount(summary.gross_billed),
-    netBilledWithoutVAT: parseApiAmount(summary.gross_certified_billed),
-    netCollected: parseApiAmount(summary.difference),
-    collectionPercentage: parseApiAmount(summary.certification_efficiency),
+    contractorId,
+    grossBilled: 0,
+    netBilledWithoutVAT: 0,
+    netCollected: 0,
+    collectionPercentage: 0,
+    netDue: 0,
+  };
+}
+
+export function resolveCmContractValuesPanel(
+  contractValues: import('../types/contractorManagement').ContractValuesDashboard,
+  selectedContractorMasterId: number | null,
+  contractorDisplayName: string,
+  selectedMaster?: { id: number; contractor_name: string } | null,
+  selectedContractorValueOverride?: ContractValueApiRecord | null,
+) {
+  const sclCv = contractValues.scl ? mapContractValueApiRecord(contractValues.scl) : null;
+  const contractorSummaryCv = mapContractValueSummary(
+    contractValues.project_name,
+    contractValues.contractor_summary,
+  );
+  const master =
+    selectedMaster ??
+    (selectedContractorMasterId
+      ? { id: selectedContractorMasterId, contractor_name: contractorDisplayName }
+      : null);
+
+  let selectedContractorCv: ContractValueRecord;
+  if (selectedContractorValueOverride) {
+    selectedContractorCv = mapContractValueApiRecord(
+      selectedContractorValueOverride,
+      master?.contractor_name ?? contractorDisplayName,
+    );
+  } else {
+    const selectedRow = findContractorDashboardRow(contractValues.contractors, master);
+    selectedContractorCv = selectedRow
+      ? mapContractValueApiRecord(selectedRow.contract_values, selectedRow.contractor_name)
+      : master
+        ? emptyContractorContractValue(
+          contractValues.project_name,
+          master.contractor_name,
+          master.id,
+        )
+        : emptyContractorContractValue(contractValues.project_name, contractorDisplayName);
+  }
+
+  return {
+    sclCv,
+    contractorSummaryCv,
+    selectedContractorCv,
+    contractorLabel: master?.contractor_name ?? contractorDisplayName,
+  };
+}
+
+export function resolveCmInvoicingPanel(
+  invoicing: import('../types/contractorManagement').InvoicingDashboard,
+  selectedContractorMasterId: number | null,
+  contractorDisplayName: string,
+  selectedMaster?: { id: number; contractor_name: string } | null,
+  selectedContractorInvoicingOverride?: InvoicingApiRecord | null,
+) {
+  const sclInv = invoicing.scl ? mapInvoicingApiRecord(invoicing.scl) : null;
+  const contractorSummaryInv = mapInvoicingSummary(
+    invoicing.project_name,
+    invoicing.contractor_summary,
+  );
+  const master =
+    selectedMaster ??
+    (selectedContractorMasterId
+      ? { id: selectedContractorMasterId, contractor_name: contractorDisplayName }
+      : null);
+
+  let selectedContractorInv: InvoicingRecord;
+  if (selectedContractorInvoicingOverride) {
+    selectedContractorInv = mapInvoicingApiRecord(
+      selectedContractorInvoicingOverride,
+      master?.contractor_name ?? contractorDisplayName,
+    );
+  } else {
+    const selectedRow = findContractorDashboardRow(invoicing.contractors, master);
+    selectedContractorInv = selectedRow
+      ? mapInvoicingApiRecord(selectedRow.invoicing, selectedRow.contractor_name)
+      : master
+        ? emptyContractorInvoicing(invoicing.project_name, master.contractor_name, master.id)
+        : emptyContractorInvoicing(invoicing.project_name, contractorDisplayName);
+  }
+
+  return {
+    sclInv,
+    contractorSummaryInv,
+    selectedContractorInv,
+    contractorLabel: master?.contractor_name ?? contractorDisplayName,
   };
 }

@@ -28,6 +28,7 @@ import {
   normalizeBgStatusBundle,
 } from "../utils/bgStatusDisplay";
 import { normalizeCorrespondenceCategory, normalizeCorrespondenceRecipientType } from "../utils/correspondence";
+import { pickRecordForContractor } from "../utils/contractorFinancialRecords";
 import type {
   ConstructionProgressRecord,
   ContractPerformanceRecord,
@@ -2697,6 +2698,8 @@ export type ContractValuePayload = Pick<
   | "originalContractValue"
   | "approvedVO"
   | "potentialPendingVO"
+  | "contractorName"
+  | "contractorId"
 >;
 
 export function normalizeContractValueRecord(
@@ -2735,6 +2738,8 @@ export function normalizeContractValueRecord(
     contractType: row?.contractType || row?.contract_type || contractType,
     contractorName:
       String(row?.contractor_name ?? row?.contractorName ?? '').trim() || undefined,
+    contractorId:
+      row?.contractor_id ?? row?.contractorId ?? row?.contractor?.id ?? undefined,
     originalContractValue,
     approvedVO,
     revisedContractValue,
@@ -2749,7 +2754,7 @@ export function normalizeContractValueRecord(
 export function toContractValueApiBody(
   data: ContractValuePayload,
 ): Record<string, unknown> {
-  return {
+  const body: Record<string, unknown> = {
     project_name: data.projectName,
     contract_type: data.contractType,
     original_contract_value: data.originalContractValue,
@@ -2762,6 +2767,13 @@ export function toContractValueApiBody(
     approvedVO: data.approvedVO,
     potentialPendingVO: data.potentialPendingVO,
   };
+
+  if (data.contractType === 'Contractor') {
+    if (data.contractorId != null) body.contractor_id = data.contractorId;
+    if (data.contractorName) body.contractor_name = data.contractorName;
+  }
+
+  return body;
 }
 
 // Contract Values API: one endpoint serves each project/type pair.
@@ -2809,7 +2821,12 @@ export const contractValuesApi = {
 
 export type InvoicingPayload = Pick<
   InvoicingRecord,
-  "projectName" | "invoiceType" | "grossBilled" | "netBilledWithoutVAT"
+  | "projectName"
+  | "invoiceType"
+  | "grossBilled"
+  | "netBilledWithoutVAT"
+  | "contractorName"
+  | "contractorId"
 >;
 
 export function normalizeInvoicingRecord(
@@ -2842,6 +2859,8 @@ export function normalizeInvoicingRecord(
     invoiceType: row?.invoiceType || row?.invoice_type || invoiceType,
     contractorName:
       String(row?.contractor_name ?? row?.contractorName ?? '').trim() || undefined,
+    contractorId:
+      row?.contractor_id ?? row?.contractorId ?? row?.contractor?.id ?? undefined,
     grossBilled,
     netBilledWithoutVAT,
     netCollected,
@@ -2856,7 +2875,7 @@ export function normalizeInvoicingRecord(
 export function toInvoicingApiBody(
   data: InvoicingPayload,
 ): Record<string, unknown> {
-  return {
+  const body: Record<string, unknown> = {
     project_name: data.projectName,
     invoice_type: data.invoiceType,
     gross_billed: data.grossBilled,
@@ -2866,6 +2885,13 @@ export function toInvoicingApiBody(
     grossBilled: data.grossBilled,
     netBilledWithoutVAT: data.netBilledWithoutVAT,
   };
+
+  if (data.invoiceType === 'Contractor') {
+    if (data.contractorId != null) body.contractor_id = data.contractorId;
+    if (data.contractorName) body.contractor_name = data.contractorName;
+  }
+
+  return body;
 }
 
 // Invoicing API: one endpoint serves each project/type pair.
@@ -4260,22 +4286,48 @@ export async function saveBudgetPerformanceForPeriod(
 export async function resolveContractValueId(
   projectName: string,
   contractType: ContractValueType,
+  contractorScope?: Pick<ContractValuePayload, "contractorName" | "contractorId">,
 ): Promise<string | number | undefined> {
   const response = await contractValuesApi.getContractValues({
     projectName,
     contractType,
+    ...(contractorScope?.contractorName
+      ? { contractorName: contractorScope.contractorName }
+      : {}),
   });
-  const row = unwrapList<Record<string, unknown>>(response.data)[0];
-  return extractRecordId(row);
+  const rows = unwrapList<Record<string, unknown>>(response.data).map((row) =>
+    normalizeContractValueRecord(row, projectName, contractType),
+  );
+  const picked =
+    contractType === "Contractor" &&
+      (contractorScope?.contractorName || contractorScope?.contractorId != null)
+      ? pickRecordForContractor(
+        rows,
+        contractorScope.contractorName,
+        contractorScope.contractorId,
+      )
+      : rows[0] ?? null;
+  return extractRecordId(picked);
 }
 
 export async function saveContractValueRecord(
   payload: ContractValuePayload,
   existingId?: string | number | null,
 ): Promise<{ data: unknown }> {
+  const contractorScope =
+    payload.contractType === "Contractor"
+      ? {
+        contractorName: payload.contractorName,
+        contractorId: payload.contractorId,
+      }
+      : undefined;
   const id =
     existingId ??
-    (await resolveContractValueId(payload.projectName, payload.contractType));
+    (await resolveContractValueId(
+      payload.projectName,
+      payload.contractType,
+      contractorScope,
+    ));
 
   if (id) {
     return updateExistingFinancialRecord(
@@ -4293,6 +4345,7 @@ export async function saveContractValueRecord(
     const resolvedId = await resolveContractValueId(
       payload.projectName,
       payload.contractType,
+      contractorScope,
     );
     if (!resolvedId) throw error;
     return contractValuesApi.updateContractValue(resolvedId, payload);
@@ -4302,22 +4355,48 @@ export async function saveContractValueRecord(
 export async function resolveInvoicingId(
   projectName: string,
   invoiceType: InvoiceType,
+  contractorScope?: Pick<InvoicingPayload, "contractorName" | "contractorId">,
 ): Promise<string | number | undefined> {
   const response = await invoicingApi.getInvoicing({
     projectName,
     invoiceType,
+    ...(contractorScope?.contractorName
+      ? { contractorName: contractorScope.contractorName }
+      : {}),
   });
-  const row = unwrapList<Record<string, unknown>>(response.data)[0];
-  return extractRecordId(row);
+  const rows = unwrapList<Record<string, unknown>>(response.data).map((row) =>
+    normalizeInvoicingRecord(row, projectName, invoiceType),
+  );
+  const picked =
+    invoiceType === "Contractor" &&
+      (contractorScope?.contractorName || contractorScope?.contractorId != null)
+      ? pickRecordForContractor(
+        rows,
+        contractorScope.contractorName,
+        contractorScope.contractorId,
+      )
+      : rows[0] ?? null;
+  return extractRecordId(picked);
 }
 
 export async function saveInvoicingRecord(
   payload: InvoicingPayload,
   existingId?: string | number | null,
 ): Promise<{ data: unknown }> {
+  const contractorScope =
+    payload.invoiceType === "Contractor"
+      ? {
+        contractorName: payload.contractorName,
+        contractorId: payload.contractorId,
+      }
+      : undefined;
   const id =
     existingId ??
-    (await resolveInvoicingId(payload.projectName, payload.invoiceType));
+    (await resolveInvoicingId(
+      payload.projectName,
+      payload.invoiceType,
+      contractorScope,
+    ));
 
   if (id) {
     return updateExistingFinancialRecord(
@@ -4335,6 +4414,7 @@ export async function saveInvoicingRecord(
     const resolvedId = await resolveInvoicingId(
       payload.projectName,
       payload.invoiceType,
+      contractorScope,
     );
     if (!resolvedId) throw error;
     return invoicingApi.updateInvoicing(resolvedId, payload);

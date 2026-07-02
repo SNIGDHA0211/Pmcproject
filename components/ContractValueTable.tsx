@@ -26,6 +26,8 @@ interface ContractValueTableProps {
   embedded?: boolean;
   /** Display name for contractor sections (from dashboard selector) */
   contractorDisplayName?: string;
+  /** Override embedded section heading */
+  embeddedSectionTitle?: string;
 }
 
 const KPI_TILE_MIN_H = 'min-h-[5.5rem]';
@@ -82,7 +84,7 @@ const ContractValueSectionBody: React.FC<{
       iconBg: semanticIconWrapClass('positive', isDarkTheme),
       valueClass: positiveValue,
     },
-     {
+    {
       label: 'Saving',
       value: data.potentialPendingVO,
       icon: Clock,
@@ -98,7 +100,7 @@ const ContractValueSectionBody: React.FC<{
       iconBg: semanticIconWrapClass('neutral', isDarkTheme),
       valueClass: neutralValue,
     },
-   
+
   ] as const;
 
   return (
@@ -107,9 +109,8 @@ const ContractValueSectionBody: React.FC<{
         {metrics.map(({ label, value, icon: Icon, border, iconBg, valueClass }) => (
           <div
             key={label}
-            className={`flex ${KPI_TILE_MIN_H} min-w-0 flex-col overflow-hidden rounded-lg border border-b-[3px] px-2.5 py-2.5 ${border} ${
-              isDarkTheme ? 'border-white/10 bg-white/5' : 'border-slate-200 bg-white'
-            }`}
+            className={`flex ${KPI_TILE_MIN_H} min-w-0 flex-col overflow-hidden rounded-lg border border-b-[3px] px-2.5 py-2.5 ${border} ${isDarkTheme ? 'border-white/10 bg-white/5' : 'border-slate-200 bg-white'
+              }`}
           >
             <div className="flex min-w-0 flex-col gap-1">
               <div className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-md ${iconBg}`}>
@@ -170,14 +171,17 @@ const ContractValueTable: React.FC<ContractValueTableProps> = ({
   onEdit,
   embedded = false,
   contractorDisplayName,
+  embeddedSectionTitle,
 }) => {
   const { isDarkTheme } = useTheme();
   const themeClasses = getThemeClasses(isDarkTheme);
   const typo = useProjectsDashboardTypo();
-  const sectionTitle = contractValuesSectionTitle(
-    contractType,
-    contractType === 'Contractor' ? contractorDisplayName : undefined,
-  );
+  const sectionTitle =
+    embeddedSectionTitle ??
+    contractValuesSectionTitle(
+      contractType,
+      contractType === 'Contractor' ? contractorDisplayName : undefined,
+    );
 
   if (embedded) {
     return (
@@ -205,11 +209,10 @@ const ContractValueTable: React.FC<ContractValueTableProps> = ({
 
   return (
     <div
-      className={`contract-values-card flex min-h-[250px] flex-col overflow-hidden rounded-2xl border p-3.5 transition-shadow hover:shadow-md ${
-        isDarkTheme
-          ? `${themeClasses.glassCard} ${themeClasses.border} shadow-sm`
-          : 'border-slate-200 bg-white shadow-[0_6px_20px_rgba(15,23,42,0.06)]'
-      }`}
+      className={`contract-values-card flex min-h-[250px] flex-col overflow-hidden rounded-2xl border p-3.5 transition-shadow hover:shadow-md ${isDarkTheme
+        ? `${themeClasses.glassCard} ${themeClasses.border} shadow-sm`
+        : 'border-slate-200 bg-white shadow-[0_6px_20px_rgba(15,23,42,0.06)]'
+        }`}
     >
       <div className={`mb-2.5 flex items-center justify-between gap-3 border-b pb-2.5 ${themeClasses.border}`}>
         <div className="flex min-w-0 items-center gap-3">
@@ -237,33 +240,39 @@ const ContractValueTable: React.FC<ContractValueTableProps> = ({
 interface ContractValuesGroupCardProps {
   sclData: ContractValueRecord | null;
   contractorData: ContractValueRecord | null;
-  contractorDisplayName?: string;
+  contractorSectionTitle: string;
+  groupSubtitle?: string;
+  className?: string;
   isLoading?: boolean;
   sclError?: string | null;
   contractorError?: string | null;
+  contractorLoading?: boolean;
   onEdit?: (contractType: ContractValueType) => void;
 }
 
 export const ContractValuesGroupCard: React.FC<ContractValuesGroupCardProps> = ({
   sclData,
   contractorData,
-  contractorDisplayName,
+  contractorSectionTitle,
+  groupSubtitle,
+  className = '',
   isLoading = false,
   sclError = null,
   contractorError = null,
+  contractorLoading = false,
   onEdit,
 }) => {
   const { isDarkTheme } = useTheme();
   const themeClasses = getThemeClasses(isDarkTheme);
   const typo = useProjectsDashboardTypo();
+  const subtitle = groupSubtitle ?? 'SCL (owner) + contractor portfolio';
 
   return (
     <div
-      className={`contract-values-group relative flex h-full min-h-0 flex-col overflow-hidden rounded-2xl border ${DASHBOARD_FINANCIAL_CARD_PADDING} transition-shadow hover:shadow-md sm:min-h-[460px] lg:min-h-[520px] ${
-        isDarkTheme
-          ? `${themeClasses.glassCard} ${themeClasses.border} shadow-sm`
-          : 'border-slate-200 bg-white shadow-[0_6px_20px_rgba(15,23,42,0.06)]'
-      }`}
+      className={`contract-values-group relative flex h-full min-h-0 flex-col overflow-hidden rounded-2xl border ${DASHBOARD_FINANCIAL_CARD_PADDING} transition-shadow hover:shadow-md sm:min-h-[460px] lg:min-h-[520px] ${isDarkTheme
+        ? `${themeClasses.glassCard} ${themeClasses.border} shadow-sm`
+        : 'border-slate-200 bg-white shadow-[0_6px_20px_rgba(15,23,42,0.06)]'
+        } ${className}`}
     >
       <DashboardCardTopAccent />
       <div className={`mb-3 ${DASHBOARD_CARD_HEADER_ROW_CLASS(themeClasses.border)}`}>
@@ -273,12 +282,7 @@ export const ContractValuesGroupCard: React.FC<ContractValuesGroupCardProps> = (
           </div>
           <div className="min-w-0">
             <h3 className={typo.financialGroupTitle}>Contract Values</h3>
-            <p className={typo.financialGroupSubtitle(isDarkTheme)}>
-              SCL (owner) +{' '}
-              {contractorDisplayName
-                ? `selected contractor: ${contractorDisplayName}`
-                : 'selected contractor'}
-            </p>
+            <p className={typo.financialGroupSubtitle(isDarkTheme)}>{subtitle}</p>
           </div>
         </div>
         {onEdit && <CardEditButton onClick={() => onEdit('SCL')} title="Edit contract values" />}
@@ -296,8 +300,8 @@ export const ContractValuesGroupCard: React.FC<ContractValuesGroupCardProps> = (
           embedded
           contractType="Contractor"
           data={contractorData}
-          contractorDisplayName={contractorDisplayName}
-          isLoading={isLoading}
+          embeddedSectionTitle={contractorSectionTitle}
+          isLoading={isLoading || contractorLoading}
           error={contractorError}
           onEdit={onEdit}
         />

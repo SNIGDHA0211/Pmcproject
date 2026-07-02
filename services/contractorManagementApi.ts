@@ -99,15 +99,17 @@ async function fetchContractValuesDashboardWithFallback(
     project_name: projectName,
     scl,
     contractor_summary: sumContractValuesSummary(contractorRows),
-    contractors: contractorRows.map((cv) => ({
-      id: cv.id,
-      contractor_name: cv.contractor_name ?? cv.contractor?.contractor_name ?? 'Contractor',
-      contractor: cv.contractor ?? {
+    contractors: contractorRows.map((cv) => {
+      const contractor =
+        cv.contractor ??
+        resolveContractorRefFromRecord(cv as unknown as Record<string, unknown>);
+      return {
         id: cv.id,
-        contractor_name: cv.contractor_name ?? 'Contractor',
-      },
-      contract_values: cv,
-    })),
+        contractor_name: cv.contractor_name ?? contractor?.contractor_name ?? 'Contractor',
+        contractor: contractor ?? { id: 0, contractor_name: cv.contractor_name ?? 'Contractor' },
+        contract_values: cv,
+      };
+    }),
   };
 }
 
@@ -136,15 +138,17 @@ async function fetchInvoicingDashboardWithFallback(
     project_name: projectName,
     scl,
     contractor_summary: sumInvoicingSummary(contractorRows),
-    contractors: contractorRows.map((inv) => ({
-      id: inv.id,
-      contractor_name: inv.contractor_name ?? inv.contractor?.contractor_name ?? 'Contractor',
-      contractor: inv.contractor ?? {
+    contractors: contractorRows.map((inv) => {
+      const contractor =
+        inv.contractor ??
+        resolveContractorRefFromRecord(inv as unknown as Record<string, unknown>);
+      return {
         id: inv.id,
-        contractor_name: inv.contractor_name ?? 'Contractor',
-      },
-      invoicing: inv,
-    })),
+        contractor_name: inv.contractor_name ?? contractor?.contractor_name ?? 'Contractor',
+        contractor: contractor ?? { id: 0, contractor_name: inv.contractor_name ?? 'Contractor' },
+        invoicing: inv,
+      };
+    }),
   };
 }
 
@@ -203,13 +207,13 @@ function deriveContractorMastersFromDashboards(
   };
 
   contractValues?.contractors.forEach((row) => {
-    add(row.id, row.contractor_name, row.contractor);
+    add(row.contractor?.id ?? row.id, row.contractor_name, row.contractor);
   });
   invoicing?.contractors.forEach((row) => {
-    add(row.id, row.contractor_name, row.contractor);
+    add(row.contractor?.id ?? row.id, row.contractor_name, row.contractor);
   });
   projectDates?.contractors.forEach((row) => {
-    add(row.id, row.contractor_name ?? '', row.contractor);
+    add(row.contractor?.id ?? row.id, row.contractor_name ?? '', row.contractor);
   });
 
   return [...byId.values()].sort((a, b) =>
@@ -232,6 +236,15 @@ function parseContractorRef(raw: unknown): ApiContractorRef | null {
   const name = String(r.contractor_name ?? r.contractorName ?? '').trim();
   if (!id || !name) return null;
   return { id, contractor_name: name };
+}
+
+function resolveContractorRefFromRecord(r: Record<string, unknown>): ApiContractorRef | null {
+  const nested = parseContractorRef(r.contractor);
+  if (nested) return nested;
+  const id = toNum(r.contractor_id ?? r.contractorId);
+  const name = String(r.contractor_name ?? r.contractorName ?? '').trim();
+  if (!id) return null;
+  return { id, contractor_name: name || `Contractor ${id}` };
 }
 
 function strVal(v: unknown, fallback = '0'): string {
@@ -278,7 +291,7 @@ export function normalizeContractValueRecord(raw: unknown): ContractValueApiReco
       | 'SCL'
       | 'CONTRACTOR',
     contractor_name: (r.contractor_name ?? r.contractorName ?? null) as string | null,
-    contractor: parseContractorRef(r.contractor),
+    contractor: resolveContractorRefFromRecord(r),
     original_contract_value: strVal(r.original_contract_value ?? r.originalContractValue),
     excess_value: strVal(r.excess_value ?? r.excessValue ?? r.approvedVO),
     saving: strVal(r.saving ?? r.potentialPendingVO),
@@ -303,7 +316,12 @@ export function normalizeContractValuesDashboard(raw: unknown): ContractValuesDa
     .map((row) => {
       const r = row as Record<string, unknown>;
       const cv = normalizeContractValueRecord(r.contract_values ?? r.contractValues ?? r);
-      const contractor = parseContractorRef(r.contractor);
+      const contractor =
+        parseContractorRef(r.contractor) ??
+        (cv
+          ? resolveContractorRefFromRecord(cv as unknown as Record<string, unknown>)
+          : null) ??
+        resolveContractorRefFromRecord(r);
       return {
         id: toNum(r.id) || cv?.id || 0,
         contractor_name: String(
@@ -341,7 +359,7 @@ export function normalizeInvoicingRecord(raw: unknown): InvoicingApiRecord | nul
       | 'SCL'
       | 'CONTRACTOR',
     contractor_name: (r.contractor_name ?? r.contractorName ?? null) as string | null,
-    contractor: parseContractorRef(r.contractor),
+    contractor: resolveContractorRefFromRecord(r),
     gross_billed: strVal(r.gross_billed ?? r.grossBilled),
     gross_certified_billed: strVal(
       r.gross_certified_billed ?? r.grossCertifiedBilled ?? r.netBilledWithoutVAT,
@@ -367,7 +385,12 @@ export function normalizeInvoicingDashboard(raw: unknown): InvoicingDashboard {
     .map((row) => {
       const r = row as Record<string, unknown>;
       const inv = normalizeInvoicingRecord(r.invoicing ?? r);
-      const contractor = parseContractorRef(r.contractor);
+      const contractor =
+        parseContractorRef(r.contractor) ??
+        (inv
+          ? resolveContractorRefFromRecord(inv as unknown as Record<string, unknown>)
+          : null) ??
+        resolveContractorRefFromRecord(r);
       return {
         id: toNum(r.id) || inv?.id || 0,
         contractor_name: String(
@@ -453,7 +476,7 @@ export function normalizeProjectDatesRecord(raw: unknown): ProjectDatesApiRecord
     project_name: String(r.project_name ?? r.projectName ?? ''),
     date_type: String(r.date_type ?? r.dateType ?? 'SCL').toUpperCase() as 'SCL' | 'CONTRACTOR',
     contractor_name: (r.contractor_name ?? r.contractorName ?? null) as string | null,
-    contractor: parseContractorRef(r.contractor),
+    contractor: resolveContractorRefFromRecord(r),
     project_start: (r.project_start ?? r.projectStart ?? null) as string | null,
     contract_finish: (r.contract_finish ?? r.contractFinish ?? null) as string | null,
     forecast_finish: (r.forecast_finish ?? r.forecastFinish ?? null) as string | null,
@@ -561,6 +584,15 @@ export const contractValuesDashboardApi = {
     return normalizeContractValuesDashboard(res.data);
   },
 
+  getByContractor: async (projectName: string, contractorId: number) => {
+    const res = await api.get(API_ENDPOINTS.CONTRACT_VALUES.BY_TYPE(projectName, 'CONTRACTOR'), {
+      params: { contractor_id: contractorId },
+    });
+    const data = unwrapData<unknown>(res.data);
+    const row = Array.isArray(data) ? data[0] : data;
+    return normalizeContractValueRecord(row);
+  },
+
   upsert: async (body: {
     project_name: string;
     contract_type: 'SCL' | 'CONTRACTOR';
@@ -583,6 +615,15 @@ export const invoicingDashboardApi = {
   getDashboard: async (projectName: string) => {
     const res = await api.get(API_ENDPOINTS.INVOICING.PROJECT_DASHBOARD(projectName));
     return normalizeInvoicingDashboard(res.data);
+  },
+
+  getByContractor: async (projectName: string, contractorId: number) => {
+    const res = await api.get(API_ENDPOINTS.INVOICING.BY_TYPE(projectName, 'CONTRACTOR'), {
+      params: { contractor_id: contractorId },
+    });
+    const data = unwrapData<unknown>(res.data);
+    const row = Array.isArray(data) ? data[0] : data;
+    return normalizeInvoicingRecord(row);
   },
 
   upsert: async (body: {

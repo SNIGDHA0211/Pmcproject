@@ -57,12 +57,6 @@ const CmModuleTabs: React.FC<CmModuleTabsProps> = ({ tabs, activeTab, onChange }
           >
             <span className="hidden sm:inline">{tab.label}</span>
             <span className="sm:hidden">{tab.short}</span>
-            {isActive && (
-              <span
-                className="absolute inset-x-3 -bottom-1.5 h-0.5 rounded-full bg-indigo-500 transition-all duration-300"
-                aria-hidden
-              />
-            )}
           </button>
         );
       })}

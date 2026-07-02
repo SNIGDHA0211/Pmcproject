@@ -1,5 +1,6 @@
 export { default as CmButton } from './CmButton';
 export { default as CmContractorSelector } from './CmContractorSelector';
+export { default as CmCumulativeViewField } from './CmCumulativeViewField';
 export { default as CmModuleTabs } from './CmModuleTabs';
 export { default as CmInfoCard } from './CmInfoCard';
 export { default as CmSectionPanel } from './CmSectionPanel';

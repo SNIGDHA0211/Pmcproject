@@ -47,26 +47,26 @@ export function getCmTheme(isDark: boolean) {
     : 'rounded-xl border border-slate-200/80 bg-white text-slate-900 shadow-[0_1px_2px_rgba(15,23,42,0.04)] transition-all duration-200 hover:border-slate-300/80 hover:shadow-md';
 
   const panel = isDark
-    ? `rounded-2xl border ${tc.border} glass-card ${tc.textPrimary} shadow-lg overflow-hidden`
-    : 'rounded-2xl border border-slate-200/80 bg-white text-slate-900 shadow-[0_1px_3px_rgba(15,23,42,0.05)] overflow-hidden';
+    ? `relative overflow-hidden rounded-xl border ${tc.border} ${tc.glassCard} shadow-sm`
+    : `relative overflow-hidden rounded-xl border ${tc.border} ${tc.glassCard} shadow-sm`;
 
   const shell = isDark
-    ? `rounded-2xl border ${tc.border} glass-card shadow-lg`
-    : 'rounded-2xl border border-slate-200/80 bg-gradient-to-b from-white to-slate-50/40 shadow-[0_1px_3px_rgba(15,23,42,0.06)]';
+    ? `relative overflow-hidden rounded-xl border ${tc.border} ${tc.glassCard} shadow-sm`
+    : `relative overflow-hidden rounded-xl border ${tc.border} ${tc.glassCard} shadow-sm`;
 
   const moduleAccents: Record<CmModuleAccent, string> = isDark
     ? {
-        contract: 'border-l-indigo-400 bg-indigo-500/10',
-        invoicing: 'border-l-violet-400 bg-violet-500/10',
-        schedule: 'border-l-emerald-400 bg-emerald-500/10',
-        bg: 'border-l-amber-400 bg-amber-500/10',
-      }
+      contract: 'border-l-indigo-400 bg-indigo-500/10',
+      invoicing: 'border-l-violet-400 bg-violet-500/10',
+      schedule: 'border-l-emerald-400 bg-emerald-500/10',
+      bg: 'border-l-amber-400 bg-amber-500/10',
+    }
     : {
-        contract: 'border-l-indigo-500 bg-indigo-50/30',
-        invoicing: 'border-l-violet-500 bg-violet-50/30',
-        schedule: 'border-l-emerald-500 bg-emerald-50/20',
-        bg: 'border-l-amber-500 bg-amber-50/20',
-      };
+      contract: 'border-l-indigo-500 bg-indigo-50/30',
+      invoicing: 'border-l-violet-500 bg-violet-50/30',
+      schedule: 'border-l-emerald-500 bg-emerald-50/20',
+      bg: 'border-l-amber-500 bg-amber-50/20',
+    };
 
   const timelineHeader = isDark
     ? { scl: `border-b ${tc.border} bg-white/5`, contractor: `border-b ${tc.border} bg-indigo-500/10` }
@@ -75,58 +75,53 @@ export function getCmTheme(isDark: boolean) {
   return {
     isDark,
     tc,
-    root: isDark
-      ? `rounded-2xl border ${tc.border} glass-card ${tc.textPrimary} p-3 shadow-lg sm:p-4`
-      : `rounded-2xl ${tc.textPrimary} p-1 sm:p-2`,
+    root: `space-y-3 ${tc.textPrimary}`,
     shell,
     card,
     panel,
     sectionTitle: isDark
       ? `text-[11px] font-bold uppercase tracking-[0.14em] ${tc.textMuted}`
       : 'text-[11px] font-bold uppercase tracking-[0.14em] text-slate-500',
-    badge:
-      'inline-flex items-center rounded-lg bg-gradient-to-r from-indigo-600 to-violet-600 px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest text-white shadow-sm',
-    timestamp: `text-xs ${tc.textMuted}`,
-    title: `truncate text-xl font-black tracking-tight sm:text-2xl ${tc.textPrimary}`,
+    badge: isDark
+      ? 'flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-blue-500/20 text-blue-300 sm:h-9 sm:w-9'
+      : 'flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-blue-100 text-blue-700 sm:h-9 sm:w-9',
+    timestamp: `text-xs font-medium ${tc.textSecondary}`,
+    title: 'truncate text-lg font-black uppercase leading-tight tracking-wide text-blue-600 sm:text-xl',
     breadcrumb: `flex items-center gap-1 text-xs ${tc.textMuted}`,
-    breadcrumbActive: isDark ? 'font-semibold text-indigo-400' : 'font-semibold text-indigo-600',
+    breadcrumbActive: isDark ? 'font-semibold text-blue-400' : 'font-semibold text-blue-600',
     errorBanner: isDark
       ? 'rounded-xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm font-medium text-rose-300'
       : 'rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-medium text-rose-700',
     tabs: {
-      bar: isDark
-        ? `flex gap-1 overflow-x-auto border-t ${tc.border} bg-white/[0.03] p-1.5 scrollbar-thin`
-        : 'flex gap-1 overflow-x-auto border-t border-slate-100 bg-slate-50/80 p-1.5 scrollbar-thin',
+      bar: `flex gap-0 overflow-x-auto border-t ${tc.border} px-1 scrollbar-thin`,
       active: isDark
-        ? 'bg-white/10 text-indigo-300 shadow-md ring-1 ring-indigo-500/30'
-        : 'bg-white text-indigo-700 shadow-md ring-1 ring-indigo-100',
+        ? 'border-b-2 border-blue-400 text-blue-300'
+        : 'border-b-2 border-blue-600 text-blue-600',
       inactive: isDark
-        ? `${tc.textMuted} hover:bg-white/5 hover:text-white/80`
-        : 'text-slate-500 hover:bg-white/70 hover:text-slate-700',
-      base: 'relative shrink-0 rounded-xl px-3 py-2.5 text-[10px] font-bold uppercase tracking-wide transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/50 sm:px-4 sm:text-[11px]',
+        ? `border-b-2 border-transparent ${tc.textMuted} hover:text-white/80`
+        : 'border-b-2 border-transparent text-slate-500 hover:text-slate-700',
+      base: 'relative shrink-0 px-3 py-2.5 text-xs font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40 sm:px-4 sm:text-sm',
     },
     btn: {
-      base: 'inline-flex h-10 items-center justify-center gap-1.5 rounded-xl px-4 text-[11px] font-bold uppercase tracking-wide transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/50 disabled:pointer-events-none disabled:opacity-50',
-      primary: isDark
-        ? 'bg-gradient-to-r from-indigo-600 to-violet-600 text-white shadow-sm shadow-indigo-900/30 hover:from-indigo-500 hover:to-violet-500 active:scale-[0.98]'
-        : 'bg-indigo-600 text-white shadow-sm shadow-indigo-600/20 hover:bg-indigo-500 active:scale-[0.98]',
+      base: 'inline-flex h-9 items-center justify-center gap-1.5 rounded-xl px-3.5 text-xs font-bold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40 disabled:pointer-events-none disabled:opacity-50 sm:h-10 sm:px-4',
+      primary: isDark ? tc.buttonPrimary : tc.buttonPrimary,
       secondary: isDark
-        ? `border ${tc.border} bg-white/5 ${tc.textPrimary} hover:bg-white/10 active:scale-[0.98]`
-        : 'border border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50 active:scale-[0.98]',
+        ? `border ${tc.border} bg-white/5 ${tc.textPrimary} hover:bg-white/10`
+        : 'border border-slate-300 bg-white text-slate-600 hover:bg-slate-50',
     },
     select: {
       label: `mb-1 block text-[10px] font-bold uppercase tracking-widest ${tc.textMuted}`,
       input: isDark
-        ? `h-10 w-full rounded-xl border ${tc.border} bg-white/5 px-3 text-sm font-semibold ${tc.textPrimary} shadow-sm outline-none transition-colors placeholder:${tc.textMuted} focus:border-indigo-500/50 focus:ring-2 focus:ring-indigo-500/25`
-        : 'h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-bold text-slate-900 shadow-sm outline-none transition-colors focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/25',
+        ? `h-9 w-full rounded-xl border ${tc.border} bg-white/5 px-3 text-sm font-semibold ${tc.textPrimary} shadow-sm outline-none transition-colors placeholder:${tc.textMuted} focus:border-blue-500/50 focus:ring-2 focus:ring-blue-500/25 sm:h-10`
+        : 'h-9 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm font-bold text-slate-900 shadow-sm outline-none transition-colors focus:border-blue-400 focus:ring-2 focus:ring-blue-500/25 sm:h-10',
       dropdown: isDark
         ? `overflow-hidden rounded-xl border ${tc.border} glass-card shadow-xl`
         : 'overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl',
       list: 'max-h-56 overflow-y-auto py-1',
       option: isDark
         ? 'cursor-pointer px-3 py-2.5 text-sm font-medium text-white/90 transition-colors hover:bg-white/10'
-        : 'cursor-pointer px-3 py-2.5 text-sm font-medium text-slate-800 transition-colors hover:bg-indigo-50',
-      optionActive: isDark ? 'bg-indigo-500/20 text-indigo-300' : 'bg-indigo-50 text-indigo-700',
+        : 'cursor-pointer px-3 py-2.5 text-sm font-medium text-slate-800 transition-colors hover:bg-blue-50',
+      optionActive: isDark ? 'bg-blue-500/20 text-blue-300' : 'bg-blue-50 text-blue-700',
       search: isDark
         ? `w-full border-b ${tc.border} bg-transparent px-3 py-2.5 text-sm ${tc.textPrimary} outline-none placeholder:${tc.textMuted}`
         : 'w-full border-b border-slate-100 bg-transparent px-3 py-2.5 text-sm text-slate-900 outline-none placeholder:text-slate-400',
@@ -137,7 +132,7 @@ export function getCmTheme(isDark: boolean) {
     infoIcon: 'flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-600 to-violet-600 text-white shadow-sm',
     infoTitle: isDark ? 'text-sm font-bold text-white' : 'text-sm font-bold text-indigo-950',
     infoSubtitle: isDark ? 'text-[11px] text-indigo-300/80' : 'text-[11px] text-indigo-600/80',
-    content: 'animate-in fade-in duration-300 space-y-4',
+    content: 'space-y-3 sm:space-y-3.5',
     moduleAccents,
     timelineHeader,
     metricBg: isDark ? `rounded-lg ${tc.bgSecondary} px-3 py-2` : 'rounded-lg bg-slate-50 px-3 py-2',

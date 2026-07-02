@@ -58,10 +58,10 @@ const STATUS_FILTER_OPTS = [
 ] as const;
 
 const WORKFLOW_ACTIONS = [
-  { value: 'SUBMITTED',            label: 'Submitted' },
+  { value: 'SUBMITTED', label: 'Submitted' },
   { value: 'CONSULTANT_COMMENTED', label: 'Consultant Commented' },
-  { value: 'RESUBMITTED',          label: 'Resubmitted' },
-  { value: 'APPROVED',             label: 'Approved' },
+  { value: 'RESUBMITTED', label: 'Resubmitted' },
+  { value: 'APPROVED', label: 'Approved' },
 ] as const;
 
 // ─── Summary KPIs ─────────────────────────────────────────────────────────────
@@ -170,9 +170,9 @@ function DesktopTable({
         </thead>
         <tbody className={`divide-y ${isDarkTheme ? 'divide-white/10' : 'divide-slate-100'}`}>
           {rows.map((row, i) => {
-            const isApproved  = !!row.approvedByConsultant;
+            const isApproved = !!row.approvedByConsultant;
             const statusLabel = isApproved ? 'Approved' : row.resubmissionDate ? 'Resubmitted' : row.consultantCommentsDate ? 'In Review' : 'Submitted';
-            const statusCls   = isApproved ? 'bg-emerald-100 text-emerald-800' : row.consultantCommentsDate ? 'bg-amber-100 text-amber-800' : 'bg-blue-100 text-blue-800';
+            const statusCls = isApproved ? 'bg-emerald-100 text-emerald-800' : row.consultantCommentsDate ? 'bg-amber-100 text-amber-800' : 'bg-blue-100 text-blue-800';
 
             return (
               <tr key={row.id ?? i} className={`transition-colors ${isDarkTheme ? 'hover:bg-white/5' : 'hover:bg-slate-50'}`}>
@@ -241,9 +241,9 @@ function MobileCards({
   return (
     <div className={`lg:hidden rounded-2xl border overflow-hidden divide-y ${isDarkTheme ? 'border-white/10 divide-white/10' : 'border-slate-200 divide-slate-100'}`}>
       {rows.map((row, i) => {
-        const isApproved  = !!row.approvedByConsultant;
+        const isApproved = !!row.approvedByConsultant;
         const statusLabel = isApproved ? 'Approved' : row.resubmissionDate ? 'Resubmitted' : row.consultantCommentsDate ? 'In Review' : 'Submitted';
-        const statusCls   = isApproved ? 'bg-emerald-100 text-emerald-800' : row.consultantCommentsDate ? 'bg-amber-100 text-amber-800' : 'bg-blue-100 text-blue-800';
+        const statusCls = isApproved ? 'bg-emerald-100 text-emerald-800' : row.consultantCommentsDate ? 'bg-amber-100 text-amber-800' : 'bg-blue-100 text-blue-800';
         const isOpen = expanded === (row.id ?? i);
 
         return (
@@ -287,8 +287,8 @@ function MobileCards({
             {/* Inline date pills */}
             <div className="grid grid-cols-2 gap-2">
               {[
-                { label: 'Submitted',      val: row.submissionByContractor,  color: isDarkTheme ? 'bg-blue-950/50 text-blue-300'    : 'bg-blue-50 text-blue-700' },
-                { label: 'Approved',       val: row.approvedByConsultant,    color: isApproved ? (isDarkTheme ? 'bg-emerald-950/50 text-emerald-300' : 'bg-emerald-50 text-emerald-700') : (isDarkTheme ? 'bg-white/5 text-white/30' : 'bg-slate-50 text-slate-400') },
+                { label: 'Submitted', val: row.submissionByContractor, color: isDarkTheme ? 'bg-blue-950/50 text-blue-300' : 'bg-blue-50 text-blue-700' },
+                { label: 'Approved', val: row.approvedByConsultant, color: isApproved ? (isDarkTheme ? 'bg-emerald-950/50 text-emerald-300' : 'bg-emerald-50 text-emerald-700') : (isDarkTheme ? 'bg-white/5 text-white/30' : 'bg-slate-50 text-slate-400') },
               ].map(s => (
                 <div key={s.label} className={`rounded-xl px-3 py-2 ${s.color}`}>
                   <p className="text-[9px] font-black uppercase tracking-wider opacity-70 mb-0.5">{s.label}</p>
@@ -302,7 +302,7 @@ function MobileCards({
                 <div className="grid grid-cols-2 gap-3">
                   {[
                     ['Consultant Comments', row.consultantCommentsDate],
-                    ['Resubmitted',         row.resubmissionDate],
+                    ['Resubmitted', row.resubmissionDate],
                   ].map(([l, v]) => (
                     <div key={l as string}>
                       <p className={`text-[9px] font-black uppercase tracking-wider mb-0.5 ${tc.textMuted}`}>{l}</p>
@@ -341,20 +341,20 @@ function RegisterModal({ projectName, editRow, onClose, onSaved }: ModalProps) {
   const tc = getThemeClasses(isDarkTheme);
   const isEditing = editRow?.id != null;
 
-  const [drawingName,    setDrawingName]    = useState(editRow?.designAndDrawing ?? '');
+  const [drawingName, setDrawingName] = useState(editRow?.designAndDrawing ?? '');
   const [contractorName, setContractorName] = useState(String(editRow?.contractorName ?? ''));
-  const [revision,       setRevision]       = useState<number | ''>(editRow?.revision ?? '');
-  const [remarks,        setRemarks]        = useState(editRow?.remarks ?? '');
+  const [revision, setRevision] = useState<number | ''>(editRow?.revision ?? '');
+  const [remarks, setRemarks] = useState(editRow?.remarks ?? '');
   // date fields (editable in both create & edit)
-  const [submittedDate,            setSubmittedDate]            = useState('');
-  const [consultantCommentsDate,   setConsultantCommentsDate]   = useState('');
-  const [resubmittedDate,          setResubmittedDate]          = useState('');
-  const [approvedDate,             setApprovedDate]             = useState('');
+  const [submittedDate, setSubmittedDate] = useState('');
+  const [consultantCommentsDate, setConsultantCommentsDate] = useState('');
+  const [resubmittedDate, setResubmittedDate] = useState('');
+  const [approvedDate, setApprovedDate] = useState('');
   // workflow events (only on create)
-  const [useWorkflow, setUseWorkflow]       = useState(false);
-  const [events,      setEvents]            = useState<EventEntry[]>([{ action: 'SUBMITTED', eventDate: '' }]);
+  const [useWorkflow, setUseWorkflow] = useState(false);
+  const [events, setEvents] = useState<EventEntry[]>([{ action: 'SUBMITTED', eventDate: '' }]);
 
-  const [saving,  setSaving]  = useState(false);
+  const [saving, setSaving] = useState(false);
   const [formErr, setFormErr] = useState<string | null>(null);
 
   useEffect(() => {
@@ -386,32 +386,32 @@ function RegisterModal({ projectName, editRow, onClose, onSaved }: ModalProps) {
       if (isEditing) {
         await drawingRegisterApi.updateRegisterRow(editRow!.id!, {
           remarks,
-          submittedDate:         submittedDate || undefined,
+          submittedDate: submittedDate || undefined,
           consultantCommentsDate: consultantCommentsDate || undefined,
-          resubmittedDate:       resubmittedDate || undefined,
-          approvedDate:          approvedDate || undefined,
-          contractorName:        contractorName || undefined,
-          revision:              revision !== '' ? Number(revision) : undefined,
+          resubmittedDate: resubmittedDate || undefined,
+          approvedDate: approvedDate || undefined,
+          contractorName: contractorName || undefined,
+          revision: revision !== '' ? Number(revision) : undefined,
         });
       } else {
         await drawingRegisterApi.createRegisterRow({
           projectName,
           drawingName: drawingName.trim(),
           contractorName: contractorName || undefined,
-          revision:       revision !== '' ? Number(revision) : undefined,
-          remarks:        remarks || undefined,
+          revision: revision !== '' ? Number(revision) : undefined,
+          remarks: remarks || undefined,
           ...(useWorkflow
             ? {
-                workflowEvents: events
-                  .filter(ev => ev.action && ev.eventDate)
-                  .map(ev => ({ action: ev.action, eventDate: ev.eventDate })),
-              }
+              workflowEvents: events
+                .filter(ev => ev.action && ev.eventDate)
+                .map(ev => ({ action: ev.action, eventDate: ev.eventDate })),
+            }
             : {
-                submittedDate:           submittedDate           || undefined,
-                consultantCommentsDate:  consultantCommentsDate  || undefined,
-                resubmittedDate:         resubmittedDate         || undefined,
-                approvedDate:            approvedDate            || undefined,
-              }),
+              submittedDate: submittedDate || undefined,
+              consultantCommentsDate: consultantCommentsDate || undefined,
+              resubmittedDate: resubmittedDate || undefined,
+              approvedDate: approvedDate || undefined,
+            }),
         });
       }
       onSaved();
@@ -527,10 +527,10 @@ function RegisterModal({ projectName, editRow, onClose, onSaved }: ModalProps) {
                 </p>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   {[
-                    { label: 'Submitted by Contractor',  val: submittedDate,            set: setSubmittedDate },
-                    { label: 'Consultant Comments',      val: consultantCommentsDate,    set: setConsultantCommentsDate },
-                    { label: 'Resubmitted',              val: resubmittedDate,           set: setResubmittedDate },
-                    { label: 'Approved by Consultant',   val: approvedDate,              set: setApprovedDate },
+                    { label: 'Submitted by Contractor', val: submittedDate, set: setSubmittedDate },
+                    { label: 'Consultant Comments', val: consultantCommentsDate, set: setConsultantCommentsDate },
+                    { label: 'Resubmitted', val: resubmittedDate, set: setResubmittedDate },
+                    { label: 'Approved by Consultant', val: approvedDate, set: setApprovedDate },
                   ].map(f => (
                     <div key={f.label}>
                       <label className={labelCls}>{f.label}</label>
@@ -578,11 +578,11 @@ export default function DrawingRegisterCard({
 
   const now = new Date();
   const [selMonth, setSelMonth] = useState(now.getMonth() + 1);
-  const [selYear,  setSelYear]  = useState(now.getFullYear());
-  const [view,     setView]     = useState<'monthly' | 'cumulative'>('monthly');
+  const [selYear, setSelYear] = useState(now.getFullYear());
+  const [view, setView] = useState<'monthly' | 'cumulative'>('cumulative');
   const [contractor, setContractor] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
-  const [search,     setSearch]     = useState('');
+  const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
 
   useEffect(() => {
@@ -590,16 +590,16 @@ export default function DrawingRegisterCard({
     setContractor(selectedContractorName?.trim() ?? '');
   }, [syncContractorFromDashboard, selectedContractorName]);
 
-  const [loading,    setLoading]    = useState(false);
-  const [error,      setError]      = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [reportData, setReportData] = useState<DrawingClientReportData | null>(null);
 
-  const [modalOpen,      setModalOpen]      = useState(false);
-  const [editRow,        setEditRow]        = useState<DrawingClientReportRow | null>(null);
-  const [deleteConfirm,  setDeleteConfirm]  = useState<{ id: number; label: string } | null>(null);
-  const [deleting,       setDeleting]       = useState(false);
-  const [showFilters,    setShowFilters]    = useState(false);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [editRow, setEditRow] = useState<DrawingClientReportRow | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState<{ id: number; label: string } | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [showFilters, setShowFilters] = useState(false);
   const [showDrawingTable, setShowDrawingTable] = useState(true);
 
   const loadData = useCallback(async () => {
@@ -609,8 +609,8 @@ export default function DrawingRegisterCard({
     try {
       const res = await drawingRegisterApi.getClientReport({
         projectName: project.title,
-        month:       selMonth,
-        year:        selYear,
+        month: selMonth,
+        year: selYear,
         view,
         ...(contractor && { contractor }),
         ...(statusFilter && { status: statusFilter }),
@@ -656,8 +656,8 @@ export default function DrawingRegisterCard({
         res.data instanceof Blob
           ? res.data
           : new Blob([String(res.data ?? '')], {
-              type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-            });
+            type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+          });
       triggerDrawingRegisterExcelBlobDownload(blob, filename);
     } catch (err) {
       if (reportData?.rows?.length) {
@@ -686,7 +686,7 @@ export default function DrawingRegisterCard({
     }
   }
 
-  const MONTH_NAME = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][selMonth-1];
+  const MONTH_NAME = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][selMonth - 1];
   const periodLabel = view === 'cumulative' ? `Jan – ${MONTH_NAME} ${selYear}` : `${MONTH_NAME} ${selYear}`;
 
   return (
@@ -739,7 +739,7 @@ export default function DrawingRegisterCard({
             </select>
           </div>
           <div className={`flex rounded-xl overflow-hidden border flex-shrink-0 w-full sm:w-auto ${isDarkTheme ? 'border-white/20' : 'border-slate-300'}`}>
-            {(['monthly','cumulative'] as const).map((v,i) => (
+            {(['monthly', 'cumulative'] as const).map((v, i) => (
               <button key={v} onClick={() => setView(v)}
                 className={`flex-1 sm:flex-none sm:min-w-[7rem] py-2 px-3 text-xs font-bold transition-colors ${i > 0 ? `border-l ${isDarkTheme ? 'border-white/20' : 'border-slate-300'}` : ''} ${view === v ? 'bg-indigo-600 text-white' : isDarkTheme ? 'text-white/60 hover:bg-white/10' : 'text-slate-600 hover:bg-slate-100'}`}>
                 {v === 'monthly' ? 'Monthly' : 'Cumulative'}

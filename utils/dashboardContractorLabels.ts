@@ -19,19 +19,33 @@ export function contractorSectionTitle(
 }
 
 export function contractValuesSectionTitle(
-  party: 'SCL' | 'Contractor',
+  party: 'SCL' | 'Contractor' | 'ContractorSummary' | 'SelectedContractor',
   contractorName?: string | null,
 ): string {
   if (party === 'SCL') return 'SCL Contract Values';
-  return contractorSectionTitle(contractorName, 'Contract Values');
+  if (party === 'ContractorSummary') return 'Contractor Summary (All Contractors)';
+  if (party === 'SelectedContractor') {
+    return `Selected Contractor – ${contractorDisplayName(contractorName)}`;
+  }
+  if (contractorName?.trim()) {
+    return `${contractorDisplayName(contractorName)} Contract Values`;
+  }
+  return 'Contractor Contract Values';
 }
 
 export function invoicingSectionTitle(
-  party: 'SCL' | 'Contractor',
+  party: 'SCL' | 'Contractor' | 'ContractorSummary' | 'SelectedContractor',
   contractorName?: string | null,
 ): string {
-  if (party === 'SCL') return 'SCL Invoicing';
-  return contractorSectionTitle(contractorName, 'Invoicing');
+  if (party === 'SCL') return 'SCL Invoicing Information';
+  if (party === 'ContractorSummary') return 'Contractor Summary (All Contractors)';
+  if (party === 'SelectedContractor') {
+    return `Selected Contractor – ${contractorDisplayName(contractorName)}`;
+  }
+  if (contractorName?.trim()) {
+    return `${contractorDisplayName(contractorName)} Invoicing Information`;
+  }
+  return 'Contractor Invoicing Information';
 }
 
 export function plannedValueSectionTitle(

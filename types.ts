@@ -76,6 +76,7 @@ export interface ContractValueRecord {
   contractType: ContractValueType;
   /** When multiple contractors exist on the project */
   contractorName?: string;
+  contractorId?: number;
   originalContractValue: number;
   /** API: excess_value */
   approvedVO: number;
@@ -101,6 +102,7 @@ export interface InvoicingRecord {
   invoiceType: InvoiceType;
   /** When multiple contractors exist on the project */
   contractorName?: string;
+  contractorId?: number;
   /** API: gross_billed */
   grossBilled: number;
   /** API: gross_certified_billed */
