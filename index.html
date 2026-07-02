@@ -1,0 +1,357 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <title>PMC Portal - Enterprise Workflow</title>
+    <link rel="icon" href="/favicon.ico" sizes="any">
+    <link rel="icon" type="image/png" href="/images/pmc-favicon.png?v=20260526-v3" sizes="512x512">
+    <link rel="apple-touch-icon" href="/images/pmc-favicon-180.png?v=20260526-v3" sizes="180x180">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --dashboard-bg-url: url('/images/construction-bg.jpg');
+        }
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: transparent;
+            color: #8aa0b2;
+        }
+        html {
+            background-color: #0b1d36;
+        }
+        .theme-dark-bg {
+            background:
+              radial-gradient(1200px 600px at 70% 0%, rgba(255, 255, 255, 0.08) 0%, #FFFFFF0F 60%),
+              linear-gradient(180deg, rgba(10,26,48,1) 0%, rgba(9,23,42,1) 35%, rgba(6,17,32,1) 100%);
+        }
+        .glass-card {
+            background: rgba(15, 23, 42, 0.9);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.4);
+        }
+        .glass-card-light {
+            background: rgba(255, 255, 255, 0.98);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(0, 0, 0, 0.15);
+            box-shadow: 0 4px 20px 0 rgba(0, 0, 0, 0.08);
+        }
+        .kpi-card {
+            background: rgba(15, 23, 42, 0.92);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            border: 1px solid rgba(255,255,255,0.12);
+            transition: transform .2s ease, box-shadow .2s ease, border-color .2s ease;
+        }
+        .kpi-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 16px 40px rgba(0,0,0,0.5);
+            border-color: rgba(255,255,255,0.15);
+        }
+        .kpi-accent-orange {
+            background: linear-gradient(135deg, #ff8a00 0%, #ff6a00 100%);
+        }
+        .muted {
+            color: #64748b;
+        }
+        .text-contrast {
+            color: #cbd5e1;
+        }
+        .glass-input {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            color: #ffffff;
+            transition: all 0.2s ease;
+        }
+        .glass-input:focus {
+            background: rgba(255, 255, 255, 0.07);
+            border-color: rgba(255, 255, 255, 0.3);
+            box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.05);
+        }
+        .glass-input::placeholder {
+            color: rgba(255, 255, 255, 0.4);
+        }
+        .nav-dark {
+            background: rgba(6, 17, 32, 0.98);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            border-right: 1px solid rgba(255,255,255,0.12);
+        }
+        .nav-light {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            border-right: 1px solid rgba(0,0,0,0.12);
+        }
+        .active-pill {
+            background: linear-gradient(135deg, #4f46e5 0%, #3730a3 100%);
+            color: #ffffff;
+            box-shadow: 0 4px 12px rgba(79, 70, 229, 0.3);
+        }
+        .active-pill-light {
+            background: linear-gradient(135deg, #eef2ff 0%, #e0e7ff 55%, #c7d2fe 100%) !important;
+            color: #4338ca !important;
+            border: 1px solid #c7d2fe !important;
+        }
+        /* Sidebar active — must win over Tailwind utilities & idle hover */
+        button.sidebar-nav-item.sidebar-nav-active-light,
+        button.sidebar-nav-item.active-pill-light {
+            background: linear-gradient(135deg, #eef2ff 0%, #e0e7ff 48%, #c7d2fe 100%) !important;
+            color: #4338ca !important;
+            border: 1px solid #c7d2fe !important;
+            border-left: 4px solid #4f46e5 !important;
+            box-shadow: 0 2px 10px rgba(79, 70, 229, 0.18);
+        }
+        button.sidebar-nav-item.sidebar-nav-active-dark,
+        button.sidebar-nav-item.active-pill {
+            background: linear-gradient(135deg, #4f46e5 0%, #4338ca 55%, #3730a3 100%) !important;
+            color: #ffffff !important;
+            border: 1px solid rgba(165, 180, 252, 0.35) !important;
+            border-left: 4px solid #a5b4fc !important;
+            box-shadow: 0 4px 14px rgba(79, 70, 229, 0.35);
+        }
+        button.sidebar-nav-item.sidebar-nav-active-light:hover,
+        button.sidebar-nav-item.sidebar-nav-active-dark:hover,
+        button.sidebar-nav-item.active-pill-light:hover,
+        button.sidebar-nav-item.active-pill:hover {
+            transform: translateX(2px);
+        }
+        /* Sidebar — hover & micro-animations */
+        @keyframes sidebarNavIn {
+            from { opacity: 0; transform: translateX(-10px); }
+            to { opacity: 1; transform: translateX(0); }
+        }
+        @keyframes sidebarActiveGlow {
+            0%, 100% { box-shadow: 0 2px 10px rgba(79, 70, 229, 0.15); }
+            50% { box-shadow: 0 4px 16px rgba(79, 70, 229, 0.28); }
+        }
+        .app-sidebar {
+            transition: transform 0.32s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.32s ease;
+        }
+        .sidebar-backdrop {
+            animation: fadeIn 0.28s ease-out forwards;
+        }
+        .sidebar-nav-item {
+            position: relative;
+            min-height: 2.5rem;
+            transition:
+                background-color 0.22s cubic-bezier(0.4, 0, 0.2, 1),
+                color 0.22s ease,
+                transform 0.22s cubic-bezier(0.4, 0, 0.2, 1),
+                box-shadow 0.22s ease,
+                border-color 0.22s ease;
+        }
+        .sidebar-nav-enter:not(.sidebar-nav-active-light):not(.sidebar-nav-active-dark) {
+            opacity: 0;
+            animation: sidebarNavIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+        .sidebar-nav-icon {
+            display: inline-flex;
+            transition: transform 0.22s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+        .sidebar-nav-item-idle-light {
+            color: #475569;
+        }
+        .sidebar-nav-item-idle-light:hover {
+            background-color: #f8fafc !important;
+            color: #0f172a !important;
+            transform: translateX(3px);
+            box-shadow: 0 2px 8px rgba(15, 23, 42, 0.06);
+        }
+        .sidebar-nav-item-idle-light:hover .sidebar-nav-icon {
+            transform: scale(1.1);
+        }
+        .sidebar-nav-item-idle-dark:hover {
+            background-color: rgba(255, 255, 255, 0.07) !important;
+            transform: translateX(3px);
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+        }
+        .sidebar-nav-item-idle-dark:hover .sidebar-nav-icon {
+            transform: scale(1.1);
+        }
+        button.sidebar-nav-item.sidebar-nav-active-light,
+        button.sidebar-nav-item.sidebar-nav-active-dark {
+            animation: sidebarActiveGlow 3s ease-in-out infinite;
+        }
+        .sidebar-nav-item:active:not(.sidebar-nav-active-light):not(.sidebar-nav-active-dark):not(.active-pill):not(.active-pill-light) {
+            transform: translateX(1px) scale(0.99);
+        }
+        .sidebar-profile-card {
+            transition: transform 0.22s ease, box-shadow 0.22s ease, border-color 0.22s ease;
+        }
+        .sidebar-profile-card-light:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 16px rgba(15, 23, 42, 0.08);
+        }
+        .sidebar-profile-card-dark:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
+        }
+        .sidebar-icon-btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 36px;
+            height: 36px;
+            border-radius: 9999px;
+            transition: background-color 0.2s ease, transform 0.2s ease, color 0.2s ease;
+        }
+        .sidebar-icon-btn:hover {
+            transform: scale(1.06);
+        }
+        .sidebar-icon-btn:active {
+            transform: scale(0.96);
+        }
+        .sidebar-icon-btn-light:hover {
+            background-color: #f8fafc;
+        }
+        .sidebar-icon-btn-dark:hover {
+            background-color: rgba(255, 255, 255, 0.08);
+        }
+        .sidebar-logo-wrap img {
+            transition: transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.25s ease;
+        }
+        .sidebar-logo-wrap:hover img {
+            transform: scale(1.03);
+        }
+        .status-badge {
+            color: #8fe3b1;
+        }
+        .status-badge-white {
+            color: #ffffff;
+            opacity: 0.9;
+        }
+        .hero-bg{
+            position:absolute;
+            inset:0;
+            background:
+              linear-gradient(180deg, rgba(11,29,54,0.10) 0%, rgba(11,29,54,0.65) 55%, rgba(11,29,54,0.95) 100%),
+              var(--dashboard-bg-url);
+            background-size: cover;
+            background-position: center bottom;
+            background-repeat: no-repeat;
+            opacity: 0.95;
+        }
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: rgba(255,255,255,0.06);
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(255,255,255,0.18);
+            border-radius: 10px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(255,255,255,0.28);
+        }
+
+        /* Global Animations */
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        @keyframes fadeInScale {
+            from { opacity: 0; transform: scale(0.94) translateY(8px); }
+            to { opacity: 1; transform: scale(1) translateY(0); }
+        }
+
+        @keyframes slideUp {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        @keyframes slideInRight {
+            from { opacity: 0; transform: translateX(20px); }
+            to { opacity: 1; transform: translateX(0); }
+        }
+
+        @keyframes slideInLeft {
+            from { opacity: 0; transform: translateX(-20px); }
+            to { opacity: 1; transform: translateX(0); }
+        }
+
+        .animate-fade-in {
+            animation: fadeIn 0.5s ease-out forwards;
+        }
+
+        .animate-slide-up {
+            animation: slideUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+
+        .animate-slide-in-right {
+            animation: slideInRight 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+
+        .animate-slide-in-left {
+            animation: slideInLeft 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+
+        .animate-entrance {
+            animation: slideUp 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+            opacity: 0;
+        }
+
+        .stagger-1 { animation-delay: 0.1s; }
+        .stagger-2 { animation-delay: 0.2s; }
+        .stagger-3 { animation-delay: 0.3s; }
+
+        /* DPR / WPR Review — readable text on light/dark app theme (React isDarkTheme, not Tailwind dark:) */
+        .dpr-review-dashboard--light,
+        .wpr-review-dashboard--light {
+            color: #0f172a;
+        }
+        .dpr-review-dashboard--dark,
+        .wpr-review-dashboard--dark {
+            color: #f1f5f9;
+        }
+        .dpr-review-dashboard--light .glass-card-light,
+        .dpr-review-dashboard--light .dpr-kpi-summary > div,
+        .wpr-review-dashboard--light .glass-card-light,
+        .wpr-review-dashboard--light .dpr-kpi-summary > div {
+            color: #0f172a;
+        }
+        select.dpr-review-select,
+        select.wpr-review-select {
+            color-scheme: light;
+        }
+        .dpr-review-dashboard--dark select.dpr-review-select,
+        .wpr-review-dashboard--dark select.wpr-review-select {
+            color-scheme: dark;
+        }
+        select.dpr-review-select option,
+        select.wpr-review-select option {
+            background-color: #ffffff;
+            color: #0f172a;
+        }
+        .dpr-review-dashboard--dark select.dpr-review-select option,
+        .wpr-review-dashboard--dark select.wpr-review-select option {
+            background-color: #0f172a;
+            color: #cbd5e1;
+        }
+    </style>
+    <script>
+      (function () {
+        var path = window.location.pathname;
+        if (!path || path === '/' || path === '/index.html') return;
+        if (window.location.hash && window.location.hash.indexOf('#/') === 0) return;
+        window.location.replace(
+          window.location.origin + '/#' + path + window.location.search
+        );
+      })();
+    </script>
+</head>
+<body>
+    <div id="root"></div>
+    <script type="module" src="/index.tsx"></script>
+</body>
+</html>

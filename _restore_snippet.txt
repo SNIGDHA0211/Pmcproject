@@ -1,0 +1,230 @@
+  }, [selectedProject?.title]);
+
+  useEffect(() => {
+    fetchEquipmentData();
+  }, [fetchEquipmentData, financialDataVersion]);
+
+  const handleSaveEquipment = async (
+    values: EquipmentFormValues,
+    record?: ProjectEquipmentRecord | null
+  ): Promise<boolean> => {
+    if (!selectedProject?.title) {
+      setEquipmentFormError('Select a project before saving equipment.');
+      return false;
+    }
+
+    const duplicate = equipmentDataState.some((item) =>
+      item.equipmentMonth.slice(0, 7) === values.equipmentMonth &&
+      String(item.id ?? '') !== String(record?.id ?? '')
+    );
+    if (duplicate) {
+      setEquipmentFormError('A project equipment entry already exists for this project and month.');
+      return false;
+    }
+
+    setIsSavingEquipment(true);
+    setEquipmentFormError(null);
+    try {
+      const payload = {
+        projectName: selectedProject.title,
+        equipmentMonth: values.equipmentMonth,
+        plannedEquipment: values.plannedEquipment,
+        actualEquipment: values.actualEquipment,
+        remarks: values.remarks,
+      };
+      const response = record?.id
+        ? await projectEquipmentApi.update(record.id, payload)
+        : await projectEquipmentApi.create(payload);
+      const saved = normalizeProjectEquipmentRecord(response.data?.data ?? response.data, selectedProject.title);
+      setEquipmentDataState((prev) => {
+        const withoutSaved = prev.filter((item) => String(item.id ?? item.equipmentMonth) !== String(saved.id ?? saved.equipmentMonth));
+        return [...withoutSaved, saved].sort((a, b) => a.equipmentMonth.localeCompare(b.equipmentMonth));
+      });
+      showToast('Project equipment saved successfully!');
+      await fetchEquipmentData();
+      return true;
+    } catch (error) {
+      console.error('Failed to save project equipment:', error);
+      setEquipmentFormError(getApiErrorMessage(error, 'Failed to save project equipment.'));
+      return false;
+    } finally {
+      setIsSavingEquipment(false);
+    }
+  };
+
+  const handleDeleteEquipment = async (record: ProjectEquipmentRecord): Promise<boolean> => {
+    if (!record.id) {
+      setEquipmentFormError('Unable to delete equipment without a record id.');
+      return false;
+    }
+
+    setEquipmentFormError(null);
+    try {
+      await projectEquipmentApi.delete(record.id);
+      setEquipmentDataState((prev) => prev.filter((item) => String(item.id) !== String(record.id)));
+      showToast('Project equipment deleted successfully!');
+      await fetchEquipmentData();
+      return true;
+    } catch (error) {
+      console.error('Failed to delete project equipment:', error);
+      setEquipmentFormError(getApiErrorMessage(error, 'Failed to delete project equipment.'));
+      showToast(getApiErrorMessage(error, 'Failed to delete project equipment.'), 'error');
+      return false;
+    }
+  };
+
+  const fetchCorrespondenceData = useCallback(async () => {
+    if (!selectedProject?.title) {
+      setCorrespondenceData([]);
+      setCorrespondenceError(null);
+      return;
+    }
+
+    setIsLoadingCorrespondence(true);
+    setCorrespondenceError(null);
+    try {
+      const response = await correspondenceApi.getByProject(selectedProject.title);
+      let rows = unwrapList<any>(response.data);
+      const directData = response.data?.data ?? response.data;
+
+      if (rows.length === 0 && Array.isArray(response.data?.data)) {
+        rows = response.data.data;
+      }
+      if (rows.length === 0 && directData && typeof directData === 'object' && !Array.isArray(directData)) {
+        rows = [directData];
+      }
+
+      const normalized = rows
+        .map((row) => normalizeCorrespondenceRecord(row, selectedProject.title))
+        .filter((row) => row.projectName || selectedProject.title)
+        .sort((a, b) => String(b.updatedAt ?? '').localeCompare(String(a.updatedAt ?? '')));
+      setCorrespondenceData(normalized);
+    } catch (error) {
+      const status = (error as any)?.response?.status;
+      if (status === 404) {
+        setCorrespondenceData([]);
+        setCorrespondenceError(null);
+      } else {
+        console.error('Error fetching correspondence data:', error);
+        setCorrespondenceData([]);
+        setCorrespondenceError(getApiErrorMessage(error, 'Unable to load correspondence status'));
+      }
+    } finally {
+      setIsLoadingCorrespondence(false);
+    }
+  }, [selectedProject?.title]);
+
+  useEffect(() => {
+    fetchCorrespondenceData();
+  }, [fetchCorrespondenceData, financialDataVersion]);
+
+  const handleSaveCorrespondence = async (
+    values: CorrespondenceFormValues,
+    record?: CorrespondenceRecord | null
+  ): Promise<boolean> => {
+    if (!selectedProject?.title) {
+      setCorrespondenceFormError('Select a project before saving correspondence.');
+      return false;
+    }
+    if (values.correspondenceReceived < 0 || values.correspondenceDelivered < 0) {
+      setCorrespondenceFormError('Correspondence values cannot be negative.');
+      return false;
+    }
+    if (values.correspondenceDelivered > values.correspondenceReceived) {
+      setCorrespondenceFormError('Delivered correspondence cannot exceed received correspondence.');
+      return false;
+    }
+
+    setIsSavingCorrespondence(true);
+    setCorrespondenceFormError(null);
+    try {
+      const payload = {
+        projectName: selectedProject.title,
+        correspondenceReceived: values.correspondenceReceived,
+        correspondenceDelivered: values.correspondenceDelivered,
+      };
+      const response = record?.id
+        ? await correspondenceApi.update(record.id, payload)
+        : await correspondenceApi.create(payload);
+      const saved = normalizeCorrespondenceRecord(response.data?.data ?? response.data, selectedProject.title);
+      setCorrespondenceData((prev) => {
+        const withoutSaved = prev.filter((item) =>
+          String(item.id ?? item.projectName) !== String(saved.id ?? saved.projectName)
+        );
+        return [saved, ...withoutSaved].sort((a, b) => String(b.updatedAt ?? '').localeCompare(String(a.updatedAt ?? '')));
+      });
+      showToast('Correspondence status saved successfully!');
+      await fetchCorrespondenceData();
+      return true;
+    } catch (error) {
+      console.error('Failed to save correspondence status:', error);
+      setCorrespondenceFormError(getApiErrorMessage(error, 'Failed to save correspondence status.'));
+      return false;
+    } finally {
+      setIsSavingCorrespondence(false);
+    }
+  };
+
+  const handleDeleteCorrespondence = async (record: CorrespondenceRecord): Promise<boolean> => {
+    if (!record.id) {
+      setCorrespondenceFormError('Unable to delete correspondence without a record id.');
+      return false;
+    }
+
+    setCorrespondenceFormError(null);
+    try {
+      await correspondenceApi.delete(record.id);
+      setCorrespondenceData((prev) => prev.filter((item) => String(item.id) !== String(record.id)));
+      showToast('Correspondence status deleted successfully!');
+      await fetchCorrespondenceData();
+      return true;
+    } catch (error) {
+      console.error('Failed to delete correspondence status:', error);
+      setCorrespondenceFormError(getApiErrorMessage(error, 'Failed to delete correspondence status.'));
+      showToast(getApiErrorMessage(error, 'Failed to delete correspondence status.'), 'error');
+      return false;
+    }
+  };
+
+  // Fetch drawings data when selected project changes
+  useEffect(() => {
+    const fetchDrawingsData = async () => {
+      if (!selectedProject?.title) {
+        setDrawingsData([]);
+        return;
+      }
+
+      setIsLoadingDrawings(true);
+      try {
+        const response = await drawingsApi.getDrawingsByProject(selectedProject.title);
+        const rows = normalizeDrawingRows(response.data, selectedProject.title);
+        setDrawingsData(rows);
+      } catch (error) {
+        console.error('Error fetching drawings data:', error);
+        setDrawingsData([]);
+      } finally {
+        setIsLoadingDrawings(false);
+      }
+    };
+
+    fetchDrawingsData();
+  }, [selectedProject?.title, financialDataVersion]);
+
+  // Fetch project quality status returned for the selected project.
+  useEffect(() => {
+    const fetchQualityStatusData = async () => {
+      if (!selectedProject?.title) {
+        console.log('[QualityStatus] No project selected, clearing data');
+        setQualityStatusData(null);
+        setQualityStatusError(null);
+        return;
+      }
+
+      console.log('[QualityStatus] Fetching quality status for project:', selectedProject.title);
+      setIsLoadingQualityStatus(true);
+      setQualityStatusError(null);
+      try {
+        // Try project-specific endpoint first
+        const response = await projectQualityStatusApi.getQualityStatusByProject(selectedProject.title);
+        console.log('[QualityStatus] API response:', response.status, response.data);
+        const normalized = normalizeQualityStatusResponse(response.data, selectedProject.title);
