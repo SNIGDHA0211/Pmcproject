@@ -1,20 +1,16 @@
 import React, { useCallback, useState } from 'react';
 import { FileText, HandCoins } from 'lucide-react';
 import {
-  contractPerformanceApi,
   contractValuesApi,
   getApiErrorMessage,
   invoicingApi,
-  normalizeContractPerformanceRecord,
   normalizeContractValueRecord,
   normalizeInvoicingRecord,
-  saveContractPerformanceRecord,
   saveContractValueRecord,
   saveInvoicingRecord,
   unwrapList,
 } from '../services/api';
 import {
-  type ContractPerformanceRecord,
   type ContractValueRecord,
   type ContractValueType,
   getInvoiceTypeLabel,
@@ -22,6 +18,8 @@ import {
   type InvoiceType,
 } from '../types';
 import { ModalPortal } from './ModalPortal';
+import BillingSection from './billing/BillingSection';
+import { getBillingTheme } from '../utils/billingDashboardTheme';
 import { getThemeClasses, useTheme } from '../utils/theme';
 
 const INVOICE_TYPES: InvoiceType[] = ['PMC', 'Contractor'];
@@ -49,27 +47,22 @@ interface BillingFinancialCrudPanelProps {
   onToast: (message: string, type?: 'success' | 'error') => void;
 }
 
-type ModalKind = 'invoicing' | 'contract_value' | 'contract_performance' | null;
+type ModalKind = 'invoicing' | 'contract_value' | null;
 
 const BillingFinancialCrudPanel: React.FC<BillingFinancialCrudPanelProps> = ({ projectName, onToast }) => {
   const { isDarkTheme } = useTheme();
   const themeClasses = getThemeClasses(isDarkTheme);
+  const billing = getBillingTheme(isDarkTheme, themeClasses);
 
   const [loading, setLoading] = useState(false);
   const [invoicing, setInvoicing] = useState<Record<InvoiceType, InvoicingRecord | null>>({ PMC: null, Contractor: null });
   const [contractValues, setContractValues] = useState<Record<ContractValueType, ContractValueRecord | null>>({ SCL: null, Contractor: null });
-  const [contractPerformance, setContractPerformance] = useState<ContractPerformanceRecord | null>(null);
 
   const [modalKind, setModalKind] = useState<ModalKind>(null);
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [invoiceForm, setInvoiceForm] = useState<InvoicingRecord | null>(null);
   const [contractValueForm, setContractValueForm] = useState<ContractValueRecord | null>(null);
-  const [performanceForm, setPerformanceForm] = useState({ billedValue: 0, actualReceiptValue: 0 });
-
-  const cardCls = `rounded-2xl border p-4 sm:p-5 ${
-    isDarkTheme ? `${themeClasses.glassCard} ${themeClasses.border}` : 'border-slate-200 bg-white shadow-sm'
-  }`;
 
   const loadFinancial = useCallback(async () => {
     if (!projectName) return;
@@ -102,14 +95,6 @@ const BillingFinancialCrudPanel: React.FC<BillingFinancialCrudPanelProps> = ({ p
         }),
       );
       setContractValues(nextCv);
-
-      try {
-        const cpRes = await contractPerformanceApi.getContractPerformance({ project_name: projectName });
-        const cpRow = unwrapList(cpRes.data)[0];
-        setContractPerformance(cpRow ? normalizeContractPerformanceRecord(cpRow) : null);
-      } catch {
-        setContractPerformance(null);
-      }
     } finally {
       setLoading(false);
     }
@@ -131,15 +116,6 @@ const BillingFinancialCrudPanel: React.FC<BillingFinancialCrudPanelProps> = ({ p
     setContractValueForm(contractValues[type] ?? emptyContractValue(projectName, type));
     setFormError(null);
     setModalKind('contract_value');
-  };
-
-  const openPerformance = () => {
-    setPerformanceForm({
-      billedValue: contractPerformance?.billedValue ?? 0,
-      actualReceiptValue: contractPerformance?.actualReceiptValue ?? 0,
-    });
-    setFormError(null);
-    setModalKind('contract_performance');
   };
 
   const closeModal = () => {
@@ -194,29 +170,6 @@ const BillingFinancialCrudPanel: React.FC<BillingFinancialCrudPanelProps> = ({ p
     }
   };
 
-  const savePerformance = async (event: React.FormEvent) => {
-    event.preventDefault();
-    setSaving(true);
-    setFormError(null);
-    try {
-      await saveContractPerformanceRecord(
-        {
-          project_name: projectName,
-          billedValue: performanceForm.billedValue,
-          actualReceiptValue: performanceForm.actualReceiptValue,
-        },
-        contractPerformance?.id,
-      );
-      onToast('Contract performance saved.');
-      setModalKind(null);
-      await loadFinancial();
-    } catch (error) {
-      setFormError(getApiErrorMessage(error, 'Failed to save contract performance.'));
-    } finally {
-      setSaving(false);
-    }
-  };
-
   const deleteInvoicing = async (type: InvoiceType) => {
     const rec = invoicing[type];
     if (!rec?.id) return;
@@ -232,34 +185,38 @@ const BillingFinancialCrudPanel: React.FC<BillingFinancialCrudPanelProps> = ({ p
 
   if (loading && !invoicing.PMC && !contractValues.SCL) {
     return (
-      <div className={`flex min-h-[160px] items-center justify-center ${cardCls}`}>
-        <div className="h-8 w-8 animate-spin rounded-full border-2 border-indigo-500 border-t-transparent" />
-      </div>
+      <BillingSection icon={<FileText size={20} />} title="Invoicing & Contract Values" subtitle={projectName}>
+        <div className="flex min-h-[160px] items-center justify-center">
+          <div className={billing.spinner} />
+        </div>
+      </BillingSection>
     );
   }
 
   return (
-    <div className="space-y-4">
+    <BillingSection
+      icon={<HandCoins size={20} />}
+      title="Invoicing & Contract Values"
+      subtitle={projectName}
+    >
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-        <div className={cardCls}>
-          <div className="mb-3 flex items-center justify-between gap-2">
-            <div className="flex items-center gap-2">
-              <FileText size={18} className="text-indigo-500" />
-              <h3 className={`text-xs font-black uppercase tracking-widest ${themeClasses.textPrimary}`}>Invoicing</h3>
-            </div>
+        <div className={billing.innerCard}>
+          <div className="mb-3 flex items-center gap-2">
+            <FileText size={16} className="text-indigo-500" />
+            <h4 className={billing.sectionTitle}>Invoicing</h4>
           </div>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             {INVOICE_TYPES.map((type) => {
               const rec = invoicing[type];
               return (
-                <div key={type} className={`rounded-xl border p-3 ${isDarkTheme ? 'border-white/10 bg-white/[0.03]' : 'border-slate-100 bg-slate-50'}`}>
+                <div key={type} className={`rounded-xl border p-3 ${isDarkTheme ? 'border-white/10 bg-black/10' : 'border-slate-200 bg-white'}`}>
                   <div className="mb-2 flex items-center justify-between">
                     <p className={`text-[10px] font-black uppercase ${themeClasses.textSecondary}`}>{getInvoiceTypeLabel(type)}</p>
                     <div className="flex gap-1">
                       <button
                         type="button"
                         onClick={() => openInvoicing(type)}
-                        className="rounded-lg bg-indigo-600 px-2 py-1 text-[9px] font-black uppercase tracking-wider text-white hover:bg-indigo-500"
+                        className={billing.btnPrimarySm}
                       >
                         {rec ? 'Update' : 'Add'}
                       </button>
@@ -285,22 +242,22 @@ const BillingFinancialCrudPanel: React.FC<BillingFinancialCrudPanelProps> = ({ p
           </div>
         </div>
 
-        <div className={cardCls}>
+        <div className={billing.innerCard}>
           <div className="mb-3 flex items-center gap-2">
-            <HandCoins size={18} className="text-emerald-500" />
-            <h3 className={`text-xs font-black uppercase tracking-widest ${themeClasses.textPrimary}`}>Contract Values</h3>
+            <HandCoins size={16} className="text-indigo-500" />
+            <h4 className={billing.sectionTitle}>Contract Values</h4>
           </div>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             {CONTRACT_TYPES.map((type) => {
               const rec = contractValues[type];
               return (
-                <div key={type} className={`rounded-xl border p-3 ${isDarkTheme ? 'border-white/10 bg-white/[0.03]' : 'border-slate-100 bg-slate-50'}`}>
+                <div key={type} className={`rounded-xl border p-3 ${isDarkTheme ? 'border-white/10 bg-black/10' : 'border-slate-200 bg-white'}`}>
                   <div className="mb-2 flex items-center justify-between">
                     <p className={`text-[10px] font-black uppercase ${themeClasses.textSecondary}`}>{type}</p>
                     <button
                       type="button"
                       onClick={() => openContractValue(type)}
-                      className="rounded-lg bg-indigo-600 px-2 py-1 text-[9px] font-black uppercase tracking-wider text-white hover:bg-indigo-500"
+                      className={billing.btnPrimarySm}
                     >
                       {rec ? 'Update' : 'Add'}
                     </button>
@@ -319,32 +276,6 @@ const BillingFinancialCrudPanel: React.FC<BillingFinancialCrudPanelProps> = ({ p
             })}
           </div>
         </div>
-      </div>
-
-      <div className={cardCls}>
-        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-          <h3 className={`text-xs font-black uppercase tracking-widest ${themeClasses.textPrimary}`}>Contract Performance</h3>
-          <button type="button" onClick={openPerformance} className="rounded-lg bg-indigo-600 px-3 py-1.5 text-[10px] font-black uppercase text-white hover:bg-indigo-500">
-            {contractPerformance ? 'Update Performance' : 'Add Performance'}
-          </button>
-        </div>
-        {contractPerformance ? (
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            {[
-              { label: 'Billed Value', value: formatInr(contractPerformance.billedValue) },
-              { label: 'Receipt Value', value: formatInr(contractPerformance.actualReceiptValue) },
-              { label: 'Variance', value: formatInr(contractPerformance.variance) },
-              { label: 'Performance', value: `${contractPerformance.performancePercentage.toFixed(1)}%` },
-            ].map((item) => (
-              <div key={item.label} className={`rounded-xl border px-3 py-2.5 text-center ${isDarkTheme ? 'border-white/10 bg-white/[0.03]' : 'border-slate-100 bg-slate-50'}`}>
-                <p className={`text-[9px] font-bold uppercase ${themeClasses.textSecondary}`}>{item.label}</p>
-                <p className={`mt-1 text-base font-black tabular-nums ${themeClasses.textPrimary}`}>{item.value}</p>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <p className={`text-center text-sm ${themeClasses.textSecondary}`}>No contract performance data yet.</p>
-        )}
       </div>
 
       {modalKind && (
@@ -366,8 +297,8 @@ const BillingFinancialCrudPanel: React.FC<BillingFinancialCrudPanelProps> = ({ p
                     ))}
                     {formError && <p className="text-xs text-rose-500">{formError}</p>}
                     <div className="flex justify-end gap-2">
-                      <button type="button" onClick={closeModal} className={`rounded-xl border px-4 py-2 text-xs font-bold ${themeClasses.buttonSecondary}`}>Cancel</button>
-                      <button type="submit" disabled={saving} className="rounded-xl bg-indigo-600 px-4 py-2 text-xs font-bold text-white">{saving ? 'Saving…' : 'Save'}</button>
+                      <button type="button" onClick={closeModal} className={billing.btnSecondary}>Cancel</button>
+                      <button type="submit" disabled={saving} className={billing.btnSave}>{saving ? 'Saving…' : 'Save'}</button>
                     </div>
                   </form>
                 </>
@@ -388,28 +319,8 @@ const BillingFinancialCrudPanel: React.FC<BillingFinancialCrudPanelProps> = ({ p
                     ))}
                     {formError && <p className="text-xs text-rose-500">{formError}</p>}
                     <div className="flex justify-end gap-2">
-                      <button type="button" onClick={closeModal} className={`rounded-xl border px-4 py-2 text-xs font-bold ${themeClasses.buttonSecondary}`}>Cancel</button>
-                      <button type="submit" disabled={saving} className="rounded-xl bg-indigo-600 px-4 py-2 text-xs font-bold text-white">{saving ? 'Saving…' : 'Save'}</button>
-                    </div>
-                  </form>
-                </>
-              )}
-              {modalKind === 'contract_performance' && (
-                <>
-                  <h4 className={`mb-4 font-black uppercase ${themeClasses.textPrimary}`}>Contract Performance</h4>
-                  <form onSubmit={savePerformance} className="space-y-3">
-                    <div>
-                      <label className={`mb-1 block text-[10px] font-black uppercase ${themeClasses.textSecondary}`}>Billed Value</label>
-                      <input type="number" min={0} value={performanceForm.billedValue} onChange={(e) => setPerformanceForm((p) => ({ ...p, billedValue: Number(e.target.value) || 0 }))} className={`w-full rounded-xl border px-3 py-2 text-sm ${themeClasses.input} ${themeClasses.border} ${themeClasses.textPrimary}`} />
-                    </div>
-                    <div>
-                      <label className={`mb-1 block text-[10px] font-black uppercase ${themeClasses.textSecondary}`}>Actual Receipt Value</label>
-                      <input type="number" min={0} value={performanceForm.actualReceiptValue} onChange={(e) => setPerformanceForm((p) => ({ ...p, actualReceiptValue: Number(e.target.value) || 0 }))} className={`w-full rounded-xl border px-3 py-2 text-sm ${themeClasses.input} ${themeClasses.border} ${themeClasses.textPrimary}`} />
-                    </div>
-                    {formError && <p className="text-xs text-rose-500">{formError}</p>}
-                    <div className="flex justify-end gap-2">
-                      <button type="button" onClick={closeModal} className={`rounded-xl border px-4 py-2 text-xs font-bold ${themeClasses.buttonSecondary}`}>Cancel</button>
-                      <button type="submit" disabled={saving} className="rounded-xl bg-indigo-600 px-4 py-2 text-xs font-bold text-white">{saving ? 'Saving…' : 'Save'}</button>
+                      <button type="button" onClick={closeModal} className={billing.btnSecondary}>Cancel</button>
+                      <button type="submit" disabled={saving} className={billing.btnSave}>{saving ? 'Saving…' : 'Save'}</button>
                     </div>
                   </form>
                 </>
@@ -418,7 +329,7 @@ const BillingFinancialCrudPanel: React.FC<BillingFinancialCrudPanelProps> = ({ p
           </div>
         </ModalPortal>
       )}
-    </div>
+    </BillingSection>
   );
 };
 

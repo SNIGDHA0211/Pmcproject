@@ -24,6 +24,8 @@ import FinancialQuickUpdateCard, {
 } from './financial/FinancialQuickUpdateCard';
 import FinancialTabAnalytics from './financial/FinancialTabAnalytics';
 import BillingEvmCharts from './BillingEvmCharts';
+import BillingSection from './billing/BillingSection';
+import { getBillingTheme } from '../utils/billingDashboardTheme';
 import { getThemeClasses, useTheme } from '../utils/theme';
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -76,6 +78,7 @@ interface BillingEvmPanelProps {
 const BillingEvmPanel: React.FC<BillingEvmPanelProps> = ({ projectName, user, onToast }) => {
   const { isDarkTheme } = useTheme();
   const themeClasses = getThemeClasses(isDarkTheme);
+  const billing = getBillingTheme(isDarkTheme, themeClasses);
 
   const [activeTab, setActiveTab] = useState<EvmTab>('cost');
   const [selectedMonth, setSelectedMonth] = useState(MONTHS[new Date().getMonth()]);
@@ -103,10 +106,6 @@ const BillingEvmPanel: React.FC<BillingEvmPanelProps> = ({ projectName, user, on
 
   const roleForSubmission = 'Billing Site Engineer';
   const createdBy = user.name || user.username || user.email || 'Billing Site Engineer';
-
-  const cardCls = `rounded-2xl border p-4 sm:p-5 ${
-    isDarkTheme ? `${themeClasses.glassCard} ${themeClasses.border}` : 'border-slate-200 bg-white shadow-sm'
-  }`;
 
   const fieldLabel = financialFieldLabel(isDarkTheme, themeClasses);
   const fieldInput = financialFieldInput(isDarkTheme, themeClasses);
@@ -266,222 +265,180 @@ const BillingEvmPanel: React.FC<BillingEvmPanelProps> = ({ projectName, user, on
     return [current - 1, current, current + 1].map(String);
   }, []);
 
-  return (
-    <div className={`overflow-hidden rounded-2xl border-2 ${isDarkTheme ? 'border-violet-500/25 bg-violet-500/5' : 'border-violet-200 bg-gradient-to-b from-violet-50/60 to-white shadow-sm'}`}>
-      <div
-        className={`flex flex-wrap items-center justify-between gap-3 border-b px-4 py-3 sm:px-5 ${
-          isDarkTheme
-            ? 'border-violet-500/20 bg-gradient-to-r from-violet-600/25 to-indigo-600/15'
-            : 'border-violet-100 bg-gradient-to-r from-violet-600 to-indigo-600'
-        }`}
-      >
-        <div className="flex min-w-0 items-center gap-3">
-          <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${isDarkTheme ? 'bg-white/10 text-white' : 'bg-white/20 text-white'}`}>
-            <BarChart3 size={20} strokeWidth={2.25} />
-          </span>
-          <div>
-            <h3 className="text-sm font-black uppercase tracking-widest text-white sm:text-base">
-              EVM & Budget Performance
-            </h3>
-            <p className="text-[10px] font-semibold text-violet-100 sm:text-xs">
-              Financial progress · Budget vs cost · Performance charts
-            </p>
-          </div>
-        </div>
+  const periodControls = (
+    <>
+      <select value={selectedMonth} onChange={(e) => setSelectedMonth(e.target.value)} className={billing.select}>
+        {MONTHS.map((m) => (
+          <option key={m} value={m}>{m}</option>
+        ))}
+      </select>
+      <select value={selectedYear} onChange={(e) => setSelectedYear(e.target.value)} className={billing.select}>
+        {yearOptions.map((y) => (
+          <option key={y} value={y}>{y}</option>
+        ))}
+      </select>
+    </>
+  );
 
-        <div className="flex flex-wrap items-center gap-2">
-          <select
-            value={selectedMonth}
-            onChange={(e) => setSelectedMonth(e.target.value)}
-            className={`rounded-xl border px-2.5 py-1.5 text-xs font-bold outline-none ${
-              isDarkTheme ? 'border-white/20 bg-slate-900/80 text-white' : 'border-white/30 bg-white text-slate-900'
-            }`}
-          >
-            {MONTHS.map((m) => (
-              <option key={m} value={m}>
-                {m}
-              </option>
-            ))}
-          </select>
-          <select
-            value={selectedYear}
-            onChange={(e) => setSelectedYear(e.target.value)}
-            className={`rounded-xl border px-2.5 py-1.5 text-xs font-bold outline-none ${
-              isDarkTheme ? 'border-white/20 bg-slate-900/80 text-white' : 'border-white/30 bg-white text-slate-900'
-            }`}
-          >
-            {yearOptions.map((y) => (
-              <option key={y} value={y}>
-                {y}
-              </option>
-            ))}
-          </select>
-        </div>
+  return (
+    <BillingSection
+      icon={<BarChart3 size={20} strokeWidth={2.25} />}
+      title="EVM & Budget Performance"
+      subtitle={`Financial progress · Budget vs cost · ${periodLabel}`}
+      actions={periodControls}
+    >
+      <div className={billing.tabList} role="tablist">
+        {tabs.map(({ key, label, icon: Icon }) => {
+          const isActive = activeTab === key;
+          return (
+            <button
+              key={key}
+              type="button"
+              role="tab"
+              aria-selected={isActive}
+              onClick={() => setActiveTab(key)}
+              className={isActive ? billing.tabActive : billing.tabInactive}
+            >
+              <Icon size={15} />
+              {label}
+            </button>
+          );
+        })}
       </div>
 
-      <div className="space-y-4 p-4 sm:p-5">
-        <div
-          className={`flex flex-wrap gap-1 rounded-xl p-1 ${isDarkTheme ? 'bg-white/5' : 'bg-slate-100'}`}
-          role="tablist"
-        >
-          {tabs.map(({ key, label, icon: Icon }) => {
-            const isActive = activeTab === key;
-            return (
-              <button
-                key={key}
-                type="button"
-                role="tab"
-                aria-selected={isActive}
-                onClick={() => setActiveTab(key)}
-                className={`flex h-10 shrink-0 items-center gap-2 rounded-xl px-4 text-xs font-bold transition-all sm:text-sm ${
-                  isActive
-                    ? 'bg-indigo-600 text-white shadow-sm'
-                    : isDarkTheme
-                      ? 'text-slate-400 hover:bg-white/10 hover:text-white'
-                      : 'text-slate-600 hover:bg-white hover:text-slate-900'
-                }`}
-              >
-                <Icon size={15} />
-                {label}
-              </button>
-            );
-          })}
+      {loading && !costForm.month_year && !budgetForm.bac ? (
+        <div className="flex min-h-[200px] items-center justify-center">
+          <div className={billing.spinnerSm} />
         </div>
+      ) : (
+        <>
+          {activeTab === 'cost' && (
+            <div className="space-y-5">
+              <FinancialQuickUpdateCard
+                title="Update Financial Progress"
+                projectName={projectName}
+                periodLabel={periodLabel}
+                successBanner={successBanner}
+                onSave={() => void saveCost()}
+                onReset={handleReset}
+                onRefresh={() => void handleRefresh()}
+                saving={saving}
+                refreshDisabled={refreshing}
+                footerNote={
+                  !extractRecordId(costForm)
+                    ? 'No saved record for this period — enter EVM values and save.'
+                    : undefined
+                }
+                isDarkTheme={isDarkTheme}
+                themeClasses={themeClasses}
+              >
+                <FinancialFormGrid>
+                  {COST_EVM_FORM_FIELDS.map((key) => (
+                    <div key={key}>
+                      <label className={fieldLabel} htmlFor={`billing-cost-${key}`}>
+                        {COST_EVM_FIELD_LABELS[key]}
+                      </label>
+                      <input
+                        id={`billing-cost-${key}`}
+                        type="text"
+                        value={String(costForm[key] ?? '')}
+                        onChange={(e) => setCostForm((prev) => ({ ...prev, [key]: e.target.value }))}
+                        className={fieldInput}
+                      />
+                    </div>
+                  ))}
+                </FinancialFormGrid>
+              </FinancialQuickUpdateCard>
 
-        {loading && !costForm.month_year && !budgetForm.bac ? (
-          <div className={`flex min-h-[200px] items-center justify-center ${cardCls}`}>
-            <div className="h-9 w-9 animate-spin rounded-full border-2 border-indigo-500 border-t-transparent" />
-          </div>
-        ) : (
-          <>
-            {activeTab === 'cost' && (
-              <div className="space-y-5">
-                <FinancialQuickUpdateCard
-                  title="Update Financial Progress"
-                  projectName={projectName}
-                  periodLabel={periodLabel}
-                  successBanner={successBanner}
-                  onSave={() => void saveCost()}
-                  onReset={handleReset}
-                  onRefresh={() => void handleRefresh()}
-                  saving={saving}
-                  refreshDisabled={refreshing}
-                  footerNote={
-                    !extractRecordId(costForm)
-                      ? 'No saved record for this period — enter EVM values and save.'
-                      : undefined
-                  }
+              <BillingEvmCharts
+                variant="cost"
+                costForm={costForm}
+                budgetForm={budgetForm}
+                cpi={executiveMetrics.cpi}
+                spi={executiveMetrics.spi}
+                trendData={trendData}
+              />
+
+              <div className={billing.innerCard}>
+                <FinancialTabAnalytics
+                  variant="cost"
+                  metrics={executiveMetrics}
                   isDarkTheme={isDarkTheme}
                   themeClasses={themeClasses}
-                >
-                  <FinancialFormGrid>
-                    {COST_EVM_FORM_FIELDS.map((key) => (
+                  projectName={projectName}
+                  costForm={costForm}
+                />
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'budget' && (
+            <div className="space-y-5">
+              <FinancialQuickUpdateCard
+                title="Update Budget vs Cost"
+                projectName={projectName}
+                periodLabel={periodLabel}
+                successBanner={successBanner}
+                onSave={() => void saveBudget()}
+                onReset={handleReset}
+                onRefresh={() => void handleRefresh()}
+                saving={saving}
+                refreshDisabled={refreshing}
+                isDarkTheme={isDarkTheme}
+                themeClasses={themeClasses}
+              >
+                <FinancialFormGrid>
+                  {BUDGET_PERFORMANCE_FIELDS.map((key) => {
+                    const meta = BUDGET_PERFORMANCE_FIELD_META[key];
+                    return (
                       <div key={key}>
-                        <label className={fieldLabel} htmlFor={`billing-cost-${key}`}>
-                          {COST_EVM_FIELD_LABELS[key]}
+                        <label
+                          className={fieldLabel}
+                          htmlFor={`billing-budget-${key}`}
+                          title={meta.tooltip}
+                        >
+                          {meta.label} ({meta.abbrev})
                         </label>
                         <input
-                          id={`billing-cost-${key}`}
+                          id={`billing-budget-${key}`}
                           type="text"
-                          value={String(costForm[key] ?? '')}
-                          onChange={(e) => setCostForm((prev) => ({ ...prev, [key]: e.target.value }))}
+                          value={String(budgetForm[key] ?? '')}
+                          onChange={(e) =>
+                            setBudgetForm((prev) => ({ ...prev, [key]: e.target.value }))
+                          }
+                          placeholder={meta.placeholder}
                           className={fieldInput}
                         />
                       </div>
-                    ))}
-                  </FinancialFormGrid>
-                </FinancialQuickUpdateCard>
+                    );
+                  })}
+                </FinancialFormGrid>
+              </FinancialQuickUpdateCard>
 
-                <BillingEvmCharts
-                  variant="cost"
-                  costForm={costForm}
-                  budgetForm={budgetForm}
-                  cpi={executiveMetrics.cpi}
-                  spi={executiveMetrics.spi}
-                  trendData={trendData}
-                />
+              <BillingEvmCharts
+                variant="budget"
+                costForm={costForm}
+                budgetForm={budgetForm}
+                cpi={executiveMetrics.cpi}
+                spi={executiveMetrics.spi}
+                trendData={trendData}
+              />
 
-                <div className={cardCls}>
-                  <FinancialTabAnalytics
-                    variant="cost"
-                    metrics={executiveMetrics}
-                    isDarkTheme={isDarkTheme}
-                    themeClasses={themeClasses}
-                    projectName={projectName}
-                    costForm={costForm}
-                  />
-                </div>
-              </div>
-            )}
-
-            {activeTab === 'budget' && (
-              <div className="space-y-5">
-                <FinancialQuickUpdateCard
-                  title="Update Budget vs Cost"
-                  projectName={projectName}
-                  periodLabel={periodLabel}
-                  successBanner={successBanner}
-                  onSave={() => void saveBudget()}
-                  onReset={handleReset}
-                  onRefresh={() => void handleRefresh()}
-                  saving={saving}
-                  refreshDisabled={refreshing}
+              <div className={billing.innerCard}>
+                <FinancialTabAnalytics
+                  variant="budget"
+                  metrics={executiveMetrics}
                   isDarkTheme={isDarkTheme}
                   themeClasses={themeClasses}
-                >
-                  <FinancialFormGrid>
-                    {BUDGET_PERFORMANCE_FIELDS.map((key) => {
-                      const meta = BUDGET_PERFORMANCE_FIELD_META[key];
-                      return (
-                        <div key={key}>
-                          <label
-                            className={fieldLabel}
-                            htmlFor={`billing-budget-${key}`}
-                            title={meta.tooltip}
-                          >
-                            {meta.label} ({meta.abbrev})
-                          </label>
-                          <input
-                            id={`billing-budget-${key}`}
-                            type="text"
-                            value={String(budgetForm[key] ?? '')}
-                            onChange={(e) =>
-                              setBudgetForm((prev) => ({ ...prev, [key]: e.target.value }))
-                            }
-                            placeholder={meta.placeholder}
-                            className={fieldInput}
-                          />
-                        </div>
-                      );
-                    })}
-                  </FinancialFormGrid>
-                </FinancialQuickUpdateCard>
-
-                <BillingEvmCharts
-                  variant="budget"
-                  costForm={costForm}
+                  projectName={projectName}
                   budgetForm={budgetForm}
-                  cpi={executiveMetrics.cpi}
-                  spi={executiveMetrics.spi}
-                  trendData={trendData}
                 />
-
-                <div className={cardCls}>
-                  <FinancialTabAnalytics
-                    variant="budget"
-                    metrics={executiveMetrics}
-                    isDarkTheme={isDarkTheme}
-                    themeClasses={themeClasses}
-                    projectName={projectName}
-                    budgetForm={budgetForm}
-                  />
-                </div>
               </div>
-            )}
-          </>
-        )}
-      </div>
-    </div>
+            </div>
+          )}
+        </>
+      )}
+    </BillingSection>
   );
 };
 

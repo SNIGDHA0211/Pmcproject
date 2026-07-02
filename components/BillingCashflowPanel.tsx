@@ -14,6 +14,8 @@ import { cashflowApi, getApiErrorMessage, toNum, unwrapList } from '../services/
 import type { CashFlowRecord } from '../types/billing';
 import { emptyCashflowRecord } from '../types/billing';
 import { buildCashflowChartData, summarizeCashflow } from '../utils/billingDashboardAnalytics';
+import { getBillingTheme } from '../utils/billingDashboardTheme';
+import BillingSection from './billing/BillingSection';
 import { Icons } from './Icons';
 import { ModalPortal } from './ModalPortal';
 import { getThemeClasses, useTheme } from '../utils/theme';
@@ -40,7 +42,7 @@ interface BillingCashflowPanelProps {
 const BillingCashflowPanel: React.FC<BillingCashflowPanelProps> = ({ projectName, onToast }) => {
   const { isDarkTheme } = useTheme();
   const themeClasses = getThemeClasses(isDarkTheme);
-
+  const billing = getBillingTheme(isDarkTheme, themeClasses);
   const [records, setRecords] = useState<CashFlowRecord[]>([]);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -48,10 +50,6 @@ const BillingCashflowPanel: React.FC<BillingCashflowPanelProps> = ({ projectName
   const [editing, setEditing] = useState<CashFlowRecord | null>(null);
   const [form, setForm] = useState<CashFlowRecord>(() => emptyCashflowRecord(projectName));
   const [formError, setFormError] = useState<string | null>(null);
-
-  const cardCls = `rounded-2xl border p-4 sm:p-5 ${
-    isDarkTheme ? `${themeClasses.glassCard} ${themeClasses.border}` : 'border-slate-200 bg-white shadow-sm'
-  }`;
 
   const loadCashflow = useCallback(async () => {
     if (!projectName) return;
@@ -126,40 +124,23 @@ const BillingCashflowPanel: React.FC<BillingCashflowPanelProps> = ({ projectName
     }
   };
 
-  const tooltipStyle = {
-    backgroundColor: isDarkTheme ? '#1e293b' : '#fff',
-    border: `1px solid ${isDarkTheme ? 'rgba(255,255,255,0.1)' : '#e2e8f0'}`,
-    borderRadius: 12,
-    fontSize: 12,
-  };
+  const tooltipStyle = billing.chartTooltip;
 
   const formatInr = (n: number) =>
     `₹${n.toLocaleString('en-IN', { maximumFractionDigits: 0 })}`;
 
   return (
-    <div className={cardCls}>
-      <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
-        <div className="flex min-w-0 items-center gap-3">
-          <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${isDarkTheme ? 'bg-indigo-500/15 text-indigo-300' : 'bg-indigo-50 text-indigo-600'}`}>
-            <IndianRupee size={20} />
-          </span>
-          <div>
-            <h3 className={`text-xs font-black uppercase tracking-widest sm:text-sm ${themeClasses.textPrimary}`}>
-              Cash Flow Management
-            </h3>
-            <p className={`text-[11px] font-semibold ${themeClasses.textSecondary}`}>{projectName}</p>
-          </div>
-        </div>
-        <button
-          type="button"
-          onClick={openCreate}
-          className="inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-1.5 text-[10px] font-black uppercase tracking-wider text-white hover:bg-indigo-500"
-        >
+    <BillingSection
+      icon={<IndianRupee size={20} />}
+      title="Cash Flow"
+      subtitle={projectName}
+      actions={
+        <button type="button" onClick={openCreate} className={billing.btnPrimary}>
           <Plus size={14} />
-          Add Cash Flow
+          Add Record
         </button>
-      </div>
-
+      }
+    >
       <div className="mb-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
         {[
           { label: 'Cash In (Actual)', value: formatInr(summary.cashInActual), icon: TrendingUp, tone: 'text-emerald-500' },
@@ -167,8 +148,8 @@ const BillingCashflowPanel: React.FC<BillingCashflowPanelProps> = ({ projectName
           { label: 'Net Cash Flow', value: formatInr(summary.netActual), icon: IndianRupee, tone: summary.netActual >= 0 ? 'text-emerald-500' : 'text-rose-500' },
           { label: 'Records', value: String(summary.recordCount), icon: IndianRupee, tone: themeClasses.textPrimary },
         ].map(({ label, value, icon: Icon, tone }) => (
-          <div key={label} className={`rounded-xl border px-3 py-2.5 ${isDarkTheme ? 'border-white/10 bg-white/[0.03]' : 'border-slate-100 bg-slate-50'}`}>
-            <p className={`text-[9px] font-bold uppercase tracking-wide ${themeClasses.textSecondary}`}>{label}</p>
+          <div key={label} className={billing.metricTile}>
+            <p className={billing.metricLabel}>{label}</p>
             <p className={`mt-1 flex items-center gap-1 text-sm font-black tabular-nums sm:text-base ${tone}`}>
               <Icon size={14} className="shrink-0 opacity-70" />
               {value}
@@ -179,7 +160,7 @@ const BillingCashflowPanel: React.FC<BillingCashflowPanelProps> = ({ projectName
 
       {loading ? (
         <div className="flex min-h-[200px] items-center justify-center">
-          <div className="h-8 w-8 animate-spin rounded-full border-2 border-indigo-500 border-t-transparent" />
+          <div className={billing.spinner} />
         </div>
       ) : chartData.length > 0 ? (
         <div className="mb-4 h-[220px] sm:h-[260px]">
@@ -196,7 +177,7 @@ const BillingCashflowPanel: React.FC<BillingCashflowPanelProps> = ({ projectName
           </ResponsiveContainer>
         </div>
       ) : (
-        <p className={`mb-4 rounded-xl border border-dashed py-10 text-center text-sm ${isDarkTheme ? 'border-white/15 text-slate-400' : 'border-slate-200 text-slate-500'}`}>
+        <p className={`mb-4 ${billing.emptyState}`}>
           No cashflow data yet. Add your first monthly record.
         </p>
       )}
@@ -276,15 +257,15 @@ const BillingCashflowPanel: React.FC<BillingCashflowPanelProps> = ({ projectName
                 ))}
                 {formError && <p className="text-xs font-semibold text-rose-500">{formError}</p>}
                 <div className="flex justify-end gap-2 pt-2">
-                  <button type="button" onClick={() => setModalOpen(false)} disabled={saving} className={`rounded-xl border px-4 py-2 text-xs font-bold ${themeClasses.buttonSecondary} ${themeClasses.border}`}>Cancel</button>
-                  <button type="submit" disabled={saving} className="rounded-xl bg-indigo-600 px-4 py-2 text-xs font-bold text-white hover:bg-indigo-500 disabled:opacity-60">{saving ? 'Saving…' : 'Save'}</button>
+                  <button type="button" onClick={() => setModalOpen(false)} disabled={saving} className={billing.btnSecondary}>Cancel</button>
+                  <button type="submit" disabled={saving} className={billing.btnSave}>{saving ? 'Saving…' : 'Save'}</button>
                 </div>
               </form>
             </div>
           </div>
         </ModalPortal>
       )}
-    </div>
+    </BillingSection>
   );
 };
 
