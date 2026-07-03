@@ -74,7 +74,7 @@ export default function FrequencyChartFilters({
         <div
           className={`flex w-full overflow-hidden rounded-xl border flex-shrink-0 sm:w-auto ${isDarkTheme ? "border-white/20" : "border-slate-300"}`}
         >
-          {(["monthly", "cumulative"] as const).map((v, i) => (
+          {(["cumulative", "monthly"] as const).map((v, i) => (
             <button
               key={v}
               type="button"
@@ -82,7 +82,7 @@ export default function FrequencyChartFilters({
               className={`flex-1 sm:flex-none sm:min-w-[7rem] py-2 px-3 text-xs font-bold transition-colors capitalize ${
                 i > 0 ? `border-l ${isDarkTheme ? "border-white/20" : "border-slate-300"}` : ""
               } ${
-                view === v
+                view !== v
                   ? "bg-indigo-600 text-white"
                   : isDarkTheme
                     ? "text-white/60 hover:bg-white/10"

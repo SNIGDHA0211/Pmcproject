@@ -117,7 +117,7 @@ export default function FrequencyChartDashboard({
   const [editRow,     setEditRow]     = useState<FrequencyChartRegisterRow | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<{ id: number; label: string } | null>(null);
   const [deleting,    setDeleting]    = useState(false);
-  const [showTestTable, setShowTestTable] = useState(true);
+  const [showTestTable, setShowTestTable] = useState(false);
 
   const loadData = useCallback(async () => {
     if (!project?.title) return;

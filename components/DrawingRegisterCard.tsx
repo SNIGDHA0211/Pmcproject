@@ -600,7 +600,7 @@ export default function DrawingRegisterCard({
   const [deleteConfirm, setDeleteConfirm] = useState<{ id: number; label: string } | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
-  const [showDrawingTable, setShowDrawingTable] = useState(true);
+  const [showDrawingTable, setShowDrawingTable] = useState(false);
 
   const loadData = useCallback(async () => {
     if (!project?.title) return;

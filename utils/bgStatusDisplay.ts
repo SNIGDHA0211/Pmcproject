@@ -166,6 +166,52 @@ export function derivePartyBgPill(entries: BGEntry[]) {
   };
 }
 
+export function summarizeBgEntries(entries: BGEntry[]): {
+  total: number;
+  updated: number;
+  notUpdated: number;
+  yetToUpdate: number;
+} {
+  return {
+    total: entries.length,
+    updated: entries.filter((e) => e.status === 'UPDATED').length,
+    notUpdated: entries.filter((e) => e.status === 'NOT_UPDATED').length,
+    yetToUpdate: entries.filter((e) => e.status === 'YET_TO_UPDATE').length,
+  };
+}
+
+/** Worst status first, then nearest due date. */
+export function sortBgEntriesForDisplay(entries: BGEntry[]): BGEntry[] {
+  return [...entries].sort((a, b) => {
+    const byStatus = STATUS_PRIORITY[b.status] - STATUS_PRIORITY[a.status];
+    if (byStatus !== 0) return byStatus;
+    const aDue = a.due_date?.trim() ? new Date(a.due_date).getTime() : Number.MAX_SAFE_INTEGER;
+    const bDue = b.due_date?.trim() ? new Date(b.due_date).getTime() : Number.MAX_SAFE_INTEGER;
+    return aDue - bDue;
+  });
+}
+
+/** Most recently updated BG; falls back to highest-priority status row. */
+export function pickLatestUpdatedBgEntry(entries: BGEntry[]): BGEntry | null {
+  if (!entries.length) return null;
+
+  const withUpdated = entries.filter((e) => e.updated_date?.trim());
+  if (withUpdated.length > 0) {
+    return [...withUpdated].sort(
+      (a, b) =>
+        new Date(b.updated_date!).getTime() - new Date(a.updated_date!).getTime(),
+    )[0];
+  }
+
+  return sortBgEntriesForDisplay(entries)[0] ?? null;
+}
+
+export function shortBgName(name: string, max = 36): string {
+  const trimmed = name.trim();
+  if (trimmed.length <= max) return trimmed;
+  return `${trimmed.slice(0, max - 1).trim()}…`;
+}
+
 export function formatPartyBgTooltip(entries: BGEntry[], partyLabel: string): string {
   if (!entries.length) return `${partyLabel}: No bank guarantee on file`;
   return entries

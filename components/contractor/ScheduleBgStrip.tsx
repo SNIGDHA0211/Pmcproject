@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { ShieldCheck, ShieldPlus, X } from 'lucide-react';
+import { ChevronDown, ChevronUp, ShieldCheck, ShieldPlus, X } from 'lucide-react';
 import type { BGEntry } from '../../types/bgStatus';
 import { ModalPortal } from '../ModalPortal';
 import {
@@ -7,22 +7,32 @@ import {
   bgStatusToneClasses,
   derivePartyBgPill,
   formatBgDisplayDate,
+  pickLatestUpdatedBgEntry,
+  shortBgName,
+  sortBgEntriesForDisplay,
+  summarizeBgEntries,
 } from '../../utils/bgStatusDisplay';
 
 interface ScheduleBgStripProps {
   entries: BGEntry[];
   isDarkTheme: boolean;
+  party?: 'SCL' | 'CONTRACTOR';
   partyTitle?: string;
   onManageBg?: () => void;
+  hideWhenEmpty?: boolean;
 }
+
+const sectionTitle = (party?: 'SCL' | 'CONTRACTOR') => {
+  if (party === 'SCL') return 'SCL Bank Guarantee';
+  if (party === 'CONTRACTOR') return 'Contractor Bank Guarantee';
+  return 'Bank Guarantees';
+};
 
 const BgDetailRow: React.FC<{ entry: BGEntry; isDarkTheme: boolean }> = ({
   entry,
   isDarkTheme,
 }) => {
-  const pill = derivePartyBgPill([entry]);
-  const tone = bgStatusToneClasses(pill.status, isDarkTheme);
-  const label = bgStatusLabel(pill.status);
+  const tone = bgStatusToneClasses(entry.status, isDarkTheme);
 
   return (
     <div
@@ -32,21 +42,20 @@ const BgDetailRow: React.FC<{ entry: BGEntry; isDarkTheme: boolean }> = ({
     >
       <div className="flex items-start justify-between gap-3">
         <div className="flex min-w-0 items-start gap-2">
-          <ShieldCheck size={14} className={`mt-0.5 shrink-0 ${isDarkTheme ? 'text-indigo-400' : 'text-indigo-600'}`} />
+          <ShieldCheck
+            size={14}
+            className={`mt-0.5 shrink-0 ${isDarkTheme ? 'text-indigo-400' : 'text-indigo-600'}`}
+          />
           <p className={`text-sm font-bold leading-snug ${isDarkTheme ? 'text-white' : 'text-slate-900'}`}>
             {entry.bg_name}
           </p>
         </div>
         <span className={`shrink-0 rounded-lg px-2 py-0.5 text-[10px] font-bold uppercase ${tone}`}>
-          {label}
+          {bgStatusLabel(entry.status)}
         </span>
       </div>
-      <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
-        <div
-          className={`rounded-lg px-2.5 py-2 ${
-            isDarkTheme ? 'bg-white/5' : 'bg-slate-50'
-          }`}
-        >
+      <div className="mt-3 grid grid-cols-2 gap-2 text-xs sm:grid-cols-2">
+        <div className={`rounded-lg px-2.5 py-2 ${isDarkTheme ? 'bg-white/5' : 'bg-slate-50'}`}>
           <p className={`text-[10px] font-bold uppercase ${isDarkTheme ? 'text-white/45' : 'text-slate-400'}`}>
             Due date
           </p>
@@ -54,11 +63,7 @@ const BgDetailRow: React.FC<{ entry: BGEntry; isDarkTheme: boolean }> = ({
             {entry.due_date?.trim() ? formatBgDisplayDate(entry.due_date) : '—'}
           </p>
         </div>
-        <div
-          className={`rounded-lg px-2.5 py-2 ${
-            isDarkTheme ? 'bg-white/5' : 'bg-slate-50'
-          }`}
-        >
+        <div className={`rounded-lg px-2.5 py-2 ${isDarkTheme ? 'bg-white/5' : 'bg-slate-50'}`}>
           <p className={`text-[10px] font-bold uppercase ${isDarkTheme ? 'text-white/45' : 'text-slate-400'}`}>
             Updated
           </p>
@@ -94,6 +99,8 @@ const ScheduleBgDetailsModal: React.FC<{
     ? 'border-white/10 bg-[#0f172a] text-white'
     : 'border-slate-200 bg-white text-slate-900';
 
+  const sorted = sortBgEntriesForDisplay(entries);
+
   return (
     <ModalPortal open={open}>
       <div
@@ -115,10 +122,10 @@ const ScheduleBgDetailsModal: React.FC<{
           >
             <div className="min-w-0">
               <h3 id="bg-details-title" className="truncate text-base font-bold">
-                Bank Guarantees
+                {partyTitle}
               </h3>
               <p className={`truncate text-xs ${isDarkTheme ? 'text-white/55' : 'text-slate-500'}`}>
-                {partyTitle} · {entries.length} record{entries.length === 1 ? '' : 's'}
+                {entries.length} record{entries.length === 1 ? '' : 's'}
               </p>
             </div>
             <button
@@ -135,7 +142,7 @@ const ScheduleBgDetailsModal: React.FC<{
 
           <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3">
             <div className="space-y-2.5">
-              {entries.map((entry) => (
+              {sorted.map((entry) => (
                 <BgDetailRow key={entry.id} entry={entry} isDarkTheme={isDarkTheme} />
               ))}
             </div>
@@ -155,7 +162,7 @@ const ScheduleBgDetailsModal: React.FC<{
                   : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
               }`}
             >
-              Cancel
+              Close
             </button>
             {onManageBg && (
               <button
@@ -177,36 +184,124 @@ const ScheduleBgDetailsModal: React.FC<{
   );
 };
 
-const BgPreviewChip: React.FC<{ entry: BGEntry; isDarkTheme: boolean }> = ({
+const BgInlineRow: React.FC<{ entry: BGEntry; isDarkTheme: boolean; highlight?: boolean }> = ({
   entry,
   isDarkTheme,
+  highlight = false,
 }) => {
-  const pill = derivePartyBgPill([entry]);
-  const tone = bgStatusToneClasses(pill.status, isDarkTheme);
-  const datePrefix = pill.dateKind === 'updated' ? 'Upd' : 'Due';
+  const tone = bgStatusToneClasses(entry.status, isDarkTheme);
+  const statusLabel = bgStatusLabel(entry.status);
+  const dateLabel =
+    entry.updated_date?.trim()
+      ? `Updated ${formatBgDisplayDate(entry.updated_date)}`
+      : entry.due_date?.trim()
+        ? `Due ${formatBgDisplayDate(entry.due_date)}`
+        : 'Due —';
 
   return (
-    <div className={`inline-flex shrink-0 items-center gap-1 rounded-md border px-2 py-0.5 text-[10px] ${tone}`}>
-      <span className="max-w-[5.5rem] truncate font-semibold">{entry.bg_name}</span>
-      <span className="tabular-nums opacity-90">
-        {datePrefix} {pill.displayDate ? formatBgDisplayDate(pill.displayDate) : '—'}
-      </span>
+    <div
+      className={`rounded-md border px-2.5 py-2 ${
+        highlight
+          ? isDarkTheme
+            ? 'border-indigo-500/25 bg-indigo-500/10'
+            : 'border-indigo-200 bg-indigo-50/60'
+          : isDarkTheme
+            ? 'border-white/10 bg-white/[0.02]'
+            : 'border-slate-200/80 bg-white'
+      }`}
+      title={entry.bg_name}
+    >
+      <div className="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:gap-2">
+        <div className="flex min-w-0 flex-1 items-start gap-2">
+          <ShieldCheck
+            size={12}
+            strokeWidth={2.5}
+            className={`mt-0.5 shrink-0 ${isDarkTheme ? 'text-indigo-400' : 'text-indigo-600'}`}
+          />
+          <div className="min-w-0 flex-1">
+            {highlight && (
+              <p
+                className={`mb-0.5 text-[9px] font-bold uppercase tracking-wide ${
+                  isDarkTheme ? 'text-indigo-300/80' : 'text-indigo-600'
+                }`}
+              >
+                Latest update
+              </p>
+            )}
+            <p
+              className={`text-[10px] font-semibold leading-snug sm:text-[11px] ${
+                isDarkTheme ? 'text-white/90' : 'text-slate-800'
+              }`}
+            >
+              <span className="line-clamp-2 sm:truncate">{shortBgName(entry.bg_name, 48)}</span>
+            </p>
+            <p
+              className={`mt-0.5 text-[9px] font-medium tabular-nums sm:hidden ${
+                isDarkTheme ? 'text-white/50' : 'text-slate-500'
+              }`}
+            >
+              {dateLabel}
+            </p>
+          </div>
+        </div>
+        <div className="flex shrink-0 items-center justify-between gap-2 sm:justify-end">
+          <span
+            className={`hidden text-[9px] font-medium tabular-nums sm:inline ${
+              isDarkTheme ? 'text-white/50' : 'text-slate-500'
+            }`}
+          >
+            {dateLabel}
+          </span>
+          <span className={`rounded px-1.5 py-0.5 text-[8px] font-bold uppercase leading-none ${tone}`}>
+            {statusLabel}
+          </span>
+        </div>
+      </div>
     </div>
+  );
+};
+
+const BgSummaryCounts: React.FC<{ entries: BGEntry[]; isDarkTheme: boolean }> = ({
+  entries,
+  isDarkTheme,
+}) => {
+  const stats = summarizeBgEntries(entries);
+  if (stats.total === 0) return null;
+
+  const parts: string[] = [];
+  if (stats.updated > 0) parts.push(`${stats.updated} updated`);
+  if (stats.notUpdated > 0) parts.push(`${stats.notUpdated} not updated`);
+  if (stats.yetToUpdate > 0) parts.push(`${stats.yetToUpdate} pending`);
+
+  if (parts.length === 0) return null;
+
+  return (
+    <p className={`text-[10px] font-medium ${isDarkTheme ? 'text-white/50' : 'text-slate-500'}`}>
+      {parts.join(' · ')}
+    </p>
   );
 };
 
 const ScheduleBgStrip: React.FC<ScheduleBgStripProps> = ({
   entries,
   isDarkTheme,
+  party,
   partyTitle = 'Schedule',
   onManageBg,
+  hideWhenEmpty = false,
 }) => {
+  const [expanded, setExpanded] = useState(false);
   const [detailsOpen, setDetailsOpen] = useState(false);
-  const summary = useMemo(() => derivePartyBgPill(entries), [entries]);
 
-  const emptyTone = isDarkTheme
-    ? 'border-white/10 bg-white/5 text-white/50'
-    : 'border-slate-200 bg-slate-50 text-slate-500';
+  const sortedEntries = useMemo(() => sortBgEntriesForDisplay(entries), [entries]);
+  const latestEntry = useMemo(() => pickLatestUpdatedBgEntry(entries), [entries]);
+  const summary = useMemo(() => derivePartyBgPill(entries), [entries]);
+  const partyLabel = party === 'SCL' ? 'SCL' : party === 'CONTRACTOR' ? 'Contractor' : partyTitle;
+  const title = sectionTitle(party);
+
+  useEffect(() => {
+    setExpanded(false);
+  }, [entries]);
 
   const manageBtn = onManageBg ? (
     <button
@@ -223,84 +318,138 @@ const ScheduleBgStrip: React.FC<ScheduleBgStripProps> = ({
     </button>
   ) : null;
 
+  const shellClass = `rounded-lg border px-2.5 py-2.5 sm:px-3 ${
+    isDarkTheme ? 'border-white/10 bg-white/[0.03]' : 'border-slate-100 bg-slate-50/80'
+  }`;
+
   if (!entries.length) {
+    if (hideWhenEmpty) return null;
     return (
-      <div className={`flex items-center justify-between gap-2 rounded-lg border px-2.5 py-1.5 ${emptyTone}`}>
-        <span className="text-[10px] font-medium">No bank guarantee on file</span>
+      <div className={`flex items-center justify-between gap-2 ${shellClass}`}>
+        <div className="min-w-0">
+          <p
+            className={`text-[10px] font-bold uppercase tracking-wide ${
+              isDarkTheme ? 'text-white/55' : 'text-slate-600'
+            }`}
+          >
+            {title}
+          </p>
+          <p className={`text-[10px] ${isDarkTheme ? 'text-white/40' : 'text-slate-400'}`}>
+            No records — use Manage BG to add
+          </p>
+        </div>
         {manageBtn}
       </div>
     );
   }
 
-  const previewCount = entries.length > 3 ? 2 : Math.min(entries.length, 3);
-  const previewEntries = entries.slice(0, previewCount);
-  const hiddenCount = entries.length - previewEntries.length;
+  const overallTone = bgStatusToneClasses(summary.status, isDarkTheme);
+  const hasMultiple = entries.length > 1;
+  const visibleEntries = expanded
+    ? sortedEntries
+    : latestEntry
+      ? [latestEntry]
+      : sortedEntries.slice(0, 1);
+
+  const toggleBtn = hasMultiple ? (
+    <button
+      type="button"
+      onClick={() => setExpanded((open) => !open)}
+      aria-expanded={expanded}
+      className={`inline-flex items-center gap-1 rounded-md px-2 py-1 text-[10px] font-bold uppercase tracking-wide transition-colors ${
+        isDarkTheme
+          ? 'bg-indigo-500/20 text-indigo-300 hover:bg-indigo-500/30'
+          : 'bg-indigo-50 text-indigo-700 hover:bg-indigo-100'
+      }`}
+    >
+      {expanded ? (
+        <>
+          <ChevronUp size={12} />
+          Show less
+        </>
+      ) : (
+        <>
+          <ChevronDown size={12} />
+          Show all ({entries.length})
+        </>
+      )}
+    </button>
+  ) : (
+    <button
+      type="button"
+      onClick={() => setDetailsOpen(true)}
+      className={`inline-flex items-center rounded-md px-2 py-1 text-[10px] font-bold uppercase tracking-wide transition-colors ${
+        isDarkTheme
+          ? 'text-indigo-300 hover:bg-indigo-500/10'
+          : 'text-indigo-700 hover:bg-indigo-50'
+      }`}
+    >
+      Details
+    </button>
+  );
 
   return (
     <>
-      <div className="flex items-stretch gap-2">
-        <div
-          className={`flex min-w-0 flex-1 flex-col gap-1.5 rounded-lg border px-2.5 py-1.5 sm:flex-row sm:items-center sm:gap-3 ${
-            isDarkTheme ? 'border-white/10 bg-white/[0.03]' : 'border-slate-100 bg-slate-50/80'
-          }`}
-        >
-          <div className="flex min-w-0 flex-1 items-center justify-between gap-2">
-            <div className="min-w-0">
+      <div className={`flex h-full flex-col gap-2 ${shellClass}`}>
+        <div className="flex flex-wrap items-start justify-between gap-x-2 gap-y-1.5">
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
               <p
-                className={`text-[9px] font-bold uppercase tracking-wider ${
-                  isDarkTheme ? 'text-white/45' : 'text-slate-400'
+                className={`text-[10px] font-bold uppercase tracking-wide ${
+                  isDarkTheme ? 'text-white/55' : 'text-slate-600'
                 }`}
               >
-                Bank guarantees ({entries.length})
+                {title}
               </p>
-              {summary.status && (
-                <p
-                  className={`text-[10px] font-semibold uppercase ${
-                    isDarkTheme ? 'text-white/55' : 'text-slate-500'
-                  }`}
-                >
-                  {bgStatusLabel(summary.status)}
-                </p>
-              )}
+              <span
+                className={`rounded-full px-1.5 py-0.5 text-[9px] font-bold tabular-nums ${overallTone}`}
+              >
+                {entries.length} total
+              </span>
             </div>
-            <button
-              type="button"
-              onClick={() => setDetailsOpen(true)}
-              className={`shrink-0 rounded-md px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide transition-colors ${
-                isDarkTheme
-                  ? 'bg-indigo-500/20 text-indigo-300 hover:bg-indigo-500/30'
-                  : 'bg-indigo-50 text-indigo-700 hover:bg-indigo-100'
-              }`}
-            >
-              View all
-            </button>
+            <BgSummaryCounts entries={entries} isDarkTheme={isDarkTheme} />
           </div>
 
-          {/* Preview chips — hidden on very small screens to avoid clutter */}
-          <div className="hidden min-w-0 items-center gap-1.5 overflow-x-auto sm:flex">
-            {previewEntries.map((entry) => (
-              <BgPreviewChip key={entry.id} entry={entry} isDarkTheme={isDarkTheme} />
-            ))}
-            {hiddenCount > 0 && (
-              <span
-                className={`shrink-0 text-[10px] font-semibold ${
-                  isDarkTheme ? 'text-white/45' : 'text-slate-400'
-                }`}
-              >
-                +{hiddenCount}
-              </span>
-            )}
+          <div className="flex shrink-0 flex-wrap items-center justify-end gap-1.5">
+            {toggleBtn}
+            {manageBtn}
           </div>
         </div>
-        {manageBtn}
+
+        <div
+          className={`flex flex-col gap-1 ${expanded && hasMultiple ? 'max-h-48 overflow-y-auto pr-0.5 sm:max-h-56' : ''}`}
+        >
+          {visibleEntries.map((entry) => (
+            <BgInlineRow
+              key={entry.id}
+              entry={entry}
+              isDarkTheme={isDarkTheme}
+              highlight={!expanded && entry.id === latestEntry?.id}
+            />
+          ))}
+        </div>
+
+        {expanded && hasMultiple && (
+          <button
+            type="button"
+            onClick={() => setDetailsOpen(true)}
+            className={`w-full rounded-md py-1 text-center text-[10px] font-bold uppercase tracking-wide transition-colors ${
+              isDarkTheme
+                ? 'text-indigo-300 hover:bg-indigo-500/10'
+                : 'text-indigo-600 hover:bg-indigo-50'
+            }`}
+          >
+            Open full details
+          </button>
+        )}
       </div>
 
       <ScheduleBgDetailsModal
         open={detailsOpen}
         onClose={() => setDetailsOpen(false)}
-        entries={entries}
+        entries={sortedEntries}
         isDarkTheme={isDarkTheme}
-        partyTitle={partyTitle}
+        partyTitle={partyTitle || partyLabel}
         onManageBg={onManageBg}
       />
     </>

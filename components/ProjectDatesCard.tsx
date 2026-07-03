@@ -6,7 +6,6 @@ import { contractorLabel } from '../utils/projectDatesMulti';
 import { Icons } from './Icons';
 import { CardEditButton, CardHeaderActions } from './FormulaInfoButton';
 import DashboardCardTopAccent from './DashboardCardTopAccent';
-import ProjectDatesBgStatusPill from './ProjectDatesBgStatusPill';
 import ScheduleBgStrip from './contractor/ScheduleBgStrip';
 import { DASHBOARD_CARD_TITLE_CLASS, getThemeClasses, useTheme } from '../utils/theme';
 
@@ -88,6 +87,8 @@ export const ProjectDatesPartyColumn: React.FC<{
   layout?: 'default' | 'compact';
   /** Title shown in BG details modal (e.g. "1. Contractor") */
   partyDisplayTitle?: string;
+  /** When false, timeline column only (BG shown in group card panel). */
+  showBgStrip?: boolean;
 }> = ({
   variant,
   data,
@@ -101,6 +102,7 @@ export const ProjectDatesPartyColumn: React.FC<{
   isDarkTheme,
   layout = 'default',
   partyDisplayTitle,
+  showBgStrip = false,
 }) => {
   const partyLabel =
     variant === 'SCL' ? 'SCL' : contractorLabel(data).toUpperCase();
@@ -150,56 +152,28 @@ export const ProjectDatesPartyColumn: React.FC<{
     ? `mb-1 min-h-[1.35rem] text-center text-[9px] font-bold uppercase leading-tight tracking-wide md:text-[10px] ${mutedClass}`
     : `mb-1.5 min-h-[2rem] text-center text-[10px] font-bold uppercase leading-tight tracking-wide md:min-h-[2.25rem] md:text-xs lg:text-sm ${mutedClass}`;
 
+  const partyBgRole = variant === 'SCL' ? 'SCL' : 'CONTRACTOR' as const;
+
   return (
     <div className={`relative flex flex-col ${shellPad}`}>
-      {isCompact ? (
-        <ScheduleBgStrip
-          entries={bgEntries}
-          isDarkTheme={isDarkTheme}
-          partyTitle={partyDisplayTitle ?? partyLabel}
-          onManageBg={onManageBg}
-        />
-      ) : (
-        <div className="flex items-start justify-between gap-2 pr-7">
-          <div className="flex min-w-0 flex-col gap-1.5">
-            <div className="flex items-center gap-2.5">
-              <span
-                className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[11px] font-bold lowercase leading-none ${iconTile}`}
-              >
-                {partyInitial}
-              </span>
-              <p
-                className={`truncate text-sm font-semibold uppercase leading-none tracking-wide sm:text-base ${
-                  isDarkTheme ? 'text-blue-400/90' : 'text-blue-600/90'
-                }`}
-              >
-                {partyLabel}
-              </p>
-            </div>
-
-            <div className="flex flex-wrap items-center gap-1.5 sm:ml-10">
-              <ProjectDatesBgStatusPill
-                party={variant === 'SCL' ? 'SCL' : 'CONTRACTOR'}
-                entries={bgEntries}
-              />
-              {onManageBg && (
-                <button
-                  type="button"
-                  onClick={onManageBg}
-                  className={`inline-flex items-center gap-1 rounded-lg border px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide ${
-                    isDarkTheme
-                      ? 'border-blue-500/30 text-blue-300 hover:bg-blue-500/10'
-                      : 'border-blue-200 text-blue-700 hover:bg-blue-50'
-                  }`}
-                >
-                  <ShieldPlus size={10} />
-                  BG
-                </button>
-              )}
-            </div>
+      {!isCompact && (
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex min-w-0 items-center gap-2.5">
+            <span
+              className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[11px] font-bold lowercase leading-none ${iconTile}`}
+            >
+              {partyInitial}
+            </span>
+            <p
+              className={`truncate text-sm font-semibold uppercase leading-none tracking-wide sm:text-base ${
+                isDarkTheme ? 'text-blue-400/90' : 'text-blue-600/90'
+              }`}
+            >
+              {partyLabel}
+            </p>
           </div>
 
-          <div className="absolute right-2.5 top-2.5 flex items-center gap-1">
+          <div className="flex shrink-0 items-center gap-1">
             {onDelete && (
               <button
                 type="button"
@@ -221,7 +195,17 @@ export const ProjectDatesPartyColumn: React.FC<{
         </div>
       )}
 
-      <div className={`flex flex-col ${isCompact ? 'gap-2' : 'gap-3 sm:gap-1'} sm:pr-0.5`}>
+      {showBgStrip && (
+        <ScheduleBgStrip
+          entries={bgEntries}
+          isDarkTheme={isDarkTheme}
+          party={partyBgRole}
+          partyTitle={partyDisplayTitle ?? partyLabel}
+          onManageBg={onManageBg}
+        />
+      )}
+
+      <div className={`flex flex-col ${isCompact ? 'gap-2' : showBgStrip ? 'gap-3 sm:gap-2' : 'gap-2 sm:gap-1'} sm:pr-0.5`}>
         {/* Mobile: stacked milestones + full-width delay */}
         <div className="flex flex-col gap-2 sm:hidden">
           {DATE_MILESTONES.map(({ key, label, field, Icon }) => (
@@ -345,13 +329,10 @@ export const ProjectDatesGroupCard: React.FC<ProjectDatesGroupCardProps> = ({
   const selectedContractor =
     contractors.find((c) => c.id === selectedContractorId) ?? contractors[0] ?? null;
 
-  const selectedContractorBg = selectedContractor
-    ? contractorBgEntries.filter((entry) => {
-        const name = selectedContractor.contractor_name?.trim().toLowerCase();
-        if (!name) return contractorBgEntries.length <= 1 || !entry.contractor_name;
-        return entry.contractor_name?.trim().toLowerCase() === name;
-      })
-    : [];
+  /** Project-level contractor BG rows (not tied to schedule contractor name). */
+  const contractorBgForPanel = contractorBgEntries;
+
+  const showBgPanel = sclBgEntries.length > 0 || contractorBgForPanel.length > 0;
 
   const summaryItems = bgSummary
     ? [
@@ -371,36 +352,39 @@ export const ProjectDatesGroupCard: React.FC<ProjectDatesGroupCardProps> = ({
     >
       <DashboardCardTopAccent />
 
-      {/* Card Header */}
+      {/* Card Header — single row on md+ */}
       <div
-        className={`flex shrink-0 flex-col gap-2 border-b px-3 pb-3 pt-3.5 sm:flex-row sm:items-center sm:justify-between sm:gap-3 sm:px-4 sm:pb-3 sm:pt-4 md:px-5 md:pt-[18px] ${themeClasses.border}`}
+        className={`flex shrink-0 flex-wrap items-center gap-x-3 gap-y-2 border-b px-3 py-2.5 sm:px-4 sm:py-3 md:flex-nowrap md:justify-between md:gap-4 md:px-5 ${themeClasses.border}`}
       >
-        <div className="flex min-w-0 flex-1 items-center gap-2.5 sm:gap-3">
+        <div className="flex min-w-0 flex-1 items-center gap-2.5">
           <span
-            className={`flex h-9 w-9 flex-none items-center justify-center rounded-lg ${isDarkTheme
+            className={`flex h-8 w-8 flex-none items-center justify-center rounded-lg sm:h-9 sm:w-9 ${isDarkTheme
                 ? 'bg-blue-500/15 text-blue-400 ring-1 ring-blue-500/25'
                 : 'bg-blue-50 text-blue-600 ring-1 ring-blue-100'
               }`}
           >
-            <Icons.Calendar size={20} strokeWidth={2} className="shrink-0" />
+            <Icons.Calendar size={18} strokeWidth={2} className="shrink-0 sm:hidden" />
+            <Icons.Calendar size={20} strokeWidth={2} className="hidden shrink-0 sm:block" />
           </span>
-          <h3 className={`${DASHBOARD_CARD_TITLE_CLASS} m-0 leading-none`}>Project Dates</h3>
-          {contractors.length > 0 && selectedContractor && (
-            <p className={`mt-1 text-[11px] font-semibold ${themeClasses.textSecondary}`}>
-              Contractor side shows:{' '}
-              <span className={themeClasses.textPrimary}>{contractorLabel(selectedContractor)}</span>
-              {contractors.length > 1 && (
-                <span className={themeClasses.textMuted}>
-                  {' '}
-                  ({contractors.findIndex((c) => c.id === selectedContractor.id) + 1} of{' '}
-                  {contractors.length})
-                </span>
-              )}
-            </p>
-          )}
+          <div className="min-w-0">
+            <h3 className={`${DASHBOARD_CARD_TITLE_CLASS} m-0 leading-none`}>Project Dates</h3>
+            {contractors.length > 0 && selectedContractor && (
+              <p className={`mt-0.5 truncate text-[10px] font-semibold sm:text-[11px] ${themeClasses.textSecondary}`}>
+                Contractor:{' '}
+                <span className={themeClasses.textPrimary}>{contractorLabel(selectedContractor)}</span>
+                {contractors.length > 1 && (
+                  <span className={themeClasses.textMuted}>
+                    {' '}
+                    ({contractors.findIndex((c) => c.id === selectedContractor.id) + 1}/
+                    {contractors.length})
+                  </span>
+                )}
+              </p>
+            )}
+          </div>
         </div>
 
-        <CardHeaderActions className="w-full flex-wrap items-center justify-end gap-2 sm:w-auto">
+        <CardHeaderActions className="flex shrink-0 flex-wrap items-center justify-end gap-2">
           {onAddContractor && (
             <button
               type="button"
@@ -471,6 +455,7 @@ export const ProjectDatesGroupCard: React.FC<ProjectDatesGroupCardProps> = ({
           onManageBg={onManageBg ? () => onManageBg('SCL') : undefined}
           themeClasses={themeClasses}
           isDarkTheme={isDarkTheme}
+          showBgStrip={false}
         />
 
         <div className="flex flex-col">
@@ -505,7 +490,7 @@ export const ProjectDatesGroupCard: React.FC<ProjectDatesGroupCardProps> = ({
             <ProjectDatesPartyColumn
               variant="Contractor"
               data={selectedContractor}
-              bgEntries={selectedContractorBg}
+              bgEntries={contractorBgForPanel}
               isLoading={isLoading}
               error={contractorError}
               onEdit={onEditContractor ? () => onEditContractor(selectedContractor) : undefined}
@@ -522,6 +507,7 @@ export const ProjectDatesGroupCard: React.FC<ProjectDatesGroupCardProps> = ({
               }
               themeClasses={themeClasses}
               isDarkTheme={isDarkTheme}
+              showBgStrip={false}
             />
           ) : (
             <div className={`flex min-h-[120px] flex-col items-center justify-center gap-3 p-6`}>
@@ -542,6 +528,63 @@ export const ProjectDatesGroupCard: React.FC<ProjectDatesGroupCardProps> = ({
           )}
         </div>
       </div>
+
+      {showBgPanel && (
+        <div
+          className={`border-t px-3 py-3 sm:px-4 md:px-5 ${
+            isDarkTheme ? 'border-white/10 bg-white/[0.02]' : 'border-slate-100 bg-slate-50/40'
+          }`}
+        >
+          <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+            <p
+              className={`text-[10px] font-bold uppercase tracking-widest ${
+                isDarkTheme ? 'text-white/50' : 'text-slate-500'
+              }`}
+            >
+              Bank Guarantee Status
+            </p>
+            {onManageBg && (
+              <button
+                type="button"
+                onClick={() => onManageBg('all')}
+                className={`inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide ${
+                  isDarkTheme ? 'text-indigo-300 hover:text-indigo-200' : 'text-indigo-600 hover:text-indigo-700'
+                }`}
+              >
+                <ShieldPlus size={11} />
+                Manage all
+              </button>
+            )}
+          </div>
+          <div className="grid grid-cols-1 gap-3 lg:grid-cols-2 lg:gap-4">
+            <ScheduleBgStrip
+              entries={sclBgEntries}
+              isDarkTheme={isDarkTheme}
+              party="SCL"
+              partyTitle="SCL Bank Guarantee"
+              onManageBg={onManageBg ? () => onManageBg('SCL') : undefined}
+              hideWhenEmpty
+            />
+            <ScheduleBgStrip
+              entries={contractorBgForPanel}
+              isDarkTheme={isDarkTheme}
+              party="CONTRACTOR"
+              partyTitle="Contractor Bank Guarantee"
+              onManageBg={
+                onManageBg
+                  ? () =>
+                      onManageBg(
+                        selectedContractor
+                          ? { contractorName: contractorLabel(selectedContractor) }
+                          : 'all',
+                      )
+                  : undefined
+              }
+              hideWhenEmpty
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 };

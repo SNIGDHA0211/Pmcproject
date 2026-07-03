@@ -2229,76 +2229,81 @@ const Projects: React.FC<ProjectsProps> = ({ projects, currentUser, onViewProjec
 
       {!isPMCHead && (
         <>
-          {/* Header */}
-          <div className={`mt-1 overflow-hidden rounded-2xl border p-3 sm:p-4 md:p-5 ${themeClasses.glassCard} ${themeClasses.border} shadow-sm`}>
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-[minmax(0,1fr)_minmax(260px,380px)] xl:grid-cols-[minmax(0,1fr)_minmax(280px,420px)] lg:items-start">
-              {/* Project Name */}
-              <div className="flex min-w-0 items-start gap-2.5 sm:col-span-1 sm:row-start-1 sm:gap-3">
-                <div className={`shrink-0 rounded-xl p-2 sm:p-2.5 ${isDarkTheme ? 'bg-indigo-500/10 text-indigo-400' : 'bg-indigo-50 text-indigo-600'}`}>
-                  <Icons.Building size={20} className="sm:hidden" />
-                  <Icons.Building size={24} className="hidden sm:block" />
+          {/* Header — single-row on md+ */}
+          <div className={`mt-1 overflow-hidden rounded-2xl border px-3 py-2.5 sm:px-4 sm:py-3 md:px-5 ${themeClasses.glassCard} ${themeClasses.border} shadow-sm`}>
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-2 md:flex-nowrap md:items-center md:justify-between md:gap-x-4 lg:gap-x-6">
+              {/* Project name */}
+              <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-2.5 md:min-w-[10rem] lg:max-w-[38%]">
+                <div className={`shrink-0 rounded-xl p-2 ${isDarkTheme ? 'bg-indigo-500/10 text-indigo-400' : 'bg-indigo-50 text-indigo-600'}`}>
+                  <Icons.Building size={20} />
                 </div>
-                <div className="min-w-0 flex-1">
-                  <p className={`${typo.headerEyebrow} mb-0.5 sm:mb-1 ${themeClasses.textSecondary}`}>
+                <div className="min-w-0">
+                  <p className={`${typo.headerEyebrow} mb-0.5 leading-none ${themeClasses.textSecondary}`}>
                     Project Name
                   </p>
-                  <h2 className={`${typo.headerTitle} line-clamp-2 break-words ${themeClasses.textPrimary}`}>
-                    {selectedProject.title}
-                  </h2>
-                  {selectedProject.location && (
-                    <p className={`mt-1 line-clamp-2 text-xs font-semibold sm:line-clamp-1 sm:text-sm ${themeClasses.textSecondary}`}>
-                      {selectedProject.location}
-                    </p>
-                  )}
+                  <div className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-0">
+                    <h2 className={`${typo.headerTitle} truncate ${themeClasses.textPrimary}`}>
+                      {selectedProject.title}
+                    </h2>
+                    {selectedProject.location && (
+                      <span className={`hidden truncate text-xs font-semibold xl:inline ${themeClasses.textSecondary}`}>
+                        · {selectedProject.location}
+                      </span>
+                    )}
+                  </div>
                 </div>
               </div>
 
-              {/* Report date + actions */}
-              <div className="flex w-full min-w-0 flex-col gap-3 sm:col-span-1 sm:row-start-1 sm:justify-self-end sm:items-end lg:items-stretch">
-                <div className="flex w-full min-w-0 items-start gap-2.5 sm:max-w-[280px] sm:justify-end sm:gap-3 lg:max-w-none lg:justify-start">
-                  <div className={`shrink-0 rounded-xl p-2 sm:p-2.5 ${isDarkTheme ? 'bg-indigo-500/10 text-indigo-400' : 'bg-indigo-50 text-indigo-600'}`}>
-                    <Icons.Calendar size={20} className="sm:hidden" />
-                    <Icons.Calendar size={24} className="hidden sm:block" />
-                  </div>
-                  <div className="min-w-0 sm:text-right lg:text-left">
-                    <p className={`${typo.headerEyebrow} mb-0.5 sm:mb-1 ${themeClasses.textSecondary}`}>
-                      Report Date
-                    </p>
+              <div className={`hidden h-9 w-px shrink-0 md:block ${isDarkTheme ? 'bg-white/10' : 'bg-slate-200'}`} aria-hidden />
+
+              {/* Report date */}
+              <div className="flex shrink-0 items-center gap-2 sm:gap-2.5">
+                <div className={`hidden shrink-0 rounded-xl p-2 sm:flex ${isDarkTheme ? 'bg-indigo-500/10 text-indigo-400' : 'bg-indigo-50 text-indigo-600'}`}>
+                  <Icons.Calendar size={20} />
+                </div>
+                <div className="min-w-0">
+                  <p className={`${typo.headerEyebrow} mb-0.5 leading-none ${themeClasses.textSecondary}`}>
+                    Report Date
+                  </p>
+                  <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0">
                     <h2 className={`${typo.headerTitle} whitespace-nowrap ${themeClasses.textPrimary}`}>
                       {currentDate}
                     </h2>
-                    <p className={`${typo.headerWeekday} mt-0.5 sm:mt-1 ${themeClasses.textSecondary}`}>
+                    <span className={`${typo.headerWeekday} whitespace-nowrap ${themeClasses.textSecondary}`}>
                       {currentDay}
-                    </p>
+                    </span>
                   </div>
                 </div>
+              </div>
 
-                <div className="grid w-full grid-cols-1 gap-2 min-[400px]:grid-cols-2 sm:max-w-[360px] lg:max-w-none lg:grid-cols-1 xl:grid-cols-2">
+              <div className={`hidden h-9 w-px shrink-0 md:block ${isDarkTheme ? 'bg-white/10' : 'bg-slate-200'}`} aria-hidden />
+
+              {/* Actions */}
+              <div className="flex w-full shrink-0 items-center gap-2 md:ml-auto md:w-auto">
+                <button
+                  onClick={exportProjectDataExcel}
+                  className={`inline-flex flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-xl border px-3 py-2 ${typo.button} transition-all md:flex-none ${isDarkTheme
+                    ? 'border-emerald-700/50 bg-emerald-950/30 text-emerald-200 hover:bg-emerald-900/40'
+                    : 'border-emerald-200 bg-emerald-50 text-emerald-800 hover:bg-emerald-100'
+                    }`}
+                  title="Export management report as Excel workbook"
+                >
+                  <Icons.Download size={16} className="shrink-0" />
+                  <span>Export Excel</span>
+                </button>
+
+                {!showProjectsAnalyticsTour && (
                   <button
-                    onClick={exportProjectDataExcel}
-                    className={`flex w-full items-center justify-center gap-2 rounded-xl border px-3 py-2.5 sm:py-2 ${typo.button} transition-all ${isDarkTheme
-                      ? 'border-emerald-700/50 bg-emerald-950/30 text-emerald-200 hover:bg-emerald-900/40'
-                      : 'border-emerald-200 bg-emerald-50 text-emerald-800 hover:bg-emerald-100'
-                      }`}
-                    title="Export management report as Excel workbook"
+                    onClick={() => {
+                      startAnalyticsTour();
+                    }}
+                    className={`inline-flex flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-xl bg-gradient-to-r from-indigo-600 to-blue-600 px-3 py-2 ${typo.bodyBold} text-white shadow transition-all hover:from-indigo-700 hover:to-blue-700 active:scale-[0.985] md:flex-none`}
                   >
-                    <Icons.Download size={16} className="shrink-0" />
-                    <span className="truncate">Export Excel</span>
+                    <Icons.Info size={16} className="shrink-0" />
+                    <span className="hidden min-[420px]:inline">Analytics Walkthrough</span>
+                    <span className="min-[420px]:hidden">Tour</span>
                   </button>
-
-                  {!showProjectsAnalyticsTour && (
-                    <button
-                      onClick={() => {
-                        startAnalyticsTour();
-                      }}
-                      className={`flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-indigo-600 to-blue-600 px-3 py-2.5 sm:py-2 ${typo.bodyBold} text-white shadow transition-all hover:from-indigo-700 hover:to-blue-700 active:scale-[0.985]`}
-                    >
-                      <Icons.Info size={16} className="shrink-0" />
-                      <span className="truncate sm:hidden">Analytics Tour</span>
-                      <span className="hidden truncate sm:inline">Analytics Walkthrough</span>
-                    </button>
-                  )}
-                </div>
+                )}
               </div>
             </div>
           </div>

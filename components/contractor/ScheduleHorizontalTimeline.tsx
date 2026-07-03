@@ -74,6 +74,7 @@ const ScheduleHorizontalTimeline: React.FC<ScheduleHorizontalTimelineProps> = ({
         isDarkTheme={isDarkTheme}
         layout="compact"
         partyDisplayTitle={title}
+        showBgStrip={false}
       />
     </div>
   );
