@@ -47,21 +47,38 @@ import { contractorMasterApi } from '../services/contractorManagementApi';
 import type { ContractorMasterRecord } from '../types/contractorManagement';
 import FinancialContractorSelectBar from './financial/FinancialContractorSelectBar';
 import { loadContractorFinancialBuckets } from '../utils/financialContractorForms';
+import FinancialCashflowSection from './financial/FinancialCashflowSection';
 
 interface FinancialManagementProps {
   projects?: Project[];
   currentUser?: User;
   onSaveSuccess?: () => void;
   initialSubTab?: SubTab;
+  /** When opened from an alert, pre-select this project */
+  initialProjectId?: string | null;
   /** When true (navigated from Projects edit), only the initial section tab is selectable */
   lockToInitialSection?: boolean;
   /** Tab id to return to (e.g. team_projects) when opened from Contractor Management */
   returnTab?: string | null;
   onReturnToProject?: () => void;
+  /** Billing engineers see finance/money tabs only */
+  variant?: FinancialManagementVariant;
 }
 
 export const FINANCIAL_SUB_TABS = [
   'progress',
+  'cashflow',
+  'earned_value',
+  'contract',
+  'cost',
+  'budget',
+  'invoicing',
+  'contracts',
+] as const;
+
+/** Money / finance tabs shown to Billing Site Engineers (no physical progress). */
+export const BILLING_FINANCIAL_SUB_TABS = [
+  'cashflow',
   'earned_value',
   'contract',
   'cost',
@@ -72,8 +89,11 @@ export const FINANCIAL_SUB_TABS = [
 
 export type SubTab = (typeof FINANCIAL_SUB_TABS)[number];
 
+export type FinancialManagementVariant = 'default' | 'billing';
+
 const TAB_SUCCESS_BANNERS: Record<SubTab, string> = {
   progress: '✓ Physical Progress Updated Successfully',
+  cashflow: '✓ Cashflow Updated Successfully',
   earned_value: '✓ Planned vs Actual Value Updated Successfully',
   contract: '✓ Contract Performance Updated Successfully',
   cost: '✓ Financial Progress Updated Successfully',
@@ -88,6 +108,13 @@ export function normalizeFinancialSubTab(tab?: string): SubTab {
     return tab as SubTab;
   }
   return 'progress';
+}
+
+export function normalizeBillingFinancialSubTab(tab?: string): SubTab {
+  if (tab && (BILLING_FINANCIAL_SUB_TABS as readonly string[]).includes(tab)) {
+    return tab as SubTab;
+  }
+  return 'cashflow';
 }
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -172,14 +199,18 @@ const FinancialManagement: React.FC<FinancialManagementProps> = ({
   currentUser,
   onSaveSuccess,
   initialSubTab = 'progress',
+  initialProjectId = null,
   lockToInitialSection = false,
   returnTab = null,
   onReturnToProject,
+  variant = 'default',
 }) => {
+  const isBillingVariant = variant === 'billing';
+  const normalizeSubTab = isBillingVariant ? normalizeBillingFinancialSubTab : normalizeFinancialSubTab;
   const { isDarkTheme } = useTheme();
   const themeClasses = getThemeClasses(isDarkTheme);
 
-  const [activeSubTab, setActiveSubTab] = useState<SubTab>(() => normalizeFinancialSubTab(initialSubTab));
+  const [activeSubTab, setActiveSubTab] = useState<SubTab>(() => normalizeSubTab(initialSubTab));
   const [selectedProject, setSelectedProject] = useState('');
   const [selectedMonth, setSelectedMonth] = useState(MONTHS[new Date().getMonth()]);
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear().toString());
@@ -398,14 +429,20 @@ const FinancialManagement: React.FC<FinancialManagementProps> = ({
   // Auto-select first project
   useEffect(() => {
     if (!selectedProject && projects.length > 0) {
-      setSelectedProject(projects[0].id);
+      setSelectedProject(initialProjectId || projects[0].id);
     }
-  }, [projects, selectedProject]);
+  }, [projects, selectedProject, initialProjectId]);
+
+  useEffect(() => {
+    if (initialProjectId) {
+      setSelectedProject(initialProjectId);
+    }
+  }, [initialProjectId]);
 
   // Update activeSubTab when initialSubTab changes
   useEffect(() => {
-    setActiveSubTab(normalizeFinancialSubTab(initialSubTab));
-  }, [initialSubTab]);
+    setActiveSubTab(normalizeSubTab(initialSubTab));
+  }, [initialSubTab, isBillingVariant]);
 
   // Derive role for backend submission (use authenticated user role)
   const userRole = currentUser?.role || '';
@@ -978,15 +1015,23 @@ const FinancialManagement: React.FC<FinancialManagementProps> = ({
     }
   };
 
-  const subTabs: { key: SubTab; label: string }[] = [
-    { key: 'progress', label: 'Physical Progress' },
-    { key: 'earned_value', label: 'Planned vs Actual Value' },
-    { key: 'contract', label: 'Contract Performance' },
-    { key: 'cost', label: 'Financial Progress' },
-    { key: 'budget', label: 'Budget vs Cost' },
-    { key: 'invoicing', label: 'Invoicing' },
-    { key: 'contracts', label: 'Contract Values' },
-  ];
+  const subTabs = (
+    [
+      { key: 'progress' as const, label: 'Physical Progress' },
+      { key: 'cashflow' as const, label: 'Cashflow' },
+      { key: 'earned_value' as const, label: 'Planned vs Actual Value' },
+      { key: 'contract' as const, label: 'Contract Performance' },
+      { key: 'cost' as const, label: isBillingVariant ? 'Internal Cost Performance' : 'Financial Progress' },
+      { key: 'budget' as const, label: 'Budget vs Cost' },
+      { key: 'invoicing' as const, label: 'Invoicing' },
+      { key: 'contracts' as const, label: 'Contract Values' },
+    ] satisfies { key: SubTab; label: string }[]
+  ).filter((tab) => {
+    if (isBillingVariant) {
+      return (BILLING_FINANCIAL_SUB_TABS as readonly string[]).includes(tab.key);
+    }
+    return tab.key !== 'cashflow';
+  });
   const displayedContractForm = contractForm || emptyContractPerformance;
   const displayedContractMetrics = calculateContractPerformance(
     parseNumericValue(displayedContractForm.billedValue),
@@ -1004,7 +1049,9 @@ const FinancialManagement: React.FC<FinancialManagementProps> = ({
               Financial Management
             </h2>
             <p className={`mt-1 text-sm font-medium ${themeClasses.textSecondary}`}>
-              Monthly data entry &amp; updates for Team Leaders
+              {isBillingVariant
+                ? 'Finance & money data entry for Billing Site Engineers'
+                : 'Monthly data entry & updates for Team Leaders'}
             </p>
           </div>
           {returnTab && onReturnToProject && (
@@ -1139,6 +1186,23 @@ const FinancialManagement: React.FC<FinancialManagementProps> = ({
                   cumulativeActual={parseNumericValue(progressForm.cumulative_actual)}
                 />
               </div>
+            )}
+
+            {activeSubTab === 'cashflow' && projectName && (
+              <FinancialCashflowSection
+                projectName={projectName}
+                month={selectedMonthNumber}
+                year={selectedYearNumber}
+                periodLabel={periodNote}
+                formSuccessBanner={formSuccessBanner}
+                onReset={handleFormReset}
+                onRefresh={forceRefresh}
+                isRefreshing={isForceRefreshing}
+                onSaved={(message) => showSaveNotification(message, 'success')}
+                onError={(message) => showSaveNotification(message, 'error')}
+                isDarkTheme={isDarkTheme}
+                themeClasses={themeClasses}
+              />
             )}
 
             {/* TAB 1.5: Planned vs Actual Value — SCL & Contractor */}

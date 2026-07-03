@@ -310,16 +310,16 @@ export const API_ENDPOINTS = {
   },
 
   // Project Dates
-PROJECT_DATES: {
-  LIST: '/project-dates/',
-  DETAIL: (id: string | number) => `/project-dates/${id}/`,
-  PROJECT: (projectName: string) =>
-    `/project-dates/project/${encodeURIComponent(projectName)}/`,
+  PROJECT_DATES: {
+    LIST: '/project-dates/',
+    DETAIL: (id: string | number) => `/project-dates/${id}/`,
+    PROJECT: (projectName: string) =>
+      `/project-dates/project/${encodeURIComponent(projectName)}/`,
 
-  BG_STATUS: (projectName: string) =>
-    `/project-dates/project/${encodeURIComponent(projectName)}/bg-status/`,
-  BG_STATUS_DETAIL: (id: string | number) => `/project-dates/bg-status/${id}/`,
-},
+    BG_STATUS: (projectName: string) =>
+      `/project-dates/project/${encodeURIComponent(projectName)}/bg-status/`,
+    BG_STATUS_DETAIL: (id: string | number) => `/project-dates/bg-status/${id}/`,
+  },
 
 
 
@@ -337,6 +337,12 @@ PROJECT_DATES: {
   // Notifications
   NOTIFICATIONS: {
     CH_NOTIFICATION: '/notifications/ch-notification/',
+  },
+
+  // Alerts (billing updates → team leader)
+  ALERTS: {
+    LIST: '/alerts/',
+    DETAIL: (id: string | number) => `/alerts/${id}/`,
   },
 
   // Frequency Chart (Material Testing)

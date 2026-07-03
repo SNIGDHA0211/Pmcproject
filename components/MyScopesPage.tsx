@@ -19,6 +19,7 @@ import { Icons } from './Icons';
 import StatusBadge from './StatusBadge';
 import QaqcScopeDashboardPanel from './QaqcScopeDashboardPanel';
 import BillingEngineerDashboardPanel, { type BillingProjectOption } from './BillingEngineerDashboardPanel';
+import type { BillingFinancialSection } from './billing/BillingFinanceDashboardCards';
 import QaqcScopeUpdateModal, { buildScopeUpdatePayload } from './QaqcScopeUpdateModal';
 import HealthSafetyMonthlyForm, { type HealthSafetyFormValues } from './HealthSafetyMonthlyForm';
 import DashboardToastStack, { type DashboardToastItem } from './DashboardToastStack';
@@ -39,9 +40,16 @@ import {
 interface MyScopesPageProps {
   user: User;
   projects?: Project[];
+  onNavigateFinancial?: (section: BillingFinancialSection, projectId?: string) => void;
+  financialDataVersion?: number;
 }
 
-const MyScopesPage: React.FC<MyScopesPageProps> = ({ user, projects = [] }) => {
+const MyScopesPage: React.FC<MyScopesPageProps> = ({
+  user,
+  projects = [],
+  onNavigateFinancial,
+  financialDataVersion = 0,
+}) => {
   const { isDarkTheme } = useTheme();
   const themeClasses = getThemeClasses(isDarkTheme);
 
@@ -493,8 +501,10 @@ const MyScopesPage: React.FC<MyScopesPageProps> = ({ user, projects = [] }) => {
   }, [fetchMyScopes]);
 
   useEffect(() => {
-    fetchMyScopes();
-  }, [fetchMyScopes]);
+    if (!isBillingEngineer) {
+      fetchMyScopes();
+    }
+  }, [fetchMyScopes, isBillingEngineer]);
 
   useEffect(() => {
     setCurrentPage(1);
@@ -561,12 +571,14 @@ const MyScopesPage: React.FC<MyScopesPageProps> = ({ user, projects = [] }) => {
   const pageSubtitle = isQaqcEngineer
     ? 'Scopes, quality, and health & safety overview'
     : isBillingEngineer
-      ? 'Scopes, cashflow, invoicing, and contract management'
+      ? 'Financial overview & project performance'
       : isSiteEngineer
         ? 'Your assigned monthly scope items'
         : 'Scopes assigned to you';
 
-  if (loading) {
+  const showAssignedScopesSection = !isBillingEngineer;
+
+  if (loading && showAssignedScopesSection) {
     return (
       <div className="space-y-8 animate-in fade-in duration-500">
         <div className="flex items-center justify-between">
@@ -602,27 +614,30 @@ const MyScopesPage: React.FC<MyScopesPageProps> = ({ user, projects = [] }) => {
           </p>
         </div>
         <div className="flex items-center gap-3">
-          <button
-            onClick={() => fetchMyScopes(true)}
-            disabled={isRefreshing}
-            className={`flex items-center gap-2 px-3 py-1.5 border rounded-lg text-xs font-bold transition-all ${
-              isRefreshing
-                ? 'opacity-50 cursor-not-allowed'
-                : themeClasses.buttonSecondary
-            } ${themeClasses.border}`}
-            title="Refresh data (Real-time updates enabled)"
-          >
-            <Icons.Clock size={14} className={isRefreshing ? 'animate-spin' : ''} />
-            Refresh
-          </button>
-          {lastUpdated && (
-            <div className={`text-xs ${themeClasses.textSecondary}`}>
-              Last updated: {lastUpdated.toLocaleTimeString('en-US', {
-                hour: 'numeric',
-                minute: '2-digit',
-                hour12: true
-              })} (Real-time)
-            </div>
+          {showAssignedScopesSection && (
+            <>
+              <button
+                onClick={() => fetchMyScopes(true)}
+                disabled={isRefreshing}
+                className={`flex items-center gap-2 px-3 py-1.5 border rounded-lg text-xs font-bold transition-all ${isRefreshing
+                  ? 'opacity-50 cursor-not-allowed'
+                  : themeClasses.buttonSecondary
+                  } ${themeClasses.border}`}
+                title="Refresh data (Real-time updates enabled)"
+              >
+                <Icons.Clock size={14} className={isRefreshing ? 'animate-spin' : ''} />
+                Refresh
+              </button>
+              {lastUpdated && (
+                <div className={`text-xs ${themeClasses.textSecondary}`}>
+                  Last updated: {lastUpdated.toLocaleTimeString('en-US', {
+                    hour: 'numeric',
+                    minute: '2-digit',
+                    hour12: true
+                  })} (Real-time)
+                </div>
+              )}
+            </>
           )}
         </div>
       </div>
@@ -645,30 +660,32 @@ const MyScopesPage: React.FC<MyScopesPageProps> = ({ user, projects = [] }) => {
 
       {isBillingEngineer && (
         <BillingEngineerDashboardPanel
-          scopes={scopes}
           projectName={activeBillingProject}
           assignedProjects={assignedBillingProjects}
-          user={user}
           onProjectChange={setBillingProjectSelection}
-          onToast={showToast}
+          financialDataVersion={financialDataVersion}
+          onNavigateFinancial={(section) => {
+            const project = projects.find((p) => p.title === activeBillingProject);
+            onNavigateFinancial?.(section, project?.id);
+          }}
         />
       )}
 
-      {(isQaqcEngineer || isBillingEngineer) && (
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <h3 className={`text-sm font-black uppercase tracking-widest ${themeClasses.textPrimary}`}>
-            Assigned Scopes
-          </h3>
-          {isQaqcEngineer && (
-            <p className={`text-xs font-semibold ${themeClasses.textSecondary}`}>
-              Tap update to record progress on your scopes
-            </p>
-          )}
-        </div>
-      )}
+      {showAssignedScopesSection && (
+        <>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <h3 className={`text-sm font-black uppercase tracking-widest ${themeClasses.textPrimary}`}>
+              Assigned Scopes
+            </h3>
+            {isQaqcEngineer && (
+              <p className={`text-xs font-semibold ${themeClasses.textSecondary}`}>
+                Tap update to record progress on your scopes
+              </p>
+            )}
+          </div>
 
-      {/* Filters */}
-      <div className="flex flex-wrap items-end gap-4">
+          {/* Filters */}
+          <div className="flex flex-wrap items-end gap-4">
         <div className={`min-w-[180px] ${themeClasses.input} ${themeClasses.border} rounded-xl`}>
           <label className={`mb-1 block text-[11px] font-bold uppercase tracking-wider ${themeClasses.textSecondary}`}>
             Status
@@ -954,11 +971,10 @@ const MyScopesPage: React.FC<MyScopesPageProps> = ({ user, projects = [] }) => {
                           setScopeFormError(null);
                           setEditingScope(scope);
                         }}
-                        className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-[10px] font-black uppercase tracking-wider transition-colors ${
-                          isDarkTheme
-                            ? 'border-indigo-500/30 text-indigo-300 hover:bg-indigo-500/10'
-                            : 'border-indigo-200 text-indigo-600 hover:bg-indigo-50'
-                        }`}
+                        className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-[10px] font-black uppercase tracking-wider transition-colors ${isDarkTheme
+                          ? 'border-indigo-500/30 text-indigo-300 hover:bg-indigo-500/10'
+                          : 'border-indigo-200 text-indigo-600 hover:bg-indigo-50'
+                          }`}
                       >
                         <Icons.Edit size={12} />
                         Update
@@ -1006,6 +1022,8 @@ const MyScopesPage: React.FC<MyScopesPageProps> = ({ user, projects = [] }) => {
           </div>
         )}
       </div>
+        </>
+      )}
 
       <DashboardToastStack toasts={toasts} />
 

@@ -32,6 +32,7 @@ function teamLeadTabs(): string[] {
     'projects',
     'dpr_records',
     'wpr_records',
+    'alerts',
   ];
 }
 
@@ -68,7 +69,7 @@ export function getAllowedTabsForRole(role: UserRole, username?: string): Readon
     ],
     [UserRole.TEAM_LEAD]: teamLeadTabs(),
     [UserRole.SITE_ENGINEER]: [...SITE_ENGINEER_NAV_IDS],
-    [UserRole.BILLING_SITE_ENGINEER]: ['my_scopes'],
+    [UserRole.BILLING_SITE_ENGINEER]: ['my_scopes', 'financial_management'],
     [UserRole.QAQC_SITE_ENGINEER]: ['my_scopes'],
   };
 

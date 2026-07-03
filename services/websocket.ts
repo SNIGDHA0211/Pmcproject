@@ -6,12 +6,19 @@
  */
 
 export interface NotificationData {
-  id?: string;
+  id?: string | number;
   title: string;
   message: string;
   type?: string;
+  notification_type?: string;
+  module_name?: string;
+  project_name?: string;
+  action_type?: string;
+  sender?: string;
+  created_at?: string;
+  is_read?: boolean;
   project_id?: string;
-  data?: any;
+  data?: Record<string, unknown>;
   timestamp?: string;
 }
 

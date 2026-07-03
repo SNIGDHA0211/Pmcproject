@@ -38,6 +38,12 @@ export interface AppNotification {
   timestamp: string;
   isRead: boolean;
   senderName?: string;
+  /** Backend alert fields */
+  moduleName?: string;
+  projectName?: string;
+  actionType?: string;
+  notificationType?: string;
+  createdAt?: string;
 }
 
 export interface ProjectActivity {

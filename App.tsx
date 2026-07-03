@@ -20,7 +20,13 @@ import MyScopesPage from "./components/MyScopesPage";
 import MachineryList from "./components/MachineryList";
 import ManpowerManagement from "./components/ManpowerManagement";
 import SitePhotosManagement from "./components/sitePhotos/SitePhotosManagement";
-import FinancialManagement, { SubTab, normalizeFinancialSubTab } from "./components/FinancialManagement";
+import FinancialManagement, {
+  SubTab,
+  normalizeBillingFinancialSubTab,
+  normalizeFinancialSubTab,
+} from "./components/FinancialManagement";
+import AlertsPage from "./components/AlertsPage";
+import NotificationAlertToastStack, { type AlertToastItem } from "./components/NotificationAlertToastStack";
 import {
   User,
   Project,
@@ -37,7 +43,14 @@ import { STATUS_COLORS } from "./constants";
 import { projectApi, operationsApi, dprApi, notificationApi, getApiErrorMessage, unwrapList } from "./services/api";
 import { useAuth } from "./contexts/AuthContext";
 import { websocketService, NotificationData } from "./services/websocket";
-import { userMatchesAssignee, extractAssigneeId } from "./utils/roleProjectAssignments";
+import { alertsApi, unwrapAlertsResponse } from "./services/alertsApi";
+import {
+  normalizeAlertRecord,
+  normalizeWsAlertPayload,
+  resolveAlertNavigation,
+  sortNotificationsDesc,
+} from "./utils/alertHelpers";
+import { userMatchesAssignee, extractAssigneeId, projectAssignedToUser } from "./utils/roleProjectAssignments";
 import {
   clearAppRouteOnLogout,
   getDefaultTabForRole,
@@ -61,6 +74,8 @@ const App: React.FC = () => {
   const currentUserRef = React.useRef(currentUser);
   currentUserRef.current = currentUser;
   const [projects, setProjects] = useState<Project[]>([]);
+  const projectsRef = React.useRef(projects);
+  projectsRef.current = projects;
   const [dprs, setDprs] = useState<DPR[]>([]);
   const [projectDocuments, setProjectDocuments] = useState<any[]>([]);
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
@@ -78,6 +93,11 @@ const App: React.FC = () => {
   const [financialSection, setFinancialSection] = useState<SubTab>('progress');
   const [financialSectionLocked, setFinancialSectionLocked] = useState(false);
   const [financialReturnTab, setFinancialReturnTab] = useState<string | null>(null);
+  const [financialInitialProjectId, setFinancialInitialProjectId] = useState<string | null>(null);
+  const [alertsLoading, setAlertsLoading] = useState(false);
+  const [alertsRefreshing, setAlertsRefreshing] = useState(false);
+  const [alertToasts, setAlertToasts] = useState<AlertToastItem[]>([]);
+  const alertToastIdRef = React.useRef(0);
 
   // Modal States
   const [showTCModal, setShowTCModal] = useState(false);
@@ -523,11 +543,99 @@ const App: React.FC = () => {
     }
   };
 
-  const handleMarkRead = (id: string) => {
-    setNotifications((prev) =>
-      prev.map((n) => (n.id === id ? { ...n, isRead: true } : n))
+  const resolveProjectIdByName = (projectName?: string): string | undefined => {
+    if (!projectName) return undefined;
+    const normalized = projectName.trim().toLowerCase();
+    const match = projectsRef.current.find(
+      (p) => p.title === projectName || p.title?.trim().toLowerCase() === normalized,
     );
+    return match?.id;
   };
+
+  const showAlertToast = (title: string, message: string) => {
+    const id = ++alertToastIdRef.current;
+    setAlertToasts((prev) => [...prev, { id, title, message }]);
+    window.setTimeout(() => {
+      setAlertToasts((prev) => prev.filter((t) => t.id !== id));
+    }, 5000);
+  };
+
+  const fetchAlerts = React.useCallback(async (options?: { silent?: boolean }) => {
+    if (!currentUser) return;
+    if (!options?.silent) setAlertsLoading(true);
+    else setAlertsRefreshing(true);
+    try {
+      const response = await alertsApi.list();
+      const rows = unwrapAlertsResponse(response.data);
+      const mapped = rows.map((row) =>
+        normalizeAlertRecord(
+          row,
+          currentUser.id,
+          resolveProjectIdByName(row.project_name),
+        ),
+      );
+      setNotifications(sortNotificationsDesc(mapped));
+    } catch (error) {
+      console.error("Failed to load alerts:", error);
+    } finally {
+      setAlertsLoading(false);
+      setAlertsRefreshing(false);
+    }
+  }, [currentUser?.id]);
+
+  const upsertNotification = (incoming: AppNotification) => {
+    setNotifications((prev) => {
+      const withoutDup = prev.filter((n) => n.id !== incoming.id);
+      return sortNotificationsDesc([incoming, ...withoutDup]);
+    });
+  };
+
+  const handleAlertNavigation = (notification: AppNotification) => {
+    const projectId =
+      notification.projectId || resolveProjectIdByName(notification.projectName);
+    if (projectId) {
+      setSelectedProjectId(projectId);
+    }
+
+    const nav = resolveAlertNavigation(notification);
+    if (!nav) return;
+
+    if (nav.section) {
+      setFinancialSection(normalizeFinancialSubTab(nav.section));
+      setFinancialSectionLocked(true);
+      setFinancialReturnTab(nav.returnTab ?? null);
+      if (projectId) setFinancialInitialProjectId(projectId);
+    } else {
+      setFinancialSectionLocked(false);
+      setFinancialReturnTab(null);
+    }
+
+    setActiveTab(nav.tab);
+    const targetPath = TAB_PATHS[nav.tab];
+    if (targetPath && getAppRoutePath() !== targetPath) {
+      syncAppRoutePath(targetPath, "push");
+    }
+  };
+
+  const handleMarkRead = async (id: string, isRead = true) => {
+    setNotifications((prev) =>
+      prev.map((n) => (n.id === id ? { ...n, isRead } : n)),
+    );
+    try {
+      await alertsApi.update(id, { is_read: isRead });
+    } catch (error) {
+      console.error("Failed to update alert read status:", error);
+      void fetchAlerts({ silent: true });
+    }
+  };
+
+  useEffect(() => {
+    if (!currentUser) {
+      setNotifications([]);
+      return;
+    }
+    void fetchAlerts();
+  }, [currentUser?.id, fetchAlerts]);
 
   const handleCreateProject = async (projectData: Partial<Project>, initialDocs: Partial<Document>[], documentationFile?: File) => {
     try {
@@ -865,27 +973,49 @@ const App: React.FC = () => {
 
     // Handle incoming WebSocket messages
     const handleWebSocketMessage = (data: NotificationData) => {
+      const user = currentUserRef.current;
+      if (!user) return;
+
+      const payload = parseIncomingNotification(data);
+      const merged = { ...(data as unknown as Record<string, unknown>), ...payload };
+      const projectId =
+        resolveProjectIdByName(String(merged.project_name || "")) ||
+        (merged.project_id != null ? String(merged.project_id) : undefined);
+
+      const alert = normalizeWsAlertPayload(merged, user.id, projectId);
+      if (alert) {
+        upsertNotification(alert);
+        showAlertToast(alert.title, alert.message);
+        showBrowserNotification(alert.title, alert.message);
+        return;
+      }
+
       const title = data.title || "Notification";
       const message = data.message || "You have a new update.";
-      const type = mapNotificationType(data.type);
-      const projectId = data?.data?.project_id?.toString?.() || data?.project_id?.toString?.();
-      const timestamp = data.timestamp
-        ? new Date(data.timestamp).toLocaleString("en-IN")
+      const type = mapNotificationType(data.type || data.notification_type);
+      const timestamp = data.timestamp || data.created_at
+        ? new Date(String(data.timestamp || data.created_at)).toLocaleString("en-IN")
         : new Date().toLocaleString("en-IN");
 
       const wsNotification: AppNotification = {
-        id: `ws-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
-        userId: currentUser.id,
+        id: data.id != null ? String(data.id) : `ws-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
+        userId: user.id,
         projectId,
         title,
         message,
         type,
         timestamp,
         isRead: false,
-        senderName: "System",
+        senderName: data.sender || "System",
+        moduleName: data.module_name,
+        projectName: data.project_name,
+        actionType: data.action_type,
+        notificationType: data.notification_type || data.type,
+        createdAt: data.created_at || data.timestamp,
       };
 
-      setNotifications((prev) => [wsNotification, ...prev]);
+      upsertNotification(wsNotification);
+      showAlertToast(title, message);
       showBrowserNotification(title, message);
     };
 
@@ -929,27 +1059,27 @@ const App: React.FC = () => {
     );
   }
 
- if (!currentUser) {
-  return (
-    <div className="min-h-screen w-full relative font-['Inter'] selection:bg-indigo-500 selection:text-white overflow-hidden">
-      
-      {/* Background */}
-      <div
-        className="absolute inset-0 bg-cover bg-center bg-no-repeat"
-        style={{
-          backgroundImage: "url(/images/construction-bg.jpg)",
-        }}
-      />
+  if (!currentUser) {
+    return (
+      <div className="min-h-screen w-full relative font-['Inter'] selection:bg-indigo-500 selection:text-white overflow-hidden">
 
-      {/* Overlay */}
-      <div className="absolute inset-0 bg-slate-900/60" />
-
-      {/* Center Container */}
-      <div className="relative z-10 flex min-h-screen items-center justify-center px-4 py-6 sm:px-6 lg:px-8">
-
-        {/* Login Card */}
+        {/* Background */}
         <div
-          className="
+          className="absolute inset-0 bg-cover bg-center bg-no-repeat"
+          style={{
+            backgroundImage: "url(/images/construction-bg.jpg)",
+          }}
+        />
+
+        {/* Overlay */}
+        <div className="absolute inset-0 bg-slate-900/60" />
+
+        {/* Center Container */}
+        <div className="relative z-10 flex min-h-screen items-center justify-center px-4 py-6 sm:px-6 lg:px-8">
+
+          {/* Login Card */}
+          <div
+            className="
             w-full
             max-w-sm
             sm:max-w-md
@@ -967,13 +1097,13 @@ const App: React.FC = () => {
             zoom-in-95
             duration-500
           "
-        >
-          {/* Logo */}
-          <div className="flex justify-center mb-6 sm:mb-8">
-            <img
-              src="/images/Shrikhande-logo-bgremove.png"
-              alt="Shrikhande"
-              className="
+          >
+            {/* Logo */}
+            <div className="flex justify-center mb-6 sm:mb-8">
+              <img
+                src="/images/Shrikhande-logo-bgremove.png"
+                alt="Shrikhande"
+                className="
                 h-12
                 sm:h-14
                 md:h-16
@@ -981,13 +1111,13 @@ const App: React.FC = () => {
                 w-auto
                 object-contain
               "
-            />
-          </div>
+              />
+            </div>
 
-          {/* Heading */}
-          <div className="text-center mb-6 sm:mb-8">
-            <h2
-              className="
+            {/* Heading */}
+            <div className="text-center mb-6 sm:mb-8">
+              <h2
+                className="
                 text-2xl
                 sm:text-3xl
                 md:text-4xl
@@ -995,33 +1125,33 @@ const App: React.FC = () => {
                 text-white
                 mb-2
               "
-            >
-              Welcome Back
-            </h2>
+              >
+                Welcome Back
+              </h2>
 
-            <p className="text-white/60 text-xs sm:text-sm">
-              Please enter your username and password
-            </p>
-          </div>
+              <p className="text-white/60 text-xs sm:text-sm">
+                Please enter your username and password
+              </p>
+            </div>
 
-          <form onSubmit={handleLogin} className="space-y-5">
-            
-            {/* Error */}
-            {loginError && (
-              <div className="p-3 sm:p-4 bg-red-500/10 text-red-300 text-sm rounded-xl border border-red-500/30">
-                {loginError}
-              </div>
-            )}
+            <form onSubmit={handleLogin} className="space-y-5">
 
-            {/* Username */}
-            <div className="relative">
-              <input
-                type="text"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                disabled={isLoginSubmitting}
-                placeholder="Username"
-                className="
+              {/* Error */}
+              {loginError && (
+                <div className="p-3 sm:p-4 bg-red-500/10 text-red-300 text-sm rounded-xl border border-red-500/30">
+                  {loginError}
+                </div>
+              )}
+
+              {/* Username */}
+              <div className="relative">
+                <input
+                  type="text"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  disabled={isLoginSubmitting}
+                  placeholder="Username"
+                  className="
                   w-full
                   h-12
                   sm:h-14
@@ -1040,22 +1170,22 @@ const App: React.FC = () => {
                   transition-all
                   disabled:opacity-60
                 "
-              />
+                />
 
-              <div className="absolute left-4 top-1/2 -translate-y-1/2 text-white/40">
-                <Icons.User size={18} />
+                <div className="absolute left-4 top-1/2 -translate-y-1/2 text-white/40">
+                  <Icons.User size={18} />
+                </div>
               </div>
-            </div>
 
-            {/* Password */}
-            <div className="relative">
-              <input
-                type={showPassword ? "text" : "password"}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                disabled={isLoginSubmitting}
-                placeholder="Password"
-                className="
+              {/* Password */}
+              <div className="relative">
+                <input
+                  type={showPassword ? "text" : "password"}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  disabled={isLoginSubmitting}
+                  placeholder="Password"
+                  className="
                   w-full
                   h-12
                   sm:h-14
@@ -1074,17 +1204,17 @@ const App: React.FC = () => {
                   transition-all
                   disabled:opacity-60
                 "
-              />
+                />
 
-              <div className="absolute left-4 top-1/2 -translate-y-1/2 text-white/40">
-                <Icons.Lock size={18} />
-              </div>
+                <div className="absolute left-4 top-1/2 -translate-y-1/2 text-white/40">
+                  <Icons.Lock size={18} />
+                </div>
 
-              <button
-                type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                disabled={isLoginSubmitting}
-                className="
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  disabled={isLoginSubmitting}
+                  className="
                   absolute
                   right-4
                   top-1/2
@@ -1093,34 +1223,34 @@ const App: React.FC = () => {
                   hover:text-white/70
                   transition-colors
                 "
-              >
-                {showPassword ? (
-                  <Icons.EyeOff size={18} />
-                ) : (
-                  <Icons.Eye size={18} />
-                )}
-              </button>
-            </div>
-
-            {/* Footer */}
-            <div className="pt-2 flex flex-col gap-4">
-              
-              <p className="text-[11px] sm:text-xs text-white/60 text-center leading-relaxed">
-                By login, you agree to our{" "}
-                <button
-                  type="button"
-                  onClick={() => setShowTCModal(true)}
-                  disabled={isLoginSubmitting}
-                  className="underline hover:text-white"
                 >
-                  Terms & Conditions
+                  {showPassword ? (
+                    <Icons.EyeOff size={18} />
+                  ) : (
+                    <Icons.Eye size={18} />
+                  )}
                 </button>
-              </p>
+              </div>
 
-              <button
-                type="submit"
-                disabled={isLoginSubmitting}
-                className="
+              {/* Footer */}
+              <div className="pt-2 flex flex-col gap-4">
+
+                <p className="text-[11px] sm:text-xs text-white/60 text-center leading-relaxed">
+                  By login, you agree to our{" "}
+                  <button
+                    type="button"
+                    onClick={() => setShowTCModal(true)}
+                    disabled={isLoginSubmitting}
+                    className="underline hover:text-white"
+                  >
+                    Terms & Conditions
+                  </button>
+                </p>
+
+                <button
+                  type="submit"
+                  disabled={isLoginSubmitting}
+                  className="
                   w-full
                   h-12
                   sm:h-14
@@ -1141,38 +1271,38 @@ const App: React.FC = () => {
                   gap-2
                   disabled:opacity-70
                 "
-              >
-                {isLoginSubmitting ? (
-                  <>
-                    <Icons.History
-                      size={16}
-                      className="animate-spin"
-                    />
-                    Logging in...
-                  </>
-                ) : (
-                  <>
-                    Login
-                    <Icons.ArrowRight
-                      size={16}
-                      strokeWidth={2.5}
-                    />
-                  </>
-                )}
-              </button>
-            </div>
-          </form>
+                >
+                  {isLoginSubmitting ? (
+                    <>
+                      <Icons.History
+                        size={16}
+                        className="animate-spin"
+                      />
+                      Logging in...
+                    </>
+                  ) : (
+                    <>
+                      Login
+                      <Icons.ArrowRight
+                        size={16}
+                        strokeWidth={2.5}
+                      />
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
-      </div>
 
-      {showTCModal && (
-        <TermsAndConditions
-          onClose={() => setShowTCModal(false)}
-        />
-      )}
-    </div>
-  );
-}
+        {showTCModal && (
+          <TermsAndConditions
+            onClose={() => setShowTCModal(false)}
+          />
+        )}
+      </div>
+    );
+  }
 
   const selectedProject = projects.find((p) => p.id === selectedProjectId);
   const themeClasses = getThemeClasses(isDarkTheme);
@@ -1199,6 +1329,14 @@ const App: React.FC = () => {
         }}
         notifications={notifications}
         onMarkRead={handleMarkRead}
+        onNavigateToAlerts={() => {
+          setActiveTab("alerts");
+          const targetPath = TAB_PATHS.alerts;
+          if (targetPath && getAppRoutePath() !== targetPath) {
+            syncAppRoutePath(targetPath, "push");
+          }
+        }}
+        onNotificationClick={handleAlertNavigation}
         projects={projects}
         selectedProjectId={selectedProjectId}
         onSelectProject={(id) => {
@@ -1261,20 +1399,37 @@ const App: React.FC = () => {
             projects={
               currentUser.role === UserRole.SITE_ENGINEER
                 ? projects.filter((p) =>
-                    (p.siteEngineerIds ?? []).some((id) => userMatchesAssignee(currentUser, id)),
-                  )
+                  (p.siteEngineerIds ?? []).some((id) => userMatchesAssignee(currentUser, id)),
+                )
                 : projects
             }
           />
         ) : activeTab === "my_scopes" ? (
-          <MyScopesPage user={currentUser} projects={projects} />
+          <MyScopesPage
+            user={currentUser}
+            projects={projects}
+            financialDataVersion={financialDataVersion}
+            onNavigateFinancial={(section, projectId) => {
+              setFinancialSection(normalizeBillingFinancialSubTab(section));
+              setFinancialSectionLocked(true);
+              setFinancialReturnTab("my_scopes");
+              if (projectId) {
+                setFinancialInitialProjectId(projectId);
+              }
+              setActiveTab("financial_management");
+              const targetPath = TAB_PATHS.financial_management;
+              if (targetPath && getAppRoutePath() !== targetPath) {
+                syncAppRoutePath(targetPath, "push");
+              }
+            }}
+          />
         ) : activeTab === "execution" ? (
           <SiteExecution
             projects={
               currentUser.role === UserRole.SITE_ENGINEER
                 ? projects.filter((p) =>
-                    (p.siteEngineerIds ?? []).some((id) => userMatchesAssignee(currentUser, id)),
-                  )
+                  (p.siteEngineerIds ?? []).some((id) => userMatchesAssignee(currentUser, id)),
+                )
                 : projects
             }
             onViewProject={(id) => {
@@ -1413,25 +1568,41 @@ const App: React.FC = () => {
           <SitePhotosManagement projects={projects} currentUser={currentUser} />
         ) : activeTab === "financial_management" ? (
           <FinancialManagement
-            projects={projects}
+            projects={
+              currentUser.role === UserRole.BILLING_SITE_ENGINEER
+                ? projects.filter((p) => projectAssignedToUser(p, currentUser, 'billing'))
+                : projects
+            }
             currentUser={currentUser}
             onSaveSuccess={() => setFinancialDataVersion(v => v + 1)}
             initialSubTab={financialSection}
+            initialProjectId={financialInitialProjectId}
             lockToInitialSection={financialSectionLocked}
             returnTab={financialReturnTab}
+            variant={currentUser.role === UserRole.BILLING_SITE_ENGINEER ? 'billing' : 'default'}
             onReturnToProject={
               financialReturnTab
                 ? () => {
-                    setActiveTab(financialReturnTab);
-                    setFinancialSectionLocked(false);
-                    setFinancialReturnTab(null);
-                    const targetPath = TAB_PATHS[financialReturnTab];
-                    if (targetPath && getAppRoutePath() !== targetPath) {
-                      syncAppRoutePath(targetPath, "push");
-                    }
+                  setActiveTab(financialReturnTab);
+                  setFinancialSectionLocked(false);
+                  setFinancialReturnTab(null);
+                  setFinancialInitialProjectId(null);
+                  const targetPath = TAB_PATHS[financialReturnTab];
+                  if (targetPath && getAppRoutePath() !== targetPath) {
+                    syncAppRoutePath(targetPath, "push");
                   }
+                }
                 : undefined
             }
+          />
+        ) : activeTab === "alerts" ? (
+          <AlertsPage
+            notifications={notifications.filter((n) => n.userId === currentUser.id)}
+            loading={alertsLoading}
+            refreshing={alertsRefreshing}
+            onRefresh={() => void fetchAlerts({ silent: true })}
+            onMarkRead={handleMarkRead}
+            onNavigate={handleAlertNavigation}
           />
         ) : activeTab === "wpr_records" ? (
           <WPRReviewDashboard
@@ -1451,6 +1622,7 @@ const App: React.FC = () => {
             Workspace Provisioning...
           </div>
         )}
+        <NotificationAlertToastStack toasts={alertToasts} />
         {isCreateModalOpen && (
           <CreateProjectModal
             onClose={() => setIsCreateModalOpen(false)}
