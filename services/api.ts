@@ -2784,6 +2784,7 @@ export const contractValuesApi = {
     projectName?: string;
     contractType?: ContractValueType;
     contractorName?: string;
+    contractorId?: number;
   }) =>
     api.get(API_ENDPOINTS.CONTRACT_VALUES.LIST, {
       params: params
@@ -2796,6 +2797,9 @@ export const contractValuesApi = {
           }),
           ...(params.contractorName !== undefined && {
             contractor_name: params.contractorName,
+          }),
+          ...(params.contractorId !== undefined && {
+            contractor_id: params.contractorId,
           }),
         }
         : undefined,
@@ -2902,6 +2906,7 @@ export const invoicingApi = {
     projectName?: string;
     invoiceType?: InvoiceType;
     contractorName?: string;
+    contractorId?: number;
   }) =>
     api.get(API_ENDPOINTS.INVOICING.LIST, {
       params: params
@@ -2914,6 +2919,9 @@ export const invoicingApi = {
           }),
           ...(params.contractorName !== undefined && {
             contractor_name: params.contractorName,
+          }),
+          ...(params.contractorId !== undefined && {
+            contractor_id: params.contractorId,
           }),
         }
         : undefined,

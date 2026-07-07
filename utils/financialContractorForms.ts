@@ -17,6 +17,7 @@ export async function loadContractorContractValue(
     projectName,
     contractType: 'Contractor',
     contractorName,
+    ...(contractorId != null ? { contractorId } : {}),
   });
   const rows = unwrapList<Record<string, unknown>>(response.data).map((row) =>
     normalizeContractValueRecord(row, projectName, 'Contractor'),
@@ -44,6 +45,7 @@ export async function loadContractorInvoicing(
     projectName,
     invoiceType: 'Contractor' as InvoiceType,
     contractorName,
+    ...(contractorId != null ? { contractorId } : {}),
   });
   const rows = unwrapList<Record<string, unknown>>(response.data).map((row) =>
     normalizeInvoicingRecord(row, projectName, 'Contractor'),

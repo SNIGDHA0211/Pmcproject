@@ -45,7 +45,6 @@ import { fetchProjectProgressTrend } from '../services/financialDataService';
 import { deriveFinancialExecutiveMetrics } from '../utils/financialDashboardMetrics';
 import { contractorMasterApi } from '../services/contractorManagementApi';
 import type { ContractorMasterRecord } from '../types/contractorManagement';
-import FinancialContractorSelectBar from './financial/FinancialContractorSelectBar';
 import { loadContractorFinancialBuckets } from '../utils/financialContractorForms';
 import FinancialCashflowSection from './financial/FinancialCashflowSection';
 
@@ -321,6 +320,27 @@ const FinancialManagement: React.FC<FinancialManagementProps> = ({
   const selectedContractor = useMemo(
     () => contractors.find((c) => c.id === selectedContractorMasterId) ?? null,
     [contractors, selectedContractorMasterId],
+  );
+
+  const activeContractors = useMemo(
+    () => contractors.filter((c) => c.status === 'ACTIVE'),
+    [contractors],
+  );
+
+  const invoicingTypesForDisplay = useMemo(
+    () =>
+      isBillingVariant
+        ? (['Contractor', 'PMC'] as InvoiceType[])
+        : INVOICE_TYPES,
+    [isBillingVariant],
+  );
+
+  const contractValuesTypesForDisplay = useMemo(
+    () =>
+      isBillingVariant
+        ? (['Contractor', 'SCL'] as ContractValueType[])
+        : CONTRACT_VALUE_TYPES,
+    [isBillingVariant],
   );
 
   const applyPlannedEarnedPeriod = (period: ReturnType<typeof normalizePlannedEarnedByPeriod>) => {
@@ -816,6 +836,21 @@ const FinancialManagement: React.FC<FinancialManagementProps> = ({
     }));
   };
 
+  const handleContractValueContractorChange = (contractorId: number) => {
+    const contractor = contractors.find((c) => c.id === contractorId) ?? null;
+    if (!contractor) return;
+    setSelectedContractorMasterId(contractorId);
+    setContractValuesForms((prev) => ({
+      ...prev,
+      Contractor: {
+        ...(prev.Contractor || emptyContractValue(projectName, 'Contractor')),
+        contractorId: contractor.id,
+        contractorName: contractor.contractor_name,
+      },
+    }));
+    setContractValuesErrors((prev) => ({ ...prev, Contractor: null }));
+  };
+
   const resolveContractorScopedRecordId = (
     form: { id?: string | number; contractorId?: number; contractorName?: string },
     contractor: ContractorMasterRecord | null,
@@ -838,18 +873,25 @@ const FinancialManagement: React.FC<FinancialManagementProps> = ({
       return;
     }
     const form = contractValuesForms[contractType] || emptyContractValue(projectName, contractType);
+    const contractorScope =
+      contractType === 'Contractor' && selectedContractor
+        ? {
+          contractorId: selectedContractor.id,
+          contractorName: selectedContractor.contractor_name,
+        }
+        : contractType === 'Contractor' && form.contractorId != null
+          ? {
+            contractorId: form.contractorId,
+            contractorName: form.contractorName,
+          }
+          : null;
     const payload = {
       projectName,
       contractType,
       originalContractValue: parseNumericValue(form.originalContractValue),
       approvedVO: parseNumericValue(form.approvedVO),
       potentialPendingVO: parseNumericValue(form.potentialPendingVO),
-      ...(contractType === 'Contractor' && selectedContractor
-        ? {
-          contractorId: selectedContractor.id,
-          contractorName: selectedContractor.contractor_name,
-        }
-        : {}),
+      ...(contractorScope ?? {}),
     };
 
     setSavingContractValues(prev => ({ ...prev, [contractType]: true }));
@@ -957,6 +999,21 @@ const FinancialManagement: React.FC<FinancialManagementProps> = ({
     }));
   };
 
+  const handleInvoicingContractorChange = (contractorId: number) => {
+    const contractor = contractors.find((c) => c.id === contractorId) ?? null;
+    if (!contractor) return;
+    setSelectedContractorMasterId(contractorId);
+    setInvoicingForms((prev) => ({
+      ...prev,
+      Contractor: {
+        ...(prev.Contractor || emptyInvoicingRecord(projectName, 'Contractor')),
+        contractorId: contractor.id,
+        contractorName: contractor.contractor_name,
+      },
+    }));
+    setInvoicingErrors((prev) => ({ ...prev, Contractor: null }));
+  };
+
   const handleInvoicingSave = async (invoiceType: InvoiceType) => {
     if (!projectName) {
       showSaveNotification('Select a project before saving.', 'error');
@@ -967,17 +1024,24 @@ const FinancialManagement: React.FC<FinancialManagementProps> = ({
       return;
     }
     const form = invoicingForms[invoiceType] || emptyInvoicingRecord(projectName, invoiceType);
+    const contractorScope =
+      invoiceType === 'Contractor' && selectedContractor
+        ? {
+          contractorId: selectedContractor.id,
+          contractorName: selectedContractor.contractor_name,
+        }
+        : invoiceType === 'Contractor' && form.contractorId != null
+          ? {
+            contractorId: form.contractorId,
+            contractorName: form.contractorName,
+          }
+          : null;
     const payload = {
       projectName,
       invoiceType,
       grossBilled: parseNumericValue(form.grossBilled),
       netBilledWithoutVAT: parseNumericValue(form.netBilledWithoutVAT),
-      ...(invoiceType === 'Contractor' && selectedContractor
-        ? {
-          contractorId: selectedContractor.id,
-          contractorName: selectedContractor.contractor_name,
-        }
-        : {}),
+      ...(contractorScope ?? {}),
     };
 
     setSavingInvoicing(prev => ({ ...prev, [invoiceType]: true }));
@@ -1418,7 +1482,7 @@ const FinancialManagement: React.FC<FinancialManagementProps> = ({
             {/* TAB 5: Invoicing */}
             {activeSubTab === 'invoicing' && (
               <div className="space-y-5">
-                {INVOICE_TYPES.map((invoiceType, index) => {
+                {invoicingTypesForDisplay.map((invoiceType, index) => {
                   const form = invoicingForms[invoiceType] || emptyInvoicingRecord(projectName, invoiceType);
                   const certificationEfficiency = form.collectionPercentage ?? 0;
 
@@ -1436,19 +1500,19 @@ const FinancialManagement: React.FC<FinancialManagementProps> = ({
                       onRefresh={forceRefresh}
                       saving={savingInvoicing[invoiceType]}
                       refreshDisabled={isForceRefreshing || (invoiceType === 'Contractor' && loadingContractorFinancial)}
-                      saveLabel={`Save ${invoiceType}`}
+                      saveLabel={`Save ${getInvoiceTypeLabel(invoiceType)}`}
+                      footerNote={
+                        invoiceType === 'Contractor' && selectedContractor
+                          ? !form.id
+                            ? `No saved record yet for ${selectedContractor.contractor_name}`
+                            : `Editing invoicing for ${selectedContractor.contractor_name}`
+                          : undefined
+                      }
                       isDarkTheme={isDarkTheme}
                       themeClasses={themeClasses}
                     >
                       {invoicingErrors[invoiceType] && (
                         <p className="mb-5 text-sm font-medium text-rose-500">{invoicingErrors[invoiceType]}</p>
-                      )}
-                      {invoiceType === 'Contractor' && (
-                        <FinancialContractorSelectBar
-                          contractors={contractors}
-                          selectedContractorId={selectedContractorMasterId}
-                          onContractorChange={setSelectedContractorMasterId}
-                        />
                       )}
                       {invoiceType === 'Contractor' && loadingContractorFinancial && (
                         <p className={`mb-4 text-xs ${themeClasses.textSecondary}`}>Loading contractor invoicing…</p>
@@ -1467,9 +1531,37 @@ const FinancialManagement: React.FC<FinancialManagementProps> = ({
                         <div>
                           <label className={fieldLabel}>Invoice Type</label>
                           <select value={invoiceType} disabled className={`${fieldInput} opacity-80`}>
-                            <option value={invoiceType}>{invoiceType}</option>
+                            <option value={invoiceType}>{getInvoiceTypeLabel(invoiceType)}</option>
                           </select>
                         </div>
+                        {invoiceType === 'Contractor' && (
+                          <div className="financial-invoicing-contractor">
+                            <label className={fieldLabel} htmlFor="invoicing-contractor-select">
+                              Contractor
+                            </label>
+                            {activeContractors.length === 0 ? (
+                              <p
+                                className={`rounded-lg border px-3 py-2.5 text-xs ${isDarkTheme ? 'border-amber-500/30 bg-amber-500/10 text-amber-200' : 'border-amber-200 bg-amber-50 text-amber-800'
+                                  }`}
+                              >
+                                No contractors on this project. Add one in Contractor Management first.
+                              </p>
+                            ) : (
+                              <select
+                                id="invoicing-contractor-select"
+                                value={selectedContractorMasterId ?? ''}
+                                onChange={(e) => handleInvoicingContractorChange(Number(e.target.value))}
+                                className={fieldInput}
+                              >
+                                {activeContractors.map((contractor) => (
+                                  <option key={contractor.id} value={contractor.id}>
+                                    {contractor.contractor_name}
+                                  </option>
+                                ))}
+                              </select>
+                            )}
+                          </div>
+                        )}
                         {[
                           { key: 'grossBilled', label: 'Gross Billed' },
                           { key: 'netBilledWithoutVAT', label: 'Gross Certified Billed' },
@@ -1505,7 +1597,7 @@ const FinancialManagement: React.FC<FinancialManagementProps> = ({
             {/* TAB 6: Contract Values */}
             {activeSubTab === 'contracts' && (
               <div className="space-y-5">
-                {CONTRACT_VALUE_TYPES.map((contractType, index) => {
+                {contractValuesTypesForDisplay.map((contractType, index) => {
                   const form = contractValuesForms[contractType] || emptyContractValue(projectName, contractType);
                   const growthPercentage = form.growthPercentage ?? form.approvedVOPercentage ?? 0;
                   return (
@@ -1527,7 +1619,7 @@ const FinancialManagement: React.FC<FinancialManagementProps> = ({
                         contractType === 'Contractor' && selectedContractor
                           ? !form.id
                             ? `No saved record yet for ${selectedContractor.contractor_name}`
-                            : `Editing values for ${selectedContractor.contractor_name}`
+                            : `Editing contract values for ${selectedContractor.contractor_name}`
                           : !form.id
                             ? `No saved ${contractType} record yet`
                             : undefined
@@ -1537,13 +1629,6 @@ const FinancialManagement: React.FC<FinancialManagementProps> = ({
                     >
                       {contractValuesErrors[contractType] && (
                         <p className="mb-5 text-sm font-medium text-rose-500">{contractValuesErrors[contractType]}</p>
-                      )}
-                      {contractType === 'Contractor' && (
-                        <FinancialContractorSelectBar
-                          contractors={contractors}
-                          selectedContractorId={selectedContractorMasterId}
-                          onContractorChange={setSelectedContractorMasterId}
-                        />
                       )}
                       {contractType === 'Contractor' && loadingContractorFinancial && (
                         <p className={`mb-4 text-xs ${themeClasses.textSecondary}`}>Loading contractor contract values…</p>
@@ -1555,6 +1640,34 @@ const FinancialManagement: React.FC<FinancialManagementProps> = ({
                             <option value={contractType}>{contractType}</option>
                           </select>
                         </div>
+                        {contractType === 'Contractor' && (
+                          <div className="financial-contracts-contractor">
+                            <label className={fieldLabel} htmlFor="contract-values-contractor-select">
+                              Contractor
+                            </label>
+                            {activeContractors.length === 0 ? (
+                              <p
+                                className={`rounded-lg border px-3 py-2.5 text-xs ${isDarkTheme ? 'border-amber-500/30 bg-amber-500/10 text-amber-200' : 'border-amber-200 bg-amber-50 text-amber-800'
+                                  }`}
+                              >
+                                No contractors on this project. Add one in Contractor Management first.
+                              </p>
+                            ) : (
+                              <select
+                                id="contract-values-contractor-select"
+                                value={selectedContractorMasterId ?? ''}
+                                onChange={(e) => handleContractValueContractorChange(Number(e.target.value))}
+                                className={fieldInput}
+                              >
+                                {activeContractors.map((contractor) => (
+                                  <option key={contractor.id} value={contractor.id}>
+                                    {contractor.contractor_name}
+                                  </option>
+                                ))}
+                              </select>
+                            )}
+                          </div>
+                        )}
                         {[
                           {
                             key: 'originalContractValue',
