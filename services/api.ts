@@ -3951,21 +3951,21 @@ async function updateCostPerformanceRecord(
 ): Promise<{ data: unknown }> {
   const periodAttempts: Array<() => Promise<{ data: unknown }>> = [
     () =>
-      costPerformanceApi.patchByProjectMonthYear(
-        options.projectName,
-        options.month,
-        options.year,
-        body,
-      ),
-    () =>
       costPerformanceApi.updateByProjectMonthYear(
         options.projectName,
         options.month,
         options.year,
         body,
       ),
-    () => costPerformanceApi.patchCostPerformance(id, body),
+    () =>
+      costPerformanceApi.patchByProjectMonthYear(
+        options.projectName,
+        options.month,
+        options.year,
+        body,
+      ),
     () => costPerformanceApi.updateCostPerformance(id, body),
+    () => costPerformanceApi.patchCostPerformance(id, body),
   ];
 
   let lastError: unknown;
@@ -4479,7 +4479,12 @@ export async function saveContractValueRecord(
       contractorScope,
     );
     if (!resolvedId) throw error;
-    return contractValuesApi.updateContractValue(resolvedId, payload);
+    return updateExistingFinancialRecord(
+      resolvedId,
+      toContractValueApiBody(payload) as Record<string, unknown>,
+      (recordId) => contractValuesApi.updateContractValue(recordId, payload),
+      (recordId) => contractValuesApi.patchContractValue(recordId, payload),
+    );
   }
 }
 
@@ -4548,7 +4553,12 @@ export async function saveInvoicingRecord(
       contractorScope,
     );
     if (!resolvedId) throw error;
-    return invoicingApi.updateInvoicing(resolvedId, payload);
+    return updateExistingFinancialRecord(
+      resolvedId,
+      toInvoicingApiBody(payload) as Record<string, unknown>,
+      (recordId) => invoicingApi.updateInvoicing(recordId, payload),
+      (recordId) => invoicingApi.patchInvoicing(recordId, payload),
+    );
   }
 }
 
@@ -4591,9 +4601,13 @@ export async function saveContractPerformanceRecord(
       payload.role,
     );
     if (!resolvedId) throw error;
-    return contractPerformanceApi.updateContractPerformance(
+    return updateExistingFinancialRecord(
       resolvedId,
-      payload,
+      payload as unknown as Record<string, unknown>,
+      (recordId) =>
+        contractPerformanceApi.updateContractPerformance(recordId, payload),
+      (recordId) =>
+        contractPerformanceApi.patchContractPerformance(recordId, payload),
     );
   }
 }
@@ -5198,37 +5212,22 @@ export const plannedEarnedValueApi = {
     api.delete(API_ENDPOINTS.PLANNED_EARNED_VALUE.DETAIL(id)),
 };
 
-export async function savePlannedEarnedByPeriod(
+async function updatePlannedEarnedPeriodBundle(
   data: PlannedEarnedPeriodPayload,
 ): Promise<PlannedEarnedByPeriodResponse> {
-  let existing: PlannedEarnedByPeriodResponse | null = null;
-
   try {
-    const existingRes = await plannedEarnedValueApi.getByProjectMonthYear(
+    const response = await plannedEarnedValueApi.updateByProjectMonthYear(
       data.projectName,
       data.month,
       data.year,
+      data,
     );
-    existing = normalizePlannedEarnedByPeriod(
-      existingRes.data,
-      data.projectName,
-    );
-  } catch (error) {
-    const status = (error as { response?: { status?: number } })?.response
+    return normalizePlannedEarnedByPeriod(response.data, data.projectName);
+  } catch (putErr) {
+    const putStatus = (putErr as { response?: { status?: number } })?.response
       ?.status;
-    if (status !== 404) throw error;
-  }
+    if (!shouldFallbackToPatchAfterPut(putStatus)) throw putErr;
 
-  const hasExisting =
-    Boolean(existing?.scl?.id || existing?.contractor?.id) ||
-    Boolean(
-      existing?.scl?.plannedValue ||
-      existing?.scl?.earnedValue ||
-      existing?.contractor?.plannedValue ||
-      existing?.contractor?.earnedValue,
-    );
-
-  if (hasExisting) {
     try {
       const response = await plannedEarnedValueApi.patchByProjectMonthYear(
         data.projectName,
@@ -5238,36 +5237,95 @@ export async function savePlannedEarnedByPeriod(
       );
       return normalizePlannedEarnedByPeriod(response.data, data.projectName);
     } catch (patchErr) {
-      try {
-        const response = await plannedEarnedValueApi.updateByProjectMonthYear(
-          data.projectName,
-          data.month,
-          data.year,
-          data,
-        );
-        return normalizePlannedEarnedByPeriod(response.data, data.projectName);
-      } catch {
-        if (existing?.scl?.id) {
-          await plannedEarnedValueApi.patch(existing.scl.id, {
-            projectName: data.projectName,
-            plannedValue: data.scl.plannedValue,
-            earnedValue: data.scl.earnedValue,
-          });
-        }
-        if (existing?.contractor?.id) {
-          await plannedEarnedValueApi.patch(existing.contractor.id, {
-            projectName: data.projectName,
-            plannedValue: data.contractor.plannedValue,
-            earnedValue: data.contractor.earnedValue,
-          });
-        }
-        const refetch = await plannedEarnedValueApi.getByProjectMonthYear(
-          data.projectName,
-          data.month,
-          data.year,
-        );
-        return normalizePlannedEarnedByPeriod(refetch.data, data.projectName);
+      if (isMethodNotAllowedError(patchErr)) throw putErr;
+      throw patchErr;
+    }
+  }
+}
+
+async function updatePlannedEarnedPartyRecords(
+  data: PlannedEarnedPeriodPayload,
+  existing: PlannedEarnedByPeriodResponse,
+): Promise<PlannedEarnedByPeriodResponse> {
+  const updates: Array<{
+    id: string | number;
+    payload: PlannedEarnedValuePayload;
+  }> = [];
+
+  if (existing.scl?.id != null) {
+    updates.push({
+      id: existing.scl.id,
+      payload: {
+        projectName: data.projectName,
+        plannedValue: data.scl.plannedValue,
+        earnedValue: data.scl.earnedValue,
+      },
+    });
+  }
+
+  if (existing.contractor?.id != null) {
+    updates.push({
+      id: existing.contractor.id,
+      payload: {
+        projectName: data.projectName,
+        plannedValue: data.contractor.plannedValue,
+        earnedValue: data.contractor.earnedValue,
+      },
+    });
+  }
+
+  for (const { id, payload } of updates) {
+    await updateExistingFinancialRecord(
+      id,
+      payload as unknown as Record<string, unknown>,
+      (recordId) => plannedEarnedValueApi.update(recordId, payload),
+      (recordId) => plannedEarnedValueApi.patch(recordId, payload),
+    );
+  }
+
+  const refetch = await plannedEarnedValueApi.getByProjectMonthYear(
+    data.projectName,
+    data.month,
+    data.year,
+  );
+  return normalizePlannedEarnedByPeriod(refetch.data, data.projectName);
+}
+
+async function resolvePlannedEarnedPeriod(
+  data: PlannedEarnedPeriodPayload,
+): Promise<PlannedEarnedByPeriodResponse | null> {
+  try {
+    const response = await plannedEarnedValueApi.getByProjectMonthYear(
+      data.projectName,
+      data.month,
+      data.year,
+    );
+    return normalizePlannedEarnedByPeriod(response.data, data.projectName);
+  } catch (error) {
+    const status = (error as { response?: { status?: number } })?.response
+      ?.status;
+    if (status === 404) return null;
+    throw error;
+  }
+}
+
+export async function savePlannedEarnedByPeriod(
+  data: PlannedEarnedPeriodPayload,
+): Promise<PlannedEarnedByPeriodResponse> {
+  const existing = await resolvePlannedEarnedPeriod(data);
+  const hasExisting = Boolean(existing?.scl?.id || existing?.contractor?.id);
+
+  if (hasExisting && existing) {
+    try {
+      return await updatePlannedEarnedPeriodBundle(data);
+    } catch (bundleErr) {
+      if (
+        !isMethodNotAllowedError(bundleErr) &&
+        !isMissingEndpointError(bundleErr)
+      ) {
+        throw bundleErr;
       }
+      return updatePlannedEarnedPartyRecords(data, existing);
     }
   }
 
@@ -5276,13 +5334,13 @@ export async function savePlannedEarnedByPeriod(
     return normalizePlannedEarnedByPeriod(response.data, data.projectName);
   } catch (error) {
     if (!isDuplicateFinancialError(error)) throw error;
-    const response = await plannedEarnedValueApi.patchByProjectMonthYear(
-      data.projectName,
-      data.month,
-      data.year,
-      data,
-    );
-    return normalizePlannedEarnedByPeriod(response.data, data.projectName);
+    const resolved = (await resolvePlannedEarnedPeriod(data)) ?? existing;
+    if (!resolved?.scl?.id && !resolved?.contractor?.id) throw error;
+    try {
+      return await updatePlannedEarnedPeriodBundle(data);
+    } catch {
+      return updatePlannedEarnedPartyRecords(data, resolved);
+    }
   }
 }
 
