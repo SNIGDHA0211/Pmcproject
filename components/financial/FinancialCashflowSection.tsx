@@ -9,7 +9,13 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
-import { cashflowApi, getApiErrorMessage, toNum, unwrapList } from '../../services/api';
+import {
+  cashflowApi,
+  getApiErrorMessage,
+  saveCashflowForPeriod,
+  toNum,
+  unwrapList,
+} from '../../services/api';
 import type { CashFlowRecord } from '../../types/billing';
 import { emptyCashflowRecord } from '../../types/billing';
 import { buildCashflowChartData, summarizeCashflow } from '../../utils/billingDashboardAnalytics';
@@ -122,13 +128,20 @@ const FinancialCashflowSection: React.FC<FinancialCashflowSectionProps> = ({
         project_name: projectName,
         month_year: form.month_year?.trim() || periodKey,
       };
-      if (form.id != null) {
-        await cashflowApi.updateCashflow(form.id, payload);
-        onSaved('Cashflow saved successfully.');
-      } else {
-        await cashflowApi.createCashflow(payload);
-        onSaved('Cashflow record created successfully.');
-      }
+      await saveCashflowForPeriod(
+        { ...payload } as Record<string, unknown>,
+        {
+        projectName,
+        month,
+        year,
+        existingId: form.id,
+      },
+      );
+      onSaved(
+        form.id != null
+          ? 'Cashflow saved successfully.'
+          : 'Cashflow record created successfully.',
+      );
       await loadCashflow();
     } catch (error) {
       const message = getApiErrorMessage(error, 'Failed to save cashflow record.');

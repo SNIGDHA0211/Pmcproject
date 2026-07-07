@@ -10,7 +10,13 @@ import {
   YAxis,
 } from 'recharts';
 import { IndianRupee, Plus, TrendingDown, TrendingUp } from 'lucide-react';
-import { cashflowApi, getApiErrorMessage, toNum, unwrapList } from '../services/api';
+import {
+  cashflowApi,
+  getApiErrorMessage,
+  saveCashflowRecord,
+  toNum,
+  unwrapList,
+} from '../services/api';
 import type { CashFlowRecord } from '../types/billing';
 import { emptyCashflowRecord } from '../types/billing';
 import { buildCashflowChartData, summarizeCashflow } from '../utils/billingDashboardAnalytics';
@@ -108,13 +114,8 @@ const BillingCashflowPanel: React.FC<BillingCashflowPanelProps> = ({ projectName
     setFormError(null);
     try {
       const payload = { ...form, project_name: projectName };
-      if (editing?.id) {
-        await cashflowApi.updateCashflow(editing.id, payload);
-        onToast('Cashflow record updated.');
-      } else {
-        await cashflowApi.createCashflow(payload);
-        onToast('Cashflow record added.');
-      }
+      await saveCashflowRecord(payload, editing?.id, { projectName });
+      onToast(editing?.id ? 'Cashflow record updated.' : 'Cashflow record added.');
       setModalOpen(false);
       await loadCashflow();
     } catch (error) {

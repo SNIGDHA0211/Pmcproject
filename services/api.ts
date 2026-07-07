@@ -2686,6 +2686,8 @@ export const cashflowApi = {
     api.get(API_ENDPOINTS.CASHFLOW.DETAIL(id)),
   createCashflow: (data: any) => api.post(API_ENDPOINTS.CASHFLOW.CREATE, data),
   updateCashflow: (id: string | number, data: any) =>
+    api.put(API_ENDPOINTS.CASHFLOW.UPDATE(id), data),
+  patchCashflow: (id: string | number, data: any) =>
     api.patch(API_ENDPOINTS.CASHFLOW.UPDATE(id), data),
   deleteCashflow: (id: string | number) =>
     api.delete(API_ENDPOINTS.CASHFLOW.DELETE(id)),
@@ -4281,6 +4283,135 @@ export async function saveBudgetPerformanceForPeriod(
       budgetPerformanceApi.patchBudgetPerformance,
     );
   }
+}
+
+const CASHFLOW_NUMERIC_KEYS = [
+  "cash_in_monthly_plan",
+  "cash_in_monthly_actual",
+  "cash_out_monthly_plan",
+  "cash_out_monthly_actual",
+  "actual_cost_monthly",
+] as const;
+
+export function normalizeCashflowPayload(
+  payload: Record<string, unknown>,
+  options?: { isUpdate?: boolean },
+): Record<string, unknown> {
+  const body: Record<string, unknown> = { ...payload };
+  delete body.id;
+
+  if (options?.isUpdate) {
+    delete body.created_by;
+    delete body.created_at;
+    delete body.createdAt;
+    delete body.updated_at;
+    delete body.updatedAt;
+  }
+
+  for (const key of CASHFLOW_NUMERIC_KEYS) {
+    if (body[key] === undefined || body[key] === null || body[key] === "")
+      continue;
+    const numeric = Number(String(body[key]).replace(/,/g, "").trim());
+    body[key] = Number.isFinite(numeric) ? numeric : 0;
+  }
+
+  return body;
+}
+
+export async function resolveCashflowId(
+  projectName: string,
+  month: number,
+  year: number,
+): Promise<string | number | undefined> {
+  const response = await cashflowApi.getCashflow({ project_name: projectName });
+  const rows = unwrapList<Record<string, unknown>>(response.data);
+  const match = pickCostPerformanceRecord(rows, month, year);
+  return extractRecordId(match);
+}
+
+async function resolveCashflowIdByMonthYear(
+  projectName: string,
+  monthYear: string,
+): Promise<string | number | undefined> {
+  const response = await cashflowApi.getCashflow({ project_name: projectName });
+  const rows = unwrapList<Record<string, unknown>>(response.data);
+  const target = monthYear.trim().toLowerCase();
+  const match =
+    rows.find(
+      (row) =>
+        String(row.month_year ?? row.monthYear ?? "")
+          .trim()
+          .toLowerCase() === target,
+    ) ?? null;
+  return extractRecordId(match);
+}
+
+export async function saveCashflowRecord(
+  payload: Record<string, unknown>,
+  existingId?: string | number | null,
+  options?: { projectName?: string; month?: number; year?: number },
+): Promise<{ data: unknown }> {
+  const projectName = String(payload.project_name ?? options?.projectName ?? "");
+  const body = normalizeCashflowPayload(payload, { isUpdate: !!existingId });
+
+  const id =
+    existingId ??
+    (options?.month != null && options?.year != null
+      ? await resolveCashflowId(projectName, options.month, options.year)
+      : undefined);
+
+  if (id) {
+    return updateExistingFinancialRecord(
+      id,
+      body,
+      cashflowApi.updateCashflow,
+      cashflowApi.patchCashflow,
+    );
+  }
+
+  try {
+    return await cashflowApi.createCashflow(body);
+  } catch (error) {
+    if (!isDuplicateFinancialError(error)) throw error;
+    const monthYear = String(body.month_year ?? "");
+    const resolvedId =
+      options?.month != null && options?.year != null
+        ? await resolveCashflowId(projectName, options.month, options.year)
+        : monthYear
+          ? await resolveCashflowIdByMonthYear(projectName, monthYear)
+          : undefined;
+    if (!resolvedId) throw error;
+    return updateExistingFinancialRecord(
+      resolvedId,
+      normalizeCashflowPayload(body, { isUpdate: true }),
+      cashflowApi.updateCashflow,
+      cashflowApi.patchCashflow,
+    );
+  }
+}
+
+export async function saveCashflowForPeriod(
+  payload: Record<string, unknown>,
+  options: {
+    projectName: string;
+    month: number;
+    year: number;
+    existingId?: string | number | null;
+  },
+): Promise<{ data: unknown }> {
+  const body = {
+    ...payload,
+    project_name: options.projectName,
+    month_year:
+      payload.month_year ??
+      formatFinancialMonthYear(options.month, options.year),
+  };
+
+  return saveCashflowRecord(body, options.existingId, {
+    projectName: options.projectName,
+    month: options.month,
+    year: options.year,
+  });
 }
 
 export async function resolveContractValueId(
