@@ -3,28 +3,45 @@ import { RefreshCw } from 'lucide-react';
 import type { AppNotification } from '../types';
 import {
   filterNotifications,
-  formatAlertRelativeTime,
-  getActionTypeIcon,
-  isBillingAlert,
+  formatAlertDateOnly,
+  formatAlertDateTime,
+  formatAlertTimeOnly,
+  formatAlertActorName,
+  formatAlertActorRole,
+  formatSubRoleUsername,
   type AlertFilter,
 } from '../utils/alertHelpers';
+import AlertNotificationItem from './alerts/AlertNotificationItem';
+import { PendingUpdateDetail, PendingUpdateUserCard } from './alerts/PendingUpdatePanels';
 import { Icons } from './Icons';
 import { getThemeClasses, useTheme } from '../utils/theme';
+import type { PendingUpdatesSummary } from '../utils/pmcHeadPendingUpdates';
 
 interface AlertsPageProps {
   notifications: AppNotification[];
   loading: boolean;
   refreshing?: boolean;
+  variant?: 'default' | 'executive';
+  pendingUpdates?: PendingUpdatesSummary | null;
+  pendingLoading?: boolean;
   onRefresh: () => void;
   onMarkRead: (id: string, isRead: boolean) => void;
   onNavigate: (notification: AppNotification) => void;
 }
 
-const FILTERS: { key: AlertFilter; label: string }[] = [
+const TEAM_LEAD_FILTERS: { key: AlertFilter; label: string }[] = [
   { key: 'all', label: 'All' },
   { key: 'unread', label: 'Unread' },
   { key: 'read', label: 'Read' },
   { key: 'billing', label: 'Billing Updates' },
+];
+
+const EXECUTIVE_FILTERS: { key: AlertFilter; label: string }[] = [
+  { key: 'all', label: 'All Updates' },
+  { key: 'unread', label: 'Unread' },
+  { key: 'read', label: 'Read' },
+  { key: 'billing', label: 'Financial' },
+  { key: 'pending', label: 'Not Updated' },
 ];
 
 function AlertSkeleton() {
@@ -46,6 +63,9 @@ const AlertsPage: React.FC<AlertsPageProps> = ({
   notifications,
   loading,
   refreshing = false,
+  variant = 'default',
+  pendingUpdates = null,
+  pendingLoading = false,
   onRefresh,
   onMarkRead,
   onNavigate,
@@ -54,6 +74,10 @@ const AlertsPage: React.FC<AlertsPageProps> = ({
   const themeClasses = getThemeClasses(isDarkTheme);
   const [filter, setFilter] = useState<AlertFilter>('all');
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedPendingKey, setSelectedPendingKey] = useState<string | null>(null);
+  const isExecutive = variant === 'executive';
+  const filters = isExecutive ? EXECUTIVE_FILTERS : TEAM_LEAD_FILTERS;
+  const showPendingView = isExecutive && filter === 'pending';
 
   const filtered = useMemo(
     () => filterNotifications(notifications, filter),
@@ -61,6 +85,14 @@ const AlertsPage: React.FC<AlertsPageProps> = ({
   );
 
   const selected = filtered.find((n) => n.id === selectedId) ?? null;
+  const selectedPendingGroup =
+    pendingUpdates?.byUser.find(
+      (group) => `${group.userIdLabel}|${group.roleBucket}` === selectedPendingKey,
+    ) ?? null;
+
+  const summaryTile = `rounded-xl border px-3 py-3 ${
+    isDarkTheme ? 'border-white/10 bg-white/[0.03]' : 'border-slate-100 bg-slate-50'
+  }`;
 
   const cardCls = `rounded-2xl border p-4 sm:p-5 ${isDarkTheme ? `${themeClasses.glassCard} ${themeClasses.border}` : 'border-slate-200 bg-white shadow-sm'
     }`;
@@ -73,10 +105,12 @@ const AlertsPage: React.FC<AlertsPageProps> = ({
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h2 className={`text-xl font-black uppercase tracking-tight sm:text-2xl ${themeClasses.textPrimary}`}>
-            Alerts
+            {isExecutive ? 'Executive Alerts' : 'Alerts'}
           </h2>
           <p className={`text-[10px] font-black uppercase tracking-widest ${themeClasses.textSecondary}`}>
-            Billing updates and system notifications
+            {isExecutive
+              ? 'Updates from team leaders and site engineers across your portfolio'
+              : 'Billing updates and system notifications'}
           </p>
         </div>
         <button
@@ -91,29 +125,138 @@ const AlertsPage: React.FC<AlertsPageProps> = ({
       </div>
 
       <div className={`flex flex-wrap gap-2 ${cardCls} !py-3`}>
-        {FILTERS.map(({ key, label }) => {
+        {filters.map(({ key, label }) => {
           const active = filter === key;
+          const pendingCount = key === 'pending' ? pendingUpdates?.totalNotUpdated : undefined;
           return (
             <button
               key={key}
               type="button"
-              onClick={() => setFilter(key)}
+              onClick={() => {
+                setFilter(key);
+                setSelectedId(null);
+                setSelectedPendingKey(null);
+              }}
               className={`rounded-lg px-3 py-1.5 text-[10px] font-black uppercase tracking-wider transition-colors ${active
-                  ? 'bg-indigo-600 text-white'
+                  ? key === 'pending'
+                    ? 'bg-amber-600 text-white'
+                    : 'bg-indigo-600 text-white'
                   : isDarkTheme
                     ? 'text-slate-400 hover:bg-white/10 hover:text-white'
                     : 'text-slate-600 hover:bg-slate-100'
                 }`}
             >
               {label}
+              {pendingCount != null && pendingCount > 0 ? ` (${pendingCount})` : ''}
             </button>
           );
         })}
       </div>
 
-      <div className="grid grid-cols-1 gap-4 xl:grid-cols-5">
-        <div className="space-y-3 xl:col-span-3">
-          {loading ? (
+      {showPendingView && (
+        <div className={`grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-5 ${cardCls} !py-4`}>
+          <div className={summaryTile}>
+            <p className={`text-[9px] font-bold uppercase ${themeClasses.textSecondary}`}>Total Not Updated</p>
+            <p className={`mt-1 text-2xl font-black ${themeClasses.textPrimary}`}>
+              {pendingUpdates?.totalNotUpdated ?? 0}
+            </p>
+            <p className={`mt-1 text-[9px] font-semibold ${themeClasses.textSecondary}`}>Sub-roles</p>
+          </div>
+          {(pendingUpdates?.byRoleBucket ?? []).map((bucket) => (
+            <div key={bucket.key} className={summaryTile}>
+              <p className={`text-[9px] font-bold uppercase ${themeClasses.textSecondary}`}>
+                {bucket.shortLabel} Not Updated
+              </p>
+              <p className={`mt-1 text-2xl font-black ${themeClasses.textPrimary}`}>
+                {bucket.notUpdatedCount}
+              </p>
+              <p className={`mt-1 text-[9px] font-semibold ${themeClasses.textSecondary}`}>
+                {bucket.label}
+              </p>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {!showPendingView && (
+        <p className={`text-[10px] font-bold uppercase tracking-widest ${themeClasses.textSecondary}`}>
+          Showing {filtered.length} notification{filtered.length === 1 ? '' : 's'}
+        </p>
+      )}
+
+      {showPendingView && pendingUpdates && (
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <p className={`text-[10px] font-bold uppercase tracking-widest ${themeClasses.textSecondary}`}>
+            Tracking window: last {pendingUpdates.windowDays} days · {pendingUpdates.totalNotUpdated} sub-role
+            {pendingUpdates.totalNotUpdated === 1 ? '' : 's'} with missing section updates · TL{' '}
+            {pendingUpdates.byRoleBucket.find((b) => b.key === 'tl')?.notUpdatedCount ?? 0} · SE{' '}
+            {pendingUpdates.byRoleBucket.find((b) => b.key === 'se')?.notUpdatedCount ?? 0} · QAQC{' '}
+            {pendingUpdates.byRoleBucket.find((b) => b.key === 'qaqc')?.notUpdatedCount ?? 0} · BSE{' '}
+            {pendingUpdates.byRoleBucket.find((b) => b.key === 'bse')?.notUpdatedCount ?? 0}
+          </p>
+          <button
+            type="button"
+            onClick={onRefresh}
+            disabled={refreshing || pendingLoading}
+            className={`inline-flex shrink-0 items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-wide ${themeClasses.buttonSecondary} ${themeClasses.border}`}
+          >
+            <RefreshCw size={12} className={refreshing || pendingLoading ? 'animate-spin' : ''} />
+            Refresh List
+          </button>
+        </div>
+      )}
+
+      <div
+        className={`grid grid-cols-1 gap-3 xl:grid-cols-5 xl:gap-4 ${
+          showPendingView ? 'xl:h-[calc(100vh-19.5rem)] xl:min-h-[24rem]' : ''
+        }`}
+      >
+        <div
+          className={`xl:col-span-3 ${
+            showPendingView
+              ? 'flex min-h-0 flex-col overflow-hidden rounded-2xl border p-2 sm:p-3 ' +
+                (isDarkTheme ? `${themeClasses.glassCard} ${themeClasses.border}` : 'border-slate-200 bg-white shadow-sm')
+              : 'space-y-3'
+          }`}
+        >
+          {showPendingView && (
+            <p className={`mb-2 shrink-0 px-1 text-[9px] font-black uppercase tracking-widest ${themeClasses.textSecondary}`}>
+              Team Members ({pendingUpdates?.byUser.length ?? 0})
+            </p>
+          )}
+          <div className={showPendingView ? 'min-h-0 flex-1 space-y-2 overflow-y-auto pr-1' : 'space-y-3'}>
+          {showPendingView ? (
+            pendingLoading || loading ? (
+              <>
+                <AlertSkeleton />
+                <AlertSkeleton />
+                <AlertSkeleton />
+              </>
+            ) : !pendingUpdates || pendingUpdates.byUser.length === 0 ? (
+              <div className={`${cardCls} py-16 text-center`}>
+                <Icons.Check size={36} className={`mx-auto mb-3 ${themeClasses.textMuted}`} />
+                <p className={`text-sm font-bold ${themeClasses.textPrimary}`}>
+                  All assigned team members are up to date.
+                </p>
+                <p className={`mx-auto mt-2 max-w-sm text-xs ${themeClasses.textSecondary}`}>
+                  Everyone has submitted updates for all assigned sections in the last {pendingUpdates?.windowDays ?? 30} days.
+                </p>
+              </div>
+            ) : (
+              pendingUpdates.byUser.map((group) => {
+                const groupKey = `${group.userIdLabel}|${group.roleBucket}`;
+                return (
+                  <PendingUpdateUserCard
+                    key={groupKey}
+                    group={group}
+                    isDarkTheme={isDarkTheme}
+                    isSelected={selectedPendingKey === groupKey}
+                    onClick={() => setSelectedPendingKey(groupKey)}
+                  />
+                );
+              })
+            )
+          ) : loading ? (
             <>
               <AlertSkeleton />
               <AlertSkeleton />
@@ -122,88 +265,60 @@ const AlertsPage: React.FC<AlertsPageProps> = ({
           ) : filtered.length === 0 ? (
             <div className={`${cardCls} py-16 text-center`}>
               <Icons.Notification size={36} className={`mx-auto mb-3 ${themeClasses.textMuted}`} />
-              <p className={`text-sm font-bold ${themeClasses.textPrimary}`}>No notifications available.</p>
+              <p className={`text-sm font-bold ${themeClasses.textPrimary}`}>
+                {isExecutive ? 'No team updates yet.' : 'No notifications available.'}
+              </p>
+              {isExecutive && (
+                <p className={`mx-auto mt-2 max-w-sm text-xs ${themeClasses.textSecondary}`}>
+                  When a team leader or site engineer updates schedule, financials, drawings, or other project data, the update will appear here with who changed it and when.
+                </p>
+              )}
             </div>
           ) : (
             filtered.map((n) => {
               const isSelected = selectedId === n.id;
-              const actionIcon = getActionTypeIcon(n.actionType);
               return (
-                <button
+                <div
                   key={n.id}
-                  type="button"
-                  onClick={() => {
-                    setSelectedId(n.id);
-                    if (!n.isRead) onMarkRead(n.id, true);
-                  }}
-                  className={`${cardCls} w-full text-left transition-colors ${isSelected
-                      ? isDarkTheme
-                        ? 'border-indigo-500/40 ring-1 ring-indigo-500/30'
-                        : 'border-indigo-300 ring-1 ring-indigo-200'
-                      : isDarkTheme
-                        ? 'hover:border-white/20'
-                        : 'hover:border-slate-300'
-                    } ${!n.isRead ? (isDarkTheme ? 'bg-white/[0.03]' : 'bg-indigo-50/60') : ''}`}
+                  className={isSelected
+                    ? isDarkTheme
+                      ? 'rounded-2xl ring-1 ring-indigo-500/30'
+                      : 'rounded-2xl ring-1 ring-indigo-200'
+                    : ''}
                 >
-                  <div className="flex items-start gap-3">
-                    <span
-                      className={`mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-lg ${isBillingAlert(n)
-                          ? isDarkTheme
-                            ? 'bg-indigo-500/15 text-indigo-300'
-                            : 'bg-indigo-50 text-indigo-600'
-                          : isDarkTheme
-                            ? 'bg-white/10 text-white'
-                            : 'bg-slate-100 text-slate-700'
-                        }`}
-                      aria-hidden
-                    >
-                      {isBillingAlert(n) ? <Icons.Finance size={18} /> : actionIcon}
-                    </span>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <p className={`text-sm font-black ${themeClasses.textPrimary}`}>{n.title}</p>
-                        {!n.isRead && (
-                          <span className="rounded-full bg-indigo-600 px-2 py-0.5 text-[9px] font-black uppercase text-white">
-                            Unread
-                          </span>
-                        )}
-                      </div>
-                      <p className={`mt-1 text-xs font-medium leading-relaxed ${themeClasses.textSecondary}`}>
-                        {n.message}
-                      </p>
-                      <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
-                        {[
-                          { label: 'Project', value: n.projectName || '—' },
-                          { label: 'Module', value: n.moduleName || '—' },
-                          { label: 'Action', value: n.actionType || '—' },
-                          { label: 'Updated By', value: n.senderName || '—' },
-                        ].map((item) => (
-                          <div key={item.label} className={metaTile}>
-                            <p className={`text-[9px] font-bold uppercase ${themeClasses.textSecondary}`}>
-                              {item.label}
-                            </p>
-                            <p className={`mt-0.5 truncate text-xs font-bold ${themeClasses.textPrimary}`}>
-                              {item.value}
-                            </p>
-                          </div>
-                        ))}
-                      </div>
-                      <p className={`mt-2 text-[10px] font-bold uppercase tracking-wide ${themeClasses.textSecondary}`}>
-                        {n.createdAt ? formatAlertRelativeTime(n.createdAt) : n.timestamp}
-                      </p>
-                    </div>
-                  </div>
-                </button>
+                  <AlertNotificationItem
+                    notification={n}
+                    isDarkTheme={isDarkTheme}
+                    onClick={() => {
+                      setSelectedId(n.id);
+                      if (!n.isRead) onMarkRead(n.id, true);
+                    }}
+                  />
+                </div>
               );
             })
           )}
+          </div>
         </div>
 
-        <div className={`${cardCls} xl:col-span-2 xl:sticky xl:top-4 xl:self-start`}>
-          <h3 className={`mb-3 text-xs font-black uppercase tracking-widest ${themeClasses.textPrimary}`}>
-            Notification Detail
+        <div
+          className={`xl:col-span-2 ${
+            showPendingView
+              ? 'flex min-h-0 flex-col overflow-hidden ' + cardCls
+              : `${cardCls} xl:sticky xl:top-4 xl:self-start`
+          }`}
+        >
+          <h3 className={`mb-2 shrink-0 text-xs font-black uppercase tracking-widest ${themeClasses.textPrimary}`}>
+            {showPendingView ? 'Pending Detail' : 'Notification Detail'}
           </h3>
-          {!selected ? (
+          <div className={showPendingView ? 'min-h-0 flex-1 overflow-y-auto pr-1' : ''}>
+          {showPendingView ? (
+            <PendingUpdateDetail
+              group={selectedPendingGroup}
+              isDarkTheme={isDarkTheme}
+              windowDays={pendingUpdates?.windowDays ?? 30}
+            />
+          ) : !selected ? (
             <p className={`py-10 text-center text-sm ${themeClasses.textSecondary}`}>
               Select a notification to view details.
             </p>
@@ -215,14 +330,19 @@ const AlertsPage: React.FC<AlertsPageProps> = ({
               </div>
               <div className="space-y-2">
                 {[
-                  ['Project Name', selected.projectName],
-                  ['Module Name', selected.moduleName],
+                  ['Updated By', formatAlertActorName(selected)],
+                  ['User ID', formatSubRoleUsername(selected.senderUsername) || selected.senderUsername || '—'],
+                  ['Role', formatAlertActorRole(selected) || '—'],
+                  ['What Changed', selected.message || selected.title],
+                  ['Project', selected.projectName],
+                  ['Module', selected.moduleName],
                   ['Action', selected.actionType],
-                  ['Updated By', selected.senderName],
+                  ['Date', formatAlertDateOnly(selected.createdAt)],
+                  ['Time', formatAlertTimeOnly(selected.createdAt)],
                   [
-                    'Date & Time',
+                    'Full Timestamp',
                     selected.createdAt
-                      ? new Date(selected.createdAt).toLocaleString('en-IN')
+                      ? formatAlertDateTime(selected.createdAt)
                       : selected.timestamp,
                   ],
                   ['Read Status', selected.isRead ? 'Read' : 'Unread'],
@@ -239,7 +359,7 @@ const AlertsPage: React.FC<AlertsPageProps> = ({
                   onClick={() => onNavigate(selected)}
                   className="rounded-lg bg-indigo-600 px-3 py-1.5 text-[10px] font-black uppercase text-white hover:bg-indigo-500"
                 >
-                  Open Related Module
+                  {isExecutive ? 'Open Project Review' : 'Open Related Module'}
                 </button>
                 <button
                   type="button"
@@ -260,6 +380,7 @@ const AlertsPage: React.FC<AlertsPageProps> = ({
               </div>
             </div>
           )}
+          </div>
         </div>
       </div>
     </div>

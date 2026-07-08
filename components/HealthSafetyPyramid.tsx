@@ -20,7 +20,7 @@ const PYRAMID_WIDTH_DEFAULT = 270;
 
 interface HealthSafetyPyramidProps {
   stats?: IncidentMetrics;
-  variant?: 'default' | 'summary';
+  variant?: 'default' | 'summary' | 'list';
 }
 
 const HealthSafetyPyramid: React.FC<HealthSafetyPyramidProps> = ({ stats, variant = 'default' }) => {
@@ -28,6 +28,7 @@ const HealthSafetyPyramid: React.FC<HealthSafetyPyramidProps> = ({ stats, varian
   const themeClasses = getThemeClasses(isDarkTheme);
   const defaultStats = stats ?? { fatalities: 0, significant: 0, major: 0, minor: 0, nearMiss: 0 };
   const isSummary = variant === 'summary';
+  const isList = variant === 'list';
   const pyramidHeight = PYRAMID_HEIGHT_DEFAULT;
 
   const tiers = PYRAMID_TIERS.map((tier) => ({
@@ -139,6 +140,39 @@ const HealthSafetyPyramid: React.FC<HealthSafetyPyramidProps> = ({ stats, varian
       </div>
     </div>
   );
+
+  if (isList) {
+    return (
+      <div className={`rounded-xl border p-2 shadow-inner ${summaryPanelClass}`}>
+        <div className="flex flex-col gap-0.5">
+          {tiers.map((tier) => (
+            <div
+              key={tier.label}
+              className={`flex items-center justify-between gap-2 rounded-lg px-1.5 py-1 ${
+                isDarkTheme ? 'hover:bg-white/5' : 'hover:bg-slate-50'
+              }`}
+              style={{ borderLeft: `3px solid ${tier.color}` }}
+            >
+              <span className="flex min-w-0 items-center gap-1.5 pl-1 text-[10px] font-semibold uppercase leading-tight tracking-wide">
+                <span
+                  className="h-2.5 w-2.5 shrink-0 rounded-full shadow-sm ring-1 ring-white/80 dark:ring-slate-900/80"
+                  style={{ backgroundColor: tier.color }}
+                />
+                <span className="truncate">{tier.label}</span>
+              </span>
+              <span
+                className={`shrink-0 rounded-md px-1.5 py-0.5 text-[11px] font-black tabular-nums ${tier.kpi.textColor} ${
+                  isDarkTheme ? 'bg-white/10' : 'bg-white shadow-sm'
+                }`}
+              >
+                {tier.count.toLocaleString('en-IN')}
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
 
   if (isSummary) {
     return (

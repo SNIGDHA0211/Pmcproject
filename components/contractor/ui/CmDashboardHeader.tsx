@@ -34,8 +34,8 @@ const CmDashboardHeader: React.FC<CmDashboardHeaderProps> = ({
   return (
     <header className={theme.shell}>
       <DashboardCardTopAccent />
-      <div className="px-4 py-3 sm:px-5 sm:py-3.5">
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+      <div className="px-4 py-2.5 sm:px-5 sm:py-3">
+        <div className="flex flex-col gap-2.5 lg:flex-row lg:items-end lg:justify-between">
           <div className="flex min-w-0 items-start gap-2.5 sm:gap-3">
             <span className={theme.badge} aria-hidden>
               <HardHat size={18} strokeWidth={2.25} />

@@ -38,6 +38,10 @@ export interface AppNotification {
   timestamp: string;
   isRead: boolean;
   senderName?: string;
+  /** Login id such as pmc_tl19, qaqc1, bse1 */
+  senderUsername?: string;
+  /** Human-readable role label, e.g. "Team Leader", "QAQC Site Engineer" */
+  senderRole?: string;
   /** Backend alert fields */
   moduleName?: string;
   projectName?: string;
@@ -142,6 +146,8 @@ export interface ProjectQualityStatusRecord {
   testsPassed: number;
   testsFailed: number;
   qualityPerformance: number;
+  updatedAt?: string;
+  updatedBy?: string;
 }
 
 export interface DrawingMonthlyRecord {
@@ -664,4 +670,5 @@ export interface SiteImageRecord {
   thumbnailUrl?: string;
   uploadedAt: string;
   uploadedBy?: string;
+  uploadedByUsername?: string;
 }

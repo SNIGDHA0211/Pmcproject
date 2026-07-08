@@ -48,6 +48,7 @@ export function getAllowedTabsForRole(role: UserRole, username?: string): Readon
       'projects',
       'dpr_records',
       'wpr_records',
+      'alerts',
     ],
     [UserRole.CEO]: [
       'dashboard',

@@ -102,100 +102,120 @@ const HealthSafetyMonthlyForm: React.FC<HealthSafetyMonthlyFormProps> = ({
 
   return (
     <ModalPortal open>
-      <div className="fixed inset-0 z-[100040] flex items-center justify-center bg-black/50 p-4">
-        <div className={`w-full max-w-2xl rounded-3xl border p-6 shadow-2xl ${themeClasses.bgPrimary} ${themeClasses.border}`}>
-          <div className="mb-4 flex items-start justify-between gap-4">
-            <div>
-              <h3 className={`text-xl font-black uppercase tracking-tight ${themeClasses.textPrimary}`}>
-                {record?.id ? 'Edit Health & Safety Record' : 'Add Health & Safety Record'}
+      <div className="fixed inset-0 z-[100040] flex items-end justify-center bg-black/50 p-0 sm:items-center sm:p-4">
+        <div className={`flex w-full max-h-[90vh] flex-col overflow-hidden rounded-t-2xl border shadow-2xl sm:max-w-md sm:rounded-2xl ${themeClasses.bgPrimary} ${themeClasses.border}`}>
+          <div className={`flex shrink-0 items-center justify-between gap-3 border-b px-4 py-2.5 ${themeClasses.border} ${isDarkTheme ? 'bg-white/5' : 'bg-blue-50/80'}`}>
+            <div className="min-w-0">
+              <h3 className={`truncate text-sm font-bold ${themeClasses.textPrimary}`}>
+                {record?.id ? 'Edit HSE Record' : 'Add HSE Record'}
               </h3>
-              <p className={`mt-1 text-[11px] ${themeClasses.textSecondary}`}>{projectName}</p>
+              <p className={`truncate text-[10px] ${themeClasses.textSecondary}`}>{projectName}</p>
             </div>
             <button
               type="button"
               onClick={onClose}
-              className={`rounded-xl px-3 py-2 text-sm font-bold transition-colors ${isDarkTheme ? 'bg-white/10 text-white hover:bg-white/15' : 'bg-slate-100 text-slate-900 hover:bg-slate-200'}`}
+              className={`shrink-0 rounded-lg px-2 py-1 text-[10px] font-bold transition-colors ${isDarkTheme ? 'bg-white/10 text-white hover:bg-white/15' : 'bg-slate-100 text-slate-900 hover:bg-slate-200'}`}
             >
               Close
             </button>
           </div>
 
-          <form onSubmit={submit} className="space-y-4">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className={`mb-1 block text-[10px] font-black uppercase tracking-widest ${themeClasses.textSecondary}`}>Month</label>
-                <select
-                  value={values.month}
-                  onChange={(e) => setValues((prev) => ({ ...prev, month: Number(e.target.value) }))}
-                  className={`w-full rounded-2xl px-4 py-3 text-sm font-bold outline-none ${themeClasses.input}`}
-                  required
-                >
-                  {MONTH_OPTIONS.map((option) => (
-                    <option key={option.value} value={option.value}>{option.label}</option>
-                  ))}
-                </select>
+          <form onSubmit={submit} className="flex min-h-0 flex-1 flex-col">
+            <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 py-3">
+              <div className="grid grid-cols-2 gap-2.5">
+                <div>
+                  <label className={`mb-0.5 block text-[9px] font-bold uppercase tracking-wide ${themeClasses.textSecondary}`}>Month</label>
+                  <select
+                    value={values.month}
+                    onChange={(e) => setValues((prev) => ({ ...prev, month: Number(e.target.value) }))}
+                    className={`w-full rounded-lg px-2.5 py-1.5 text-xs font-medium outline-none ${themeClasses.input}`}
+                    required
+                  >
+                    {MONTH_OPTIONS.map((option) => (
+                      <option key={option.value} value={option.value}>{option.label}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className={`mb-0.5 block text-[9px] font-bold uppercase tracking-wide ${themeClasses.textSecondary}`}>Year</label>
+                  <input
+                    type="number"
+                    min="2000"
+                    max="2100"
+                    value={values.year}
+                    onChange={(e) => setValues((prev) => ({ ...prev, year: Number(e.target.value) }))}
+                    className={`w-full rounded-lg px-2.5 py-1.5 text-xs font-medium outline-none ${themeClasses.input} ${themeClasses.placeholder}`}
+                    required
+                  />
+                </div>
               </div>
-              <div>
-                <label className={`mb-1 block text-[10px] font-black uppercase tracking-widest ${themeClasses.textSecondary}`}>Year</label>
-                <input
-                  type="number"
-                  min="2000"
-                  max="2100"
-                  value={values.year}
-                  onChange={(e) => setValues((prev) => ({ ...prev, year: Number(e.target.value) }))}
-                  className={`w-full rounded-2xl px-4 py-3 text-sm font-bold outline-none ${themeClasses.input} ${themeClasses.placeholder}`}
-                  required
-                />
-              </div>
-            </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {([
-                ['fatalities', 'Fatalities'],
-                ['significant', 'Significant'],
-                ['major', 'Major'],
-                ['minor', 'Minor'],
-                ['nearMiss', 'Near Miss'],
-                ['totalManhours', 'Total Manhours'],
-              ] as const).map(([field, label]) => (
-                <div key={field}>
-                  <label className={`mb-1 block text-[10px] font-black uppercase tracking-widest ${themeClasses.textSecondary}`}>{label}</label>
+              <div className={`rounded-xl border p-2.5 ${isDarkTheme ? 'border-white/10 bg-white/[0.03]' : 'border-slate-200 bg-slate-50/80'}`}>
+                <p className={`mb-2 text-[9px] font-bold uppercase tracking-wide ${isDarkTheme ? 'text-rose-300' : 'text-rose-700'}`}>
+                  Incidents
+                </p>
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                  {([
+                    ['fatalities', 'Fatalities'],
+                    ['significant', 'Significant'],
+                    ['major', 'Major'],
+                    ['minor', 'Minor'],
+                    ['nearMiss', 'Near Miss'],
+                  ] as const).map(([field, label]) => (
+                    <div key={field}>
+                      <label className={`mb-0.5 block text-[9px] font-bold uppercase tracking-wide ${themeClasses.textSecondary}`}>{label}</label>
+                      <input
+                        type="number"
+                        min="0"
+                        value={values[field]}
+                        onChange={(e) => handleNumberChange(field, e.target.value)}
+                        className={`w-full rounded-lg px-2.5 py-1.5 text-xs font-medium outline-none ${themeClasses.input} ${themeClasses.placeholder}`}
+                      />
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2.5">
+                <div>
+                  <label className={`mb-0.5 block text-[9px] font-bold uppercase tracking-wide ${themeClasses.textSecondary}`}>Total Manhours</label>
                   <input
                     type="number"
                     min="0"
-                    value={values[field]}
-                    onChange={(e) => handleNumberChange(field, e.target.value)}
-                    className={`w-full rounded-2xl px-4 py-3 text-sm font-bold outline-none ${themeClasses.input} ${themeClasses.placeholder}`}
+                    value={values.totalManhours}
+                    onChange={(e) => handleNumberChange('totalManhours', e.target.value)}
+                    className={`w-full rounded-lg px-2.5 py-1.5 text-xs font-medium outline-none ${themeClasses.input} ${themeClasses.placeholder}`}
                   />
                 </div>
-              ))}
+                <div>
+                  <label className={`mb-0.5 block text-[9px] font-bold uppercase tracking-wide ${themeClasses.textSecondary}`}>Loss Manhours</label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={values.lossOfManhours}
+                    onChange={(e) => handleNumberChange('lossOfManhours', e.target.value)}
+                    className={`w-full rounded-lg px-2.5 py-1.5 text-xs font-medium outline-none ${themeClasses.input} ${themeClasses.placeholder}`}
+                  />
+                </div>
+              </div>
+
+              {(localError || error) && (
+                <p className="text-xs font-semibold text-rose-500">{localError || error}</p>
+              )}
             </div>
 
-            <div>
-              <label className={`mb-1 block text-[10px] font-black uppercase tracking-widest ${themeClasses.textSecondary}`}>Loss Of Manhours</label>
-              <input
-                type="number"
-                min="0"
-                value={values.lossOfManhours}
-                onChange={(e) => handleNumberChange('lossOfManhours', e.target.value)}
-                className={`w-full rounded-2xl px-4 py-3 text-sm font-bold outline-none ${themeClasses.input} ${themeClasses.placeholder}`}
-              />
-            </div>
-
-            {(localError || error) && <p className="text-sm font-bold text-rose-500">{localError || error}</p>}
-
-            <div className="flex flex-col gap-3 sm:flex-row">
+            <div className={`flex shrink-0 gap-2 border-t px-4 py-2.5 ${themeClasses.border} ${isDarkTheme ? 'bg-white/[0.02]' : 'bg-slate-50/50'}`}>
               <button
                 type="button"
                 onClick={onClose}
-                className={`flex-1 rounded-2xl px-4 py-3 font-bold transition-colors ${isDarkTheme ? 'bg-slate-700 text-white hover:bg-slate-600' : 'bg-slate-200 text-slate-900 hover:bg-slate-300'}`}
+                className={`flex-1 rounded-lg px-3 py-2 text-xs font-bold transition-colors ${isDarkTheme ? 'bg-slate-700 text-white hover:bg-slate-600' : 'bg-slate-200 text-slate-900 hover:bg-slate-300'}`}
               >
                 Cancel
               </button>
               <button
                 type="submit"
                 disabled={isSaving}
-                className="flex-1 rounded-2xl bg-emerald-600 px-4 py-3 font-bold text-white hover:bg-emerald-500 transition-colors disabled:opacity-60"
+                className="flex-1 rounded-lg bg-emerald-600 px-3 py-2 text-xs font-bold text-white hover:bg-emerald-500 transition-colors disabled:opacity-60"
               >
                 {isSaving ? 'Saving...' : 'Save Record'}
               </button>

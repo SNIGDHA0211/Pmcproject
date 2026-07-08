@@ -35,6 +35,8 @@ interface HealthSafetyCardProps {
   onYearChange: (year: number) => void;
   onSave: (values: HealthSafetyFormValues, record?: HSERecord | null) => Promise<boolean> | boolean;
   variant?: 'dashboard' | 'executive';
+  /** Tighter layout when shown beside Material Testing Frequency Chart */
+  pairLayout?: boolean;
 }
 
 const HealthSafetyCardHeader: React.FC<{
@@ -46,6 +48,7 @@ const HealthSafetyCardHeader: React.FC<{
   onEdit?: () => void;
   showExpand?: boolean;
   variant?: 'summary' | 'detailed';
+  pairLayout?: boolean;
 }> = ({
   selectedMonth,
   selectedYear,
@@ -55,19 +58,20 @@ const HealthSafetyCardHeader: React.FC<{
   onEdit,
   showExpand = true,
   variant = 'detailed',
+  pairLayout = false,
 }) => {
   const { isDarkTheme } = useTheme();
   const themeClasses = getThemeClasses(isDarkTheme);
   const typo = useProjectsDashboardTypo();
   const isSummary = variant === 'summary';
 
-  const iconSize = isSummary ? 16 : 20;
-  const iconWrap = isSummary ? 'h-8 w-8' : 'h-10 w-10';
+  const iconSize = pairLayout ? 15 : isSummary ? 16 : 20;
+  const iconWrap = pairLayout ? 'h-8 w-8' : isSummary ? 'h-8 w-8' : 'h-10 w-10';
 
   return (
-    <div className={`flex shrink-0 flex-col gap-2.5 border-b pb-3 pt-0.5 ${themeClasses.border}`}>
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex min-w-0 flex-1 items-center gap-3">
+    <div className={`flex shrink-0 flex-col border-b ${pairLayout ? 'gap-2 pb-2.5' : 'gap-2.5 pb-3'} pt-0.5 ${themeClasses.border}`}>
+      <div className={`flex flex-wrap items-center justify-between ${pairLayout ? 'gap-2' : 'gap-3'}`}>
+        <div className={`flex min-w-0 flex-1 items-center ${pairLayout ? 'gap-2' : 'gap-3'}`}>
           <span
             className={`flex ${iconWrap} flex-none items-center justify-center rounded-full ring-2 ${
               isDarkTheme
@@ -78,7 +82,7 @@ const HealthSafetyCardHeader: React.FC<{
             <Icons.Safety size={iconSize} />
           </span>
           <div className="min-w-0">
-            <h3 className={typo.statusCardTitle}>
+            <h3 className={pairLayout ? `${typo.statusCardTitle} text-xs sm:text-sm` : typo.statusCardTitle}>
               Health & Safety Status
             </h3>
           </div>
@@ -127,14 +131,15 @@ const HealthSafetyCardBody: React.FC<{
   trendRecords: HSERecord[];
   selectedYear: number;
   mode: 'compact' | 'expanded';
-}> = ({ monthlyRecord, ytdSummary, trendRecords, selectedYear, mode }) => {
+  pairLayout?: boolean;
+}> = ({ monthlyRecord, ytdSummary, trendRecords, selectedYear, mode, pairLayout = false }) => {
   const { isDarkTheme } = useTheme();
   const themeClasses = getThemeClasses(isDarkTheme);
   const metrics = toIncidentMetrics(monthlyRecord);
   const ytdMetrics = toIncidentMetrics(ytdSummary);
 
   if (mode === 'compact') {
-    return <HealthSafetyCompactSummary record={monthlyRecord} />;
+    return <HealthSafetyCompactSummary record={monthlyRecord} pairLayout={pairLayout} />;
   }
 
   return (
@@ -191,6 +196,7 @@ const HealthSafetyCard: React.FC<HealthSafetyCardProps> = ({
   onYearChange,
   onSave,
   variant = 'dashboard',
+  pairLayout = false,
 }) => {
   const { isDarkTheme } = useTheme();
   const themeClasses = getThemeClasses(isDarkTheme);
@@ -317,6 +323,7 @@ const HealthSafetyCard: React.FC<HealthSafetyCardProps> = ({
         trendRecords={trendRecords}
         selectedYear={selectedYear}
         mode={mode}
+        pairLayout={pairLayout}
       />
     );
   };
@@ -362,7 +369,9 @@ const HealthSafetyCard: React.FC<HealthSafetyCardProps> = ({
   return (
     <>
       <div
-        className={`hse-status-card joyride-target-stable relative flex h-full w-full min-w-0 flex-col overflow-hidden rounded-2xl border ${DASHBOARD_STATUS_CARD_PADDING} transition-all duration-200 hover:shadow-lg ${
+        className={`hse-status-card joyride-target-stable relative flex h-full w-full min-w-0 flex-col overflow-hidden rounded-2xl border transition-all duration-200 hover:shadow-lg ${
+          pairLayout ? 'min-h-[22rem] px-4 py-3' : DASHBOARD_STATUS_CARD_PADDING
+        } ${
           isDarkTheme
             ? `${themeClasses.glassCard} ${themeClasses.border} shadow-sm`
             : 'border-slate-200/90 bg-white shadow-[0_8px_24px_rgba(15,23,42,0.07)] ring-1 ring-slate-100'
@@ -374,8 +383,9 @@ const HealthSafetyCard: React.FC<HealthSafetyCardProps> = ({
           variant="summary"
           onExpand={() => setIsExpanded(true)}
           showExpand
+          pairLayout={pairLayout}
         />
-        <div className="mt-3 min-h-0 flex-1">{renderContent('compact')}</div>
+        <div className={`min-h-0 flex-1 ${pairLayout ? 'mt-2.5' : 'mt-3'}`}>{renderContent('compact')}</div>
       </div>
 
       <ModalPortal open={isExpanded}>

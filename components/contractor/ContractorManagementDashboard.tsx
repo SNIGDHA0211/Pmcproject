@@ -17,6 +17,8 @@ import { CmButton, CmDashboardHeader, CmLoadingSkeleton } from './ui';
 interface ContractorManagementDashboardProps {
   project: Project;
   dataRevision?: number;
+  showProjectDates?: boolean;
+  showFinancial?: boolean;
   onNavigateFinancial?: (section: 'contracts' | 'invoicing') => void;
   onEditSclDates?: () => void;
   onEditContractorDates?: (record: ProjectDatesApiRecord) => void;
@@ -28,6 +30,8 @@ interface ContractorManagementDashboardProps {
 const ContractorManagementDashboard: React.FC<ContractorManagementDashboardProps> = ({
   project,
   dataRevision = 0,
+  showProjectDates = true,
+  showFinancial = true,
   onEditSclDates,
   onEditContractorDates,
   onAddContractorSchedule,
@@ -114,22 +118,24 @@ const ContractorManagementDashboard: React.FC<ContractorManagementDashboardProps
 
   return (
     <div className={`contractor-management-dashboard font-[Inter,system-ui,sans-serif] ${theme.root}`}>
-      {projectDatesSection}
+      {showProjectDates && projectDatesSection}
 
-      <CmDashboardHeader
-        projectTitle={project.title}
-        contractors={cm.masters}
-        selectedViewId={cm.selectedContractorMasterId}
-        onViewChange={cm.setSelectedContractorMasterId}
-        onAddContractor={() => setIsAddContractorOpen(true)}
-        onRefresh={() => void cm.refresh()}
-        loading={cm.loading}
-        lastUpdated={cm.lastUpdated}
-        error={cm.error}
-      />
+      {showFinancial && (
+        <CmDashboardHeader
+          projectTitle={project.title}
+          contractors={cm.masters}
+          selectedViewId={cm.selectedContractorMasterId}
+          onViewChange={cm.setSelectedContractorMasterId}
+          onAddContractor={() => setIsAddContractorOpen(true)}
+          onRefresh={() => void cm.refresh()}
+          loading={cm.loading}
+          lastUpdated={cm.lastUpdated}
+          error={cm.error}
+        />
+      )}
 
       <div className={`${theme.content} contractor-management-sections`}>
-        {cm.contractValues && cm.invoicing && (
+        {showFinancial && cm.contractValues && cm.invoicing && (
           <CmFinancialDashboardRow
             contractValues={cm.contractValues}
             invoicing={cm.invoicing}

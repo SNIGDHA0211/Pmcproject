@@ -12,6 +12,8 @@ import TeamLeaderSidebarTour, {
   type TeamLeaderSidebarTourHandle,
 } from './tours/TeamLeaderSidebarTour';
 import UserAvatar from './UserAvatar';
+import AlertNotificationItem from './alerts/AlertNotificationItem';
+import { isTabAllowedForRole } from '../utils/roleRouting';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -19,6 +21,8 @@ interface LayoutProps {
   onLogout: () => void;
   activeTab: string;
   setActiveTab: (tab: string) => void;
+  teamLeaderProjectsView?: 'overview' | 'full';
+  onTeamLeaderBackToOverview?: () => void;
   notifications: AppNotification[];
   onMarkRead: (id: string, isRead?: boolean) => void;
   onNavigateToAlerts?: () => void;
@@ -38,13 +42,12 @@ const Layout: React.FC<LayoutProps> = ({
   onLogout,
   activeTab,
   setActiveTab,
+  teamLeaderProjectsView = 'overview',
+  onTeamLeaderBackToOverview,
   notifications,
   onMarkRead,
   onNavigateToAlerts,
   onNotificationClick,
-  projects = [],
-  selectedProjectId = null,
-  onSelectProject,
   isOnboardingTourActive = false,
   onOnboardingTourStateChange,
   isAnyTourRunning = false,
@@ -64,7 +67,6 @@ const Layout: React.FC<LayoutProps> = ({
   const themeClasses = getThemeClasses(isDarkTheme);
   const [showNotifications, setShowNotifications] = useState(false);
   const [sidebarOverlayOpen, setSidebarOverlayOpen] = useState(false);
-  const [isProjectDropdownOpen, setIsProjectDropdownOpen] = useState(false);
   const teamLeaderTourRef = useRef<TeamLeaderSidebarTourHandle>(null);
 
   const closeSidebarOverlay = useCallback(() => {
@@ -75,7 +77,6 @@ const Layout: React.FC<LayoutProps> = ({
     setSidebarOverlayOpen((prev) => !prev);
   }, []);
 
-  const selectedProject = projects.find(p => p.id === selectedProjectId);
   const teamLeaderTourCompleted =
     typeof window !== 'undefined' && localStorage.getItem('teamLeaderTourCompleted') === 'true';
 
@@ -88,6 +89,8 @@ const Layout: React.FC<LayoutProps> = ({
     });
 
   const unreadCount = userNotifications.filter((n) => !n.isRead).length;
+  const isPMCHead = user.role === UserRole.PMC_HEAD;
+  const canViewAlertsPage = isTabAllowedForRole('alerts', user.role, user.username);
 
   const getTourClassName = (id: string): string => {
     const classMap: Record<string, string> = {
@@ -133,7 +136,7 @@ const Layout: React.FC<LayoutProps> = ({
     },
     {
       id: "team_projects",
-      label: "Projects",
+      label: user.role === UserRole.TEAM_LEAD ? "Overview" : "Projects",
       icon: Icons.Building,
       roles: [UserRole.TEAM_LEAD, UserRole.PMC_HEAD, UserRole.COORDINATOR],
     },
@@ -227,7 +230,7 @@ const Layout: React.FC<LayoutProps> = ({
       id: "alerts",
       label: "Alerts",
       icon: Icons.Notification,
-      roles: [UserRole.TEAM_LEAD],
+      roles: [UserRole.TEAM_LEAD, UserRole.PMC_HEAD],
     },
     // {
     //   id: "documents",
@@ -499,7 +502,7 @@ const Layout: React.FC<LayoutProps> = ({
                 </button>
               )}
 
-              {/* Back button — when sidebar hidden & non-Team Lead */}
+              {/* Back button — PMC Head on projects dashboard */}
               {hideSidebar && user.role !== UserRole.TEAM_LEAD && (
                 <button
                   onClick={() => setActiveTab("dashboard")}
@@ -510,68 +513,21 @@ const Layout: React.FC<LayoutProps> = ({
                 </button>
               )}
 
-              {/* Project Selector — Projects tab only (hidden for Team Leader — single assigned project) */}
-              {activeTab === "team_projects" &&
-                projects.length > 0 &&
-                user.role !== UserRole.TEAM_LEAD && (
-                  <div className="relative min-w-0 shrink">
-                    <button
-                      onClick={() => setIsProjectDropdownOpen(!isProjectDropdownOpen)}
-                      className={`flex items-center gap-2 h-9 px-3 border rounded-xl transition-all ${isDarkTheme
-                        ? "bg-white/5 border-white/10 hover:bg-white/10 text-white"
-                        : "bg-white border-slate-200 hover:border-indigo-300 shadow-sm text-slate-900"
-                        }`}
-                    >
-                      <span className="max-w-[100px] truncate text-xs font-bold sm:max-w-[140px] md:max-w-[200px]">
-                        {selectedProject ? selectedProject.title : "Select Project"}
-                      </span>
-                      <Icons.ChevronRight
-                        className={`shrink-0 transition-transform duration-200 ${isProjectDropdownOpen ? "rotate-90" : "rotate-0"} ${themeClasses.textMuted}`}
-                        size={13}
-                      />
-                    </button>
-
-                    {isProjectDropdownOpen && (
-                      <>
-                        <div
-                          className="fixed inset-0 z-40"
-                          onClick={() => setIsProjectDropdownOpen(false)}
-                        />
-                        <div
-                          className={`absolute top-full left-0 mt-2 w-64 rounded-2xl shadow-2xl z-50 overflow-hidden border animate-in fade-in slide-in-from-top-2 ${isDarkTheme
-                            ? "bg-slate-800 border-white/10"
-                            : "bg-white border-slate-200"
-                            }`}
-                        >
-                          <div className="max-h-80 overflow-y-auto py-2">
-                            {projects.map((p) => (
-                              <button
-                                key={p.id}
-                                onClick={() => {
-                                  onSelectProject?.(p.id);
-                                  setIsProjectDropdownOpen(false);
-                                }}
-                                className={`w-full px-4 py-3 text-left text-xs font-bold transition-colors flex items-center justify-between group ${selectedProjectId === p.id
-                                  ? isDarkTheme
-                                    ? "bg-indigo-500/20 text-indigo-400"
-                                    : "bg-indigo-50 text-indigo-600"
-                                  : isDarkTheme
-                                    ? "text-slate-300 hover:bg-white/5"
-                                    : "text-slate-600 hover:bg-slate-50"
-                                  }`}
-                              >
-                                <span className="truncate">{p.title}</span>
-                                {selectedProjectId === p.id && (
-                                  <Icons.Check size={12} />
-                                )}
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-                      </>
-                    )}
-                  </div>
+              {/* Back to overview — Team Leader full project view */}
+              {hideSidebar &&
+                user.role === UserRole.TEAM_LEAD &&
+                teamLeaderProjectsView === 'full' && (
+                  <button
+                    type="button"
+                    onClick={() => onTeamLeaderBackToOverview?.()}
+                    className={`flex h-9 shrink-0 items-center gap-1.5 rounded-xl border px-3 text-xs font-bold transition-all ${themeClasses.buttonSecondary} ${themeClasses.border}`}
+                  >
+                    <Icons.ChevronRight size={15} className="rotate-180" />
+                    <span className="hidden sm:inline">Back to Overview</span>
+                    <span className="sm:hidden">Back</span>
+                  </button>
                 )}
+
             </div>
 
             <div className="relative z-[110] flex items-center gap-4">
@@ -625,7 +581,7 @@ const Layout: React.FC<LayoutProps> = ({
               {/* Notification Dropdown */}
               {showNotifications && (
                 <div
-                  className={`absolute top-full right-0 mt-2 w-80 rounded-2xl z-50 animate-in fade-in slide-in-from-top-2 ${isDarkTheme
+                  className={`absolute top-full right-0 mt-2 rounded-2xl z-50 animate-in fade-in slide-in-from-top-2 ${isPMCHead ? 'w-[22rem] sm:w-96' : 'w-80'} ${isDarkTheme
                     ? "glass-card"
                     : "bg-white border border-gray-200 shadow-lg"
                     }`}
@@ -634,12 +590,19 @@ const Layout: React.FC<LayoutProps> = ({
                     className={`p-4 border-b flex items-center justify-between ${isDarkTheme ? "border-white/10" : "border-gray-200"
                       }`}
                   >
-                    <h3
-                      className={`text-[10px] font-black uppercase tracking-widest ${isDarkTheme ? "muted" : "text-gray-600"
-                        }`}
-                    >
-                      Alerts{unreadCount > 0 ? ` (${unreadCount})` : ''}
-                    </h3>
+                    <div>
+                      <h3
+                        className={`text-[10px] font-black uppercase tracking-widest ${isDarkTheme ? "muted" : "text-gray-600"
+                          }`}
+                      >
+                        Alerts{unreadCount > 0 ? ` (${unreadCount})` : ''}
+                      </h3>
+                      {isPMCHead && (
+                        <p className={`mt-0.5 text-[9px] font-bold ${isDarkTheme ? 'text-white/50' : 'text-slate-400'}`}>
+                          Team leader & site engineer updates
+                        </p>
+                      )}
+                    </div>
                     {unreadCount > 0 && (
                       <span
                         className={`text-[8px] px-2 py-0.5 rounded-full font-black uppercase ${isDarkTheme
@@ -654,58 +617,17 @@ const Layout: React.FC<LayoutProps> = ({
                   <div className="max-h-96 overflow-y-auto">
                     {userNotifications.length > 0 ? (
                       userNotifications.map((n) => (
-                        <div
+                        <AlertNotificationItem
                           key={n.id}
+                          notification={n}
+                          isDarkTheme={isDarkTheme}
+                          compact
                           onClick={() => {
                             void onMarkRead(n.id, true);
                             setShowNotifications(false);
                             onNotificationClick?.(n);
                           }}
-                          className={`p-4 border-b cursor-pointer transition-colors relative ${isDarkTheme
-                            ? `border-white/5 hover:bg-white/10 ${!n.isRead ? "bg-white/5" : ""}`
-                            : `border-gray-200 hover:bg-gray-50 ${!n.isRead ? "bg-indigo-50" : ""}`
-                            }`}
-                        >
-                          <div className="flex gap-3">
-                            <div
-                              className={`mt-1 w-2 h-2 rounded-full shrink-0 ${n.type === "ALERT"
-                                ? "bg-rose-500"
-                                : n.type === "SUCCESS"
-                                  ? "bg-emerald-500"
-                                  : "bg-indigo-500"
-                                }`}
-                            ></div>
-                            <div>
-                              <p
-                                className={`text-xs font-black leading-tight ${isDarkTheme
-                                  ? "text-contrast"
-                                  : "text-gray-900"
-                                  }`}
-                              >
-                                {n.title}
-                              </p>
-                              <p
-                                className={`text-[10px] mt-1 leading-normal font-medium ${isDarkTheme ? "muted" : "text-gray-600"
-                                  }`}
-                              >
-                                {n.message}
-                              </p>
-                              <p
-                                className={`text-[8px] mt-2 font-bold uppercase tracking-tight ${isDarkTheme ? "muted" : "text-gray-500"
-                                  }`}
-                              >
-                                {n.moduleName ? `${n.moduleName} · ` : ''}
-                                {n.timestamp}
-                              </p>
-                            </div>
-                          </div>
-                          {!n.isRead && (
-                            <div
-                              className={`absolute right-4 top-4 w-1.5 h-1.5 rounded-full ${isDarkTheme ? "bg-indigo-400" : "bg-indigo-500"
-                                }`}
-                            ></div>
-                          )}
-                        </div>
+                        />
                       ))
                     ) : (
                       <div className="p-10 text-center">
@@ -718,27 +640,36 @@ const Layout: React.FC<LayoutProps> = ({
                           className={`text-[10px] font-black uppercase ${isDarkTheme ? "muted" : "text-gray-500"
                             }`}
                         >
-                          No notifications available.
+                          {isPMCHead
+                            ? 'No team updates yet.'
+                            : 'No notifications available.'}
                         </p>
+                        {isPMCHead && (
+                          <p className={`mt-2 text-[9px] font-medium leading-relaxed ${isDarkTheme ? 'text-white/40' : 'text-slate-400'}`}>
+                            You will see who updated what, with date and time, when a TL or site engineer changes project data.
+                          </p>
+                        )}
                       </div>
                     )}
                   </div>
-                  <div
-                    className={`p-3 text-center rounded-b-2xl ${isDarkTheme ? "bg-white/5" : "bg-gray-50"
-                      }`}
-                  >
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setShowNotifications(false);
-                        onNavigateToAlerts?.();
-                      }}
-                      className={`text-[10px] font-black uppercase tracking-widest hover:underline ${isDarkTheme ? "" : "text-gray-700"
+                  {canViewAlertsPage && (
+                    <div
+                      className={`p-3 text-center rounded-b-2xl ${isDarkTheme ? "bg-white/5" : "bg-gray-50"
                         }`}
                     >
-                      View All Alerts
-                    </button>
-                  </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowNotifications(false);
+                          onNavigateToAlerts?.();
+                        }}
+                        className={`text-[10px] font-black uppercase tracking-widest hover:underline ${isDarkTheme ? "" : "text-gray-700"
+                          }`}
+                      >
+                        View All Alerts
+                      </button>
+                    </div>
+                  )}
                 </div>
               )}
             </div>

@@ -115,7 +115,9 @@ export function extractAssigneeId(assignee: unknown): string {
   if (assignee == null || assignee === '') return '';
   if (typeof assignee === 'object') {
     const row = assignee as Record<string, unknown>;
-    return String(row.id ?? row.pk ?? row.username ?? '').trim();
+    const username = String(row.username ?? row.user_name ?? '').trim();
+    if (username) return username;
+    return String(row.id ?? row.pk ?? '').trim();
   }
   return String(assignee).trim();
 }

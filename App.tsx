@@ -25,6 +25,7 @@ import FinancialManagement, {
   normalizeBillingFinancialSubTab,
   normalizeFinancialSubTab,
 } from "./components/FinancialManagement";
+import type { TeamLeaderOverviewSection } from "./components/teamLeader/TeamLeaderOverviewShell";
 import AlertsPage from "./components/AlertsPage";
 import NotificationAlertToastStack, { type AlertToastItem } from "./components/NotificationAlertToastStack";
 import {
@@ -41,6 +42,7 @@ import { MOCK_USERS, INITIAL_PROJECTS, MOCK_DPRS } from "./services/mockData";
 import { Icons } from "./components/Icons";
 import { STATUS_COLORS } from "./constants";
 import { projectApi, operationsApi, dprApi, notificationApi, getApiErrorMessage, unwrapList } from "./services/api";
+import { getLoginFailureMessage } from "./utils/loginCredentials";
 import { useAuth } from "./contexts/AuthContext";
 import { websocketService, NotificationData } from "./services/websocket";
 import { alertsApi, unwrapAlertsResponse } from "./services/alertsApi";
@@ -48,8 +50,23 @@ import {
   normalizeAlertRecord,
   normalizeWsAlertPayload,
   resolveAlertNavigation,
+  resolveRoleLabel,
   sortNotificationsDesc,
 } from "./utils/alertHelpers";
+import {
+  fetchPmcHeadActivityNotifications,
+  isSyntheticActivityNotification,
+  mergeActivityNotifications,
+} from "./utils/pmcHeadActivityFeed";
+import {
+  enrichNotificationsActors,
+  loadProjectsForActorFallback,
+} from "./utils/projectActorFallback";
+import { loadUserDirectory } from "./utils/userDirectory";
+import {
+  fetchPendingUpdatesSummary,
+  type PendingUpdatesSummary,
+} from "./utils/pmcHeadPendingUpdates";
 import { userMatchesAssignee, extractAssigneeId, projectAssignedToUser } from "./utils/roleProjectAssignments";
 import {
   clearAppRouteOnLogout,
@@ -96,6 +113,10 @@ const App: React.FC = () => {
   const [financialInitialProjectId, setFinancialInitialProjectId] = useState<string | null>(null);
   const [alertsLoading, setAlertsLoading] = useState(false);
   const [alertsRefreshing, setAlertsRefreshing] = useState(false);
+  const [pendingUpdates, setPendingUpdates] = useState<PendingUpdatesSummary | null>(null);
+  const [pendingLoading, setPendingLoading] = useState(false);
+  const [teamLeaderProjectsView, setTeamLeaderProjectsView] = useState<'overview' | 'full'>('overview');
+  const [teamLeaderScrollSection, setTeamLeaderScrollSection] = useState<TeamLeaderOverviewSection | null>(null);
   const [alertToasts, setAlertToasts] = useState<AlertToastItem[]>([]);
   const alertToastIdRef = React.useRef(0);
 
@@ -574,14 +595,55 @@ const App: React.FC = () => {
           resolveProjectIdByName(row.project_name),
         ),
       );
-      setNotifications(sortNotificationsDesc(mapped));
+
+      let merged = mapped;
+      if (currentUser.role === UserRole.PMC_HEAD) {
+        try {
+          const [directory, assigneeProjects] = await Promise.all([
+            loadUserDirectory(),
+            loadProjectsForActorFallback(),
+          ]);
+          const activityAlerts = await fetchPmcHeadActivityNotifications(
+            currentUser.id,
+          );
+          merged = mergeActivityNotifications(mapped, activityAlerts);
+          merged = enrichNotificationsActors(merged, directory, assigneeProjects);
+          setPendingLoading(true);
+          try {
+            const pending = await fetchPendingUpdatesSummary(merged);
+            setPendingUpdates(pending);
+          } catch (pendingError) {
+            console.warn("Failed to load pending updates summary:", pendingError);
+            setPendingUpdates(null);
+          } finally {
+            setPendingLoading(false);
+          }
+        } catch (activityError) {
+          console.warn("Failed to load PMC Head activity alerts:", activityError);
+          setPendingUpdates(null);
+        }
+      } else {
+        setPendingUpdates(null);
+      }
+
+      setNotifications((prev) => {
+        const readSyntheticIds = new Set(
+          prev
+            .filter((n) => isSyntheticActivityNotification(n.id) && n.isRead)
+            .map((n) => n.id),
+        );
+        if (readSyntheticIds.size === 0) return merged;
+        return merged.map((n) =>
+          readSyntheticIds.has(n.id) ? { ...n, isRead: true } : n,
+        );
+      });
     } catch (error) {
       console.error("Failed to load alerts:", error);
     } finally {
       setAlertsLoading(false);
       setAlertsRefreshing(false);
     }
-  }, [currentUser?.id]);
+  }, [currentUser?.id, currentUser?.role]);
 
   const upsertNotification = (incoming: AppNotification) => {
     setNotifications((prev) => {
@@ -595,6 +657,35 @@ const App: React.FC = () => {
       notification.projectId || resolveProjectIdByName(notification.projectName);
     if (projectId) {
       setSelectedProjectId(projectId);
+    }
+
+    if (currentUser?.role === UserRole.PMC_HEAD) {
+      const moduleKey = (notification.moduleName || "").trim().toLowerCase();
+      if (moduleKey === "site photos") {
+        setActiveTab("site_photos");
+        const sitePhotosPath = TAB_PATHS.site_photos;
+        if (sitePhotosPath && getAppRoutePath() !== sitePhotosPath) {
+          syncAppRoutePath(sitePhotosPath, "push");
+        }
+        return;
+      }
+
+      const nav = resolveAlertNavigation(notification);
+      if (nav?.tab && isTabAllowedForRole(nav.tab, UserRole.PMC_HEAD, currentUser.username)) {
+        setActiveTab(nav.tab);
+        const navPath = TAB_PATHS[nav.tab];
+        if (navPath && getAppRoutePath() !== navPath) {
+          syncAppRoutePath(navPath, "push");
+        }
+        return;
+      }
+
+      setActiveTab("team_projects");
+      const targetPath = TAB_PATHS.team_projects;
+      if (targetPath && getAppRoutePath() !== targetPath) {
+        syncAppRoutePath(targetPath, "push");
+      }
+      return;
     }
 
     const nav = resolveAlertNavigation(notification);
@@ -621,6 +712,8 @@ const App: React.FC = () => {
     setNotifications((prev) =>
       prev.map((n) => (n.id === id ? { ...n, isRead } : n)),
     );
+    if (isSyntheticActivityNotification(id)) return;
+
     try {
       await alertsApi.update(id, { is_read: isRead });
     } catch (error) {
@@ -628,6 +721,13 @@ const App: React.FC = () => {
       void fetchAlerts({ silent: true });
     }
   };
+
+  useEffect(() => {
+    if (activeTab !== 'team_projects') {
+      setTeamLeaderProjectsView('overview');
+      setTeamLeaderScrollSection(null);
+    }
+  }, [activeTab]);
 
   useEffect(() => {
     if (!currentUser) {
@@ -1007,6 +1107,8 @@ const App: React.FC = () => {
         timestamp,
         isRead: false,
         senderName: data.sender || "System",
+        senderUsername: data.sender_username,
+        senderRole: resolveRoleLabel(String(data.sender_role || "")),
         moduleName: data.module_name,
         projectName: data.project_name,
         actionType: data.action_type,
@@ -1042,7 +1144,7 @@ const App: React.FC = () => {
       setActiveTab(homeTab);
     } catch (error: unknown) {
       console.error("Login failed", error);
-      setLoginError(getApiErrorMessage(error, "Invalid username or password"));
+      setLoginError(getLoginFailureMessage(error, getApiErrorMessage(error, "Invalid username or password")));
     } finally {
       setIsLoginSubmitting(false);
     }
@@ -1313,10 +1415,19 @@ const App: React.FC = () => {
         user={currentUser}
         onLogout={logout}
         activeTab={activeTab}
+        teamLeaderProjectsView={teamLeaderProjectsView}
+        onTeamLeaderBackToOverview={() => {
+          setTeamLeaderProjectsView('overview');
+          setTeamLeaderScrollSection(null);
+        }}
         setActiveTab={(tab) => {
           const nextTab = isTabAllowedForRole(tab, currentUser.role, currentUser.username)
             ? tab
             : getDefaultTabForRole(currentUser.role);
+          if (nextTab === 'team_projects' && activeTab === 'team_projects') {
+            setTeamLeaderProjectsView('overview');
+            setTeamLeaderScrollSection(null);
+          }
           setActiveTab(nextTab);
           const targetPath = TAB_PATHS[nextTab];
           if (targetPath && getAppRoutePath() !== targetPath) {
@@ -1444,7 +1555,6 @@ const App: React.FC = () => {
             selectedProjectId={selectedProjectId}
             onViewProject={(id) => {
               setSelectedProjectId(id);
-              setActiveTab("projects");
             }}
             onNavigate={(navData) => {
               if (typeof navData === 'object' && navData.tab && navData.section) {
@@ -1468,6 +1578,10 @@ const App: React.FC = () => {
             }}
             financialDataVersion={financialDataVersion}
             onTourStateChange={setIsAnyTourRunning}
+            teamLeaderView={teamLeaderProjectsView}
+            onTeamLeaderViewChange={setTeamLeaderProjectsView}
+            teamLeaderScrollSection={teamLeaderScrollSection}
+            onTeamLeaderScrollSectionConsumed={() => setTeamLeaderScrollSection(null)}
           />
         ) : activeTab === "projects" ? (
           <div className="space-y-6 animate-in fade-in duration-500">
@@ -1600,6 +1714,9 @@ const App: React.FC = () => {
             notifications={notifications.filter((n) => n.userId === currentUser.id)}
             loading={alertsLoading}
             refreshing={alertsRefreshing}
+            variant={currentUser.role === UserRole.PMC_HEAD ? 'executive' : 'default'}
+            pendingUpdates={currentUser.role === UserRole.PMC_HEAD ? pendingUpdates : null}
+            pendingLoading={currentUser.role === UserRole.PMC_HEAD ? pendingLoading : false}
             onRefresh={() => void fetchAlerts({ silent: true })}
             onMarkRead={handleMarkRead}
             onNavigate={handleAlertNavigation}

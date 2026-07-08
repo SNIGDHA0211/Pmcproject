@@ -15,6 +15,8 @@ export interface NotificationData {
   project_name?: string;
   action_type?: string;
   sender?: string;
+  sender_username?: string;
+  sender_role?: string;
   created_at?: string;
   is_read?: boolean;
   project_id?: string;

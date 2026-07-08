@@ -3,6 +3,7 @@ import type { FrequencyChartSummary as T } from "../types";
 interface Props {
   summary: T;
   isDarkTheme: boolean;
+  compact?: boolean;
 }
 
 function safeN(v: unknown): number {
@@ -10,7 +11,7 @@ function safeN(v: unknown): number {
   return Number.isFinite(x) ? x : 0;
 }
 
-export default function FrequencyChartSummary({ summary, isDarkTheme }: Props) {
+export default function FrequencyChartSummary({ summary, isDarkTheme, compact = false }: Props) {
   const raw = summary as unknown as Record<string, unknown>;
 
   const testsRequired      = safeN(raw.testsRequired      ?? raw.tests_required);
@@ -34,19 +35,25 @@ export default function FrequencyChartSummary({ summary, isDarkTheme }: Props) {
   ];
 
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 sm:gap-3">
+    <div
+      className={`grid gap-2 ${
+        compact
+          ? 'grid-cols-5'
+          : 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 sm:gap-3'
+      }`}
+    >
       {cards.map((card) => (
-        <div key={card.label} className={`rounded-2xl border p-3 sm:p-4 ${card.bg}`}>
-          <div className="flex items-start justify-between gap-2">
-            <div className="min-w-0">
-              <p className={`text-[10px] font-black uppercase tracking-widest mb-1 ${isDarkTheme ? "text-slate-400" : "text-slate-500"}`}>
-                {card.label}
+        <div key={card.label} className={`rounded-xl border ${compact ? 'p-2.5' : 'rounded-2xl p-3 sm:p-4'} ${card.bg}`}>
+          <div className="flex flex-col gap-1">
+            <div className="flex items-start justify-between gap-1">
+              <p className={`${compact ? 'text-[8px] leading-tight' : 'text-[9px] sm:text-[10px] mb-1'} font-black uppercase tracking-wide ${isDarkTheme ? "text-slate-400" : "text-slate-500"}`}>
+                {compact ? card.label.replace('Tests ', '') : card.label}
               </p>
-              <p className={`text-xl sm:text-2xl font-black leading-none ${card.accent}`}>
-                {(card.value ?? 0).toLocaleString()}
-              </p>
+              <span className={`${compact ? 'text-sm' : 'text-lg sm:text-xl'} shrink-0 leading-none`}>{card.icon}</span>
             </div>
-            <span className="text-lg sm:text-xl flex-shrink-0">{card.icon}</span>
+            <p className={`${compact ? 'text-base sm:text-lg' : 'text-xl sm:text-2xl'} font-black leading-none ${card.accent}`}>
+              {(card.value ?? 0).toLocaleString()}
+            </p>
           </div>
         </div>
       ))}

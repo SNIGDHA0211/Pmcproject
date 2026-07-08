@@ -30,6 +30,10 @@ import {
   normalizeCorrespondenceRecipientType,
 } from "../utils/correspondence";
 import {
+  correspondenceExportFilename,
+  downloadCorrespondenceExcel,
+} from "../utils/correspondenceExport";
+import {
   getThemeClasses,
   useTheme,
 } from "../utils/theme";
@@ -85,6 +89,8 @@ const CorrespondenceCardHeader: React.FC<{
   onMonthChange: (m: number) => void;
   onYearChange: (y: number) => void;
   onAddDocument?: () => void;
+  onExport?: () => void;
+  isExporting?: boolean;
   view?: "monthly" | "cumulative";
   onViewChange?: (view: "monthly" | "cumulative") => void;
 }> = ({
@@ -94,6 +100,8 @@ const CorrespondenceCardHeader: React.FC<{
   onMonthChange,
   onYearChange,
   onAddDocument,
+  onExport,
+  isExporting = false,
   view,
   onViewChange,
 }) => {
@@ -175,6 +183,23 @@ const CorrespondenceCardHeader: React.FC<{
           />
         </CardActionToolbar>
 
+        {onExport && (
+          <button
+            type="button"
+            onClick={onExport}
+            disabled={!projectName || isExporting}
+            className={`inline-flex shrink-0 items-center justify-center gap-1 rounded-lg border px-2.5 py-1.5 text-xs font-bold shadow-sm transition-colors sm:gap-1.5 sm:px-3 sm:py-2 sm:text-sm ${
+              isDarkTheme
+                ? "border-white/15 bg-white/10 text-white hover:bg-white/15 disabled:opacity-50"
+                : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+            }`}
+          >
+            <Icons.Download size={14} className={isExporting ? "animate-pulse" : ""} />
+            <span className="hidden min-[400px]:inline">{isExporting ? "Exporting…" : "Export Excel"}</span>
+            <span className="min-[400px]:hidden">{isExporting ? "…" : "Export"}</span>
+          </button>
+        )}
+
         {onAddDocument && (
           <button
             type="button"
@@ -231,6 +256,7 @@ const CorrespondenceCard: React.FC<CorrespondenceCardProps> = ({
   const [isCountsModalOpen, setIsCountsModalOpen] = useState(false);
   const [countsSaving, setCountsSaving] = useState(false);
   const [countsFormError, setCountsFormError] = useState<string | null>(null);
+  const [isExporting, setIsExporting] = useState(false);
 
   const applyDashboardResponse = (data: CorrespondenceDashboardResponse | null) => {
     setDashboardData(data ?? null);
@@ -517,6 +543,30 @@ const CorrespondenceCard: React.FC<CorrespondenceCardProps> = ({
     setIsModalOpen(true);
   };
 
+  const handleExportExcel = async () => {
+    if (!projectName) return;
+    setIsExporting(true);
+    try {
+      await downloadCorrespondenceExcel(
+        {
+          projectName,
+          month: selectedMonth,
+          year: selectedYear,
+          view,
+          period: effectivePeriod,
+          documents: sortedPeriodDocuments,
+          scl: sclDelivered,
+        },
+        correspondenceExportFilename(projectName, selectedYear, selectedMonth, view),
+      );
+    } catch (error) {
+      console.error("[CorrespondenceCard] Excel export failed:", error);
+      window.alert("Failed to export correspondence report. Please try again.");
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
   const headerProps = {
     projectName,
     selectedMonth,
@@ -524,6 +574,8 @@ const CorrespondenceCard: React.FC<CorrespondenceCardProps> = ({
     onMonthChange,
     onYearChange,
     onAddDocument: () => openAdd("CLIENT"),
+    onExport: handleExportExcel,
+    isExporting,
     view,
     onViewChange: setView,
   };

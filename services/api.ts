@@ -15,6 +15,8 @@ import {
   setAccessToken,
   setRefreshToken,
 } from "../utils/authStorage";
+import { handlePmcHeadMutationNotify } from "../utils/pmcHeadMutationNotify";
+import { stampActorOnRequest } from "../utils/stampActorOnRequest";
 import {
   extractRecordId,
   formatFinancialMonthYear,
@@ -196,6 +198,12 @@ function configureApiInstance(instance: AxiosInstance): void {
         config.url = normalizeApiUrl(config.url);
       }
 
+      try {
+        stampActorOnRequest(config);
+      } catch (stampError) {
+        console.warn("Failed to stamp actor on API request:", stampError);
+      }
+
       if (isApiDebugEnabled) {
         console.debug(
           "[API request]",
@@ -223,6 +231,11 @@ function configureApiInstance(instance: AxiosInstance): void {
           instance.getUri(response.config),
           response.data,
         );
+      }
+      try {
+        handlePmcHeadMutationNotify(response);
+      } catch (notifyError) {
+        console.warn("PMC Head mutation notify failed:", notifyError);
       }
       return response;
     },
@@ -556,6 +569,9 @@ export interface HSERecord {
   totalManhours: number;
   lossOfManhours: number;
   status?: string;
+  updatedAt?: string;
+  updatedBy?: string;
+  updatedByUsername?: string;
 }
 
 export interface HealthSafetyYtdSummary {
@@ -625,6 +641,21 @@ export function normalizeHSERecord(row: any, projectName = ""): HSERecord {
     totalManhours: toNum(source?.totalManhours ?? source?.total_manhours),
     lossOfManhours: toNum(source?.lossOfManhours ?? source?.loss_of_manhours),
     status: source?.status ?? "",
+    updatedAt:
+      (typeof source?.updated_at === 'string' && source.updated_at) ||
+      (typeof source?.updatedAt === 'string' && source.updatedAt) ||
+      (typeof source?.modified_at === 'string' && source.modified_at) ||
+      (typeof source?.created_at === 'string' && source.created_at) ||
+      undefined,
+    updatedBy:
+      (typeof source?.updated_by_name === 'string' && source.updated_by_name) ||
+      (typeof source?.created_by_name === 'string' && source.created_by_name) ||
+      undefined,
+    updatedByUsername:
+      (typeof source?.updated_by_username === 'string' && source.updated_by_username) ||
+      (typeof source?.created_by_username === 'string' && source.created_by_username) ||
+      (typeof source?.username === 'string' && source.username) ||
+      undefined,
   };
 }
 
@@ -1251,6 +1282,11 @@ export function normalizeManpowerRecord(row: any) {
     working_days_per_month: toNum(row?.working_days_per_month) || undefined,
     manpower_efficiency: row?.manpower_efficiency,
     created_at: row?.created_at,
+    updated_at: row?.updated_at ?? row?.modified_at ?? row?.created_at,
+    created_by: row?.created_by,
+    updated_by: row?.updated_by,
+    updated_by_name: row?.updated_by_name ?? row?.created_by_name,
+    updated_by_username: row?.updated_by_username ?? row?.created_by_username,
   };
 }
 
@@ -2610,10 +2646,16 @@ export function normalizeSiteImageRecord(
     "";
 
   const uploadedBy =
+    (typeof r.uploaded_by_name === "string" && r.uploaded_by_name) ||
     (typeof r.uploaded_by === "string" && r.uploaded_by) ||
     (typeof r.uploadedBy === "string" && r.uploadedBy) ||
     (typeof r.user_name === "string" && r.user_name) ||
-    (typeof r.uploaded_by_name === "string" && r.uploaded_by_name) ||
+    undefined;
+
+  const uploadedByUsername =
+    (typeof r.uploaded_by_username === "string" && r.uploaded_by_username) ||
+    (typeof r.username === "string" && r.username) ||
+    (typeof r.user_username === "string" && r.user_username) ||
     undefined;
 
   return {
@@ -2628,6 +2670,7 @@ export function normalizeSiteImageRecord(
     thumbnailUrl: thumbnail,
     uploadedAt,
     uploadedBy,
+    uploadedByUsername,
   };
 }
 
@@ -2648,6 +2691,9 @@ export type SiteImageUploadPayload = {
 };
 
 export const siteImagesApi = {
+  list: (params?: { project_name?: string }) =>
+    api.get(API_ENDPOINTS.SITE_IMAGES.LIST, { params }),
+
   getByProjectMonthYear: (projectName: string, month: number, year: number) =>
     api.get(
       API_ENDPOINTS.SITE_IMAGES.BY_PROJECT_MONTH_YEAR(projectName, month, year),
@@ -3106,6 +3152,15 @@ export function normalizeProjectQualityStatusRecord(
     qualityPerformance:
       qualityPerformance ||
       (testsConducted > 0 ? (testsPassed / testsConducted) * 100 : 0),
+    updatedAt:
+      (typeof row?.updated_at === 'string' && row.updated_at) ||
+      (typeof row?.updatedAt === 'string' && row.updatedAt) ||
+      (typeof row?.created_at === 'string' && row.created_at) ||
+      undefined,
+    updatedBy:
+      (typeof row?.updated_by_name === 'string' && row.updated_by_name) ||
+      (typeof row?.created_by_name === 'string' && row.created_by_name) ||
+      undefined,
   };
 }
 

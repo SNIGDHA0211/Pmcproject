@@ -20,6 +20,7 @@ interface Props {
   project: Project;
   selectedContractorName?: string | null;
   syncContractorFromDashboard?: boolean;
+  layout?: 'default' | 'embedded';
 }
 
 function safeN(v: unknown): number {
@@ -73,7 +74,7 @@ function normaliseRow(row: unknown): any {
 function normaliseReport(raw: unknown): FrequencyChartClientReportData {
   const d = (raw ?? {}) as Record<string, unknown>;
   return {
-    view:        (d.view ?? "monthly") as FrequencyChartView,
+    view:        (d.view ?? "cumulative") as FrequencyChartView,
     fromDate:    String(d.from_date ?? d.fromDate ?? ""),
     toDate:      String(d.to_date   ?? d.toDate   ?? ""),
     month:       safeN(d.month),
@@ -90,14 +91,16 @@ export default function FrequencyChartDashboard({
   project,
   selectedContractorName = null,
   syncContractorFromDashboard = false,
+  layout = 'default',
 }: Props) {
+  const isEmbedded = layout === 'embedded';
   const { isDarkTheme } = useTheme();
   const tc = getThemeClasses(isDarkTheme);
 
   const now = new Date();
   const [selectedMonth,    setSelectedMonth]    = useState(now.getMonth() + 1);
   const [selectedYear,     setSelectedYear]     = useState(now.getFullYear());
-  const [view,             setView]             = useState<FrequencyChartView>("monthly");
+  const [view,             setView]             = useState<FrequencyChartView>("cumulative");
   const [activityFilter,   setActivityFilter]   = useState("");
   const [testTypeFilter,   setTestTypeFilter]   = useState("");
   const [contractorFilter, setContractorFilter] = useState("");
@@ -202,45 +205,69 @@ export default function FrequencyChartDashboard({
     : `${MONTH_NAMES[(selectedMonth - 1) % 12]} ${selectedYear}`;
 
   return (
-    <div className={`w-full rounded-2xl border shadow-md overflow-hidden ${tc.bgPrimary} ${tc.border}`}>
+    <div className={`flex h-full min-h-[22rem] w-full flex-col overflow-hidden rounded-2xl border shadow-md ${tc.bgPrimary} ${tc.border}`}>
 
       {/* ── Header ─────────────────────────────────────────────── */}
-      <div className={`flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-4 sm:px-6 py-3.5 sm:py-4 border-b ${tc.border} ${isDarkTheme ? "bg-white/5" : "bg-gradient-to-r from-indigo-50 to-purple-50"}`}>
-        <div className="min-w-0 flex items-center gap-2">
-          <span className="w-2 h-2 rounded-full bg-indigo-500 flex-shrink-0" />
-          <h2 className={`text-sm sm:text-base font-semibold tracking-tight ${tc.textPrimary}`}>
+      <div
+        className={`flex shrink-0 items-center gap-2 border-b ${
+          isEmbedded ? 'px-3 py-2.5' : 'flex-col gap-2 px-4 py-3.5 sm:flex-row sm:items-center sm:justify-between sm:px-5 sm:py-4'
+        } ${tc.border} ${isDarkTheme ? 'bg-white/5' : 'bg-gradient-to-r from-indigo-50 to-purple-50'}`}
+      >
+        <div className="flex min-w-0 flex-1 items-center gap-2">
+          <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-indigo-500" />
+          <h2
+            className={`truncate font-semibold tracking-tight ${tc.textPrimary} ${
+              isEmbedded ? 'text-sm sm:text-[15px]' : 'text-base sm:text-lg'
+            }`}
+          >
             Material Testing Frequency Chart
           </h2>
         </div>
 
-        <div className="grid grid-cols-2 sm:flex sm:flex-wrap items-stretch sm:items-center gap-2 w-full sm:w-auto flex-shrink-0">
+        <div
+          className={`flex shrink-0 items-center ${
+            isEmbedded ? 'gap-1.5' : 'w-full flex-wrap gap-1.5 sm:w-auto'
+          }`}
+        >
           <button
-            onClick={() => { setEditRow(null); setModalOpen(true); }}
-            className="col-span-2 sm:col-span-1 flex items-center justify-center gap-1.5 rounded-xl bg-indigo-600 px-3 py-2 text-xs font-bold text-white hover:bg-indigo-700 transition-colors"
+            type="button"
+            onClick={() => {
+              setEditRow(null);
+              setModalOpen(true);
+            }}
+            className={`inline-flex items-center justify-center gap-1 rounded-lg bg-indigo-600 font-bold text-white transition-colors hover:bg-indigo-700 ${
+              isEmbedded ? 'h-8 px-2.5 text-[11px]' : 'rounded-xl px-3 py-2 text-xs'
+            }`}
+            title="Add test record"
           >
-            <Icons.Add size={14} />
-            <span className="hidden sm:inline">Add Record</span>
-            <span className="sm:hidden">Add</span>
+            <Icons.Add size={isEmbedded ? 12 : 14} />
+            <span className="whitespace-nowrap">Add Record</span>
           </button>
 
           <button
+            type="button"
             onClick={handleExportExcel}
             disabled={loading || !reportData || reportData.rows.length === 0}
-            className="flex items-center justify-center gap-1.5 rounded-xl bg-emerald-600 px-3 py-2 text-xs font-bold text-white hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            className={`inline-flex items-center justify-center gap-1 rounded-lg bg-emerald-600 font-bold text-white transition-colors hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-40 ${
+              isEmbedded ? 'h-8 px-2.5 text-[11px]' : 'rounded-xl px-3 py-2 text-xs'
+            }`}
             title="Download Excel workbook"
           >
-            <Icons.Download size={14} />
-            <span className="hidden sm:inline">Export Excel</span>
-            <span className="sm:hidden">Excel</span>
+            <Icons.Download size={isEmbedded ? 12 : 14} />
+            <span className="whitespace-nowrap">{isEmbedded ? 'Excel' : 'Export Excel'}</span>
           </button>
 
           <button
+            type="button"
             onClick={loadData}
             disabled={loading}
-            className={`flex items-center justify-center gap-1.5 rounded-xl border px-3 py-2 text-xs font-bold disabled:opacity-40 transition-colors ${tc.border} ${tc.textSecondary} ${isDarkTheme ? "hover:bg-white/10" : "hover:bg-slate-100"}`}
+            title="Refresh"
+            className={`inline-flex items-center justify-center rounded-lg border font-bold transition-colors disabled:opacity-40 ${tc.border} ${tc.textSecondary} ${
+              isEmbedded ? 'h-8 w-8' : 'gap-1 rounded-xl px-3 py-2 text-xs'
+            } ${isDarkTheme ? 'hover:bg-white/10' : 'hover:bg-slate-100'}`}
           >
-            <Icons.History size={14} className={loading ? "animate-spin" : ""} />
-            <span className="hidden sm:inline">Refresh</span>
+            <Icons.History size={isEmbedded ? 14 : 14} className={loading ? 'animate-spin' : ''} />
+            {!isEmbedded && <span>Refresh</span>}
           </button>
         </div>
       </div>
@@ -261,10 +288,11 @@ export default function FrequencyChartDashboard({
         setContractorFilter={setContractorFilter}
         searchQuery={searchQuery}
         setSearchQuery={setSearchQuery}
+        compact={isEmbedded}
       />
 
       {/* ── Body ───────────────────────────────────────────────── */}
-      <div className="p-4 sm:p-6 space-y-4">
+      <div className={`flex min-h-0 flex-1 flex-col ${isEmbedded ? 'p-3' : 'space-y-4 p-4 sm:p-6'}`}>
 
         {error && (
           <div className={`rounded-xl px-4 py-3 border ${isDarkTheme ? "bg-rose-950/40 border-rose-800 text-rose-300" : "bg-red-50 border-red-200 text-red-700"}`}>
@@ -273,46 +301,66 @@ export default function FrequencyChartDashboard({
         )}
 
         {loading && (
-          <div className="flex items-center justify-center py-16">
-            <div className="h-10 w-10 animate-spin rounded-full border-[3px] border-indigo-500 border-t-transparent" />
+          <div className={`flex flex-1 items-center justify-center ${isEmbedded ? 'py-10' : 'py-16'}`}>
+            <div className={`animate-spin rounded-full border-[3px] border-indigo-500 border-t-transparent ${isEmbedded ? 'h-9 w-9' : 'h-10 w-10'}`} />
           </div>
         )}
 
         {!loading && !error && reportData && reportData.rows.length > 0 && (
-          <>
-            <FrequencyChartSummaryPanel summary={reportData.summary} isDarkTheme={isDarkTheme} />
+          <div
+            className={`flex min-h-0 flex-1 flex-col rounded-xl border ${
+              isEmbedded
+                ? isDarkTheme
+                  ? 'border-white/10 bg-white/[0.02] p-3'
+                  : 'border-slate-200/90 bg-gradient-to-br from-slate-50 via-white to-indigo-50/40 p-3 shadow-inner'
+                : 'border-transparent p-0'
+            }`}
+          >
+            <FrequencyChartSummaryPanel
+              summary={reportData.summary}
+              isDarkTheme={isDarkTheme}
+              compact={isEmbedded}
+            />
 
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-              <p className={`text-xs font-medium ${tc.textSecondary}`}>
-                {reportData.rows.length} test record{reportData.rows.length !== 1 ? "s" : ""} · {periodLabel}
+            <div
+              className={`mt-auto flex items-center justify-between gap-2 ${
+                isEmbedded ? `border-t pt-2.5 ${isDarkTheme ? 'border-white/10' : 'border-slate-200/80'}` : 'pt-3'
+              }`}
+            >
+              <p className={`min-w-0 truncate font-medium ${tc.textSecondary} ${isEmbedded ? 'text-[11px]' : 'text-xs'}`}>
+                {reportData.rows.length} test record{reportData.rows.length !== 1 ? 's' : ''} · {periodLabel}
               </p>
               <button
                 type="button"
                 onClick={() => setShowTestTable((v) => !v)}
-                className={`inline-flex items-center justify-center gap-1.5 rounded-xl border px-3 py-2 text-xs font-bold transition-colors w-full sm:w-auto ${tc.border} ${showTestTable ? (isDarkTheme ? "bg-indigo-950/50 text-indigo-300 border-indigo-700/50" : "bg-indigo-50 text-indigo-700 border-indigo-200") : (isDarkTheme ? "text-white/70 hover:bg-white/10" : "text-slate-600 hover:bg-slate-100")}`}
+                className={`inline-flex shrink-0 items-center justify-center gap-1 rounded-lg border font-bold transition-colors ${
+                  isEmbedded ? 'h-8 px-2.5 text-[11px]' : 'rounded-xl px-3 py-2 text-xs'
+                } ${tc.border} ${showTestTable ? (isDarkTheme ? 'bg-indigo-950/50 text-indigo-300 border-indigo-700/50' : 'bg-indigo-50 text-indigo-700 border-indigo-200') : (isDarkTheme ? 'text-white/70 hover:bg-white/10' : 'text-slate-600 hover:bg-slate-100')}`}
               >
-                {showTestTable ? <Icons.EyeOff size={14} /> : <Icons.Eye size={14} />}
-                {showTestTable ? "Hide Test Data" : "Show Test Data"}
-                <Icons.ChevronDown size={14} className={`transition-transform ${showTestTable ? "rotate-180" : ""}`} />
+                {showTestTable ? <Icons.EyeOff size={isEmbedded ? 13 : 14} /> : <Icons.Eye size={isEmbedded ? 13 : 14} />}
+                <span className="whitespace-nowrap">{showTestTable ? 'Hide Data' : 'Show Data'}</span>
+                <Icons.ChevronDown size={isEmbedded ? 13 : 14} className={`transition-transform ${showTestTable ? 'rotate-180' : ''}`} />
               </button>
             </div>
+          </div>
+        )}
 
-            {showTestTable && (
-              <FrequencyChartTable
-                rows={reportData.rows as any}
-                view={reportData.view}
-                projectName={project.title}
-                isDarkTheme={isDarkTheme}
-                onRefresh={loadData}
-                onEdit={(row) => { setEditRow(row as any); setModalOpen(true); }}
-                onDelete={(id, label) => setDeleteConfirm({ id, label })}
-              />
-            )}
-          </>
+        {!loading && !error && reportData && reportData.rows.length > 0 && showTestTable && (
+          <div className={isEmbedded ? 'mt-2 min-h-0 flex-1 overflow-auto' : 'mt-4'}>
+            <FrequencyChartTable
+              rows={reportData.rows as any}
+              view={reportData.view}
+              projectName={project.title}
+              isDarkTheme={isDarkTheme}
+              onRefresh={loadData}
+              onEdit={(row) => { setEditRow(row as any); setModalOpen(true); }}
+              onDelete={(id, label) => setDeleteConfirm({ id, label })}
+            />
+          </div>
         )}
 
         {!loading && !error && reportData && reportData.rows.length === 0 && (
-          <div className={`rounded-xl border-2 border-dashed p-10 text-center ${isDarkTheme ? "border-white/10" : "border-gray-200"}`}>
+          <div className={`rounded-xl border-2 border-dashed text-center ${isEmbedded ? 'p-6' : 'p-10'} ${isDarkTheme ? "border-white/10" : "border-gray-200"}`}>
             <p className={`text-sm font-medium ${tc.textSecondary}`}>No test records for {periodLabel}.</p>
             <button
               onClick={() => { setEditRow(null); setModalOpen(true); }}

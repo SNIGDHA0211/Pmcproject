@@ -7,12 +7,12 @@ export function getPmcExecutiveTheme(isDark: boolean) {
     isDark,
 
     pageShell: isDark
-      ? 'sm:rounded-3xl sm:bg-[#071428]/50 sm:px-4 sm:py-4 md:px-6'
-      : 'sm:rounded-3xl sm:bg-slate-50/60 sm:px-4 sm:py-4 md:px-6',
+      ? 'sm:rounded-2xl sm:bg-[#071428]/50 sm:px-3 sm:py-2 md:px-4'
+      : 'sm:rounded-2xl sm:bg-slate-50/60 sm:px-3 sm:py-2 md:px-4',
 
     detailFrame: [
-      'pmc-executive-detail rounded-2xl border p-3 shadow-sm sm:space-y-5 sm:p-4 md:space-y-6 md:p-5 space-y-4',
-      '[&_section]:space-y-4 sm:[&_section]:space-y-5',
+      'pmc-executive-detail rounded-xl border p-2 shadow-sm sm:space-y-3 sm:p-3 md:space-y-4 md:p-4 space-y-3',
+      '[&_section]:space-y-3 sm:[&_section]:space-y-4',
       '[&_h3]:tracking-tight',
       '[&_.graphs-analytics-section]:space-y-4 sm:[&_.graphs-analytics-section]:space-y-5',
       isDark

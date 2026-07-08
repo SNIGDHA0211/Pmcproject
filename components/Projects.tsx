@@ -59,7 +59,7 @@ import {
   contractorDisplayName,
   plannedValueSectionTitle,
 } from '../utils/dashboardContractorLabels';
-import ProjectQualityStatusCard from './ProjectQualityStatusCard';
+import FrequencyChartDashboard from './FrequencyChartDashboard';
 import BottleneckSection from './BottleneckSection';
 import DashboardToastStack from './DashboardToastStack';
 import {
@@ -69,7 +69,6 @@ import {
 } from '../utils/bottleneck';
 import ProjectEquipmentCard, { type EquipmentFormValues } from './ProjectEquipmentCard';
 import CorrespondenceCard from './CorrespondenceCard';
-import FrequencyChartDashboard from './FrequencyChartDashboard';
 import type { CorrespondenceDocumentFormValues } from './CorrespondenceDocumentForm';
 import HealthSafetyCard from './HealthSafetyCard';
 import type { HealthSafetyFormValues } from './HealthSafetyMonthlyForm';
@@ -88,16 +87,18 @@ import PlannedEarnedValueCard from './PlannedEarnedValueCard';
 import PMCHeadExecutiveShell, {
   type PMCExecutiveTab,
 } from './pmcHead/PMCHeadExecutiveShell';
-import {
-  PMCExecutiveContextBanner,
-  PMCExecutiveDetailFrame,
-} from './pmcHead/PMCExecutiveDetailFrame';
-import { PMCExecutivePanel } from './pmcHead/PMCHeadScheduleSection';
+import { PMCExecutiveDetailFrame } from './pmcHead/PMCExecutiveDetailFrame';
+import PMCHeadScheduleSection, { PMCExecutivePanel } from './pmcHead/PMCHeadScheduleSection';
+import PMCHeadMoneySection from './pmcHead/PMCHeadMoneySection';
 import PMCHeadMoneyKpiSection from './pmcHead/PMCHeadMoneyKpiSection';
+import { mapBgEntriesApi } from '../utils/contractorDashboardMappers';
 import PMCHeadPeopleSection from './pmcHead/PMCHeadPeopleSection';
 import PMCHeadRiskSection from './pmcHead/PMCHeadRiskSection';
 import { getPmcExecutiveTheme } from '../utils/pmcExecutiveTheme';
 import { ExecutiveChartWithLegend } from './charts/ChartLegendFooter';
+import TeamLeaderOverviewShell, {
+  type TeamLeaderOverviewSection,
+} from './teamLeader/TeamLeaderOverviewShell';
 import ProjectDashboardSummary from './ProjectDashboardSummary';
 import { formatIndianCurrencyCompact } from '../utils/format';
 import { validateCorrespondenceDocumentInput } from '../utils/correspondence';
@@ -137,6 +138,10 @@ interface ProjectsProps {
   selectedProjectId?: string | null;
   financialDataVersion?: number;
   onTourStateChange?: (isActive: boolean) => void;
+  teamLeaderView?: 'overview' | 'full';
+  onTeamLeaderViewChange?: (view: 'overview' | 'full') => void;
+  teamLeaderScrollSection?: TeamLeaderOverviewSection | null;
+  onTeamLeaderScrollSectionConsumed?: () => void;
 }
 
 const CONTRACT_VALUE_TYPES: ContractValueType[] = ['SCL', 'Contractor'];
@@ -384,7 +389,19 @@ const DashboardSectionHeader: React.FC<{ title: string; subtitle: string }> = ({
   );
 };
 
-const Projects: React.FC<ProjectsProps> = ({ projects, currentUser, onViewProject, onNavigate, selectedProjectId: globalSelectedProjectId, financialDataVersion, onTourStateChange }) => {
+const Projects: React.FC<ProjectsProps> = ({
+  projects,
+  currentUser,
+  onViewProject,
+  onNavigate,
+  selectedProjectId: globalSelectedProjectId,
+  financialDataVersion,
+  onTourStateChange,
+  teamLeaderView = 'overview',
+  onTeamLeaderViewChange,
+  teamLeaderScrollSection = null,
+  onTeamLeaderScrollSectionConsumed,
+}) => {
   // Dedicated stable refs for critical final walkthrough steps (Project Logs, Machinery, Equipment)
   const projectLogsRef = useRef<HTMLDivElement>(null);
   const machineryLogRef = useRef<HTMLDivElement>(null);
@@ -2036,6 +2053,18 @@ const Projects: React.FC<ProjectsProps> = ({ projects, currentUser, onViewProjec
       Number(p.cumulativeActual ?? p.actual ?? 0)
     );
 
+  const executiveProgressTrend = useMemo(
+    () =>
+      progressSCurveData.slice(-6).map((p: { month?: string; planned?: number; actual?: number; monthlyPlanned?: number; monthlyActual?: number }) => ({
+        month: String(p.month ?? ''),
+        planned: Number(p.planned ?? 0),
+        actual: Number(p.actual ?? 0),
+        monthlyPlanned: Number(p.monthlyPlanned ?? 0),
+        monthlyActual: Number(p.monthlyActual ?? 0),
+      })),
+    [progressSCurveData],
+  );
+
   let progressDeltaLabel: string | undefined;
   if (progressSCurveData.length >= 2) {
     const prev = progressSCurveData[progressSCurveData.length - 2];
@@ -2099,7 +2128,24 @@ const Projects: React.FC<ProjectsProps> = ({ projects, currentUser, onViewProjec
   };
 
   const tabVisible = (tab: PMCExecutiveTab) => !isPMCHead || execTab === tab;
-  const showProjectSections = !isPMCHead || execTab !== 'overview';
+  const showTlOverview = isPmcTeamLead && teamLeaderView === 'overview';
+  const showProjectSections =
+    (isPMCHead ? execTab !== 'overview' : isPmcTeamLead ? teamLeaderView === 'full' : true);
+
+  useEffect(() => {
+    if (!isPmcTeamLead || teamLeaderView !== 'full' || !teamLeaderScrollSection) return;
+    const timer = window.setTimeout(() => {
+      const target = document.getElementById(`tl-section-${teamLeaderScrollSection}`);
+      target?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      onTeamLeaderScrollSectionConsumed?.();
+    }, 120);
+    return () => window.clearTimeout(timer);
+  }, [
+    isPmcTeamLead,
+    teamLeaderView,
+    teamLeaderScrollSection,
+    onTeamLeaderScrollSectionConsumed,
+  ]);
 
   // Cash flow data from API or empty array
 
@@ -2207,7 +2253,7 @@ const Projects: React.FC<ProjectsProps> = ({ projects, currentUser, onViewProjec
   }
 
   return (
-    <div className={`mx-auto max-w-[1680px] -mt-4 md:-mt-8 space-y-4 px-2 pb-2 sm:px-3 sm:pb-3 md:px-0 md:pb-0 animate-in fade-in duration-500 relative${isPMCHead ? ` ${getPmcExecutiveTheme(isDarkTheme).pageShell}` : ''}`}>
+    <div className={`mx-auto max-w-[1680px] -mt-2 md:-mt-4 space-y-2 px-2 pb-2 sm:px-3 sm:pb-3 md:px-0 md:pb-0 animate-in fade-in duration-500 relative${isPMCHead ? ` ${getPmcExecutiveTheme(isDarkTheme).pageShell}` : ''}`}>
       <DashboardToastStack toasts={toasts} />
 
       {isPMCHead && (
@@ -2215,7 +2261,10 @@ const Projects: React.FC<ProjectsProps> = ({ projects, currentUser, onViewProjec
           projects={allProjects}
           selectedProject={selectedProject}
           selectedProjectId={selectedProjectId}
-          onProjectChange={setSelectedProjectId}
+          onProjectChange={(id) => {
+            setSelectedProjectId(id);
+            onViewProject(id);
+          }}
           onExport={exportProjectDataExcel}
           activeTab={execTab}
           onTabChange={setExecTab}
@@ -2224,84 +2273,121 @@ const Projects: React.FC<ProjectsProps> = ({ projects, currentUser, onViewProjec
           onJumpToTab={setExecTab}
           sclDates={projectDatesBundle?.scl ?? null}
           contractorDates={selectedContractorRecord}
+          progressTrend={executiveProgressTrend}
         />
       )}
 
-      {!isPMCHead && (
+      {showTlOverview && selectedProject && (
+        <TeamLeaderOverviewShell
+          project={selectedProject}
+          metrics={executiveMetrics}
+          progressTrend={executiveProgressTrend}
+          bottleneckItems={bottleneckItems}
+          sclDates={projectDatesBundle?.scl ?? null}
+          contractorDates={selectedContractorRecord}
+          healthSafetySublabel={dashboardMetrics.healthSafetyStatus.sublabel}
+          onExport={exportProjectDataExcel}
+          onOpenFullView={(section) => {
+            onTeamLeaderViewChange?.('full');
+            if (section) {
+              window.setTimeout(() => {
+                const target = document.getElementById(`tl-section-${section}`);
+                target?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+              }, 150);
+            }
+          }}
+          onNavigateModule={(tab) => onNavigate?.(tab)}
+        />
+      )}
+
+      {!isPMCHead && !showTlOverview && (
         <>
-          {/* Header — single-row on md+ */}
-          <div className={`mt-1 overflow-hidden rounded-2xl border px-3 py-2.5 sm:px-4 sm:py-3 md:px-5 ${themeClasses.glassCard} ${themeClasses.border} shadow-sm`}>
-            <div className="flex flex-wrap items-center gap-x-3 gap-y-2 md:flex-nowrap md:items-center md:justify-between md:gap-x-4 lg:gap-x-6">
-              {/* Project name */}
-              <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-2.5 md:min-w-[10rem] lg:max-w-[38%]">
-                <div className={`shrink-0 rounded-xl p-2 ${isDarkTheme ? 'bg-indigo-500/10 text-indigo-400' : 'bg-indigo-50 text-indigo-600'}`}>
-                  <Icons.Building size={20} />
-                </div>
-                <div className="min-w-0">
-                  <p className={`${typo.headerEyebrow} mb-0.5 leading-none ${themeClasses.textSecondary}`}>
-                    Project Name
-                  </p>
-                  <div className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-0">
-                    <h2 className={`${typo.headerTitle} truncate ${themeClasses.textPrimary}`}>
+          {/* Header — responsive: stacked mobile → 2-row tablet → single row desktop */}
+          <div className={`mt-1 overflow-hidden rounded-2xl border px-3 py-3 sm:px-4 sm:py-3.5 lg:px-5 ${themeClasses.glassCard} ${themeClasses.border} shadow-sm`}>
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between lg:gap-4 xl:gap-6">
+              {/* Project + date cluster */}
+              <div className="flex min-w-0 flex-1 flex-col gap-3 min-[520px]:flex-row min-[520px]:items-center min-[520px]:gap-4 xl:gap-6">
+                {/* Project name */}
+                <div className="flex min-w-0 flex-1 items-center gap-2.5 sm:gap-3">
+                  <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl sm:h-11 sm:w-11 ${isDarkTheme ? 'bg-indigo-500/10 text-indigo-400' : 'bg-indigo-50 text-indigo-600'}`}>
+                    <Icons.Building size={20} />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className={`${typo.headerEyebrow} mb-0.5 leading-none ${themeClasses.textSecondary}`}>
+                      Project Name
+                    </p>
+                    <h2 className={`${typo.headerTitle} line-clamp-2 break-words ${themeClasses.textPrimary} sm:line-clamp-1`}>
                       {selectedProject.title}
                     </h2>
                     {selectedProject.location && (
-                      <span className={`hidden truncate text-xs font-semibold xl:inline ${themeClasses.textSecondary}`}>
-                        · {selectedProject.location}
-                      </span>
+                      <p className={`mt-0.5 truncate text-[10px] font-semibold sm:text-xs ${themeClasses.textSecondary}`}>
+                        {selectedProject.location}
+                      </p>
                     )}
                   </div>
                 </div>
-              </div>
 
-              <div className={`hidden h-9 w-px shrink-0 md:block ${isDarkTheme ? 'bg-white/10' : 'bg-slate-200'}`} aria-hidden />
+                <div
+                  className={`hidden min-[520px]:block h-9 w-px shrink-0 ${isDarkTheme ? 'bg-white/10' : 'bg-slate-200'}`}
+                  aria-hidden
+                />
 
-              {/* Report date */}
-              <div className="flex shrink-0 items-center gap-2 sm:gap-2.5">
-                <div className={`hidden shrink-0 rounded-xl p-2 sm:flex ${isDarkTheme ? 'bg-indigo-500/10 text-indigo-400' : 'bg-indigo-50 text-indigo-600'}`}>
-                  <Icons.Calendar size={20} />
-                </div>
-                <div className="min-w-0">
-                  <p className={`${typo.headerEyebrow} mb-0.5 leading-none ${themeClasses.textSecondary}`}>
-                    Report Date
-                  </p>
-                  <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0">
-                    <h2 className={`${typo.headerTitle} whitespace-nowrap ${themeClasses.textPrimary}`}>
-                      {currentDate}
-                    </h2>
-                    <span className={`${typo.headerWeekday} whitespace-nowrap ${themeClasses.textSecondary}`}>
-                      {currentDay}
-                    </span>
+                {/* Report date */}
+                <div className="flex min-w-0 shrink-0 items-center gap-2.5 sm:gap-3 min-[520px]:max-w-[min(100%,16rem)] lg:max-w-none">
+                  <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl sm:h-11 sm:w-11 ${isDarkTheme ? 'bg-indigo-500/10 text-indigo-400' : 'bg-indigo-50 text-indigo-600'}`}>
+                    <Icons.Calendar size={20} />
+                  </div>
+                  <div className="min-w-0">
+                    <p className={`${typo.headerEyebrow} mb-0.5 leading-none ${themeClasses.textSecondary}`}>
+                      Report Date
+                    </p>
+                    <div className="flex min-w-0 flex-col gap-0 min-[380px]:flex-row min-[380px]:flex-wrap min-[380px]:items-baseline min-[380px]:gap-x-2">
+                      <h2 className={`${typo.headerTitle} ${themeClasses.textPrimary}`}>
+                        {currentDate}
+                      </h2>
+                      <span className={`${typo.headerWeekday} ${themeClasses.textSecondary}`}>
+                        {currentDay}
+                      </span>
+                    </div>
                   </div>
                 </div>
               </div>
 
-              <div className={`hidden h-9 w-px shrink-0 md:block ${isDarkTheme ? 'bg-white/10' : 'bg-slate-200'}`} aria-hidden />
+              <div
+                className={`h-px w-full shrink-0 min-[520px]:hidden ${isDarkTheme ? 'bg-white/10' : 'bg-slate-200'}`}
+                aria-hidden
+              />
+
+              <div
+                className={`hidden min-[520px]:block h-9 w-px shrink-0 lg:hidden ${isDarkTheme ? 'bg-white/10' : 'bg-slate-200'}`}
+                aria-hidden
+              />
 
               {/* Actions */}
-              <div className="flex w-full shrink-0 items-center gap-2 md:ml-auto md:w-auto">
+              <div className="grid w-full grid-cols-1 gap-2 min-[400px]:grid-cols-2 lg:flex lg:w-auto lg:shrink-0 lg:items-center">
                 <button
+                  type="button"
                   onClick={exportProjectDataExcel}
-                  className={`inline-flex flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-xl border px-3 py-2 ${typo.button} transition-all md:flex-none ${isDarkTheme
+                  className={`inline-flex w-full items-center justify-center gap-1.5 rounded-xl border px-3 py-2.5 ${typo.button} transition-all lg:py-2 ${isDarkTheme
                     ? 'border-emerald-700/50 bg-emerald-950/30 text-emerald-200 hover:bg-emerald-900/40'
                     : 'border-emerald-200 bg-emerald-50 text-emerald-800 hover:bg-emerald-100'
                     }`}
                   title="Export management report as Excel workbook"
                 >
                   <Icons.Download size={16} className="shrink-0" />
-                  <span>Export Excel</span>
+                  <span className="truncate">Export Excel</span>
                 </button>
 
                 {!showProjectsAnalyticsTour && (
                   <button
+                    type="button"
                     onClick={() => {
                       startAnalyticsTour();
                     }}
-                    className={`inline-flex flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-xl bg-gradient-to-r from-indigo-600 to-blue-600 px-3 py-2 ${typo.bodyBold} text-white shadow transition-all hover:from-indigo-700 hover:to-blue-700 active:scale-[0.985] md:flex-none`}
+                    className={`inline-flex w-full items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-indigo-600 to-blue-600 px-3 py-2.5 ${typo.bodyBold} text-white shadow transition-all hover:from-indigo-700 hover:to-blue-700 active:scale-[0.985] lg:py-2`}
                   >
                     <Icons.Info size={16} className="shrink-0" />
-                    <span className="hidden min-[420px]:inline">Analytics Walkthrough</span>
-                    <span className="min-[420px]:hidden">Tour</span>
+                    <span className="truncate">Analytics Walkthrough</span>
                   </button>
                 )}
               </div>
@@ -2321,17 +2407,57 @@ const Projects: React.FC<ProjectsProps> = ({ projects, currentUser, onViewProjec
         </>
       )}
 
-      {isPMCHead && showProjectSections && (
-        <PMCExecutiveContextBanner activeTab={execTab} />
-      )}
-
       {showProjectSections && (
         <PMCExecutiveDetailFrame active={isPMCHead}>
           <>
-            {(tabVisible('schedule') || tabVisible('money')) && selectedProject && (
+            {isPMCHead && tabVisible('schedule') && (
+              <PMCHeadScheduleSection
+                scl={projectDatesBundle?.scl ?? null}
+                contractors={projectContractors}
+                selectedContractorId={selectedContractorId}
+                onSelectContractor={setSelectedContractorId}
+                sclBgEntries={mapBgEntriesApi(projectDatesBundle?.scl_bg ?? [])}
+                contractorBgEntries={mapBgEntriesApi(projectDatesBundle?.contractor_bg ?? [])}
+                bgSummary={projectDatesBundle?.bg_summary ?? null}
+                isLoading={isLoadingProjectDates}
+                error={projectDatesError}
+              >
+                <PMCExecutivePanel title="Site Photos" subtitle="Latest on-site construction imagery">
+                  <SitePhotosCard
+                    embedded
+                    className="w-full"
+                    projectName={selectedProject?.title}
+                    month={correspondenceSelectedMonth}
+                    year={correspondenceSelectedYear}
+                    onViewAll={() => onNavigate?.('site_photos')}
+                  />
+                </PMCExecutivePanel>
+              </PMCHeadScheduleSection>
+            )}
+
+            {isPMCHead && tabVisible('money') && (
+              <PMCHeadMoneySection
+                sclContractValue={sclContractValue}
+                contractorContractValue={selectedContractorContractValue}
+                contractorDisplayName={selectedContractorName}
+                pmcInvoicing={pmcInvoicing}
+                contractorInvoicing={selectedContractorInvoicing}
+                isLoadingContractValues={isLoadingContractValues}
+                sclContractError={contractValuesErrors.SCL}
+                contractorContractError={contractValuesErrors.Contractor}
+                isLoadingInvoicing={isLoadingInvoicing}
+                pmcInvoicingError={invoicingErrors.PMC}
+                contractorInvoicingError={invoicingErrors.Contractor}
+              />
+            )}
+
+            {!isPMCHead && selectedProject && (
+              <div id="tl-section-contractor">
               <ContractorManagementDashboard
                 project={selectedProject}
                 dataRevision={contractorDashboardRevision}
+                showProjectDates
+                showFinancial
                 onNavigateFinancial={(section) =>
                   onNavigate?.({ tab: 'financial_management', section, returnTab: 'team_projects' })
                 }
@@ -2344,10 +2470,30 @@ const Projects: React.FC<ProjectsProps> = ({ projects, currentUser, onViewProjec
                   showToast(`Contractor "${record.contractor_name}" added successfully`);
                 }}
               />
+              </div>
             )}
 
-            <section className="space-y-3.5">
+            <section id="tl-section-financial" className="space-y-3.5">
               {tabVisible('money') && (
+                isPMCHead ? (
+                  <PMCHeadMoneyKpiSection
+                    plannedEarnedByPeriod={plannedEarnedByPeriod}
+                    isLoadingPlannedEarned={isLoadingPlannedEarned}
+                    plannedEarnedError={plannedEarnedError}
+                    cpiGaugePct={cpiGaugePct}
+                    bcwp={bcwp}
+                    ac={ac}
+                    costVariance={costVariance}
+                    contractPerformanceData={contractPerformanceData}
+                    performancePercentage={performancePercentage}
+                    isLoadingContractPerformance={isLoadingContractPerformance}
+                    contractPerformanceError={contractPerformanceError}
+                    billedValue={billedValue}
+                    actualReceiptValue={actualReceiptValue}
+                    receiptVariance={receiptVariance}
+                    contractorDisplayName={selectedContractorName}
+                  />
+                ) : (
                 <>
                   <div className="earned-value-kpi-row grid grid-cols-1 items-stretch gap-3 md:grid-cols-2 xl:grid-cols-4">
                     <FullScreenCard
@@ -2467,6 +2613,7 @@ const Projects: React.FC<ProjectsProps> = ({ projects, currentUser, onViewProjec
                     </FullScreenCard>
                   </div>
                 </>
+                )
               )}
 
               {tabVisible('risk') && (
@@ -2503,36 +2650,37 @@ const Projects: React.FC<ProjectsProps> = ({ projects, currentUser, onViewProjec
                   />
                 ) : (
                   <>
-                    {/* Health & Safety, Quality — two columns */}
-                    <div className="grid grid-cols-1 items-stretch gap-5 lg:grid-cols-2">
-                      <HealthSafetyCard
-                        projectName={selectedProject?.title}
-                        dashboard={healthSafetyDashboard}
-                        selectedMonth={healthSafetySelectedMonth}
-                        selectedYear={healthSafetySelectedYear}
-                        isLoading={isLoadingHealthSafety}
-                        error={healthSafetyError}
-                        isSaving={isSavingHealthSafety}
-                        formError={healthSafetyFormError}
-                        onMonthChange={handleHealthSafetyMonthChange}
-                        onYearChange={handleHealthSafetyYearChange}
-                        onSave={handleSaveHealthSafety}
-                      />
+                    <div
+                      id="tl-section-compliance"
+                      className="grid min-h-[22rem] grid-cols-1 items-stretch gap-4 lg:grid-cols-2"
+                    >
+                      <div className="flex h-full min-h-0 min-w-0">
+                        <HealthSafetyCard
+                          projectName={selectedProject?.title}
+                          dashboard={healthSafetyDashboard}
+                          selectedMonth={healthSafetySelectedMonth}
+                          selectedYear={healthSafetySelectedYear}
+                          isLoading={isLoadingHealthSafety}
+                          error={healthSafetyError}
+                          isSaving={isSavingHealthSafety}
+                          formError={healthSafetyFormError}
+                          onMonthChange={handleHealthSafetyMonthChange}
+                          onYearChange={handleHealthSafetyYearChange}
+                          onSave={handleSaveHealthSafety}
+                          pairLayout
+                        />
+                      </div>
 
-                      <ProjectQualityStatusCard
-                        projectName={selectedProject?.title}
-                        monthlyRecord={qualityMonthlyRecord}
-                        yearRecords={qualityYearRecords}
-                        selectedMonth={qualitySelectedMonth}
-                        selectedYear={qualitySelectedYear}
-                        isLoading={isLoadingQualityStatus}
-                        error={qualityStatusError}
-                        isSaving={isSavingQualityStatus}
-                        formError={qualityStatusFormError}
-                        onMonthChange={handleQualityMonthChange}
-                        onYearChange={handleQualityYearChange}
-                        onSave={handleSaveQualityStatus}
-                      />
+                      {selectedProject && (
+                        <div className="flex h-full min-h-0 min-w-0">
+                          <FrequencyChartDashboard
+                            project={selectedProject}
+                            selectedContractorName={selectedContractorName}
+                            syncContractorFromDashboard={useGlobalContractorFilter}
+                            layout="embedded"
+                          />
+                        </div>
+                      )}
                     </div>
                   </>
                 )
@@ -2572,8 +2720,7 @@ const Projects: React.FC<ProjectsProps> = ({ projects, currentUser, onViewProjec
                     />
                   </div>
 
-                  {/* Material Testing Frequency Chart — full width */}
-                  {selectedProject && (
+                  {isPMCHead && selectedProject && (
                     <div className="w-full min-w-0">
                       <FrequencyChartDashboard
                         project={selectedProject}
@@ -2585,19 +2732,7 @@ const Projects: React.FC<ProjectsProps> = ({ projects, currentUser, onViewProjec
                 </>
               )}
 
-              {tabVisible('schedule') && (
-                isPMCHead ? (
-                  <PMCExecutivePanel title="Site Photos" subtitle="Latest on-site construction imagery">
-                    <SitePhotosCard
-                      embedded
-                      className="w-full"
-                      projectName={selectedProject?.title}
-                      month={correspondenceSelectedMonth}
-                      year={correspondenceSelectedYear}
-                      onViewAll={() => onNavigate?.('site_photos')}
-                    />
-                  </PMCExecutivePanel>
-                ) : (
+              {tabVisible('schedule') && !isPMCHead && (
                   <div className="w-full min-w-0">
                     <SitePhotosCard
                       className="w-full"
@@ -2607,7 +2742,6 @@ const Projects: React.FC<ProjectsProps> = ({ projects, currentUser, onViewProjec
                       onViewAll={() => onNavigate?.('site_photos')}
                     />
                   </div>
-                )
               )}
 
               <ModalPortal open={isProjectDatesModalOpen}>
@@ -2759,7 +2893,7 @@ const Projects: React.FC<ProjectsProps> = ({ projects, currentUser, onViewProjec
               />
             </section>
 
-            <section className="graphs-analytics-section space-y-3">
+            <section id="tl-section-charts" className="graphs-analytics-section space-y-3">
               {tabVisible('schedule') && (
                 isPMCHead ? (
                   <PMCExecutivePanel title="Physical Progress Status" subtitle="Progress S-curve — executive view">
@@ -2934,7 +3068,7 @@ const Projects: React.FC<ProjectsProps> = ({ projects, currentUser, onViewProjec
                     onDeleteEquipment={handleDeleteEquipment}
                   />
                 ) : (
-                  <>
+                  <div id="tl-section-people" className="space-y-3">
                     <ManpowerHistogramChartCard
                       isDarkTheme={isDarkTheme}
                       data={manpowerData}
@@ -3011,13 +3145,13 @@ const Projects: React.FC<ProjectsProps> = ({ projects, currentUser, onViewProjec
                         </div>
                       </>
                     )}
-                  </>
+                  </div>
                 )
               )}
             </section>
 
             {tabVisible('risk') && !isPMCHead && (
-              <section className="space-y-2 pt-1">
+              <section id="tl-section-risk" className="space-y-2 pt-1">
                 <BottleneckSection
                   cardRef={projectLogsRef}
                   items={bottleneckItems}

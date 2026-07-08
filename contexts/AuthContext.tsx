@@ -23,6 +23,7 @@ import {
 } from '../utils/authStorage';
 import { mapBackendUserToUser } from '../utils/mapBackendUser';
 import { unwrapUserProfile } from '../utils/unwrapProfile';
+import { normalizeLoginCredentials } from '../utils/loginCredentials';
 import { API_ENDPOINTS, getApiBaseUrl } from '../config/apiConfig';
 
 interface AuthContextValue {
@@ -97,7 +98,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const login = useCallback(
     async (username: string, password: string): Promise<User> => {
-      const response = await authApi.login({ username, password });
+      const credentials = normalizeLoginCredentials(username, password);
+      const response = await authApi.login(credentials);
       const { access, refresh } = response.data ?? {};
 
       if (!access || !refresh) {

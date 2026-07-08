@@ -14,6 +14,7 @@ import SitePhotoGallerySummary from './SitePhotoGallerySummary';
 import SitePhotoLightbox from './SitePhotoLightbox';
 import SitePhotoUploadPanel from './SitePhotoUploadPanel';
 import { getLatestSiteImageUploadDate, MONTH_OPTIONS } from '../../utils/siteImages';
+import { notifySitePhotoDelete, notifySitePhotoUpload } from '../../utils/teamActivityAlerts';
 import { getThemeClasses, useTheme } from '../../utils/theme';
 
 interface SitePhotosManagementProps {
@@ -21,7 +22,7 @@ interface SitePhotosManagementProps {
   currentUser?: User;
 }
 
-const SitePhotosManagement: React.FC<SitePhotosManagementProps> = ({ projects = [] }) => {
+const SitePhotosManagement: React.FC<SitePhotosManagementProps> = ({ projects = [], currentUser }) => {
   const { isDarkTheme } = useTheme();
   const themeClasses = getThemeClasses(isDarkTheme);
 
@@ -75,6 +76,13 @@ const SitePhotosManagement: React.FC<SitePhotosManagementProps> = ({ projects = 
         },
         setUploadProgress
       );
+      void notifySitePhotoUpload({
+        projectName: projectName.trim(),
+        month,
+        year,
+        photoCount: files.length,
+        senderName: currentUser?.name || currentUser?.username,
+      });
       showToast(`${files.length} photo${files.length > 1 ? 's' : ''} uploaded successfully.`);
       setShowUpload(false);
       await refresh();
@@ -91,6 +99,12 @@ const SitePhotosManagement: React.FC<SitePhotosManagementProps> = ({ projects = 
     setIsDeleting(true);
     try {
       await siteImagesApi.delete(deleteTarget.id);
+      void notifySitePhotoDelete({
+        projectName: deleteTarget.projectName || projectName.trim(),
+        month: deleteTarget.month || month,
+        year: deleteTarget.year || year,
+        senderName: currentUser?.name || currentUser?.username,
+      });
       showToast('Photo deleted.');
       setDeleteTarget(null);
       if (lightboxIndex !== null) setLightboxIndex(null);
