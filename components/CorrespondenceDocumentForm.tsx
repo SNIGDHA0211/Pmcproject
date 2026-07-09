@@ -19,6 +19,9 @@ import {
   normalizeCorrespondenceRecipientType,
   validateCorrespondenceDocumentInput,
 } from '../utils/correspondence';
+import CorrespondenceFormAttachments, {
+  uploadCorrespondencePendingAttachments,
+} from './CorrespondenceFormAttachments';
 import { getThemeClasses, useTheme } from '../utils/theme';
 
 export type { CorrespondenceDocumentFormValues };
@@ -34,7 +37,8 @@ interface CorrespondenceDocumentFormProps {
   isSaving: boolean;
   error?: string | null;
   onClose: () => void;
-  onSubmit: (values: CorrespondenceDocumentFormValues) => Promise<boolean> | boolean;
+  onSubmit: (values: CorrespondenceDocumentFormValues) => Promise<CorrespondenceDocument | null>;
+  onAttachmentsChanged?: () => void;
 }
 
 function buildInitialValues(
@@ -87,6 +91,7 @@ const CorrespondenceDocumentForm: React.FC<CorrespondenceDocumentFormProps> = ({
   error,
   onClose,
   onSubmit,
+  onAttachmentsChanged,
 }) => {
   const { isDarkTheme } = useTheme();
   const themeClasses = getThemeClasses(isDarkTheme);
@@ -96,9 +101,16 @@ const CorrespondenceDocumentForm: React.FC<CorrespondenceDocumentFormProps> = ({
     buildInitialValues(document, selectedMonth, selectedYear, initialType, initialScope, documents),
   );
   const [localError, setLocalError] = useState<string | null>(null);
+  const [pendingFiles, setPendingFiles] = useState<File[]>([]);
+  const [savedDocumentId, setSavedDocumentId] = useState<string | number | null>(document?.id ?? null);
 
   const isSclDocument = values.documentScope === 'scl';
   const isDelivery = values.correspondenceCategory === 'DELIVERY';
+
+  useEffect(() => {
+    setSavedDocumentId(document?.id ?? null);
+    setPendingFiles([]);
+  }, [document]);
 
   useEffect(() => {
     if (isEditing) return;
@@ -127,6 +139,23 @@ const CorrespondenceDocumentForm: React.FC<CorrespondenceDocumentFormProps> = ({
     setLocalError(null);
     const saved = await onSubmit(values);
     if (!saved) return;
+
+    const targetId = saved.id ?? savedDocumentId;
+    if (targetId != null && pendingFiles.length > 0) {
+      try {
+        await uploadCorrespondencePendingAttachments(targetId, pendingFiles);
+        setPendingFiles([]);
+        onAttachmentsChanged?.();
+      } catch (uploadError) {
+        setLocalError(
+          uploadError instanceof Error ? uploadError.message : 'Document saved but attachment upload failed.',
+        );
+        if (saved.id != null) setSavedDocumentId(saved.id);
+        return;
+      }
+    } else if (saved.id != null) {
+      setSavedDocumentId(saved.id);
+    }
 
     if (closeOnSuccess) {
       onClose();
@@ -169,29 +198,32 @@ const CorrespondenceDocumentForm: React.FC<CorrespondenceDocumentFormProps> = ({
     <ModalPortal open>
       <div className="fixed inset-0 z-[210] flex items-center justify-center bg-black/50 p-4">
         <div
-          className={`w-full max-w-xl rounded-3xl border p-6 shadow-2xl ${themeClasses.bgPrimary} ${themeClasses.border}`}
+          className={`flex max-h-[92vh] w-full max-w-xl flex-col overflow-hidden rounded-3xl border shadow-2xl ${themeClasses.bgPrimary} ${themeClasses.border}`}
         >
-          <div className="mb-5 flex items-start justify-between gap-4">
-            <div>
-              <h3 className={`text-xl font-black uppercase tracking-tight ${themeClasses.textPrimary}`}>
-                {isEditing ? 'Edit Document' : isSclDocument ? 'Add SCL Document' : 'Add Document'}
-              </h3>
-              <p className={`mt-1 text-[11px] ${themeClasses.textSecondary}`}>
-                {isSclDocument
-                  ? 'SCL outbound correspondence — record counts are derived from documents.'
-                  : 'Monthly correspondence tracking — KPI counts are loaded from the dashboard API.'}
-              </p>
+          <div className={`shrink-0 border-b p-6 pb-4 ${isDarkTheme ? 'border-white/10' : 'border-slate-200'}`}>
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h3 className={`text-xl font-black uppercase tracking-tight ${themeClasses.textPrimary}`}>
+                  {isEditing ? 'Update Documents' : isSclDocument ? 'Add SCL Document' : 'Add Document'}
+                </h3>
+                <p className={`mt-1 text-[11px] ${themeClasses.textSecondary}`}>
+                  {isSclDocument
+                    ? 'SCL outbound correspondence — record counts are derived from documents.'
+                    : 'Monthly correspondence tracking — KPI counts are loaded from the dashboard API.'}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={onClose}
+                className={`rounded-xl px-3 py-2 text-sm font-bold ${themeClasses.buttonSecondary}`}
+              >
+                Close
+              </button>
             </div>
-            <button
-              type="button"
-              onClick={onClose}
-              className={`rounded-xl px-3 py-2 text-sm font-bold ${themeClasses.buttonSecondary}`}
-            >
-              Close
-            </button>
           </div>
 
-          <form onSubmit={submit} className="space-y-4">
+          <form onSubmit={submit} className="flex min-h-0 flex-1 flex-col overflow-hidden">
+            <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-6 py-4">
             {!isEditing && (
               <>
                 <div>
@@ -388,9 +420,17 @@ const CorrespondenceDocumentForm: React.FC<CorrespondenceDocumentFormProps> = ({
               )}
             </div>
 
-            {(localError || error) && <p className="text-sm font-bold text-rose-500">{localError || error}</p>}
+            <CorrespondenceFormAttachments
+              documentId={savedDocumentId ?? document?.id}
+              pendingFiles={pendingFiles}
+              onPendingFilesChange={setPendingFiles}
+              onAttachmentsChanged={onAttachmentsChanged}
+            />
 
-            <div className="flex flex-col gap-3 pt-2">
+            {(localError || error) && <p className="text-sm font-bold text-rose-500">{localError || error}</p>}
+            </div>
+
+            <div className="flex shrink-0 flex-col gap-3 border-t px-6 py-4">
               <div className="flex flex-col gap-3 sm:flex-row">
                 <button
                   type="button"
@@ -415,7 +455,7 @@ const CorrespondenceDocumentForm: React.FC<CorrespondenceDocumentFormProps> = ({
                   disabled={isSaving}
                   className="flex flex-1 items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-4 py-3 font-bold text-white hover:bg-emerald-500 disabled:opacity-60"
                 >
-                  {isSaving ? 'Saving...' : isEditing ? 'Update Document' : 'Save Document'}
+                  {isSaving ? 'Saving...' : isEditing ? 'Update Correspondence' : 'Save Document'}
                 </button>
               </div>
             </div>

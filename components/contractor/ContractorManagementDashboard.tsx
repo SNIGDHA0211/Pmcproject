@@ -9,6 +9,12 @@ import {
   mapBgEntriesApi,
   mapProjectDatesApiRecord,
 } from '../../utils/contractorDashboardMappers';
+import {
+  buildProjectDatesSectionCachePayload,
+  projectDatesDashboardFromCache,
+  readProjectDatesSectionCache,
+  writeProjectDatesSectionCache,
+} from '../../utils/projectDatesSectionCache';
 import AddContractorModal from './AddContractorModal';
 import CmFinancialDashboardRow from './CmFinancialDashboardRow';
 import { useCmTheme } from './enterpriseTheme';
@@ -16,6 +22,7 @@ import { CmButton, CmDashboardHeader, CmLoadingSkeleton } from './ui';
 
 interface ContractorManagementDashboardProps {
   project: Project;
+  userId?: string;
   dataRevision?: number;
   showProjectDates?: boolean;
   showFinancial?: boolean;
@@ -29,6 +36,7 @@ interface ContractorManagementDashboardProps {
 
 const ContractorManagementDashboard: React.FC<ContractorManagementDashboardProps> = ({
   project,
+  userId = '',
   dataRevision = 0,
   showProjectDates = true,
   showFinancial = true,
@@ -41,8 +49,43 @@ const ContractorManagementDashboard: React.FC<ContractorManagementDashboardProps
 }) => {
   const [isAddContractorOpen, setIsAddContractorOpen] = useState(false);
   const [projectDatesContractorId, setProjectDatesContractorId] = useState<number | null>(null);
+  const [projectDatesCache, setProjectDatesCache] = useState(() =>
+    userId && project.id ? readProjectDatesSectionCache(userId, project.id) : null,
+  );
   const theme = useCmTheme();
   const cm = useContractorManagementDashboard(project.title, dataRevision);
+
+  useEffect(() => {
+    if (!userId || !project.id) {
+      setProjectDatesCache(null);
+      return;
+    }
+    const cached = readProjectDatesSectionCache(userId, project.id);
+    setProjectDatesCache(cached);
+    if (cached?.selectedContractorId) {
+      setProjectDatesContractorId(cached.selectedContractorId);
+    }
+  }, [userId, project.id]);
+
+  const effectiveProjectDates = useMemo(
+    () => cm.projectDates ?? (projectDatesCache ? projectDatesDashboardFromCache(projectDatesCache) : null),
+    [cm.projectDates, projectDatesCache],
+  );
+
+  const projectDatesRefreshing = cm.loading && Boolean(projectDatesCache) && !cm.projectDates;
+  const projectDatesCardLoading = cm.loading && !effectiveProjectDates;
+
+  useEffect(() => {
+    if (!cm.projectDates || !userId || !project.id) return;
+    const payload = buildProjectDatesSectionCachePayload({
+      projectId: project.id,
+      projectName: project.title,
+      dashboard: cm.projectDates,
+      selectedContractorId: projectDatesContractorId,
+    });
+    writeProjectDatesSectionCache(userId, payload);
+    setProjectDatesCache(payload);
+  }, [cm.projectDates, userId, project.id, project.title, projectDatesContractorId]);
 
   const handleContractorCreated = (record: ContractorMasterRecord) => {
     cm.setSelectedContractorMasterId(record.id);
@@ -53,14 +96,15 @@ const ContractorManagementDashboard: React.FC<ContractorManagementDashboardProps
   const contractorLabel = cm.selectedMaster?.contractor_name ?? 'Contractor';
 
   const mappedProjectDates = useMemo(() => {
-    if (!cm.projectDates) return null;
+    if (!effectiveProjectDates) return null;
     return {
-      scl: cm.projectDates.scl ? mapProjectDatesApiRecord(cm.projectDates.scl) : null,
-      contractors: cm.projectDates.contractors.map(mapProjectDatesApiRecord),
-      sclBg: mapBgEntriesApi(cm.projectDates.scl_bg ?? []),
-      contractorBg: mapBgEntriesApi(cm.projectDates.contractor_bg ?? []),
+      scl: effectiveProjectDates.scl ? mapProjectDatesApiRecord(effectiveProjectDates.scl) : null,
+      contractors: effectiveProjectDates.contractors.map(mapProjectDatesApiRecord),
+      sclBg: mapBgEntriesApi(effectiveProjectDates.scl_bg ?? []),
+      contractorBg: mapBgEntriesApi(effectiveProjectDates.contractor_bg ?? []),
+      bgSummary: effectiveProjectDates.bg_summary ?? null,
     };
-  }, [cm.projectDates]);
+  }, [effectiveProjectDates]);
 
   useEffect(() => {
     if (!mappedProjectDates?.contractors.length) {
@@ -83,7 +127,7 @@ const ContractorManagementDashboard: React.FC<ContractorManagementDashboardProps
     [onManageBg],
   );
 
-  if (cm.loading && !cm.contractValues && !cm.projectDates) {
+  if (cm.loading && !cm.contractValues && !effectiveProjectDates) {
     return (
       <div className={theme.root}>
         <CmLoadingSkeleton />
@@ -93,27 +137,35 @@ const ContractorManagementDashboard: React.FC<ContractorManagementDashboardProps
 
   const projectDatesSection =
     mappedProjectDates ? (
-      <ProjectDatesGroupCard
-        sclData={mappedProjectDates.scl}
-        contractors={mappedProjectDates.contractors}
-        selectedContractorId={projectDatesContractorId}
-        onSelectContractor={setProjectDatesContractorId}
-        hideContractorSelector={false}
-        sclBgEntries={mappedProjectDates.sclBg}
-        contractorBgEntries={mappedProjectDates.contractorBg}
-        bgSummary={null}
-        onEditScl={onEditSclDates}
-        onEditContractor={
-          onEditContractorDates
-            ? (record) => {
-              const apiRecord = cm.projectDates?.contractors.find((c) => c.id === record.id);
-              if (apiRecord) onEditContractorDates(apiRecord);
-            }
-            : undefined
-        }
-        onAddContractor={onAddContractorSchedule}
-        onManageBg={onManageBg ? handleManageBgScope : undefined}
-      />
+      <div className="space-y-2">
+        {projectDatesRefreshing && (
+          <p className="rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-1.5 text-center text-[10px] font-bold uppercase tracking-wide text-indigo-700 dark:border-indigo-500/25 dark:bg-indigo-500/10 dark:text-indigo-200">
+            Showing saved project dates — updating live data…
+          </p>
+        )}
+        <ProjectDatesGroupCard
+          sclData={mappedProjectDates.scl}
+          contractors={mappedProjectDates.contractors}
+          selectedContractorId={projectDatesContractorId}
+          onSelectContractor={setProjectDatesContractorId}
+          hideContractorSelector={false}
+          sclBgEntries={mappedProjectDates.sclBg}
+          contractorBgEntries={mappedProjectDates.contractorBg}
+          bgSummary={mappedProjectDates.bgSummary}
+          isLoading={projectDatesCardLoading}
+          onEditScl={onEditSclDates}
+          onEditContractor={
+            onEditContractorDates
+              ? (record) => {
+                const apiRecord = effectiveProjectDates?.contractors.find((c) => c.id === record.id);
+                if (apiRecord) onEditContractorDates(apiRecord);
+              }
+              : undefined
+          }
+          onAddContractor={onAddContractorSchedule}
+          onManageBg={onManageBg ? handleManageBgScope : undefined}
+        />
+      </div>
     ) : null;
 
   return (

@@ -29,6 +29,11 @@ import {
   healthBadgeClass,
   statusColor,
 } from '../utils/projectVitals';
+import {
+  buildPMCHead360CachePayload,
+  readPMCHead360Cache,
+  writePMCHead360Cache,
+} from '../utils/pmcHead360Cache';
 
 interface PMCHead360DashboardProps {
   user: User;
@@ -87,17 +92,21 @@ const head360HealthBadge = (label: HealthLabel, isDark: boolean): string => {
   return healthBadgeClass(label);
 };
 
+const PRIMARY_VITAL_KEYS: VitalKey[] = ['schedule', 'budget', 'manpower', 'safety'];
+
 const ScoreRing: React.FC<{ score: number | null; size?: number; isDark?: boolean }> = ({
   score,
-  size = 80,
+  size = 64,
   isDark = false,
 }) => {
-  const r = (size - 8) / 2;
+  const strokeWidth = size <= 64 ? 4 : 5;
+  const r = (size - strokeWidth * 2) / 2;
   const c = 2 * Math.PI * r;
   const offset = score != null ? c - (score / 100) * c : c;
   const stroke =
     score == null ? '#cbd5e1' : score < 50 ? '#ef4444' : score < 75 ? '#f59e0b' : '#22c55e';
   const trackStroke = isDark ? 'rgba(255,255,255,0.12)' : '#e2e8f0';
+  const fontSize = size <= 64 ? 'text-sm' : size <= 72 ? 'text-base' : 'text-lg';
 
   return (
     <div className="relative shrink-0" style={{ width: size, height: size }}>
@@ -108,7 +117,7 @@ const ScoreRing: React.FC<{ score: number | null; size?: number; isDark?: boolea
           r={r}
           fill="none"
           stroke={trackStroke}
-          strokeWidth={5}
+          strokeWidth={strokeWidth}
         />
         <circle
           cx={size / 2}
@@ -116,14 +125,14 @@ const ScoreRing: React.FC<{ score: number | null; size?: number; isDark?: boolea
           r={r}
           fill="none"
           stroke={stroke}
-          strokeWidth={5}
+          strokeWidth={strokeWidth}
           strokeDasharray={c}
           strokeDashoffset={offset}
           strokeLinecap="round"
         />
       </svg>
       <span
-        className={`absolute inset-0 flex items-center justify-center text-base font-black sm:text-lg ${
+        className={`absolute inset-0 flex items-center justify-center font-black tabular-nums ${fontSize} ${
           isDark ? 'text-slate-100' : 'text-slate-800'
         }`}
       >
@@ -137,24 +146,24 @@ const PortfolioGauge: React.FC<{ score: number | null; isDark?: boolean }> = ({
   score,
   isDark = false,
 }) => {
-  const size = 120;
-  const r = (size - 10) / 2;
+  const size = 96;
+  const r = (size - 8) / 2;
   const c = 2 * Math.PI * r;
   const offset = score != null ? c - (score / 100) * c : c;
   const trackStroke = isDark ? 'rgba(99,102,241,0.2)' : '#e0e7ff';
 
   return (
-    <div className="flex flex-col items-center gap-2">
+    <div className="flex flex-col items-center gap-1.5">
       <div className="relative" style={{ width: size, height: size }}>
         <svg width={size} height={size} className="-rotate-90">
-          <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={trackStroke} strokeWidth={8} />
+          <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={trackStroke} strokeWidth={6} />
           <circle
             cx={size / 2}
             cy={size / 2}
             r={r}
             fill="none"
             stroke={score != null ? '#4f46e5' : '#cbd5e1'}
-            strokeWidth={8}
+            strokeWidth={6}
             strokeDasharray={c}
             strokeDashoffset={offset}
             strokeLinecap="round"
@@ -162,20 +171,20 @@ const PortfolioGauge: React.FC<{ score: number | null; isDark?: boolean }> = ({
         </svg>
         <div className="absolute inset-0 flex flex-col items-center justify-center">
           <span
-            className={`text-3xl font-black sm:text-4xl ${
+            className={`text-2xl font-black leading-none ${
               isDark ? 'text-indigo-300' : 'text-indigo-700'
             }`}
           >
             {score ?? '—'}
           </span>
           {score != null && (
-            <span className={`text-sm font-bold sm:text-base ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
+            <span className={`text-[10px] font-bold ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
               /100
             </span>
           )}
         </div>
       </div>
-      <p className={`text-sm font-black uppercase tracking-widest ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+      <p className={`text-[10px] font-black uppercase tracking-widest ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
         Portfolio Score
       </p>
     </div>
@@ -190,32 +199,32 @@ const KpiPill: React.FC<{
   isDark?: boolean;
 }> = ({ shortLabel, value, icon: Icon, accent, isDark = false }) => (
   <div
-    className={`flex h-full min-w-0 flex-col justify-between rounded-2xl border p-4 shadow-sm sm:p-5 ${
-      isDark ? 'border-white/10 bg-[#0f2744]/70' : 'border-slate-100 bg-white'
+    className={`flex min-h-[4.25rem] min-w-0 items-center gap-2.5 rounded-xl border px-3 py-2.5 ${
+      isDark ? 'border-white/10 bg-[#0f2744]/70' : 'border-slate-100 bg-white shadow-sm'
     }`}
   >
-    <div className="flex items-center gap-2.5">
-      <div
-        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl sm:h-11 sm:w-11"
-        style={{ backgroundColor: `${accent}${isDark ? '28' : '18'}`, color: accent }}
-      >
-        <Icon size={20} />
-      </div>
+    <div
+      className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg"
+      style={{ backgroundColor: `${accent}${isDark ? '28' : '18'}`, color: accent }}
+    >
+      <Icon size={16} />
+    </div>
+    <div className="min-w-0">
       <p
-        className={`min-w-0 text-[11px] font-bold uppercase leading-snug tracking-wide sm:text-xs ${
+        className={`truncate text-[10px] font-bold uppercase tracking-wide ${
           isDark ? 'text-slate-400' : 'text-slate-500'
         }`}
       >
         {shortLabel}
       </p>
+      <p
+        className={`mt-0.5 text-xl font-black tabular-nums leading-none ${
+          isDark ? 'text-slate-100' : 'text-slate-800'
+        }`}
+      >
+        {value != null ? `${value}%` : '—'}
+      </p>
     </div>
-    <p
-      className={`mt-4 text-2xl font-black tabular-nums sm:mt-5 sm:text-3xl ${
-        isDark ? 'text-slate-100' : 'text-slate-800'
-      }`}
-    >
-      {value != null ? `${value}%` : '—'}
-    </p>
   </div>
 );
 
@@ -227,32 +236,36 @@ const VitalRow: React.FC<{ vital: ProjectVitalsCard['vitals'][0]; isDark?: boole
   const color = statusColor(vital.status);
 
   return (
-    <div className="space-y-2">
+    <div className="flex h-full min-h-[4.5rem] flex-col justify-between gap-1.5">
       <div className="flex items-center justify-between gap-2">
-        <div className="flex min-w-0 items-center gap-2">
-          <Icon size={16} className={`shrink-0 ${isDark ? 'text-slate-500' : 'text-slate-400'}`} />
+        <div className="flex min-w-0 items-center gap-1.5">
+          <Icon size={13} className={`shrink-0 ${isDark ? 'text-slate-500' : 'text-slate-400'}`} />
           <span
-            className={`truncate text-sm font-bold sm:text-base ${
+            className={`truncate text-[11px] font-bold uppercase tracking-wide ${
               isDark ? 'text-slate-300' : 'text-slate-600'
             }`}
           >
             {vital.label}
           </span>
         </div>
-        <span className="shrink-0 text-base font-black sm:text-lg" style={{ color }}>
+        <span className="shrink-0 text-sm font-black tabular-nums" style={{ color }}>
           {vital.percent != null ? `${vital.percent}%` : '—'}
         </span>
       </div>
-      <div className={`h-2.5 overflow-hidden rounded-full sm:h-3 ${isDark ? 'bg-white/10' : 'bg-slate-100'}`}>
+      <div className={`h-1.5 overflow-hidden rounded-full ${isDark ? 'bg-white/10' : 'bg-slate-100'}`}>
         <div
           className="h-full rounded-full transition-all"
           style={{
-            width: vital.percent != null ? `${vital.percent}%` : '0%',
+            width: vital.percent != null ? `${Math.min(100, vital.percent)}%` : '0%',
             backgroundColor: color,
           }}
         />
       </div>
-      <p className={`line-clamp-2 text-xs font-semibold sm:text-sm ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
+      <p
+        className={`line-clamp-1 text-[10px] font-medium leading-tight ${
+          isDark ? 'text-slate-500' : 'text-slate-400'
+        }`}
+      >
         {vital.note}
       </p>
     </div>
@@ -273,16 +286,22 @@ const ProjectVitalCard: React.FC<{
         ? isDark ? 'text-rose-400' : 'text-red-500'
         : isDark ? 'text-amber-400' : 'text-amber-500';
 
+  const primaryVitals = PRIMARY_VITAL_KEYS.map((key) =>
+    card.vitals.find((v) => v.key === key),
+  ).filter((v): v is ProjectVitalsCard['vitals'][0] => v != null);
+
+  const secondaryVitals = card.vitals.filter((v) => !PRIMARY_VITAL_KEYS.includes(v.key));
+
   return (
     <article
-      className={`flex min-h-0 flex-col rounded-2xl border p-5 shadow-sm transition-shadow hover:shadow-md sm:p-6 ${
+      className={`flex min-h-0 flex-col rounded-xl border p-3.5 shadow-sm transition-shadow hover:shadow-md sm:p-4 ${
         isDark ? 'bg-[#0b1d36]/95' : 'bg-white'
       } ${head360HealthBorder(card.healthLabel, isDark)}`}
     >
-      <div className="mb-4 grid grid-cols-1 gap-4 sm:mb-5 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start">
-        <div className="min-w-0">
+      <div className="mb-3 flex items-start gap-3">
+        <div className="min-w-0 flex-1">
           <h3
-            className={`line-clamp-2 text-lg font-black leading-tight sm:text-xl ${
+            className={`line-clamp-2 text-sm font-black leading-snug ${
               isDark ? 'text-slate-100' : 'text-slate-800'
             }`}
             title={card.title}
@@ -290,43 +309,62 @@ const ProjectVitalCard: React.FC<{
             {card.title}
           </h3>
           <div
-            className={`mt-2 flex flex-col gap-1 text-sm sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-3 ${
+            className={`mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[10px] font-medium ${
               isDark ? 'text-slate-500' : 'text-slate-400'
             }`}
           >
-            <span className="inline-flex min-w-0 items-center gap-1">
-              <MapPin size={14} className="shrink-0" />
+            <span className="inline-flex min-w-0 max-w-full items-center gap-0.5">
+              <MapPin size={11} className="shrink-0" />
               <span className="truncate">{card.location}</span>
             </span>
             <span className="truncate">PM: {card.pmName}</span>
           </div>
         </div>
-        <div className="flex items-center gap-3 sm:flex-col sm:items-center sm:gap-2">
-          <ScoreRing score={card.overallScore} size={84} isDark={isDark} />
+        <div className="flex shrink-0 flex-col items-center gap-1">
+          <ScoreRing score={card.overallScore} size={62} isDark={isDark} />
           <span
-            className={`whitespace-nowrap rounded-full border px-3 py-0.5 text-[10px] font-black uppercase tracking-wider sm:text-xs ${head360HealthBadge(card.healthLabel, isDark)}`}
+            className={`whitespace-nowrap rounded-full border px-2 py-px text-[9px] font-black uppercase tracking-wide ${head360HealthBadge(card.healthLabel, isDark)}`}
           >
             {card.healthLabel}
           </span>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-x-4 gap-y-3.5 sm:grid-cols-2 sm:gap-y-4">
-        {card.vitals.map((v) => (
+      <div className="grid grid-cols-2 gap-x-3 gap-y-3">
+        {primaryVitals.map((v) => (
           <VitalRow key={v.key} vital={v} isDark={isDark} />
         ))}
       </div>
 
+      {secondaryVitals.length > 0 && (
+        <div
+          className={`mt-2.5 grid grid-cols-2 gap-2 rounded-lg px-2 py-2 ${
+            isDark ? 'bg-white/[0.04]' : 'bg-slate-50'
+          }`}
+        >
+          {secondaryVitals.map((v) => (
+            <div key={v.key} className="flex items-center justify-between gap-1.5 text-[10px]">
+              <span className={`truncate font-semibold ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                {v.label}
+              </span>
+              <span className="shrink-0 font-black tabular-nums" style={{ color: statusColor(v.status) }}>
+                {v.percent != null ? `${v.percent}%` : '—'}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+
       <div
-        className={`mt-5 flex flex-wrap items-center justify-between gap-2 border-t pt-4 sm:pt-5 ${
+        className={`mt-3 flex items-center justify-between gap-2 border-t pt-2.5 ${
           isDark ? 'border-white/10' : 'border-slate-100'
         }`}
       >
-        <div className={`flex items-center gap-1.5 text-sm font-bold capitalize sm:text-base ${trendColor}`}>
-          <TrendIcon size={16} />
+        <div className={`flex items-center gap-1 text-[10px] font-bold capitalize ${trendColor}`}>
+          <TrendIcon size={12} />
           {card.trend}
         </div>
-        <span className={`text-sm font-semibold ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
+        <span className={`truncate text-[10px] font-medium ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
           {card.lastUpdate}
         </span>
       </div>
@@ -334,7 +372,7 @@ const ProjectVitalCard: React.FC<{
       <button
         type="button"
         onClick={onOpen}
-        className={`mt-4 w-full rounded-xl py-3 text-sm font-black uppercase tracking-widest transition-colors sm:py-3.5 sm:text-base ${
+        className={`mt-2.5 w-full rounded-lg py-2 text-[10px] font-black uppercase tracking-widest transition-colors ${
           isDark
             ? 'bg-indigo-950/60 text-indigo-300 hover:bg-indigo-900/60'
             : 'bg-indigo-50 text-indigo-600 hover:bg-indigo-100'
@@ -351,33 +389,33 @@ const CompareBar: React.FC<{
   projects: { name: string; value: number; color: string }[];
   isDark?: boolean;
 }> = ({ label, projects, isDark = false }) => (
-  <div className="space-y-2.5">
+  <div className="space-y-2">
     <p
-      className={`text-xs font-black uppercase tracking-widest sm:text-sm ${
+      className={`text-[10px] font-black uppercase tracking-widest ${
         isDark ? 'text-slate-500' : 'text-slate-400'
       }`}
     >
       {label}
     </p>
     {projects.map((p) => (
-      <div key={p.name} className="space-y-1.5">
+      <div key={p.name} className="space-y-1">
         <div className="flex justify-between gap-2">
           <span
-            className={`truncate text-sm font-semibold sm:text-base ${
+            className={`truncate text-xs font-semibold ${
               isDark ? 'text-slate-300' : 'text-slate-600'
             }`}
           >
             {p.name}
           </span>
           <span
-            className={`shrink-0 text-sm font-black sm:text-base ${
+            className={`shrink-0 text-xs font-black tabular-nums ${
               isDark ? 'text-slate-200' : 'text-slate-700'
             }`}
           >
             {p.value}%
           </span>
         </div>
-        <div className={`h-3 overflow-hidden rounded-full sm:h-3.5 ${isDark ? 'bg-white/10' : 'bg-slate-100'}`}>
+        <div className={`h-2 overflow-hidden rounded-full ${isDark ? 'bg-white/10' : 'bg-slate-100'}`}>
           <div
             className="h-full rounded-full"
             style={{ width: `${p.value}%`, backgroundColor: p.color }}
@@ -402,9 +440,15 @@ const PMCHead360Dashboard: React.FC<PMCHead360DashboardProps> = ({
   const [regionFilter, setRegionFilter] = useState('all');
   const [pmFilter, setPmFilter] = useState('all');
   const [compareIds, setCompareIds] = useState<string[]>([]);
-  const [isLoadingVitals, setIsLoadingVitals] = useState(true);
+  const [allCards, setAllCards] = useState<ProjectVitalsCard[]>(() => {
+    const cached = readPMCHead360Cache(user.id, projects, dprs);
+    return cached?.cards ?? [];
+  });
+  const [isLoadingVitals, setIsLoadingVitals] = useState(() => {
+    if (projects.length === 0) return false;
+    return !readPMCHead360Cache(user.id, projects, dprs);
+  });
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [allCards, setAllCards] = useState<ProjectVitalsCard[]>([]);
 
   useEffect(() => {
     let cancelled = false;
@@ -416,12 +460,25 @@ const PMCHead360Dashboard: React.FC<PMCHead360DashboardProps> = ({
         return;
       }
 
+      const cached = readPMCHead360Cache(user.id, projects, dprs);
+      if (cached) {
+        setAllCards(cached.cards);
+        setIsLoadingVitals(false);
+        setLoadError(null);
+        return;
+      }
+
       setIsLoadingVitals(true);
       setLoadError(null);
       try {
         const snapshots = await fetchAllProjectVitalsSnapshots(projects, dprs, 'PMC Head');
         if (!cancelled) {
-          setAllCards(snapshots.map(buildProjectVitalsCardFromSnapshot));
+          const cards = snapshots.map(buildProjectVitalsCardFromSnapshot);
+          setAllCards(cards);
+          writePMCHead360Cache(
+            user.id,
+            buildPMCHead360CachePayload(user.id, projects, dprs, cards),
+          );
         }
       } catch (error) {
         console.error('Failed to load project vitals:', error);
@@ -438,7 +495,7 @@ const PMCHead360Dashboard: React.FC<PMCHead360DashboardProps> = ({
     return () => {
       cancelled = true;
     };
-  }, [projects, dprs]);
+  }, [projects, dprs, user.id]);
 
   const regions = useMemo(
     () => ['all', ...Array.from(new Set(projects.map((p) => p.location).filter(Boolean)))],
@@ -525,30 +582,30 @@ const PMCHead360Dashboard: React.FC<PMCHead360DashboardProps> = ({
   }
 
   return (
-    <div className="animate-in fade-in space-y-6 duration-500">
+    <div className="animate-in fade-in space-y-4 duration-500">
       {/* Page header */}
-      <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
         <div className="min-w-0">
-          <p className={`text-xs font-black uppercase tracking-[0.2em] sm:text-sm ${ex.isDark ? 'text-indigo-400' : 'text-indigo-500'}`}>
+          <p className={`text-[10px] font-black uppercase tracking-[0.2em] ${ex.isDark ? 'text-indigo-400' : 'text-indigo-500'}`}>
             PMC Head
           </p>
-          <h1 className={`text-2xl font-black tracking-tight sm:text-3xl ${ex.headingStrong}`}>
+          <h1 className={`text-xl font-black tracking-tight sm:text-2xl ${ex.headingStrong}`}>
             Project 360° Overview
           </h1>
         </div>
 
-        <div className="grid w-full grid-cols-1 gap-2.5 sm:grid-cols-2 xl:max-w-2xl xl:grid-cols-[1fr_auto_auto_auto]">
-          <div className="relative min-w-0 sm:col-span-2 xl:col-span-1">
+        <div className="grid w-full grid-cols-1 gap-2 sm:grid-cols-2 lg:max-w-2xl lg:grid-cols-[1fr_auto_auto_auto]">
+          <div className="relative min-w-0 sm:col-span-2 lg:col-span-1">
             <Search
-              size={16}
-              className={`pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 ${ex.muted}`}
+              size={14}
+              className={`pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 ${ex.muted}`}
             />
             <input
               type="search"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search projects..."
-              className={`w-full rounded-xl border py-2.5 pl-10 pr-3 text-sm outline-none ring-indigo-500 focus:ring-2 sm:text-base ${themeClasses.input} ${themeClasses.textPrimary} ${themeClasses.placeholder}`}
+              className={`w-full rounded-lg border py-2 pl-8 pr-3 text-xs outline-none ring-indigo-500 focus:ring-2 sm:text-sm ${themeClasses.input} ${themeClasses.textPrimary} ${themeClasses.placeholder}`}
             />
           </div>
 
@@ -556,7 +613,7 @@ const PMCHead360Dashboard: React.FC<PMCHead360DashboardProps> = ({
             <select
               value={regionFilter}
               onChange={(e) => setRegionFilter(e.target.value)}
-              className={`w-full appearance-none rounded-xl border py-2.5 pl-3 pr-9 text-sm font-bold outline-none ${themeClasses.input} ${themeClasses.textPrimary}`}
+              className={`w-full appearance-none rounded-lg border py-2 pl-2.5 pr-8 text-xs font-bold outline-none sm:text-sm ${themeClasses.input} ${themeClasses.textPrimary}`}
             >
               {regions.map((r) => (
                 <option key={r} value={r}>
@@ -565,7 +622,7 @@ const PMCHead360Dashboard: React.FC<PMCHead360DashboardProps> = ({
               ))}
             </select>
             <ChevronDown
-              size={14}
+              size={13}
               className={`pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 ${ex.muted}`}
             />
           </div>
@@ -574,7 +631,7 @@ const PMCHead360Dashboard: React.FC<PMCHead360DashboardProps> = ({
             <select
               value={pmFilter}
               onChange={(e) => setPmFilter(e.target.value)}
-              className={`w-full appearance-none rounded-xl border py-2.5 pl-3 pr-9 text-sm font-bold outline-none ${themeClasses.input} ${themeClasses.textPrimary}`}
+              className={`w-full appearance-none rounded-lg border py-2 pl-2.5 pr-8 text-xs font-bold outline-none sm:text-sm ${themeClasses.input} ${themeClasses.textPrimary}`}
             >
               {pms.map((pm) => (
                 <option key={pm} value={pm}>
@@ -583,17 +640,17 @@ const PMCHead360Dashboard: React.FC<PMCHead360DashboardProps> = ({
               ))}
             </select>
             <ChevronDown
-              size={14}
+              size={13}
               className={`pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 ${ex.muted}`}
             />
           </div>
 
           <button
             type="button"
-            className={`flex h-[42px] w-full items-center justify-center rounded-xl border sm:w-[42px] ${ex.isDark ? 'border-white/15 bg-white/5 text-slate-400' : 'border-slate-200 bg-white text-slate-500'}`}
+            className={`flex h-9 w-full items-center justify-center rounded-lg border sm:w-9 ${ex.isDark ? 'border-white/15 bg-white/5 text-slate-400' : 'border-slate-200 bg-white text-slate-500'}`}
             aria-label="Notifications"
           >
-            <Bell size={18} />
+            <Bell size={16} />
           </button>
         </div>
       </div>
@@ -604,22 +661,22 @@ const PMCHead360Dashboard: React.FC<PMCHead360DashboardProps> = ({
       )}
 
       {isLoadingVitals ? (
-        <div className={`flex min-h-[360px] flex-col items-center justify-center p-10 ${ex.surface}`}>
-          <div className="h-11 w-11 animate-spin rounded-full border-2 border-indigo-600 border-t-transparent" />
-          <p className={`mt-4 text-base font-bold sm:text-lg ${ex.muted}`}>Loading live project data…</p>
+        <div className={`flex min-h-[280px] flex-col items-center justify-center p-8 ${ex.surface}`}>
+          <div className="h-9 w-9 animate-spin rounded-full border-2 border-indigo-600 border-t-transparent" />
+          <p className={`mt-3 text-sm font-bold ${ex.muted}`}>Loading live project data…</p>
         </div>
       ) : (
         <>
       <div className={`overflow-hidden ${ex.surface}`}>
         <div
-          className={`grid grid-cols-1 gap-5 p-5 sm:p-6 lg:grid-cols-[auto_minmax(0,1fr)] lg:gap-6 lg:p-6 ${
+          className={`grid grid-cols-1 gap-3 p-3.5 sm:p-4 lg:grid-cols-[auto_minmax(0,1fr)] lg:items-center lg:gap-4 ${
             isDarkTheme ? 'lg:divide-x lg:divide-white/10' : 'lg:divide-x lg:divide-slate-100'
           }`}
         >
-          <div className="flex justify-center lg:justify-start lg:pr-2">
+          <div className="flex justify-center lg:justify-start lg:px-1 lg:pr-3">
             <PortfolioGauge score={portfolio.portfolioScore} isDark={isDarkTheme} />
           </div>
-          <div className="grid min-w-0 grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
+          <div className="grid min-w-0 grid-cols-2 gap-2 sm:gap-2.5 xl:grid-cols-4">
             <KpiPill
               shortLabel="Schedule"
               value={portfolio.scheduleHealth}
@@ -653,20 +710,20 @@ const PMCHead360Dashboard: React.FC<PMCHead360DashboardProps> = ({
       </div>
 
       {/* Main grid + compare sidebar */}
-      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_22rem] 2xl:grid-cols-[minmax(0,1fr)_24rem]">
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_17.5rem] 2xl:grid-cols-[minmax(0,1fr)_19rem]">
         <div className="min-w-0">
-          <div className="mb-4">
-            <p className={`text-sm font-black uppercase tracking-widest ${ex.muted}`}>
+          <div className="mb-2.5">
+            <p className={`text-[10px] font-black uppercase tracking-widest ${ex.muted}`}>
               {filteredCards.length} project{filteredCards.length !== 1 ? 's' : ''} · worst first
             </p>
           </div>
 
           {filteredCards.length === 0 ? (
-            <div className={`p-12 text-center ${ex.emptyState}`}>
-              <p className="text-sm font-bold">No projects match your filters.</p>
+            <div className={`p-8 text-center ${ex.emptyState}`}>
+              <p className="text-xs font-bold">No projects match your filters.</p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 gap-5 md:grid-cols-2 md:gap-5">
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:gap-3.5">
               {filteredCards.map((card) => (
                 <ProjectVitalCard
                   key={card.projectId}
@@ -681,16 +738,16 @@ const PMCHead360Dashboard: React.FC<PMCHead360DashboardProps> = ({
 
         {/* Compare panel */}
         <aside
-          className={`w-full min-w-0 p-5 sm:p-6 xl:sticky xl:top-4 xl:max-h-[calc(100vh-1.5rem)] xl:self-start xl:overflow-y-auto ${ex.surface}`}
+          className={`w-full min-w-0 rounded-xl p-3.5 sm:p-4 xl:sticky xl:top-3 xl:max-h-[calc(100vh-1rem)] xl:self-start xl:overflow-y-auto ${ex.surface}`}
         >
-          <h2 className={`text-lg font-black sm:text-xl ${ex.heading}`}>Compare Projects</h2>
-          <p className={`mb-4 text-sm ${ex.muted}`}>Select up to 4 projects</p>
+          <h2 className={`text-sm font-black ${ex.heading}`}>Compare Projects</h2>
+          <p className={`mb-3 text-[10px] ${ex.muted}`}>Select up to 4 projects</p>
 
-          <div className="mb-5 max-h-56 space-y-2 overflow-y-auto">
+          <div className="mb-3 max-h-48 space-y-0.5 overflow-y-auto">
             {allCards.map((card) => (
               <label
                 key={card.projectId}
-                className={`flex cursor-pointer items-center gap-2.5 rounded-lg px-2 py-1.5 ${
+                className={`flex cursor-pointer items-center gap-2 rounded-md px-1.5 py-1 ${
                   isDarkTheme ? 'hover:bg-white/5' : 'hover:bg-slate-50'
                 }`}
               >
@@ -703,13 +760,13 @@ const PMCHead360Dashboard: React.FC<PMCHead360DashboardProps> = ({
                   }
                   className="rounded border-slate-300 text-indigo-600"
                 />
-                <span className={`truncate text-sm font-semibold sm:text-base ${ex.body}`}>{card.title}</span>
+                <span className={`truncate text-xs font-semibold ${ex.body}`}>{card.title}</span>
               </label>
             ))}
           </div>
 
           {compareCards.length > 0 ? (
-            <div className={`space-y-5 border-t pt-5 ${ex.borderSubtle}`}>
+            <div className={`space-y-3.5 border-t pt-3 ${ex.borderSubtle}`}>
               <CompareBar
                 label="Schedule %"
                 isDark={isDarkTheme}
@@ -756,7 +813,7 @@ const PMCHead360Dashboard: React.FC<PMCHead360DashboardProps> = ({
               />
             </div>
           ) : (
-            <p className={`border-t pt-5 text-center text-sm ${ex.borderSubtle} ${ex.muted}`}>
+            <p className={`border-t pt-3 text-center text-[10px] ${ex.borderSubtle} ${ex.muted}`}>
               Select projects to compare
             </p>
           )}
@@ -765,9 +822,9 @@ const PMCHead360Dashboard: React.FC<PMCHead360DashboardProps> = ({
             type="button"
             onClick={handleExport}
             disabled={compareCards.length === 0}
-            className="mt-5 flex w-full items-center justify-center gap-2 rounded-xl bg-indigo-600 py-3.5 text-sm font-black uppercase tracking-widest text-white transition-colors hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-40"
+            className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-lg bg-indigo-600 py-2.5 text-[10px] font-black uppercase tracking-widest text-white transition-colors hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-40"
           >
-            <Download size={16} />
+            <Download size={14} />
             Export Comparison
           </button>
         </aside>
@@ -778,25 +835,25 @@ const PMCHead360Dashboard: React.FC<PMCHead360DashboardProps> = ({
 
       {/* Footer legend */}
       <footer
-        className={`flex flex-wrap items-center justify-between gap-3 rounded-xl border px-5 py-4 sm:px-6 ${
+        className={`flex flex-wrap items-center justify-between gap-2 rounded-lg border px-3.5 py-2.5 sm:px-4 ${
           isDarkTheme ? 'border-white/10 bg-white/5' : 'border-slate-100 bg-slate-50'
         }`}
       >
-        <div className={`flex flex-wrap items-center gap-4 text-sm font-bold ${ex.muted}`}>
+        <div className={`flex flex-wrap items-center gap-3 text-[10px] font-bold ${ex.muted}`}>
           <span className="inline-flex items-center gap-1.5">
-            <span className="h-2.5 w-2.5 rounded-full bg-emerald-500" />
+            <span className="h-2 w-2 rounded-full bg-emerald-500" />
             Green = Healthy
           </span>
           <span className="inline-flex items-center gap-1.5">
-            <span className="h-2.5 w-2.5 rounded-full bg-amber-500" />
+            <span className="h-2 w-2 rounded-full bg-amber-500" />
             Amber = Watch
           </span>
           <span className="inline-flex items-center gap-1.5">
-            <span className="h-2.5 w-2.5 rounded-full bg-red-500" />
+            <span className="h-2 w-2 rounded-full bg-red-500" />
             Red = Critical
           </span>
         </div>
-        <p className={`text-sm font-semibold ${ex.muted}`}>
+        <p className={`text-[10px] font-semibold ${ex.muted}`}>
           — = no module data yet · matches project full view · {user.name || 'PMC Head'}
         </p>
       </footer>

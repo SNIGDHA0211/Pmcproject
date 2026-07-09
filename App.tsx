@@ -27,6 +27,7 @@ import FinancialManagement, {
 } from "./components/FinancialManagement";
 import type { TeamLeaderOverviewSection } from "./components/teamLeader/TeamLeaderOverviewShell";
 import AlertsPage from "./components/AlertsPage";
+import MeetingDocumentsPage from "./components/meetingDocuments/MeetingDocumentsPage";
 import NotificationAlertToastStack, { type AlertToastItem } from "./components/NotificationAlertToastStack";
 import {
   User,
@@ -45,7 +46,7 @@ import { projectApi, operationsApi, dprApi, notificationApi, getApiErrorMessage,
 import { getLoginFailureMessage } from "./utils/loginCredentials";
 import { useAuth } from "./contexts/AuthContext";
 import { websocketService, NotificationData } from "./services/websocket";
-import { alertsApi, unwrapAlertsResponse } from "./services/alertsApi";
+import { alertsApi, fetchAllAlerts } from "./services/alertsApi";
 import {
   normalizeAlertRecord,
   normalizeWsAlertPayload,
@@ -586,8 +587,7 @@ const App: React.FC = () => {
     if (!options?.silent) setAlertsLoading(true);
     else setAlertsRefreshing(true);
     try {
-      const response = await alertsApi.list();
-      const rows = unwrapAlertsResponse(response.data);
+      const rows = await fetchAllAlerts();
       const mapped = rows.map((row) =>
         normalizeAlertRecord(
           row,
@@ -596,7 +596,7 @@ const App: React.FC = () => {
         ),
       );
 
-      let merged = mapped;
+      let merged = sortNotificationsDesc(mapped);
       if (currentUser.role === UserRole.PMC_HEAD) {
         try {
           const [directory, assigneeProjects] = await Promise.all([
@@ -632,8 +632,9 @@ const App: React.FC = () => {
             .filter((n) => isSyntheticActivityNotification(n.id) && n.isRead)
             .map((n) => n.id),
         );
-        if (readSyntheticIds.size === 0) return merged;
-        return merged.map((n) =>
+        const sorted = sortNotificationsDesc(merged);
+        if (readSyntheticIds.size === 0) return sorted;
+        return sorted.map((n) =>
           readSyntheticIds.has(n.id) ? { ...n, isRead: true } : n,
         );
       });
@@ -736,6 +737,34 @@ const App: React.FC = () => {
     }
     void fetchAlerts();
   }, [currentUser?.id, fetchAlerts]);
+
+  useEffect(() => {
+    if (!currentUser || activeTab !== 'alerts') return;
+    void fetchAlerts({ silent: true });
+  }, [activeTab, currentUser?.id, fetchAlerts]);
+
+  useEffect(() => {
+    if (!currentUser || activeTab !== 'alerts') return;
+    const intervalId = window.setInterval(() => {
+      void fetchAlerts({ silent: true });
+    }, 60_000);
+    return () => window.clearInterval(intervalId);
+  }, [activeTab, currentUser?.id, fetchAlerts]);
+
+  useEffect(() => {
+    if (!currentUser) return;
+    const refreshIfOnAlerts = () => {
+      if (document.visibilityState !== 'visible') return;
+      if (activeTab !== 'alerts') return;
+      void fetchAlerts({ silent: true });
+    };
+    window.addEventListener('focus', refreshIfOnAlerts);
+    document.addEventListener('visibilitychange', refreshIfOnAlerts);
+    return () => {
+      window.removeEventListener('focus', refreshIfOnAlerts);
+      document.removeEventListener('visibilitychange', refreshIfOnAlerts);
+    };
+  }, [activeTab, currentUser?.id, fetchAlerts]);
 
   const handleCreateProject = async (projectData: Partial<Project>, initialDocs: Partial<Document>[], documentationFile?: File) => {
     try {
@@ -1721,6 +1750,8 @@ const App: React.FC = () => {
             onMarkRead={handleMarkRead}
             onNavigate={handleAlertNavigation}
           />
+        ) : activeTab === "meeting_documents" ? (
+          <MeetingDocumentsPage projects={projects} />
         ) : activeTab === "wpr_records" ? (
           <WPRReviewDashboard
             projects={projects}

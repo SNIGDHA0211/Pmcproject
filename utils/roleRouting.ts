@@ -32,6 +32,7 @@ function teamLeadTabs(): string[] {
     'projects',
     'dpr_records',
     'wpr_records',
+    'meeting_documents',
     'alerts',
   ];
 }
@@ -48,6 +49,7 @@ export function getAllowedTabsForRole(role: UserRole, username?: string): Readon
       'projects',
       'dpr_records',
       'wpr_records',
+      'meeting_documents',
       'alerts',
     ],
     [UserRole.CEO]: [
@@ -59,6 +61,7 @@ export function getAllowedTabsForRole(role: UserRole, username?: string): Readon
       'projects',
       'dpr_records',
       'wpr_records',
+      'meeting_documents',
     ],
     [UserRole.COORDINATOR]: [
       'dashboard',
@@ -67,6 +70,7 @@ export function getAllowedTabsForRole(role: UserRole, username?: string): Readon
       'projects',
       'dpr_records',
       'wpr_records',
+      'meeting_documents',
     ],
     [UserRole.TEAM_LEAD]: teamLeadTabs(),
     [UserRole.SITE_ENGINEER]: [...SITE_ENGINEER_NAV_IDS],

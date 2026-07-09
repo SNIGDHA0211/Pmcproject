@@ -1,4 +1,7 @@
 import type { User } from '../types';
+import { clearAllTeamLeaderOverviewCaches } from './teamLeaderOverviewCache';
+import { clearAllProjectDatesSectionCaches } from './projectDatesSectionCache';
+import { clearAllPMCHead360Caches } from './pmcHead360Cache';
 
 export const ACCESS_TOKEN_KEY = 'access_token';
 export const REFRESH_TOKEN_KEY = 'refresh_token';
@@ -45,6 +48,9 @@ export function clearAuthStorage(): void {
   localStorage.removeItem(REFRESH_TOKEN_KEY);
   localStorage.removeItem(USER_KEY);
   localStorage.removeItem(LEGACY_BASIC_AUTH_KEY);
+  clearAllTeamLeaderOverviewCaches();
+  clearAllProjectDatesSectionCaches();
+  clearAllPMCHead360Caches();
 }
 
 export function clearLegacyBasicAuth(): void {

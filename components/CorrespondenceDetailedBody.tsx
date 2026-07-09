@@ -9,7 +9,7 @@ import CorrespondenceSummaryPanel from './CorrespondenceSummaryPanel';
 import CorrespondenceTrendChart from './CorrespondenceTrendChart';
 import CorrespondenceDocumentsTable from './CorrespondenceDocumentsTable';
 import { Icons } from './Icons';
-import { filterCorrespondenceDocuments, monthYearLabel } from '../utils/correspondence';
+import { filterCorrespondenceDocuments, monthYearLabel, sortCorrespondenceDocumentsByLatestUpdated } from '../utils/correspondence';
 import { getThemeClasses, useTheme } from '../utils/theme';
 
 interface CorrespondenceDetailedBodyProps {
@@ -89,10 +89,12 @@ const CorrespondenceDetailedBody: React.FC<CorrespondenceDetailedBodyProps> = ({
         <CorrespondenceDocumentsTable
           variant="dashboard"
           showTypeColumn
-          documents={filterCorrespondenceDocuments(documents, {
-            month: selectedMonth,
-            year: selectedYear,
-          })}
+          documents={sortCorrespondenceDocumentsByLatestUpdated(
+            filterCorrespondenceDocuments(documents, {
+              month: selectedMonth,
+              year: selectedYear,
+            }),
+          )}
           isLoading={isLoading}
           onEdit={onEditDocument}
           onDelete={onDeleteDocument}

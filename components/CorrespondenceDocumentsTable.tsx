@@ -17,6 +17,7 @@ interface CorrespondenceDocumentsTableProps {
   isLoading?: boolean;
   onEdit?: (document: CorrespondenceDocument) => void;
   onDelete?: (document: CorrespondenceDocument) => void;
+  onViewPdf?: (document: CorrespondenceDocument) => void;
   compact?: boolean;
   showTypeColumn?: boolean;
   variant?: 'default' | 'dashboard';
@@ -29,6 +30,7 @@ const CorrespondenceDocumentsTable: React.FC<CorrespondenceDocumentsTableProps> 
   isLoading = false,
   onEdit,
   onDelete,
+  onViewPdf,
   compact = false,
   showTypeColumn = false,
   variant = 'default',
@@ -90,6 +92,25 @@ const CorrespondenceDocumentsTable: React.FC<CorrespondenceDocumentsTableProps> 
     );
   };
 
+  const renderViewPdfCell = (doc: CorrespondenceDocument) => {
+    const count = doc.attachmentCount ?? 0;
+    const hasAttachments = count > 0;
+    if (!hasAttachments || !onViewPdf || doc.id == null) {
+      return <span className={`text-xs ${themeClasses.textMuted}`}>—</span>;
+    }
+    return (
+      <button
+        type="button"
+        onClick={() => onViewPdf(doc)}
+        className={`text-[11px] font-bold hover:underline ${
+          isDarkTheme ? 'text-blue-300' : 'text-blue-600'
+        }`}
+      >
+        View PDF
+      </button>
+    );
+  };
+
   return (
     <div className="space-y-2">
       {/* Mobile card list */}
@@ -136,6 +157,9 @@ const CorrespondenceDocumentsTable: React.FC<CorrespondenceDocumentsTableProps> 
                 )}
               </div>
               <p className={`mb-2 text-sm font-semibold leading-snug ${themeClasses.textPrimary}`}>{doc.description}</p>
+              {onViewPdf && (doc.attachmentCount ?? 0) > 0 && doc.id != null && (
+                <div className="mb-2">{renderViewPdfCell(doc)}</div>
+              )}
               <div className="grid grid-cols-1 gap-1.5 min-[360px]:grid-cols-3">
                 {[
                   ['Received', formatCorrespondenceDisplayDate(doc.receivedDate)],
@@ -178,6 +202,7 @@ const CorrespondenceDocumentsTable: React.FC<CorrespondenceDocumentsTableProps> 
                 'Deadline Date',
                 'Delivered Date',
                 'Status',
+                ...(onViewPdf ? ['View PDF'] : []),
                 ...(onEdit || onDelete ? ['Actions'] : []),
               ].map((heading) => {
                 const isActions = heading === 'Actions';
@@ -219,6 +244,7 @@ const CorrespondenceDocumentsTable: React.FC<CorrespondenceDocumentsTableProps> 
                   {formatCorrespondenceDisplayDate(doc.deliveredDate)}
                 </td>
                 <td className={cellClass}>{renderStatusPill(doc)}</td>
+                {onViewPdf && <td className={cellClass}>{renderViewPdfCell(doc)}</td>}
                 {(onEdit || onDelete) && (
                   <td className={`${cellClass} w-[5.5rem] whitespace-nowrap text-center`}>
                     <div className="mx-auto flex w-fit items-center justify-center gap-1.5">

@@ -120,14 +120,34 @@ export function filterCorrespondenceDocuments(
   documents: CorrespondenceDocument[],
   opts: { month: number; year: number; correspondenceType?: CorrespondenceType; projectName?: string }
 ): CorrespondenceDocument[] {
-  return documents
-    .filter((doc) => {
-      if (periodNum(doc.month) !== opts.month || periodNum(doc.year) !== opts.year) return false;
-      if (opts.correspondenceType && doc.correspondenceType !== opts.correspondenceType) return false;
-      if (opts.projectName && doc.projectName && doc.projectName !== opts.projectName) return false;
-      return true;
-    })
-    .sort((a, b) => a.srNo - b.srNo || a.description.localeCompare(b.description));
+  return documents.filter((doc) => {
+    if (periodNum(doc.month) !== opts.month || periodNum(doc.year) !== opts.year) return false;
+    if (opts.correspondenceType && doc.correspondenceType !== opts.correspondenceType) return false;
+    if (opts.projectName && doc.projectName && doc.projectName !== opts.projectName) return false;
+    return true;
+  });
+}
+
+export function compareCorrespondenceDocumentsByLatestUpdated(
+  a: CorrespondenceDocument,
+  b: CorrespondenceDocument,
+): number {
+  const aStamp = a.updatedAt || a.receivedDate || '';
+  const bStamp = b.updatedAt || b.receivedDate || '';
+  const byStamp = bStamp.localeCompare(aStamp);
+  if (byStamp !== 0) return byStamp;
+
+  const aId = a.id != null ? Number(a.id) : 0;
+  const bId = b.id != null ? Number(b.id) : 0;
+  if (aId !== bId) return bId - aId;
+
+  return b.srNo - a.srNo;
+}
+
+export function sortCorrespondenceDocumentsByLatestUpdated(
+  documents: CorrespondenceDocument[],
+): CorrespondenceDocument[] {
+  return [...documents].sort(compareCorrespondenceDocumentsByLatestUpdated);
 }
 
 function aggregateCorrespondencePartyMetrics(
@@ -221,14 +241,7 @@ export function filterCorrespondenceDocumentsByView(
       if (opts.correspondenceType && doc.correspondenceType !== opts.correspondenceType) return false;
       if (opts.projectName && doc.projectName && doc.projectName !== opts.projectName) return false;
       return true;
-    })
-    .sort(
-      (a, b) =>
-        periodNum(a.year) - periodNum(b.year) ||
-        periodNum(a.month) - periodNum(b.month) ||
-        a.srNo - b.srNo ||
-        a.description.localeCompare(b.description),
-    );
+    });
 }
 
 export function nextCorrespondenceSrNo(

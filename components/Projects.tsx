@@ -98,7 +98,22 @@ import { getPmcExecutiveTheme } from '../utils/pmcExecutiveTheme';
 import { ExecutiveChartWithLegend } from './charts/ChartLegendFooter';
 import TeamLeaderOverviewShell, {
   type TeamLeaderOverviewSection,
+  type TeamLeaderOverviewMetrics,
 } from './teamLeader/TeamLeaderOverviewShell';
+import type { ExecutiveDecisionItem } from './pmcHead/PMCExecutiveOverviewPanel';
+import {
+  buildTeamLeaderOverviewCachePayload,
+  readTeamLeaderOverviewCache,
+  writeTeamLeaderOverviewCache,
+  type TeamLeaderOverviewCachePayload,
+} from '../utils/teamLeaderOverviewCache';
+import {
+  buildProjectDatesSectionCacheFromBundle,
+  projectDatesBundleFromCache,
+  readProjectDatesSectionCache,
+  writeProjectDatesSectionCache,
+  type ProjectDatesSectionCachePayload,
+} from '../utils/projectDatesSectionCache';
 import ProjectDashboardSummary from './ProjectDashboardSummary';
 import { formatIndianCurrencyCompact } from '../utils/format';
 import { validateCorrespondenceDocumentInput } from '../utils/correspondence';
@@ -413,6 +428,8 @@ const Projects: React.FC<ProjectsProps> = ({
   const isPmcTeamLead = currentUser.role === UserRole.TEAM_LEAD;
   const isPMCHead = currentUser.role === UserRole.PMC_HEAD;
   const [execTab, setExecTab] = useState<PMCExecutiveTab>('overview');
+  const [tlOverviewCache, setTlOverviewCache] = useState<TeamLeaderOverviewCachePayload | null>(null);
+  const tlOverviewCacheSavedRef = useRef<string | null>(null);
 
   const getBackendRole = (role: UserRole): string | undefined => {
     if (role === UserRole.PMC_HEAD) return 'PMC Head';
@@ -449,6 +466,8 @@ const Projects: React.FC<ProjectsProps> = ({
   }, [globalSelectedProjectId]);
   const [dashboardData, setDashboardData] = useState<any>(null);
   const [projectDatesBundle, setProjectDatesBundle] = useState<ProjectDatesByProject | null>(null);
+  const [projectDatesSectionCache, setProjectDatesSectionCache] =
+    useState<ProjectDatesSectionCachePayload | null>(null);
   const [isLoadingProjectDates, setIsLoadingProjectDates] = useState(false);
   const [projectDatesError, setProjectDatesError] = useState<string | null>(null);
   const [isProjectDatesModalOpen, setIsProjectDatesModalOpen] = useState(false);
@@ -870,6 +889,24 @@ const Projects: React.FC<ProjectsProps> = ({
       return;
     }
 
+    if (
+      teamLeaderView === 'overview' &&
+      selectedProject.id &&
+      readTeamLeaderOverviewCache(currentUser.id, selectedProject.id)
+    ) {
+      const datesCached = readProjectDatesSectionCache(currentUser.id, selectedProject.id);
+      if (datesCached) {
+        setProjectDatesBundle(projectDatesBundleFromCache(datesCached));
+        setProjectDatesSectionCache(datesCached);
+        if (datesCached.selectedContractorId) {
+          setSelectedContractorId(datesCached.selectedContractorId);
+        }
+      }
+      setIsLoadingProjectDates(false);
+      setProjectDatesError(null);
+      return;
+    }
+
     setIsLoadingProjectDates(true);
     setProjectDatesError(null);
     try {
@@ -891,6 +928,17 @@ const Projects: React.FC<ProjectsProps> = ({
       }
 
       setProjectDatesBundle((prev) => preserveContractorNames(bundle, prev));
+
+      if (selectedProject?.id) {
+        const payload = buildProjectDatesSectionCacheFromBundle({
+          projectId: selectedProject.id,
+          projectName: selectedProject.title,
+          bundle,
+          selectedContractorId,
+        });
+        writeProjectDatesSectionCache(currentUser.id, payload);
+        setProjectDatesSectionCache(payload);
+      }
     } catch (error) {
       console.error('Error fetching project dates:', error);
       const message = getApiErrorMessage(error, 'Unable to load project dates.');
@@ -908,7 +956,23 @@ const Projects: React.FC<ProjectsProps> = ({
     } finally {
       setIsLoadingProjectDates(false);
     }
-  }, [selectedProject?.title]);
+  }, [selectedProject?.title, selectedProject?.id, selectedContractorId, currentUser.id, teamLeaderView]);
+
+  useEffect(() => {
+    if (!selectedProject?.id) {
+      setProjectDatesSectionCache(null);
+      return;
+    }
+
+    const cached = readProjectDatesSectionCache(currentUser.id, selectedProject.id);
+    setProjectDatesSectionCache(cached);
+    if (cached) {
+      setProjectDatesBundle(projectDatesBundleFromCache(cached));
+      if (cached.selectedContractorId) {
+        setSelectedContractorId(cached.selectedContractorId);
+      }
+    }
+  }, [selectedProject?.id, currentUser.id]);
 
   const handleProjectDatesSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -1439,22 +1503,22 @@ const Projects: React.FC<ProjectsProps> = ({
   const handleSaveCorrespondenceDocument = async (
     values: CorrespondenceDocumentFormValues,
     document?: CorrespondenceDocument | null
-  ): Promise<boolean> => {
+  ): Promise<CorrespondenceDocument | null> => {
     if (!selectedProject?.title) {
       setCorrespondenceFormError('Select a project before saving correspondence.');
-      return false;
+      return null;
     }
 
     const validationMessage = validateCorrespondenceDocumentInput(values);
     if (validationMessage) {
       setCorrespondenceFormError(validationMessage);
-      return false;
+      return null;
     }
 
     setIsSavingCorrespondence(true);
     setCorrespondenceFormError(null);
     try {
-      await saveCorrespondenceDocument(
+      const saved = await saveCorrespondenceDocument(
         {
           projectName: selectedProject.title,
           month: values.month,
@@ -1485,11 +1549,11 @@ const Projects: React.FC<ProjectsProps> = ({
 
       showToast(document ? 'Correspondence document updated.' : 'Correspondence document saved.');
       await fetchCorrespondenceForPeriod(values.month, values.year);
-      return true;
+      return saved;
     } catch (error) {
       console.error('Failed to save correspondence document:', error);
       setCorrespondenceFormError(getApiErrorMessage(error, 'Failed to save correspondence document.'));
-      return false;
+      return null;
     } finally {
       setIsSavingCorrespondence(false);
     }
@@ -1687,6 +1751,15 @@ const Projects: React.FC<ProjectsProps> = ({
         return;
       }
 
+      if (
+        teamLeaderView === 'overview' &&
+        selectedProject.id &&
+        readTeamLeaderOverviewCache(currentUser.id, selectedProject.id)
+      ) {
+        setIsLoadingProjectProgress(false);
+        return;
+      }
+
       setIsLoadingProjectProgress(true);
       try {
         const role = getBackendRole(currentUser.role);
@@ -1701,7 +1774,14 @@ const Projects: React.FC<ProjectsProps> = ({
     };
 
     fetchProjectProgressData();
-  }, [selectedProject?.title, currentUser.role, financialDataVersion]);
+  }, [
+    selectedProject?.title,
+    selectedProject?.id,
+    currentUser.role,
+    currentUser.id,
+    financialDataVersion,
+    teamLeaderView,
+  ]);
 
   // Fetch invoicing records independently for each supported invoice type.
   useEffect(() => {
@@ -2106,6 +2186,7 @@ const Projects: React.FC<ProjectsProps> = ({
   );
 
   const useGlobalContractorFilter = projectContractors.length > 0;
+  const showTlOverview = isPmcTeamLead && teamLeaderView === 'overview';
 
   const executiveMetrics = {
     projectHealth: projectHealthSummary,
@@ -2127,8 +2208,137 @@ const Projects: React.FC<ProjectsProps> = ({
     ).length,
   };
 
+  const tlOverviewMetrics: TeamLeaderOverviewMetrics = {
+    projectHealth: executiveMetrics.projectHealth,
+    overallProgressPct: executiveMetrics.overallProgressPct,
+    progressDeltaLabel: executiveMetrics.progressDeltaLabel,
+    summaryDelayDays: executiveMetrics.summaryDelayDays,
+    sclDelayDays: executiveMetrics.sclDelayDays,
+    contractorDelayDays: executiveMetrics.contractorDelayDays,
+    criticalRisks: executiveMetrics.criticalRisks,
+    healthSafetyLabel: executiveMetrics.healthSafetyLabel,
+    drawingApprovalPct: executiveMetrics.drawingApprovalPct,
+    cpiPct: executiveMetrics.cpiPct,
+    contractValueLabel: executiveMetrics.contractValueLabel,
+    openBottleneckCount: executiveMetrics.openBottleneckCount,
+  };
+
+  const overviewLiveReady =
+    !isLoadingProjectProgress && !isLoadingProjectDates && Boolean(selectedProject);
+
+  const resolvedOverviewCache = useMemo(() => {
+    if (!showTlOverview || !selectedProject?.id || !currentUser.id) return null;
+    if (tlOverviewCache?.projectId === selectedProject.id) return tlOverviewCache;
+    return readTeamLeaderOverviewCache(currentUser.id, selectedProject.id);
+  }, [showTlOverview, selectedProject?.id, currentUser.id, tlOverviewCache]);
+
+  const tlOverviewDisplay = useMemo(() => {
+    if (!showTlOverview || !selectedProject) return null;
+
+    if (resolvedOverviewCache) {
+      return {
+        project: {
+          ...selectedProject,
+          title: resolvedOverviewCache.projectTitle || selectedProject.title,
+          location: resolvedOverviewCache.projectLocation ?? selectedProject.location,
+        },
+        metrics: resolvedOverviewCache.metrics,
+        progressTrend: resolvedOverviewCache.progressTrend,
+        healthSafetySublabel: resolvedOverviewCache.healthSafetySublabel,
+        sclDates: resolvedOverviewCache.sclDates,
+        contractorDates: resolvedOverviewCache.contractorDates,
+        decisionQueueOverride: resolvedOverviewCache.decisionQueue,
+        openIssuesCountOverride: resolvedOverviewCache.openIssuesCount,
+        isRefreshingLiveData: false,
+      };
+    }
+
+    if (overviewLiveReady) {
+      return {
+        project: selectedProject,
+        metrics: tlOverviewMetrics,
+        progressTrend: executiveProgressTrend,
+        healthSafetySublabel: dashboardMetrics.healthSafetyStatus.sublabel,
+        sclDates: projectDatesBundle?.scl ?? null,
+        contractorDates: selectedContractorRecord,
+        decisionQueueOverride: undefined as ExecutiveDecisionItem[] | undefined,
+        openIssuesCountOverride: undefined as number | undefined,
+        isRefreshingLiveData: false,
+      };
+    }
+
+    return {
+      project: selectedProject,
+      metrics: tlOverviewMetrics,
+      progressTrend: executiveProgressTrend,
+      healthSafetySublabel: dashboardMetrics.healthSafetyStatus.sublabel,
+      sclDates: projectDatesBundle?.scl ?? null,
+      contractorDates: selectedContractorRecord,
+      decisionQueueOverride: undefined,
+      openIssuesCountOverride: undefined,
+      isRefreshingLiveData: true,
+    };
+  }, [
+    showTlOverview,
+    selectedProject,
+    resolvedOverviewCache,
+    overviewLiveReady,
+    tlOverviewMetrics,
+    executiveProgressTrend,
+    dashboardMetrics.healthSafetyStatus.sublabel,
+    projectDatesBundle?.scl,
+    selectedContractorRecord,
+  ]);
+
+  useEffect(() => {
+    if (!isPmcTeamLead || !selectedProject?.id) {
+      setTlOverviewCache(null);
+      return;
+    }
+    const cached = readTeamLeaderOverviewCache(currentUser.id, selectedProject.id);
+    setTlOverviewCache(cached);
+    if (!cached) {
+      tlOverviewCacheSavedRef.current = null;
+    }
+  }, [isPmcTeamLead, selectedProject?.id, currentUser.id]);
+
+  useEffect(() => {
+    if (!overviewLiveReady || !showTlOverview || !selectedProject) return;
+    if (projectProgressData.length === 0) return;
+
+    const saveKey = `${selectedProject.id}:${executiveProgressTrend.length}:${tlOverviewMetrics.overallProgressPct}`;
+    if (tlOverviewCacheSavedRef.current === saveKey) return;
+
+    const payload = buildTeamLeaderOverviewCachePayload({
+      projectId: selectedProject.id,
+      projectTitle: selectedProject.title,
+      projectLocation: selectedProject.location,
+      metrics: tlOverviewMetrics,
+      progressTrend: executiveProgressTrend,
+      healthSafetySublabel: dashboardMetrics.healthSafetyStatus.sublabel,
+      sclDates: projectDatesBundle?.scl ?? null,
+      contractorDates: selectedContractorRecord,
+      bottleneckItems,
+    });
+
+    writeTeamLeaderOverviewCache(currentUser.id, payload);
+    setTlOverviewCache(payload);
+    tlOverviewCacheSavedRef.current = saveKey;
+  }, [
+    overviewLiveReady,
+    showTlOverview,
+    selectedProject,
+    tlOverviewMetrics,
+    executiveProgressTrend,
+    dashboardMetrics.healthSafetyStatus.sublabel,
+    projectDatesBundle?.scl,
+    selectedContractorRecord,
+    bottleneckItems,
+    currentUser.id,
+    projectProgressData.length,
+  ]);
+
   const tabVisible = (tab: PMCExecutiveTab) => !isPMCHead || execTab === tab;
-  const showTlOverview = isPmcTeamLead && teamLeaderView === 'overview';
   const showProjectSections =
     (isPMCHead ? execTab !== 'overview' : isPmcTeamLead ? teamLeaderView === 'full' : true);
 
@@ -2277,15 +2487,18 @@ const Projects: React.FC<ProjectsProps> = ({
         />
       )}
 
-      {showTlOverview && selectedProject && (
+      {showTlOverview && tlOverviewDisplay && (
         <TeamLeaderOverviewShell
-          project={selectedProject}
-          metrics={executiveMetrics}
-          progressTrend={executiveProgressTrend}
+          project={tlOverviewDisplay.project}
+          metrics={tlOverviewDisplay.metrics}
+          progressTrend={tlOverviewDisplay.progressTrend}
           bottleneckItems={bottleneckItems}
-          sclDates={projectDatesBundle?.scl ?? null}
-          contractorDates={selectedContractorRecord}
-          healthSafetySublabel={dashboardMetrics.healthSafetyStatus.sublabel}
+          sclDates={tlOverviewDisplay.sclDates}
+          contractorDates={tlOverviewDisplay.contractorDates}
+          healthSafetySublabel={tlOverviewDisplay.healthSafetySublabel}
+          decisionQueueOverride={tlOverviewDisplay.decisionQueueOverride}
+          openIssuesCountOverride={tlOverviewDisplay.openIssuesCountOverride}
+          isRefreshingLiveData={tlOverviewDisplay.isRefreshingLiveData}
           onExport={exportProjectDataExcel}
           onOpenFullView={(section) => {
             onTeamLeaderViewChange?.('full');
@@ -2419,7 +2632,7 @@ const Projects: React.FC<ProjectsProps> = ({
                 sclBgEntries={mapBgEntriesApi(projectDatesBundle?.scl_bg ?? [])}
                 contractorBgEntries={mapBgEntriesApi(projectDatesBundle?.contractor_bg ?? [])}
                 bgSummary={projectDatesBundle?.bg_summary ?? null}
-                isLoading={isLoadingProjectDates}
+                isLoading={isLoadingProjectDates && !projectDatesSectionCache}
                 error={projectDatesError}
               >
                 <PMCExecutivePanel title="Site Photos" subtitle="Latest on-site construction imagery">
@@ -2455,6 +2668,7 @@ const Projects: React.FC<ProjectsProps> = ({
               <div id="tl-section-contractor">
               <ContractorManagementDashboard
                 project={selectedProject}
+                userId={currentUser.id}
                 dataRevision={contractorDashboardRevision}
                 showProjectDates
                 showFinancial

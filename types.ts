@@ -388,6 +388,35 @@ export interface CorrespondenceDocument {
   sender?: string;
   recipientType?: CorrespondenceRecipientType | null;
   deliveredStatus?: string;
+  /** Attachment summary from correspondence-documents list API */
+  attachmentCount?: number;
+  latestAttachment?: CorrespondenceAttachmentSummary | null;
+  /** ISO timestamp from correspondence-documents API */
+  updatedAt?: string;
+}
+
+export interface CorrespondenceAttachmentSummary {
+  id: string | number;
+  fileName: string;
+}
+
+export interface CorrespondenceAttachment {
+  id: string | number;
+  fileName: string;
+  documentType?: string | null;
+  description?: string | null;
+  uploadedBy: string;
+  uploadedOn: string;
+  version: number;
+  canDownload?: boolean;
+  canEdit?: boolean;
+  canDelete?: boolean;
+}
+
+export interface CorrespondenceDocumentDetailPermissions {
+  canUpload?: boolean;
+  canDelete?: boolean;
+  canEdit?: boolean;
 }
 
 export interface PerformanceIndices {

@@ -24,6 +24,7 @@ export const PATH_TO_TAB: Record<string, string> = {
   '/wpr': 'wpr_records',
   '/wpr_records': 'wpr_records',
   '/alerts': 'alerts',
+  '/meeting-documents': 'meeting_documents',
 };
 
 export const TAB_PATHS: Record<string, string> = {
@@ -42,6 +43,7 @@ export const TAB_PATHS: Record<string, string> = {
   dpr_records: '/dpr-records',
   wpr_records: '/wpr-records',
   alerts: '/alerts',
+  meeting_documents: '/meeting-documents',
 };
 
 const normalizePath = (path: string): string => {

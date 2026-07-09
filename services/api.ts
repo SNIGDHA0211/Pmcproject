@@ -1554,6 +1554,27 @@ export function normalizeCorrespondenceDocument(
       normalizeCorrespondenceRecipientType(
         row?.recipient_type ?? row?.recipientType,
       ) || null,
+    attachmentCount: toNum(row?.attachment_count ?? row?.attachmentCount) || 0,
+    latestAttachment: (() => {
+      const latest = row?.latest_attachment ?? row?.latestAttachment;
+      if (!latest || typeof latest !== 'object') return null;
+      const latestId = (latest as { id?: unknown }).id;
+      const fileName = String(
+        (latest as { file_name?: string; fileName?: string }).file_name ??
+          (latest as { file_name?: string; fileName?: string }).fileName ??
+          '',
+      ).trim();
+      if (latestId == null || !fileName) return null;
+      return { id: latestId as string | number, fileName };
+    })(),
+    updatedAt:
+      String(
+        row?.updated_at ??
+          row?.updatedAt ??
+          row?.modified_at ??
+          row?.modifiedAt ??
+          '',
+      ).trim() || undefined,
   };
 }
 
@@ -2358,6 +2379,13 @@ export interface CorrespondenceDashboardDocument {
   delivered_date: string | null;
   delivered_status: string;
   deadline_date: string | null;
+  updated_at?: string | null;
+  created_at?: string | null;
+  attachment_count?: number;
+  latest_attachment?: {
+    id: number;
+    file_name: string;
+  } | null;
 }
 
 export interface CorrespondenceDashboardResponse {
@@ -2492,6 +2520,7 @@ export const correspondenceDocumentsApi = {
     year?: number;
     page?: number;
     page_size?: number;
+    ordering?: string;
   }) => api.get(API_ENDPOINTS.CORRESPONDENCE_DOCUMENTS.LIST, { params }),
 
   getById: (id: string | number) =>

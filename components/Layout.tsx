@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo, Fragment } from 'react';
 import { Icons } from './Icons';
 import { User, UserRole, AppNotification, Project } from '../types';
 import { ROLE_LABELS } from '../constants';
@@ -227,6 +227,13 @@ const Layout: React.FC<LayoutProps> = ({
       ],
     },
     {
+      id: "meeting_documents",
+      label: "Meeting Documents",
+      icon: Icons.ClipboardList,
+      section: "Meetings",
+      roles: [UserRole.PMC_HEAD, UserRole.TEAM_LEAD, UserRole.COORDINATOR],
+    },
+    {
       id: "alerts",
       label: "Alerts",
       icon: Icons.Notification,
@@ -312,6 +319,26 @@ const Layout: React.FC<LayoutProps> = ({
       : '-translate-x-full pointer-events-none'
     } md:relative md:z-auto md:flex md:translate-x-0 md:shadow-none md:pointer-events-auto`;
 
+  const visibleNavigation = useMemo(() => {
+    const source =
+      user.role === UserRole.SITE_ENGINEER
+        ? SITE_ENGINEER_NAV_IDS.map((id) => navigation.find((item) => item.id === id)).filter(
+            (item): item is (typeof navigation)[number] => Boolean(item),
+          )
+        : navigation;
+
+    return source.filter((item) => {
+      if (user.role === UserRole.SITE_ENGINEER) return true;
+      if (item.id === 'financial_management') {
+        const isTeamLead = user.role === UserRole.TEAM_LEAD;
+        const isBillingEngineer = user.role === UserRole.BILLING_SITE_ENGINEER;
+        const isSpecialUser = user.username === 'pmc_bse';
+        return isTeamLead || isBillingEngineer || isSpecialUser;
+      }
+      return item.roles.includes(user.role);
+    });
+  }, [user.role, user.username]);
+
   return (
     <div
       className={`relative h-screen overflow-hidden ${isDarkTheme ? "bg-slate-900" : "bg-gradient-to-br from-blue-50 to-indigo-100"}`}
@@ -364,22 +391,7 @@ const Layout: React.FC<LayoutProps> = ({
             </div>
 
             <nav className="flex-1 space-y-0.5 overflow-y-auto overflow-x-hidden px-3 py-4">
-              {(user.role === UserRole.SITE_ENGINEER
-                ? SITE_ENGINEER_NAV_IDS.map((id) => navigation.find((item) => item.id === id)).filter(
-                  (item): item is (typeof navigation)[number] => Boolean(item),
-                )
-                : navigation
-              ).map((item, index) => {
-                if (user.role !== UserRole.SITE_ENGINEER) {
-                  if (item.id === 'financial_management') {
-                    const isTeamLead = user.role === UserRole.TEAM_LEAD;
-                    const isBillingEngineer = user.role === UserRole.BILLING_SITE_ENGINEER;
-                    const isSpecialUser = user.username === 'pmc_bse';
-                    if (!isTeamLead && !isBillingEngineer && !isSpecialUser) return null;
-                  } else if (!item.roles.includes(user.role)) {
-                    return null;
-                  }
-                }
+              {visibleNavigation.map((item, index) => {
                 const Icon = item.icon;
                 const isActive = activeTab === item.id;
                 const stagger = Math.min(index + 1, 5);
@@ -393,32 +405,48 @@ const Layout: React.FC<LayoutProps> = ({
                         : item.id === 'financial_management' && user.role === UserRole.BILLING_SITE_ENGINEER
                           ? 'Financial Management'
                           : item.label;
+                const sectionLabel = 'section' in item ? (item as { section?: string }).section : undefined;
+                const previousSection =
+                  index > 0 && 'section' in visibleNavigation[index - 1]
+                    ? (visibleNavigation[index - 1] as { section?: string }).section
+                    : undefined;
+                const showSectionHeader = Boolean(sectionLabel && sectionLabel !== previousSection);
+
                 return (
-                  <button
-                    key={item.id}
-                    ref={(el) => {
-                      navItemRefs.current[item.id] = el;
-                    }}
-                    type="button"
-                    aria-current={isActive ? 'page' : undefined}
-                    onClick={() => {
-                      setActiveTab(item.id);
-                      closeSidebarOverlay();
-                    }}
-                    style={isActive ? undefined : { animationDelay: `${stagger * 0.04}s` }}
-                    className={`sidebar-nav-item w-full flex items-center gap-3 rounded-xl px-3 py-2.5 text-left ${getTourClassName(item.id)} ${getNavItemClassName(isActive)} ${isActive ? '' : 'sidebar-nav-enter'
-                      }`}
-                  >
-                    <span className={`sidebar-nav-icon ${isActive ? 'text-inherit' : ''}`}>
-                      <Icon size={20} strokeWidth={isActive ? 2.2 : 1.8} />
-                    </span>
-                    <span
-                      className={`truncate text-sm transition-transform duration-200 ${isActive ? 'font-bold text-inherit' : 'font-semibold'
+                  <Fragment key={item.id}>
+                    {showSectionHeader && (
+                      <p
+                        className={`mb-1 mt-3 px-2 text-[10px] font-black uppercase tracking-[0.18em] first:mt-0 ${isDarkTheme ? 'text-slate-500' : 'text-slate-400'
+                          }`}
+                      >
+                        {sectionLabel}
+                      </p>
+                    )}
+                    <button
+                      ref={(el) => {
+                        navItemRefs.current[item.id] = el;
+                      }}
+                      type="button"
+                      aria-current={isActive ? 'page' : undefined}
+                      onClick={() => {
+                        setActiveTab(item.id);
+                        closeSidebarOverlay();
+                      }}
+                      style={isActive ? undefined : { animationDelay: `${stagger * 0.04}s` }}
+                      className={`sidebar-nav-item w-full flex items-center gap-3 rounded-xl px-3 py-2.5 text-left ${getTourClassName(item.id)} ${getNavItemClassName(isActive)} ${isActive ? '' : 'sidebar-nav-enter'
                         }`}
                     >
-                      {navLabel}
-                    </span>
-                  </button>
+                      <span className={`sidebar-nav-icon ${isActive ? 'text-inherit' : ''}`}>
+                        <Icon size={20} strokeWidth={isActive ? 2.2 : 1.8} />
+                      </span>
+                      <span
+                        className={`truncate text-sm transition-transform duration-200 ${isActive ? 'font-bold text-inherit' : 'font-semibold'
+                          }`}
+                      >
+                        {navLabel}
+                      </span>
+                    </button>
+                  </Fragment>
                 );
               })}
             </nav>

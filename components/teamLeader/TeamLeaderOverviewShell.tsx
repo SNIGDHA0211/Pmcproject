@@ -18,6 +18,10 @@ import PMCExecutiveOverviewPanel, {
 } from '../pmcHead/PMCExecutiveOverviewPanel';
 import type { PMCExecutiveTab } from '../pmcHead/PMCHeadExecutiveShell';
 import { useTheme, getThemeClasses } from '../../utils/theme';
+import {
+  buildTeamLeaderOverviewDecisionQueue,
+} from '../../utils/teamLeaderOverviewCache';
+import type { ExecutiveDecisionItem } from '../pmcHead/PMCExecutiveOverviewPanel';
 
 export type TeamLeaderOverviewSection =
   | 'contractor'
@@ -53,6 +57,10 @@ interface TeamLeaderOverviewShellProps {
   onExport: () => void;
   onOpenFullView: (section?: TeamLeaderOverviewSection) => void;
   onNavigateModule?: (tab: string) => void;
+  /** Pre-built queue when hydrating from local display cache */
+  decisionQueueOverride?: ExecutiveDecisionItem[];
+  openIssuesCountOverride?: number;
+  isRefreshingLiveData?: boolean;
 }
 
 const QUICK_MODULES: Array<{
@@ -132,74 +140,33 @@ const TeamLeaderOverviewShell: React.FC<TeamLeaderOverviewShellProps> = ({
   onExport,
   onOpenFullView,
   onNavigateModule,
+  decisionQueueOverride,
+  openIssuesCountOverride,
+  isRefreshingLiveData = false,
 }) => {
   const { isDarkTheme } = useTheme();
   const themeClasses = getThemeClasses(isDarkTheme);
 
-  const criticalRiskItems = bottleneckItems.filter(
-    (item) => item.type === 'RISK' && item.status !== 'Closed' && item.description.trim(),
-  );
-  const openIssuesCount = bottleneckItems.filter(
-    (item) => item.status !== 'Closed' && item.description.trim(),
-  ).length;
+  const openIssuesCount =
+    openIssuesCountOverride ??
+    bottleneckItems.filter((item) => item.status !== 'Closed' && item.description.trim()).length;
 
   const decisionQueue = useMemo(() => {
-    const items: {
-      id: string;
-      title: string;
-      priority: 'Critical' | 'High' | 'Urgent';
-      tab: PMCExecutiveTab;
-      section: TeamLeaderOverviewSection;
-      action?: string;
-    }[] = [];
+    if (decisionQueueOverride?.length) return decisionQueueOverride;
+    return buildTeamLeaderOverviewDecisionQueue(metrics, healthSafetySublabel, bottleneckItems);
+  }, [decisionQueueOverride, metrics, healthSafetySublabel, bottleneckItems]);
 
-    criticalRiskItems.slice(0, 2).forEach((item) => {
-      items.push({
+  const decisionQueueForPanel = useMemo(
+    () =>
+      decisionQueue.map((item) => ({
         id: item.id,
-        title: item.description.trim() || 'Critical risk needs review',
-        priority: item.priority === 'High' ? 'High' : 'Critical',
-        tab: 'risk',
-        section: 'risk',
-        action: 'Review',
-      });
-    });
-
-    if (metrics.healthSafetyLabel === 'CRITICAL') {
-      items.push({
-        id: 'hse',
-        title: healthSafetySublabel
-          ? `HSE: ${healthSafetySublabel}`
-          : 'Health & safety status is critical',
-        priority: 'Critical',
-        tab: 'risk',
-        section: 'compliance',
-        action: 'Open',
-      });
-    }
-
-    if (metrics.drawingApprovalPct < 75) {
-      items.push({
-        id: 'drawing',
-        title: `Drawing approval at ${Math.round(metrics.drawingApprovalPct)}%`,
-        priority: 'Urgent',
-        tab: 'compliance',
-        section: 'compliance',
-        action: 'View',
-      });
-    }
-
-    if (items.length === 0) {
-      items.push({
-        id: 'clear',
-        title: 'Project overview is up to date — open full view for details',
-        priority: 'High',
-        tab: 'overview',
-        section: 'charts',
-      });
-    }
-
-    return items;
-  }, [criticalRiskItems, metrics, healthSafetySublabel]);
+        title: item.title,
+        priority: item.priority,
+        tab: item.tab,
+        action: item.action,
+      })),
+    [decisionQueue],
+  );
 
   const handleJumpToTab = (tab: PMCExecutiveTab) => {
     const map: Partial<Record<PMCExecutiveTab, TeamLeaderOverviewSection>> = {
@@ -219,6 +186,17 @@ const TeamLeaderOverviewShell: React.FC<TeamLeaderOverviewShellProps> = ({
 
   return (
     <div className="space-y-3 sm:space-y-4">
+      {isRefreshingLiveData && (
+        <p
+          className={`rounded-lg border px-3 py-1.5 text-center text-[10px] font-bold uppercase tracking-wide ${
+            isDarkTheme
+              ? 'border-indigo-500/25 bg-indigo-500/10 text-indigo-200'
+              : 'border-indigo-200 bg-indigo-50 text-indigo-700'
+          }`}
+        >
+          Showing saved overview — updating live data…
+        </p>
+      )}
       <header
         className={`overflow-hidden rounded-2xl border px-4 py-4 sm:px-5 ${
           isDarkTheme
@@ -262,13 +240,7 @@ const TeamLeaderOverviewShell: React.FC<TeamLeaderOverviewShellProps> = ({
       <PMCExecutiveOverviewPanel
         metrics={metrics}
         progressTrend={progressTrend}
-        decisionQueue={decisionQueue.map((item) => ({
-          id: item.id,
-          title: item.title,
-          priority: item.priority,
-          tab: item.tab,
-          action: item.action,
-        }))}
+        decisionQueue={decisionQueueForPanel}
         openIssuesCount={openIssuesCount}
         sclDates={sclDates}
         contractorDates={contractorDates}

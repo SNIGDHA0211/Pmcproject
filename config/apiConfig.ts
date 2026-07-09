@@ -173,6 +173,11 @@ export const API_ENDPOINTS = {
     DETAIL: (id: string | number) => `/correspondence-documents/${id}/`,
     DASHBOARD: '/correspondence-documents/dashboard/',
     SCL_DELIVERED: '/correspondence-documents/scl-delivered-correspondence/',
+    ATTACHMENTS: (id: string | number) => `/correspondence-documents/${id}/attachments/`,
+    ATTACHMENT_DETAIL: (id: string | number) =>
+      `/correspondence-documents/attachments/${id}/`,
+    ATTACHMENT_DOWNLOAD: (id: string | number) =>
+      `/correspondence-documents/attachments/${id}/download/`,
   },
 
   // Machinery master catalog
@@ -353,6 +358,15 @@ export const API_ENDPOINTS = {
     REGISTER_CREATE: '/frequency-chart/register/',
     REGISTER_UPDATE: (id: string | number) => `/frequency-chart/register/${id}/`,
     REGISTER_DELETE: (id: string | number) => `/frequency-chart/register/${id}/`,
+  },
+
+  MEETING_DOCUMENTS: {
+    LIST: '/meeting-documents/',
+    DASHBOARD: '/meeting-documents/dashboard/',
+    DETAIL: (id: string | number) => `/meeting-documents/${id}/`,
+    DOWNLOAD: (id: string | number) => `/meeting-documents/${id}/download/`,
+    BY_PROJECT: (projectName: string) =>
+      `/meeting-documents/project/${encodeURIComponent(projectName)}/`,
   },
 };
 

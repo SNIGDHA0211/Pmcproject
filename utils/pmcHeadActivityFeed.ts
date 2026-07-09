@@ -2,6 +2,7 @@ import type { AppNotification } from '../types';
 import type { MonthlyScope } from '../types';
 import {
   cashflowApi,
+  correspondenceDocumentsApi,
   healthSafetyApi,
   invoicingApi,
   manpowerApi,
@@ -340,12 +341,31 @@ async function fetchInvoicingActivity(
   });
 }
 
+async function fetchCorrespondenceActivity(
+  maxAgeDays: number,
+  directory: DirectoryUser[],
+  projects: ProjectAssigneeInfo[],
+): Promise<ActivityRow[]> {
+  const response = await correspondenceDocumentsApi.getAll({ page_size: 200 });
+  const records = unwrapList<Record<string, unknown>>(response.data);
+  return buildRowsFromRecords('Correspondence', records, directory, projects, {
+    maxAgeDays,
+    titleForCreate: (record) => {
+      const type = String(record.correspondence_type ?? record.correspondenceType ?? '').toUpperCase();
+      if (type === 'CONTRACTOR') return 'Contractor correspondence updated';
+      if (type === 'CLIENT') return 'Client correspondence updated';
+      return 'Correspondence updated';
+    },
+    notificationType: 'MODULE_UPDATE',
+  });
+}
+
 export async function fetchPmcHeadActivityNotifications(
   viewerUserId: string,
   options?: { maxAgeDays?: number; limit?: number },
 ): Promise<AppNotification[]> {
   const maxAgeDays = options?.maxAgeDays ?? 30;
-  const limit = options?.limit ?? 80;
+  const limit = options?.limit ?? 120;
 
   const [directory, projects] = await Promise.all([
     loadUserDirectory(),
@@ -360,6 +380,7 @@ export async function fetchPmcHeadActivityNotifications(
     fetchSitePhotoActivity(maxAgeDays, directory, projects),
     fetchInvoicingActivity(maxAgeDays, directory, projects),
     fetchCashflowActivity(maxAgeDays, directory, projects),
+    fetchCorrespondenceActivity(maxAgeDays, directory, projects),
   ]);
 
   const rows: ActivityRow[] = [];

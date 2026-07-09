@@ -13,18 +13,17 @@ import {
 import CorrespondenceMonthSelector from "./CorrespondenceMonthSelector";
 import CorrespondencePartyDashboard from "./CorrespondencePartyDashboard";
 import CorrespondenceDocumentsTable from "./CorrespondenceDocumentsTable";
-import CorrespondenceSclDeliveredPanel, {
-  type SclDeliveredFormValues,
-} from "./CorrespondenceSclDeliveredPanel";
-import CorrespondenceMonthlyForm, {
-  type CorrespondencePartyCountsFormValues,
-} from "./CorrespondenceMonthlyForm";
+import CorrespondenceSclDeliveredPanel from "./CorrespondenceSclDeliveredPanel";
 import CorrespondenceDocumentForm, {
   type CorrespondenceDocumentFormValues,
 } from "./CorrespondenceDocumentForm";
+import CorrespondenceAttachmentsPanel, {
+  type CorrespondenceAttachmentsMode,
+} from "./CorrespondenceAttachmentsPanel";
 import {
   aggregateCorrespondenceCumulativePeriod,
   filterCorrespondenceDocumentsByView,
+  sortCorrespondenceDocumentsByLatestUpdated,
   isSclOutboundDocument,
   normalizeCorrespondenceCategory,
   normalizeCorrespondenceRecipientType,
@@ -46,6 +45,9 @@ import {
   type CorrespondenceDashboardResponse,
   type CorrespondenceSclDelivered,
 } from "../services/api";
+import {
+  extractCorrespondenceAttachmentMetaFromList,
+} from "../services/correspondenceAttachmentsApi";
 
 const emptyPartyMetrics = () => ({
   correspondenceReceived: 0,
@@ -74,7 +76,7 @@ interface CorrespondenceCardProps {
   onSaveDocument: (
     values: CorrespondenceDocumentFormValues,
     document?: CorrespondenceDocument | null,
-  ) => Promise<boolean> | boolean;
+  ) => Promise<CorrespondenceDocument | null>;
   onDeleteDocument?: (
     document: CorrespondenceDocument,
   ) => Promise<boolean> | boolean;
@@ -252,11 +254,21 @@ const CorrespondenceCard: React.FC<CorrespondenceCardProps> = ({
     () => emptyCorrespondenceSclDelivered(),
   );
   const [sclLoading, setSclLoading] = useState(false);
-  const [sclSaving, setSclSaving] = useState(false);
-  const [isCountsModalOpen, setIsCountsModalOpen] = useState(false);
-  const [countsSaving, setCountsSaving] = useState(false);
-  const [countsFormError, setCountsFormError] = useState<string | null>(null);
   const [isExporting, setIsExporting] = useState(false);
+  const [attachmentMetaById, setAttachmentMetaById] = useState<
+    Map<
+      string | number,
+      {
+        attachmentCount: number;
+        latestAttachment: { id: string | number; fileName: string } | null;
+        updatedAt?: string;
+      }
+    >
+  >(new Map());
+  const [attachmentsDocument, setAttachmentsDocument] =
+    useState<CorrespondenceDocument | null>(null);
+  const [attachmentsMode, setAttachmentsMode] =
+    useState<CorrespondenceAttachmentsMode>("view");
 
   const applyDashboardResponse = (data: CorrespondenceDashboardResponse | null) => {
     setDashboardData(data ?? null);
@@ -308,50 +320,28 @@ const CorrespondenceCard: React.FC<CorrespondenceCardProps> = ({
   };
 
   const refreshAllCorrespondenceData = async () => {
-    await Promise.all([refreshCorrespondenceDashboard(), refreshSclDelivered()]);
+    await Promise.all([
+      refreshCorrespondenceDashboard(),
+      refreshSclDelivered(),
+      refreshAttachmentMeta(),
+    ]);
   };
 
-  const savePartyCounts = async (
-    values: CorrespondencePartyCountsFormValues,
-  ): Promise<boolean> => {
-    if (!projectName) return false;
-    setCountsSaving(true);
-    setCountsFormError(null);
-    try {
-      await correspondenceDocumentsApi.saveDashboard({
-        project_name: projectName,
-        month: selectedMonth,
-        year: selectedYear,
-        view,
-        ...values,
-      });
-      await refreshAllCorrespondenceData();
-      return true;
-    } catch (error) {
-      console.error("[CorrespondenceCard] Party counts save failed:", error);
-      setCountsFormError("Failed to save correspondence counts.");
-      return false;
-    } finally {
-      setCountsSaving(false);
+  const refreshAttachmentMeta = async () => {
+    if (!projectName) {
+      setAttachmentMetaById(new Map());
+      return;
     }
-  };
-
-  const saveSclDelivered = async (values: SclDeliveredFormValues) => {
-    if (!projectName) return;
-    setSclSaving(true);
     try {
-      await correspondenceDocumentsApi.saveSclDelivered({
+      const res = await correspondenceDocumentsApi.getAll({
         project_name: projectName,
         month: selectedMonth,
         year: selectedYear,
-        view,
-        ...values,
+        ordering: '-updated_at',
       });
-      await refreshAllCorrespondenceData();
-    } catch (error) {
-      console.error("[CorrespondenceCard] SCL save failed:", error);
-    } finally {
-      setSclSaving(false);
+      setAttachmentMetaById(extractCorrespondenceAttachmentMetaFromList(res.data));
+    } catch (err) {
+      console.warn("[CorrespondenceCard] Attachment meta fetch failed:", err);
     }
   };
 
@@ -359,7 +349,6 @@ const CorrespondenceCard: React.FC<CorrespondenceCardProps> = ({
     setView("cumulative");
   }, [projectName]);
 
-  // Fetch from the new dashboard endpoint whenever project/month/year/view changes
   useEffect(() => {
     if (!projectName) {
       setDashboardData(null);
@@ -388,7 +377,7 @@ const CorrespondenceCard: React.FC<CorrespondenceCardProps> = ({
           err,
         );
         setDashboardData(null);
-        setDashboardError(null); // silent fallback
+        setDashboardError(null);
       })
       .finally(() => {
         if (!cancelled) setDashboardLoading(false);
@@ -423,6 +412,32 @@ const CorrespondenceCard: React.FC<CorrespondenceCardProps> = ({
       })
       .finally(() => {
         if (!cancelled) setSclLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [projectName, selectedMonth, selectedYear, view]);
+
+  useEffect(() => {
+    if (!projectName) {
+      setAttachmentMetaById(new Map());
+      return;
+    }
+    let cancelled = false;
+    correspondenceDocumentsApi
+      .getAll({
+        project_name: projectName,
+        month: selectedMonth,
+        year: selectedYear,
+        ordering: '-updated_at',
+      })
+      .then((res) => {
+        if (cancelled) return;
+        setAttachmentMetaById(extractCorrespondenceAttachmentMetaFromList(res.data));
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        console.warn("[CorrespondenceCard] Attachment meta fetch failed:", err);
       });
     return () => {
       cancelled = true;
@@ -476,29 +491,51 @@ const CorrespondenceCard: React.FC<CorrespondenceCardProps> = ({
 
   // Documents — prefer dashboard recent_documents, fall back to props
   const effectiveDocuments = useMemo<CorrespondenceDocument[]>(() => {
-    if (dashboardData?.recent_documents?.length) {
-      return dashboardData.recent_documents.map((d) => ({
-        id: d.id,
-        projectName: d.project_name,
-        month: d.month,
-        year: d.year,
-        correspondenceType: d.correspondence_type as "CLIENT" | "CONTRACTOR",
-        correspondenceCategory: normalizeCorrespondenceCategory(d.correspondence_category),
-        srNo: d.sr_no,
-        description: d.description,
-        receivedDate: d.received_date,
-        deliveredDate: d.delivered_date ?? null,
-        deadlineDate: d.deadline_date ?? null,
-        deliveredStatus: d.delivered_status,
-        flowDirection: d.flow_direction,
-        sender: d.sender,
-        recipientType:
-          normalizeCorrespondenceRecipientType(d.recipient_type) || null,
-        status: d.delivered_status,
-      }));
-    }
-    return documents;
-  }, [dashboardData, documents]);
+    const baseDocuments = (() => {
+      if (dashboardData?.recent_documents?.length) {
+        return dashboardData.recent_documents.map((d) => ({
+          id: d.id,
+          projectName: d.project_name,
+          month: d.month,
+          year: d.year,
+          correspondenceType: d.correspondence_type as "CLIENT" | "CONTRACTOR",
+          correspondenceCategory: normalizeCorrespondenceCategory(d.correspondence_category),
+          srNo: d.sr_no,
+          description: d.description,
+          receivedDate: d.received_date,
+          deliveredDate: d.delivered_date ?? null,
+          deadlineDate: d.deadline_date ?? null,
+          deliveredStatus: d.delivered_status,
+          flowDirection: d.flow_direction,
+          sender: d.sender,
+          recipientType:
+            normalizeCorrespondenceRecipientType(d.recipient_type) || null,
+          status: d.delivered_status,
+          updatedAt: d.updated_at ?? undefined,
+          attachmentCount: d.attachment_count ?? 0,
+          latestAttachment: d.latest_attachment
+            ? {
+                id: d.latest_attachment.id,
+                fileName: d.latest_attachment.file_name,
+              }
+            : null,
+        }));
+      }
+      return documents;
+    })();
+
+    return baseDocuments.map((doc) => {
+      if (doc.id == null) return doc;
+      const meta = attachmentMetaById.get(doc.id);
+      if (!meta) return doc;
+      return {
+        ...doc,
+        attachmentCount: meta.attachmentCount,
+        latestAttachment: meta.latestAttachment,
+        updatedAt: doc.updatedAt ?? meta.updatedAt,
+      };
+    });
+  }, [dashboardData, documents, attachmentMetaById]);
 
   const isCardLoading = isLoading || dashboardLoading || sclLoading;
 
@@ -514,12 +551,7 @@ const CorrespondenceCard: React.FC<CorrespondenceCardProps> = ({
   );
 
   const sortedPeriodDocuments = useMemo(
-    () =>
-      [...periodDocuments].sort(
-        (a, b) =>
-          (b.receivedDate || "").localeCompare(a.receivedDate || "") ||
-          b.srNo - a.srNo,
-      ),
+    () => sortCorrespondenceDocumentsByLatestUpdated(periodDocuments),
     [periodDocuments],
   );
 
@@ -541,6 +573,18 @@ const CorrespondenceCard: React.FC<CorrespondenceCardProps> = ({
     setEditType(document.correspondenceType);
     setDocumentScope(isSclOutboundDocument(document) ? "scl" : "party");
     setIsModalOpen(true);
+  };
+
+  const openAttachments = (
+    document: CorrespondenceDocument,
+    mode: CorrespondenceAttachmentsMode = "view",
+  ) => {
+    setAttachmentsDocument(document);
+    setAttachmentsMode(mode);
+  };
+
+  const openViewPdf = (document: CorrespondenceDocument) => {
+    openAttachments(document, "view");
   };
 
   const handleExportExcel = async () => {
@@ -682,6 +726,7 @@ const CorrespondenceCard: React.FC<CorrespondenceCardProps> = ({
           isLoading={isCardLoading}
           onEdit={openEditDocument}
           onDelete={onDeleteDocument}
+          onViewPdf={openViewPdf}
         />
       </div>
     );
@@ -689,26 +734,10 @@ const CorrespondenceCard: React.FC<CorrespondenceCardProps> = ({
 
   const renderCardBody = () => (
     <div className="space-y-2 sm:space-y-2.5">
-      {projectName && !error && (
-        <div className="flex justify-end">
-          <button
-            type="button"
-            onClick={() => {
-              setCountsFormError(null);
-              setIsCountsModalOpen(true);
-            }}
-            className="rounded-md bg-blue-600 px-2.5 py-1 text-xs font-semibold text-white hover:bg-blue-700 sm:text-sm"
-          >
-            Edit Correspondence
-          </button>
-        </div>
-      )}
       {renderPartyDashboards(true)}
       {projectName && !error && (
         <CorrespondenceSclDeliveredPanel
           scl={sclDelivered}
-          isSaving={sclSaving}
-          onSave={saveSclDelivered}
           onAddDocument={openAddSclDocument}
         />
       )}
@@ -751,17 +780,22 @@ const CorrespondenceCard: React.FC<CorrespondenceCardProps> = ({
             }
             return saved;
           }}
+          onAttachmentsChanged={() => {
+            void refreshAttachmentMeta();
+            void refreshCorrespondenceDashboard();
+          }}
         />
       )}
 
-      {isCountsModalOpen && (
-        <CorrespondenceMonthlyForm
-          projectName={projectName}
-          period={effectivePeriod}
-          isSaving={countsSaving}
-          error={countsFormError}
-          onClose={() => setIsCountsModalOpen(false)}
-          onSubmit={savePartyCounts}
+      {attachmentsDocument && (
+        <CorrespondenceAttachmentsPanel
+          document={attachmentsDocument}
+          initialMode={attachmentsMode}
+          onClose={() => setAttachmentsDocument(null)}
+          onChanged={() => {
+            void refreshAttachmentMeta();
+            void refreshCorrespondenceDashboard();
+          }}
         />
       )}
     </>
