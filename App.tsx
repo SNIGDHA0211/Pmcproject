@@ -69,6 +69,7 @@ import {
   type PendingUpdatesSummary,
 } from "./utils/pmcHeadPendingUpdates";
 import { userMatchesAssignee, extractAssigneeId, projectAssignedToUser } from "./utils/roleProjectAssignments";
+import { normalizeBackendProjectRow, PMC_TL_USERNAME, buildExecutiveProjectDropdownList, buildPmcHeadExecutiveProjectOptions, getKnownExecutiveProjectStubs } from "./utils/pmcHeadExecutiveProjects";
 import {
   clearAppRouteOnLogout,
   getDefaultTabForRole,
@@ -160,76 +161,52 @@ const App: React.FC = () => {
       const projectsData = unwrapList(projectsRes.data);
       const dprsData = unwrapList(dprsRes.data);
 
-      console.log('Fetched projects:', projectsData.length, 'projects');
+      let mergedProjectsData = [...projectsData];
+      if (currentUser?.role === UserRole.PMC_HEAD) {
+        const supplementalParams: Array<Record<string, string | number | boolean>> = [
+          { page_size: 1000 },
+          { page_size: 500 },
+          { team_lead: PMC_TL_USERNAME },
+          { team_lead_username: PMC_TL_USERNAME },
+          { search: 'Thane Project' },
+          { project_name: 'Thane Project' },
+        ];
 
-      // Transform backend projects to frontend format
-      const backendProjects = projectsData.map((p: any) => {
-        const createdById = p.created_by ? p.created_by.toString() : '';
-        const createdByName = p.created_by_name || '';
-        const createdAt = p.created_at || new Date().toISOString();
-        const initialAudit = createdById
-          ? [{
-            id: `init-${p.id}`,
-            action: "Project Initiated",
-            performedBy: createdById,
-            timestamp: createdAt,
-            details: createdByName ? `Created by ${createdByName}` : "Created"
-          }]
-          : [];
-        return ({
-          id: p.id.toString(),
-          title: p.name || '',
-          client: p.client_name || '',
-          location: p.location || '',
-          budget: Number(p.budget) || 0,
-          description: p.description || '',
-          status: p.status === 'planning' ? ProjectStatus.IN_PROGRESS :
-            p.status === 'active' ? ProjectStatus.IN_PROGRESS :
-              p.status === 'completed' ? ProjectStatus.APPROVED :
-                p.status === 'on_hold' ? ProjectStatus.REJECTED :
-                  ProjectStatus.CREATED,
-          workflowStatus: "SUBMITTED",
-          lastUpdated: p.updated_at || new Date().toISOString(),
-          createdAt: createdAt,
-          updatedAt: p.updated_at || new Date().toISOString(),
-          pmcHeadId: p.pmc_head?.toString() || '',
-          teamLeadId: p.team_lead?.toString() || '',
-          teamLeadName: p.team_lead_name || '',
-          siteEngineerIds: (p.site_engineers || [])
-            .map((id: unknown) => extractAssigneeId(id))
-            .filter(Boolean),
-          billingEngineerId: extractAssigneeId(p.billing_site_engineer),
-          qaqcEngineerId: extractAssigneeId(p.qaqc_site_engineer),
-          coordinatorIds: (p.coordinators || []).map((id: any) => id.toString()),
-          tasks: [],
-          documents: [],
-          sites: p.sites || [],
-          activities: [],
-          auditLogs: initialAudit,
-          commencementDate: p.commencement_date || '',
-          duration: p.duration || '',
-          salientFeatures: p.salient_features || '',
-          siteStaffDetails: p.site_staff_details || '',
-          hasDocumentation: p.has_documentation || false,
-          documentationFileUrl: p.documentation_file_url || null,
-          hasISOChecklist: p.has_iso_checklist || false,
-          hasTestFrequencyChart: p.has_test_frequency_chart || false,
-          // Dashboard data
-          plannedValue: p.planned_value || 0,
-          earnedValue: p.earned_value || 0,
-          actualCost: p.actual_cost || 0,
-          grossBilled: p.gross_billed || 0,
-          netBilled: p.net_billed || 0,
-          netCollected: p.net_collected || 0,
-          netDue: p.net_due || 0,
-          totalManhours: p.total_manhours || 0,
-          fatalities: p.fatalities || 0,
-          significant: p.significant || 0,
-          major: p.major || 0,
-          minor: p.minor || 0,
-          nearMiss: p.near_miss || 0,
+        const byId = new Map<string, Record<string, unknown>>();
+        const absorbRows = (rows: unknown[]) => {
+          rows.forEach((row) => {
+            if (!row || typeof row !== 'object') return;
+            const record = row as Record<string, unknown>;
+            const id = String(record.id ?? '');
+            if (id) byId.set(id, record);
+          });
+        };
+
+        mergedProjectsData.forEach((row) => {
+          if (row && typeof row === 'object') {
+            const record = row as Record<string, unknown>;
+            const id = String(record.id ?? '');
+            if (id) byId.set(id, record);
+          }
         });
-      });
+
+        for (const params of supplementalParams) {
+          try {
+            const supplementalRes = await projectApi.getProjects(params);
+            absorbRows(unwrapList(supplementalRes.data));
+          } catch {
+            // optional portfolio expansion for pmc_tl assignments
+          }
+        }
+
+        mergedProjectsData = [...byId.values()];
+      }
+
+      console.log('Fetched projects:', mergedProjectsData.length, 'projects');
+
+      const backendProjects = mergedProjectsData
+        .map((p) => normalizeBackendProjectRow(p as Record<string, unknown>))
+        .filter((project) => project.id);
 
       // Transform backend DPRs to frontend format
       const backendDPRs = dprsData.map((d: any) => {
@@ -278,7 +255,25 @@ const App: React.FC = () => {
         };
       });
 
-      setProjects(backendProjects);
+      let projectsForState = backendProjects;
+      if (currentUser?.role === UserRole.PMC_HEAD) {
+        projectsForState = buildExecutiveProjectDropdownList(
+          backendProjects,
+          getKnownExecutiveProjectStubs(backendProjects),
+        );
+        try {
+          const { projects: executiveProjects } = await buildPmcHeadExecutiveProjectOptions(
+            backendProjects,
+          );
+          if (executiveProjects.length > 0) {
+            projectsForState = executiveProjects;
+          }
+        } catch {
+          // keep known stub merge above
+        }
+      }
+
+      setProjects(projectsForState);
       setDprs(backendDPRs);
 
       // Fetch project documents for vault

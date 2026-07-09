@@ -325,7 +325,8 @@ export const authApi = {
 };
 
 export const projectApi = {
-  getProjects: () => api.get(API_ENDPOINTS.PROJECTS.LIST),
+  getProjects: (params?: Record<string, string | number | boolean>) =>
+    api.get(API_ENDPOINTS.PROJECTS.LIST, { params }),
   getProject: (id: string) => api.get(API_ENDPOINTS.PROJECTS.DETAIL(id)),
   createProject: (data: any) => {
     return api.post(API_ENDPOINTS.PROJECTS.LIST, data);

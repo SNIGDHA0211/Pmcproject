@@ -87,6 +87,11 @@ import PlannedEarnedValueCard from './PlannedEarnedValueCard';
 import PMCHeadExecutiveShell, {
   type PMCExecutiveTab,
 } from './pmcHead/PMCHeadExecutiveShell';
+import {
+  buildExecutiveProjectDropdownList,
+  buildPmcHeadExecutiveProjectOptions,
+  getKnownExecutiveProjectStubs,
+} from '../utils/pmcHeadExecutiveProjects';
 import { PMCExecutiveDetailFrame } from './pmcHead/PMCExecutiveDetailFrame';
 import PMCHeadScheduleSection, { PMCExecutivePanel } from './pmcHead/PMCHeadScheduleSection';
 import PMCHeadMoneySection from './pmcHead/PMCHeadMoneySection';
@@ -424,9 +429,19 @@ const Projects: React.FC<ProjectsProps> = ({
   const { isDarkTheme } = useTheme();
   const themeClasses = getThemeClasses(isDarkTheme);
   const typo = useProjectsDashboardTypo();
-  const allProjects = projects;
   const isPmcTeamLead = currentUser.role === UserRole.TEAM_LEAD;
   const isPMCHead = currentUser.role === UserRole.PMC_HEAD;
+  const [executiveProjectOptions, setExecutiveProjectOptions] = useState<Project[]>([]);
+  const [isExecutiveProjectsLoading, setIsExecutiveProjectsLoading] = useState(false);
+
+  const allProjects = useMemo(() => {
+    if (!isPMCHead) return projects;
+    return buildExecutiveProjectDropdownList(
+      projects,
+      executiveProjectOptions,
+      getKnownExecutiveProjectStubs(projects),
+    );
+  }, [isPMCHead, projects, executiveProjectOptions]);
   const [execTab, setExecTab] = useState<PMCExecutiveTab>('overview');
   const [tlOverviewCache, setTlOverviewCache] = useState<TeamLeaderOverviewCachePayload | null>(null);
   const tlOverviewCacheSavedRef = useRef<string | null>(null);
@@ -1274,6 +1289,44 @@ const Projects: React.FC<ProjectsProps> = ({
   const handleQualityYearChange = (year: number) => {
     setQualitySelectedYear(year);
   };
+
+  useEffect(() => {
+    if (!isPMCHead) {
+      setExecutiveProjectOptions([]);
+      setIsExecutiveProjectsLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+    setIsExecutiveProjectsLoading(true);
+
+    (async () => {
+      try {
+        const { projects: merged } = await buildPmcHeadExecutiveProjectOptions(projects);
+        if (!cancelled) {
+          const supplemental = merged.filter(
+            (project) =>
+              !projects.some(
+                (seed) =>
+                  seed.id === project.id ||
+                  seed.title.trim().toLowerCase() === project.title.trim().toLowerCase(),
+              ),
+          );
+          setExecutiveProjectOptions(supplemental);
+        }
+      } catch {
+        if (!cancelled) {
+          setExecutiveProjectOptions(buildExecutiveProjectDropdownList(projects));
+        }
+      } finally {
+        if (!cancelled) setIsExecutiveProjectsLoading(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isPMCHead, projects]);
 
   useEffect(() => {
     if (selectedProjectId) {
