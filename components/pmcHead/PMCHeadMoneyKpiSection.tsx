@@ -1,6 +1,6 @@
 import React from 'react';
-import { Activity, FileText, Layers } from 'lucide-react';
-import PlannedEarnedValueCard from '../PlannedEarnedValueCard';
+import { Activity, FileText } from 'lucide-react';
+import { PlannedEarnedValueGroupCard } from '../PlannedEarnedValueCard';
 import { FormulaInfoButton } from '../FormulaInfoButton';
 import { DASHBOARD_FORMULAS } from '../../utils/dashboardFormulas';
 import { formatIndianCurrencyCompact } from '../../utils/format';
@@ -10,7 +10,6 @@ import {
   type PerformanceStatusTone,
 } from '../PerformanceHighlightCard';
 import {
-  getCertificationSemanticTone,
   semanticBarFillClass,
   semanticBadgeClass,
   semanticValueClass,
@@ -18,6 +17,7 @@ import {
 } from '../../utils/dashboardSemanticColors';
 import { usePmcExecutiveTheme } from '../../utils/pmcExecutiveTheme';
 import { plannedValueSectionTitle } from '../../utils/dashboardContractorLabels';
+import type { PlannedEarnedPartyMetrics } from '../../services/api';
 
 const mapPerformanceTone = (tone: PerformanceStatusTone): DashboardSemanticTone => {
   if (tone === 'success') return 'positive';
@@ -28,8 +28,8 @@ const mapPerformanceTone = (tone: PerformanceStatusTone): DashboardSemanticTone 
 
 export interface PMCHeadMoneyKpiSectionProps {
   plannedEarnedByPeriod: {
-    scl: Parameters<typeof PlannedEarnedValueCard>[0]['data'];
-    contractor: Parameters<typeof PlannedEarnedValueCard>[0]['data'];
+    scl: PlannedEarnedPartyMetrics | null;
+    contractor: PlannedEarnedPartyMetrics | null;
   } | null;
   isLoadingPlannedEarned: boolean;
   plannedEarnedError: string | null;
@@ -158,7 +158,7 @@ const PMCHeadMoneyKpiSection: React.FC<PMCHeadMoneyKpiSectionProps> = ({
   const collectionTone = mapPerformanceTone(collectionStatus.tone);
 
   return (
-    <section className={`overflow-hidden ${ex.surface}`}>
+    <section id="exec-section-planned-vs-actual" className={`overflow-hidden ${ex.surface}`}>
       <div className={`border-b px-4 py-3.5 sm:px-5 ${ex.borderSubtle} ${ex.surfaceMuted}`}>
         <h3 className={ex.panelTitle}>Performance indicators</h3>
         <p className={ex.panelSubtitle}>
@@ -166,50 +166,21 @@ const PMCHeadMoneyKpiSection: React.FC<PMCHeadMoneyKpiSectionProps> = ({
         </p>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 p-4 sm:gap-5 sm:p-5 lg:grid-cols-2 xl:grid-cols-12">
-        <div className={`relative overflow-hidden lg:col-span-2 xl:col-span-6 ${ex.progressInsight}`}>
-          <div className={`border-b px-4 py-3 sm:px-5 ${ex.toolbarBorder}`}>
-            <div className="flex items-center justify-between gap-2">
-              <div className="flex items-center gap-2">
-                <Layers size={16} className={ex.isDark ? 'text-blue-400' : 'text-[#1e3a5f]'} />
-                <h4 className={`text-xs font-black uppercase tracking-wide sm:text-sm ${ex.heading}`}>
-                  Planned vs actual value
-                </h4>
-              </div>
-              <FormulaInfoButton {...DASHBOARD_FORMULAS.plannedVsEarnedValue} />
-            </div>
-          </div>
-          <div className="relative min-h-[300px] p-3 sm:p-4">
-            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-              <PlannedEarnedValueCard
-                className={`!min-h-[240px] !rounded-xl !shadow-none ${ex.isDark ? '!border-white/10' : '!border-slate-200'}`}
-                sectionTitle={plannedValueSectionTitle('SCL')}
-                data={plannedEarnedByPeriod?.scl ?? null}
-                isLoading={isLoadingPlannedEarned}
-                error={plannedEarnedError}
-                showTbdOverlay
-              />
-              <PlannedEarnedValueCard
-                className={`!min-h-[240px] !rounded-xl !shadow-none ${ex.isDark ? '!border-white/10' : '!border-slate-200'}`}
-                sectionTitle={plannedValueSectionTitle('Contractor', contractorDisplayName)}
-                data={plannedEarnedByPeriod?.contractor ?? null}
-                isLoading={isLoadingPlannedEarned}
-                error={plannedEarnedError}
-                showTbdOverlay
-              />
-            </div>
-            <div
-              className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center bg-slate-900/45 backdrop-blur-[1px]"
-              aria-hidden
-            >
-              <span className="rounded-xl bg-white/10 px-4 py-2 text-xl font-black uppercase tracking-[0.25em] text-white sm:text-2xl">
-                TBD
-              </span>
-            </div>
-          </div>
-        </div>
+      <div className="grid grid-cols-1 gap-4 p-4 sm:gap-5 sm:p-5">
+        <PlannedEarnedValueGroupCard
+          className={`!rounded-xl !shadow-none ${ex.isDark ? '!border-white/10' : '!border-slate-200'}`}
+          sclData={plannedEarnedByPeriod?.scl ?? null}
+          contractorData={plannedEarnedByPeriod?.contractor ?? null}
+          contractorSectionTitle={plannedValueSectionTitle('Contractor', contractorDisplayName)}
+          groupSubtitle="SCL & Contractor performance"
+          isLoading={isLoadingPlannedEarned}
+          sclError={plannedEarnedError}
+          contractorError={plannedEarnedError}
+          headerActions={<FormulaInfoButton {...DASHBOARD_FORMULAS.plannedVsEarnedValue} />}
+        />
 
-        <div className="lg:col-span-2 xl:col-span-3">
+        {/* Cost + Collection — last row */}
+        <div className="grid grid-cols-1 gap-4 sm:gap-5 lg:grid-cols-2">
           <PerformanceTile
             icon={<Activity size={18} />}
             title="Cost performance"
@@ -227,9 +198,7 @@ const PMCHeadMoneyKpiSection: React.FC<PMCHeadMoneyKpiSectionProps> = ({
             ]}
             headerActions={<FormulaInfoButton {...DASHBOARD_FORMULAS.projectCostPerformance} />}
           />
-        </div>
 
-        <div className="lg:col-span-2 xl:col-span-3">
           <PerformanceTile
             icon={<FileText size={18} />}
             title="Collection"

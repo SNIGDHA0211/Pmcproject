@@ -1,27 +1,20 @@
 import { DPR, Project } from '../types';
 import {
-  costPerformanceApi,
-  drawingRegisterApi,
-  fetchHealthSafetyDashboardFallback,
-  manpowerApi,
-  normalizeManpowerRecord,
-  normalizePlannedEarnedByPeriod,
-  normalizeProjectDatesByProject,
-  plannedEarnedValueApi,
   projectApi,
   projectDatesApi,
-  projectLogsApi,
+  normalizeProjectDatesByProject,
   toNum,
-  unwrapList,
+  type ProjectDatesByProject,
 } from './api';
-import { fetchProjectProgressChart } from './financialDataService';
-import { parseBottleneckFromProjectLogEntries } from '../utils/bottleneck';
 import {
   computeProjectDashboardMetrics,
   type ProjectDashboardMetrics,
   type ProjectMetricsInput,
 } from '../utils/projectDashboardMetrics';
-import { toIncidentMetrics } from '../utils/healthSafety';
+import {
+  isSyntheticExecutiveProjectId,
+  resolveExecutiveProjectForApi,
+} from '../utils/pmcHeadExecutiveProjects';
 
 export interface ProjectVitalsSnapshot {
   projectId: string;
@@ -32,154 +25,89 @@ export interface ProjectVitalsSnapshot {
   metrics: ProjectDashboardMetrics;
 }
 
+/** Parallel dashboard fetches — dates are optional second pass (many 404s). */
+const DASHBOARD_CONCURRENCY = 6;
+const DATES_CONCURRENCY = 4;
+
 const dprsForProject = (project: Project, dprs: DPR[]) =>
   dprs.filter((d) => d.projectId === project.id || d.projectName === project.title);
 
-export async function fetchProjectVitalsSnapshot(
+function isUnresolvedStubProject(project: Project): boolean {
+  return isSyntheticExecutiveProjectId(project.id);
+}
+
+function dashboardDataFromProject(project: Project): Record<string, unknown> {
+  return {
+    planned_value: project.plannedValue,
+    earned_value: project.earnedValue,
+    ac: project.actualCost,
+    bcwp: project.earnedValue,
+    gross_billed: project.grossBilled,
+    net_billed: project.netBilled,
+    net_collected: project.netCollected,
+    fatalities: project.fatalities,
+    significant: project.significant,
+    major: project.major,
+    minor: project.minor,
+    near_miss: project.nearMiss,
+    total_manhours: project.totalManhours,
+  };
+}
+
+function hasSeedHseData(project: Project): boolean {
+  return (
+    toNum(project.fatalities) +
+      toNum(project.significant) +
+      toNum(project.major) +
+      toNum(project.minor) +
+      toNum(project.nearMiss) >
+    0
+  );
+}
+
+function metricsInputFromDashboard(
   project: Project,
   dprs: DPR[],
-  role: string,
-): Promise<ProjectVitalsSnapshot> {
-  const now = new Date();
-  const month = now.getMonth() + 1;
-  const year = now.getFullYear();
-  const projectName = project.title;
+  dashboardData: Record<string, unknown>,
+  projectDatesBundle: ProjectDatesByProject | null = null,
+): ProjectMetricsInput {
   const dprCount = dprsForProject(project, dprs).length;
+  const planned = toNum(dashboardData.planned_value ?? project.plannedValue);
+  const earned = toNum(dashboardData.earned_value ?? project.earnedValue);
 
-  const [
-    progressChart,
-    datesResult,
-    costResult,
-    manpowerResult,
-    hseResult,
-    logsResult,
-    drawingsResult,
-    dashboardResult,
-    pevResult,
-  ] = await Promise.allSettled([
-    fetchProjectProgressChart(projectName, role),
-    projectDatesApi.getByProject(projectName),
-    costPerformanceApi.getCostPerformance({
-      project_name: projectName,
-      ...(role ? { role } : {}),
-    }),
-    manpowerApi.getManpower({ project_name: projectName }),
-    fetchHealthSafetyDashboardFallback(projectName, month, year),
-    projectLogsApi.getProjectLogs(project.id),
-    drawingRegisterApi.getClientReport({
-      projectName,
-      month,
-      year,
-      view: 'monthly',
-    }),
-    projectApi.getDashboardData(project.id),
-    plannedEarnedValueApi.getByProjectMonthYear(projectName, month, year),
-  ]);
-
-  const progressChartData =
-    progressChart.status === 'fulfilled' ? progressChart.value : [];
-
-  let projectDatesBundle = null;
-  if (datesResult.status === 'fulfilled') {
-    projectDatesBundle = normalizeProjectDatesByProject(datesResult.value.data, projectName);
-  }
-
-  const costPerformanceRows =
-    costResult.status === 'fulfilled'
-      ? unwrapList<any>(costResult.value.data).map((item: any) => ({
-          bcws: toNum(item.bcws),
-          bcwp: toNum(item.bcwp),
-          acwp: toNum(item.acwp),
-        }))
-      : [];
-
-  const manpowerRows =
-    manpowerResult.status === 'fulfilled'
-      ? unwrapList<any>(manpowerResult.value.data)
-          .map((item: any) => {
-            const row = normalizeManpowerRecord(item);
-            return {
-              month: row.month_year as string,
-              planned: row.planned_manpower,
-              actual: row.actual_manpower,
-            };
-          })
-          .sort((a, b) => {
-            const dateA = new Date('1-' + a.month);
-            const dateB = new Date('1-' + b.month);
-            return dateA.getTime() - dateB.getTime();
-          })
-      : [];
-
-  let hseMetrics = null;
-  let hasHseData = false;
-  if (hseResult.status === 'fulfilled') {
-    const dashboard = hseResult.value;
-    const current =
-      dashboard.currentMonth ??
-      dashboard.monthlyRecords.find((row) => row.month === month && row.year === year) ??
-      null;
-    if (current) {
-      hasHseData = true;
-      hseMetrics = toIncidentMetrics(current);
-    } else if (dashboard.ytdSummary) {
-      hasHseData = true;
-      hseMetrics = toIncidentMetrics(dashboard.ytdSummary);
-    }
-  }
-
-  const dashboardData =
-    dashboardResult.status === 'fulfilled'
-      ? (dashboardResult.value.data as Record<string, unknown>)
-      : null;
-
-  if (!hasHseData && dashboardData) {
-    hasHseData = true;
-  }
-
-  let bottleneckItems: ReturnType<typeof parseBottleneckFromProjectLogEntries> = [];
-  if (logsResult.status === 'fulfilled') {
-    const entries: unknown[] = logsResult.value.data?.entries || [];
-    bottleneckItems = parseBottleneckFromProjectLogEntries(entries);
-  }
-
-  let drawingApprovalRate: number | null = null;
-  let hasDrawingData = false;
-  if (drawingsResult.status === 'fulfilled') {
-    const summary = drawingsResult.value.data?.summary;
-    if (summary && typeof summary.approvalRate === 'number') {
-      hasDrawingData = true;
-      drawingApprovalRate = summary.approvalRate;
-    }
-  }
-
-  let plannedEarnedScl: ProjectMetricsInput['plannedEarnedScl'] = null;
-  if (pevResult.status === 'fulfilled') {
-    const period = normalizePlannedEarnedByPeriod(pevResult.value.data, projectName);
-    if (period.scl) {
-      plannedEarnedScl = {
-        plannedValue: toNum(period.scl.plannedValue),
-        earnedValue: toNum(period.scl.earnedValue),
-        performancePercentage: period.scl.performancePercentage,
-      };
-    }
-  }
-
-  const metrics = computeProjectDashboardMetrics({
-    progressChart: progressChartData,
+  return {
+    progressChart: [],
     projectDatesBundle,
-    costPerformanceRows,
-    manpowerRows,
-    hseMetrics,
-    hasHseData,
-    bottleneckItems,
-    drawingApprovalRate,
-    hasDrawingData,
+    costPerformanceRows: [
+      {
+        bcws: toNum(dashboardData.bcws),
+        bcwp: toNum(dashboardData.bcwp ?? dashboardData.earned_value),
+        acwp: toNum(dashboardData.ac ?? dashboardData.acwp),
+      },
+    ],
+    manpowerRows: [],
+    hseMetrics: null,
+    hasHseData: hasSeedHseData(project) || Object.keys(dashboardData).length > 0,
+    bottleneckItems: [],
+    drawingApprovalRate: null,
+    hasDrawingData: false,
     dashboardData,
-    plannedEarnedScl,
+    plannedEarnedScl:
+      planned > 0
+        ? {
+            plannedValue: planned,
+            earnedValue: earned,
+            performancePercentage: planned > 0 ? (earned / planned) * 100 : undefined,
+          }
+        : null,
     dprCount,
-  });
+  };
+}
 
+function snapshotFromMetrics(
+  project: Project,
+  metrics: ProjectDashboardMetrics,
+): ProjectVitalsSnapshot {
   return {
     projectId: project.id,
     title: project.title,
@@ -190,10 +118,205 @@ export async function fetchProjectVitalsSnapshot(
   };
 }
 
+export function buildSeedVitalsSnapshot(project: Project, dprs: DPR[]): ProjectVitalsSnapshot {
+  const resolved = resolveExecutiveProjectForApi(project);
+  const metrics = computeProjectDashboardMetrics(
+    metricsInputFromDashboard(resolved, dprs, dashboardDataFromProject(resolved)),
+  );
+  return snapshotFromMetrics(resolved, metrics);
+}
+
+function isNotFoundError(error: unknown): boolean {
+  const status = (error as { response?: { status?: number } })?.response?.status;
+  return status === 404 || status === 410;
+}
+
+async function safeGetDashboardData(
+  projectId: string,
+): Promise<Record<string, unknown> | null> {
+  try {
+    const response = await projectApi.getDashboardData(projectId);
+    const payload = response.data;
+    if (payload && typeof payload === 'object') {
+      return payload as Record<string, unknown>;
+    }
+    return null;
+  } catch (error) {
+    if (!isNotFoundError(error)) {
+      console.warn(`[vitals] dashboard-data failed for ${projectId}`, error);
+    }
+    return null;
+  }
+}
+
+async function safeGetProjectDates(
+  projectName: string,
+): Promise<ProjectDatesByProject | null> {
+  try {
+    const response = await projectDatesApi.getByProject(projectName);
+    return normalizeProjectDatesByProject(response.data, projectName);
+  } catch (error) {
+    if (!isNotFoundError(error)) {
+      console.warn(`[vitals] project-dates failed for ${projectName}`, error);
+    }
+    return null;
+  }
+}
+
+function needsScheduleDatesRefresh(metrics: ProjectDashboardMetrics): boolean {
+  return metrics.delayDays == null && metrics.overallProgressPct <= 0;
+}
+
+async function fetchProjectVitalsSnapshotLite(
+  project: Project,
+  dprs: DPR[],
+  datesBundle: ProjectDatesByProject | null,
+): Promise<ProjectVitalsSnapshot> {
+  const resolved = resolveExecutiveProjectForApi(project);
+  if (isUnresolvedStubProject(resolved)) {
+    return buildSeedVitalsSnapshot(project, dprs);
+  }
+
+  const seedDashboard = dashboardDataFromProject(resolved);
+  const dashboardPayload = await safeGetDashboardData(resolved.id);
+  const mergedDashboard = dashboardPayload
+    ? { ...seedDashboard, ...dashboardPayload }
+    : seedDashboard;
+
+  let projectDatesBundle = datesBundle;
+  const metricsWithoutDates = computeProjectDashboardMetrics(
+    metricsInputFromDashboard(resolved, dprs, mergedDashboard, projectDatesBundle),
+  );
+
+  if (!projectDatesBundle && needsScheduleDatesRefresh(metricsWithoutDates)) {
+    projectDatesBundle = await safeGetProjectDates(resolved.title);
+  }
+
+  const metrics = computeProjectDashboardMetrics(
+    metricsInputFromDashboard(resolved, dprs, mergedDashboard, projectDatesBundle),
+  );
+
+  return snapshotFromMetrics(resolved, metrics);
+}
+
+async function mapPool<T, R>(
+  items: T[],
+  concurrency: number,
+  worker: (item: T, index: number) => Promise<R>,
+): Promise<R[]> {
+  if (items.length === 0) return [];
+  const results = new Array<R>(items.length);
+  let cursor = 0;
+
+  const runWorker = async () => {
+    for (;;) {
+      const index = cursor;
+      cursor += 1;
+      if (index >= items.length) break;
+      results[index] = await worker(items[index], index);
+    }
+  };
+
+  const poolSize = Math.min(Math.max(1, concurrency), items.length);
+  await Promise.all(Array.from({ length: poolSize }, () => runWorker()));
+  return results;
+}
+
+/**
+ * Instant cards from list + DPR data, then parallel dashboard refresh (dates only when needed).
+ */
+export async function loadProjectVitalsProgressively(
+  projects: Project[],
+  dprs: DPR[],
+  onProgress?: (
+    snapshots: ProjectVitalsSnapshot[],
+    meta?: { completed: number; total: number },
+  ) => void,
+): Promise<ProjectVitalsSnapshot[]> {
+  const resolvedProjects = projects.map(resolveExecutiveProjectForApi);
+
+  const realIndices: number[] = [];
+  resolvedProjects.forEach((project, index) => {
+    if (!isUnresolvedStubProject(project)) {
+      realIndices.push(index);
+    }
+  });
+
+  const snapshots = resolvedProjects.map((project) => buildSeedVitalsSnapshot(project, dprs));
+  onProgress?.([...snapshots], { completed: 0, total: realIndices.length });
+
+  if (realIndices.length === 0) {
+    return snapshots;
+  }
+
+  const dashboardByIndex = new Map<number, Record<string, unknown> | null>();
+  let dashboardCompleted = 0;
+
+  await mapPool(realIndices, DASHBOARD_CONCURRENCY, async (index) => {
+    const project = resolvedProjects[index];
+    const seedDashboard = dashboardDataFromProject(project);
+    const payload = await safeGetDashboardData(project.id);
+    dashboardByIndex.set(
+      index,
+      payload ? { ...seedDashboard, ...payload } : seedDashboard,
+    );
+
+    const merged = dashboardByIndex.get(index) ?? seedDashboard;
+    snapshots[index] = snapshotFromMetrics(
+      project,
+      computeProjectDashboardMetrics(
+        metricsInputFromDashboard(project, dprs, merged, null),
+      ),
+    );
+    dashboardCompleted += 1;
+    onProgress?.([...snapshots], {
+      completed: dashboardCompleted,
+      total: realIndices.length,
+    });
+  });
+
+  const datesIndices = realIndices.filter((index) =>
+    needsScheduleDatesRefresh(snapshots[index].metrics),
+  );
+
+  if (datesIndices.length > 0) {
+    const datesByIndex = new Map<number, ProjectDatesByProject | null>();
+
+    await mapPool(datesIndices, DATES_CONCURRENCY, async (index) => {
+      const project = resolvedProjects[index];
+      datesByIndex.set(index, await safeGetProjectDates(project.title));
+    });
+
+    datesIndices.forEach((index) => {
+      const project = resolvedProjects[index];
+      const merged =
+        dashboardByIndex.get(index) ?? dashboardDataFromProject(project);
+      snapshots[index] = snapshotFromMetrics(
+        project,
+        computeProjectDashboardMetrics(
+          metricsInputFromDashboard(
+            project,
+            dprs,
+            merged,
+            datesByIndex.get(index) ?? null,
+          ),
+        ),
+      );
+    });
+    onProgress?.([...snapshots], {
+      completed: realIndices.length,
+      total: realIndices.length,
+    });
+  }
+
+  return snapshots;
+}
+
+/** @deprecated Prefer loadProjectVitalsProgressively — kept for compatibility. */
 export async function fetchAllProjectVitalsSnapshots(
   projects: Project[],
   dprs: DPR[],
-  role: string,
+  _role: string,
 ): Promise<ProjectVitalsSnapshot[]> {
-  return Promise.all(projects.map((project) => fetchProjectVitalsSnapshot(project, dprs, role)));
+  return loadProjectVitalsProgressively(projects, dprs);
 }

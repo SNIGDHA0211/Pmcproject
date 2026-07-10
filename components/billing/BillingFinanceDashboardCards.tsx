@@ -126,10 +126,10 @@ const BillingFinanceDashboardCardsInner: React.FC<BillingFinanceDashboardCardsPr
         </div>
       </div>
 
-      {/* Row 1: Planned vs Actual, Internal Cost */}
-      <div className="earned-value-kpi-row grid grid-cols-1 items-stretch gap-3 md:grid-cols-2 xl:grid-cols-3">
+      {/* Row 1: Planned vs Actual (full width) — Internal Cost / Contract Performance follow below */}
+      <div className="earned-value-kpi-row space-y-3">
         <PlannedEarnedValueGroupCard
-          className="planned-earned-value-tour-group"
+          className="planned-earned-value-tour-group w-full"
           sclData={data.plannedEarnedByPeriod?.scl ?? null}
           contractorData={data.plannedEarnedByPeriod?.contractor ?? null}
           contractorSectionTitle={plannedValueSectionTitle('Contractor')}

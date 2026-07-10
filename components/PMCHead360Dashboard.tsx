@@ -20,17 +20,25 @@ import { DPR, Project, User } from '../types';
 import { useTheme, getThemeClasses } from '../utils/theme';
 import { getPmcExecutiveTheme } from '../utils/pmcExecutiveTheme';
 import type { HealthLabel } from '../utils/projectVitals';
-import { fetchAllProjectVitalsSnapshots } from '../services/projectVitalsService';
+import { buildSeedVitalsSnapshot, loadProjectVitalsProgressively } from '../services/projectVitalsService';
 import {
   ProjectVitalsCard,
   VitalKey,
   buildPortfolioSummary,
   buildProjectVitalsCardFromSnapshot,
   healthBadgeClass,
+  PORTFOLIO_SCORE_FORMULAS,
+  scoreToAccent,
   statusColor,
 } from '../utils/projectVitals';
 import {
+  downloadPmcHead360CompareExcel,
+  pmcHead360CompareFilename,
+} from '../utils/pmcHead360CompareExport';
+import {
+  buildDprsFingerprint,
   buildPMCHead360CachePayload,
+  buildProjectsFingerprint,
   readPMCHead360Cache,
   writePMCHead360Cache,
 } from '../utils/pmcHead360Cache';
@@ -49,7 +57,15 @@ const VITAL_ICONS: Record<VitalKey, React.ElementType> = {
   safety: ShieldCheck,
   reports: ClipboardList,
   drawings: PenTool,
+  compliance: ClipboardList,
 };
+
+const KPI_HEALTHY_COLORS = {
+  schedule: '#6366f1',
+  financial: '#0ea5e9',
+  compliance: '#8b5cf6',
+  safety: '#10b981',
+} as const;
 
 const head360HealthBorder = (label: HealthLabel, isDark: boolean): string => {
   if (isDark) {
@@ -197,7 +213,9 @@ const KpiPill: React.FC<{
   icon: React.ElementType;
   accent: string;
   isDark?: boolean;
-}> = ({ shortLabel, value, icon: Icon, accent, isDark = false }) => (
+}> = ({ shortLabel, value, icon: Icon, accent, isDark = false }) => {
+  const valueColor = scoreToAccent(value, accent);
+  return (
   <div
     className={`flex min-h-[4.25rem] min-w-0 items-center gap-2.5 rounded-xl border px-3 py-2.5 ${
       isDark ? 'border-white/10 bg-[#0f2744]/70' : 'border-slate-100 bg-white shadow-sm'
@@ -205,7 +223,7 @@ const KpiPill: React.FC<{
   >
     <div
       className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg"
-      style={{ backgroundColor: `${accent}${isDark ? '28' : '18'}`, color: accent }}
+      style={{ backgroundColor: `${valueColor}${isDark ? '28' : '18'}`, color: valueColor }}
     >
       <Icon size={16} />
     </div>
@@ -218,15 +236,15 @@ const KpiPill: React.FC<{
         {shortLabel}
       </p>
       <p
-        className={`mt-0.5 text-xl font-black tabular-nums leading-none ${
-          isDark ? 'text-slate-100' : 'text-slate-800'
-        }`}
+        className="mt-0.5 text-xl font-black tabular-nums leading-none"
+        style={{ color: valueColor }}
       >
         {value != null ? `${value}%` : '—'}
       </p>
     </div>
   </div>
-);
+  );
+};
 
 const VitalRow: React.FC<{ vital: ProjectVitalsCard['vitals'][0]; isDark?: boolean }> = ({
   vital,
@@ -440,15 +458,28 @@ const PMCHead360Dashboard: React.FC<PMCHead360DashboardProps> = ({
   const [regionFilter, setRegionFilter] = useState('all');
   const [pmFilter, setPmFilter] = useState('all');
   const [compareIds, setCompareIds] = useState<string[]>([]);
+  const [isExportingCompare, setIsExportingCompare] = useState(false);
+  const [showScoreFormulas, setShowScoreFormulas] = useState(false);
   const [allCards, setAllCards] = useState<ProjectVitalsCard[]>(() => {
     const cached = readPMCHead360Cache(user.id, projects, dprs);
-    return cached?.cards ?? [];
+    if (cached?.cards.length) return cached.cards;
+    if (projects.length === 0) return [];
+    return projects.map((project) =>
+      buildProjectVitalsCardFromSnapshot(buildSeedVitalsSnapshot(project, dprs)),
+    );
   });
   const [isLoadingVitals, setIsLoadingVitals] = useState(() => {
     if (projects.length === 0) return false;
     return !readPMCHead360Cache(user.id, projects, dprs);
   });
+  const [vitalsRefreshProgress, setVitalsRefreshProgress] = useState<{
+    completed: number;
+    total: number;
+  } | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
+
+  const projectFingerprint = useMemo(() => buildProjectsFingerprint(projects), [projects]);
+  const dprsFingerprint = useMemo(() => buildDprsFingerprint(projects, dprs), [projects, dprs]);
 
   useEffect(() => {
     let cancelled = false;
@@ -463,15 +494,34 @@ const PMCHead360Dashboard: React.FC<PMCHead360DashboardProps> = ({
       const cached = readPMCHead360Cache(user.id, projects, dprs);
       if (cached) {
         setAllCards(cached.cards);
-        setIsLoadingVitals(false);
         setLoadError(null);
-        return;
       }
 
+      const realProjectCount = projects.filter(
+        (p) => !String(p.id).startsWith('executive-known-'),
+      ).length;
       setIsLoadingVitals(true);
+      setVitalsRefreshProgress(
+        realProjectCount > 0 ? { completed: 0, total: realProjectCount } : null,
+      );
       setLoadError(null);
+
+      const seedCards = projects.map((project) =>
+        buildProjectVitalsCardFromSnapshot(buildSeedVitalsSnapshot(project, dprs)),
+      );
+      if (!cached) {
+        setAllCards(seedCards);
+      }
+
       try {
-        const snapshots = await fetchAllProjectVitalsSnapshots(projects, dprs, 'PMC Head');
+        const snapshots = await loadProjectVitalsProgressively(projects, dprs, (nextSnapshots, meta) => {
+          if (cancelled) return;
+          setAllCards(nextSnapshots.map(buildProjectVitalsCardFromSnapshot));
+          if (meta) {
+            setVitalsRefreshProgress(meta);
+          }
+        });
+
         if (!cancelled) {
           const cards = snapshots.map(buildProjectVitalsCardFromSnapshot);
           setAllCards(cards);
@@ -483,11 +533,13 @@ const PMCHead360Dashboard: React.FC<PMCHead360DashboardProps> = ({
       } catch (error) {
         console.error('Failed to load project vitals:', error);
         if (!cancelled) {
-          setLoadError('Unable to load live project data. Please refresh.');
-          setAllCards([]);
+          setLoadError('Some live metrics may be unavailable. Showing list data.');
         }
       } finally {
-        if (!cancelled) setIsLoadingVitals(false);
+        if (!cancelled) {
+          setIsLoadingVitals(false);
+          setVitalsRefreshProgress(null);
+        }
       }
     };
 
@@ -495,7 +547,7 @@ const PMCHead360Dashboard: React.FC<PMCHead360DashboardProps> = ({
     return () => {
       cancelled = true;
     };
-  }, [projects, dprs, user.id]);
+  }, [user.id, projectFingerprint, dprsFingerprint, projects, dprs]);
 
   const regions = useMemo(
     () => ['all', ...Array.from(new Set(projects.map((p) => p.location).filter(Boolean)))],
@@ -547,22 +599,17 @@ const PMCHead360Dashboard: React.FC<PMCHead360DashboardProps> = ({
   const barColor = (score: number | null) =>
     score == null ? '#94a3b8' : score < 50 ? '#ef4444' : score < 75 ? '#f59e0b' : '#22c55e';
 
-  const handleExport = () => {
-    const rows = compareCards.map((c) =>
-      [
-        c.title,
-        c.overallScore ?? '',
-        ...c.vitals.map((v) => (v.percent != null ? v.percent : '')),
-      ].join(','),
-    );
-    const header = 'Project,Score,Schedule,Budget,Manpower,Safety,Reports,Drawings';
-    const blob = new Blob([[header, ...rows].join('\n')], { type: 'text/csv' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'project-comparison.csv';
-    a.click();
-    URL.revokeObjectURL(url);
+  const handleExport = async () => {
+    if (compareCards.length === 0) return;
+    setIsExportingCompare(true);
+    try {
+      await downloadPmcHead360CompareExcel(compareCards, pmcHead360CompareFilename());
+    } catch (error) {
+      console.error('Compare export failed:', error);
+      window.alert('Failed to export comparison. Please try again.');
+    } finally {
+      setIsExportingCompare(false);
+    }
   };
 
   if (projects.length === 0) {
@@ -660,13 +707,13 @@ const PMCHead360Dashboard: React.FC<PMCHead360DashboardProps> = ({
         <div className={ex.alert}>{loadError}</div>
       )}
 
-      {isLoadingVitals ? (
-        <div className={`flex min-h-[280px] flex-col items-center justify-center p-8 ${ex.surface}`}>
-          <div className="h-9 w-9 animate-spin rounded-full border-2 border-indigo-600 border-t-transparent" />
-          <p className={`mt-3 text-sm font-bold ${ex.muted}`}>Loading live project data…</p>
-        </div>
-      ) : (
-        <>
+      {isLoadingVitals && vitalsRefreshProgress && vitalsRefreshProgress.total > 0 && (
+        <p className={`rounded-lg border px-3 py-2 text-center text-[11px] font-semibold ${ex.isDark ? 'border-indigo-500/25 bg-indigo-500/10 text-indigo-200' : 'border-indigo-200 bg-indigo-50 text-indigo-700'}`}>
+          Loading live backend data… {vitalsRefreshProgress.completed} / {vitalsRefreshProgress.total} projects
+        </p>
+      )}
+
+      <>
       <div className={`overflow-hidden ${ex.surface}`}>
         <div
           className={`grid grid-cols-1 gap-3 p-3.5 sm:p-4 lg:grid-cols-[auto_minmax(0,1fr)] lg:items-center lg:gap-4 ${
@@ -681,31 +728,51 @@ const PMCHead360Dashboard: React.FC<PMCHead360DashboardProps> = ({
               shortLabel="Schedule"
               value={portfolio.scheduleHealth}
               icon={Calendar}
-              accent="#ef4444"
+              accent={KPI_HEALTHY_COLORS.schedule}
               isDark={isDarkTheme}
             />
             <KpiPill
               shortLabel="Financial"
               value={portfolio.financialHealth}
               icon={Wallet}
-              accent="#22c55e"
+              accent={KPI_HEALTHY_COLORS.financial}
               isDark={isDarkTheme}
             />
             <KpiPill
               shortLabel="Compliance"
               value={portfolio.compliance}
               icon={ClipboardList}
-              accent="#f59e0b"
+              accent={KPI_HEALTHY_COLORS.compliance}
               isDark={isDarkTheme}
             />
             <KpiPill
               shortLabel="Safety"
               value={portfolio.safetyIndex}
               icon={ShieldCheck}
-              accent="#22c55e"
+              accent={KPI_HEALTHY_COLORS.safety}
               isDark={isDarkTheme}
             />
           </div>
+        </div>
+        <div
+          className={`border-t px-3.5 py-2 sm:px-4 ${isDarkTheme ? 'border-white/10 bg-white/[0.02]' : 'border-slate-100 bg-slate-50/80'}`}
+        >
+          <button
+            type="button"
+            onClick={() => setShowScoreFormulas((open) => !open)}
+            className={`text-[10px] font-bold uppercase tracking-wide ${ex.isDark ? 'text-indigo-300 hover:text-indigo-200' : 'text-indigo-600 hover:text-indigo-700'}`}
+          >
+            {showScoreFormulas ? 'Hide' : 'How scores are calculated'}
+          </button>
+          {showScoreFormulas && (
+            <ul className={`mt-2 space-y-1.5 text-[10px] leading-relaxed ${ex.muted}`}>
+              <li><strong className={ex.body}>Portfolio score:</strong> {PORTFOLIO_SCORE_FORMULAS.portfolioScore} Based on {portfolio.projectsWithScore} of {portfolio.projectsTotal} filtered projects.</li>
+              <li><strong className={ex.body}>Schedule:</strong> {PORTFOLIO_SCORE_FORMULAS.schedule}</li>
+              <li><strong className={ex.body}>Financial:</strong> {PORTFOLIO_SCORE_FORMULAS.financial}</li>
+              <li><strong className={ex.body}>Compliance:</strong> {PORTFOLIO_SCORE_FORMULAS.compliance}</li>
+              <li><strong className={ex.body}>Safety:</strong> {PORTFOLIO_SCORE_FORMULAS.safety}</li>
+            </ul>
+          )}
         </div>
       </div>
 
@@ -801,6 +868,17 @@ const PMCHead360Dashboard: React.FC<PMCHead360DashboardProps> = ({
                   .filter((p): p is { name: string; value: number; color: string } => p.value != null)}
               />
               <CompareBar
+                label="Compliance %"
+                isDark={isDarkTheme}
+                projects={compareCards
+                  .map((c) => ({
+                    name: c.title,
+                    value: c.vitals.find((v) => v.key === 'compliance')?.percent,
+                    color: barColor(c.vitals.find((v) => v.key === 'compliance')?.percent ?? null),
+                  }))
+                  .filter((p): p is { name: string; value: number; color: string } => p.value != null)}
+              />
+              <CompareBar
                 label="Drawings %"
                 isDark={isDarkTheme}
                 projects={compareCards
@@ -821,17 +899,16 @@ const PMCHead360Dashboard: React.FC<PMCHead360DashboardProps> = ({
           <button
             type="button"
             onClick={handleExport}
-            disabled={compareCards.length === 0}
+            disabled={compareCards.length === 0 || isExportingCompare}
             className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-lg bg-indigo-600 py-2.5 text-[10px] font-black uppercase tracking-widest text-white transition-colors hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-40"
           >
-            <Download size={14} />
-            Export Comparison
+            <Download size={14} className={isExportingCompare ? 'animate-pulse' : ''} />
+            {isExportingCompare ? 'Exporting…' : `Export Excel (${compareCards.length})`}
           </button>
         </aside>
       </div>
 
-        </>
-      )}
+      </>
 
       {/* Footer legend */}
       <footer

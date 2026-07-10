@@ -69,7 +69,7 @@ import {
   type PendingUpdatesSummary,
 } from "./utils/pmcHeadPendingUpdates";
 import { userMatchesAssignee, extractAssigneeId, projectAssignedToUser } from "./utils/roleProjectAssignments";
-import { normalizeBackendProjectRow, PMC_TL_USERNAME, buildExecutiveProjectDropdownList, buildPmcHeadExecutiveProjectOptions, getKnownExecutiveProjectStubs } from "./utils/pmcHeadExecutiveProjects";
+import { normalizeBackendProjectRow, buildExecutiveProjectDropdownList, buildPmcHeadExecutiveProjectOptions, getKnownExecutiveProjectStubs, seedProjectRowCache } from "./utils/pmcHeadExecutiveProjects";
 import {
   clearAppRouteOnLogout,
   getDefaultTabForRole,
@@ -153,60 +153,24 @@ const App: React.FC = () => {
   const fetchData = async () => {
     setIsLoading(true);
     try {
+      const isPmcHead = currentUser?.role === UserRole.PMC_HEAD;
       const [projectsRes, dprsRes] = await Promise.all([
-        projectApi.getProjects(),
-        dprApi.getDPRs() // Fetch from DPR API instead
+        projectApi.getProjects(isPmcHead ? { page_size: 1000 } : undefined),
+        dprApi.getDPRs(),
       ]);
 
       const projectsData = unwrapList(projectsRes.data);
-      const dprsData = unwrapList(dprsRes.data);
-
-      let mergedProjectsData = [...projectsData];
-      if (currentUser?.role === UserRole.PMC_HEAD) {
-        const supplementalParams: Array<Record<string, string | number | boolean>> = [
-          { page_size: 1000 },
-          { page_size: 500 },
-          { team_lead: PMC_TL_USERNAME },
-          { team_lead_username: PMC_TL_USERNAME },
-          { search: 'Thane Project' },
-          { project_name: 'Thane Project' },
-        ];
-
-        const byId = new Map<string, Record<string, unknown>>();
-        const absorbRows = (rows: unknown[]) => {
-          rows.forEach((row) => {
-            if (!row || typeof row !== 'object') return;
-            const record = row as Record<string, unknown>;
-            const id = String(record.id ?? '');
-            if (id) byId.set(id, record);
-          });
-        };
-
-        mergedProjectsData.forEach((row) => {
-          if (row && typeof row === 'object') {
-            const record = row as Record<string, unknown>;
-            const id = String(record.id ?? '');
-            if (id) byId.set(id, record);
-          }
-        });
-
-        for (const params of supplementalParams) {
-          try {
-            const supplementalRes = await projectApi.getProjects(params);
-            absorbRows(unwrapList(supplementalRes.data));
-          } catch {
-            // optional portfolio expansion for pmc_tl assignments
-          }
-        }
-
-        mergedProjectsData = [...byId.values()];
+      if (isPmcHead) {
+        seedProjectRowCache(projectsData);
       }
 
-      console.log('Fetched projects:', mergedProjectsData.length, 'projects');
+      const dprsData = unwrapList(dprsRes.data);
 
-      const backendProjects = mergedProjectsData
+      const backendProjects = projectsData
         .map((p) => normalizeBackendProjectRow(p as Record<string, unknown>))
         .filter((project) => project.id);
+
+      console.log('Fetched projects:', backendProjects.length, 'projects');
 
       // Transform backend DPRs to frontend format
       const backendDPRs = dprsData.map((d: any) => {
@@ -256,33 +220,37 @@ const App: React.FC = () => {
       });
 
       let projectsForState = backendProjects;
-      if (currentUser?.role === UserRole.PMC_HEAD) {
+      if (isPmcHead) {
         projectsForState = buildExecutiveProjectDropdownList(
           backendProjects,
           getKnownExecutiveProjectStubs(backendProjects),
         );
-        try {
-          const { projects: executiveProjects } = await buildPmcHeadExecutiveProjectOptions(
-            backendProjects,
-          );
-          if (executiveProjects.length > 0) {
-            projectsForState = executiveProjects;
-          }
-        } catch {
-          // keep known stub merge above
-        }
       }
 
       setProjects(projectsForState);
       setDprs(backendDPRs);
 
-      // Fetch project documents for vault
-      try {
-        const docsRes = await projectApi.getProjectDocuments();
-        setProjectDocuments(docsRes.data);
-      } catch (docError) {
-        console.error("Failed to fetch project documents:", docError);
+      if (isPmcHead) {
+        void buildPmcHeadExecutiveProjectOptions(backendProjects)
+          .then(({ projects: executiveProjects }) => {
+            if (executiveProjects.length > 0) {
+              setProjects(executiveProjects);
+            }
+          })
+          .catch(() => {
+            // stubs already shown
+          });
       }
+
+      // Fetch project documents for vault (non-blocking)
+      void projectApi
+        .getProjectDocuments()
+        .then((docsRes) => {
+          setProjectDocuments(docsRes.data);
+        })
+        .catch((docError) => {
+          console.error('Failed to fetch project documents:', docError);
+        });
     } catch (error) {
       console.error("Failed to fetch data from backend:", error);
       // Set empty arrays to prevent UI from breaking

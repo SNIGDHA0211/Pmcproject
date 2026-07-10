@@ -1,6 +1,8 @@
 import type { ProjectDashboardMetrics } from './projectDashboardMetrics';
 import {
+  computeCompliancePct,
   computeOverallScoreFromMetrics,
+  computeScheduleHealthPct,
   hseLevelToPercent,
 } from './projectDashboardMetrics';
 import type { ProjectVitalsSnapshot } from '../services/projectVitalsService';
@@ -9,7 +11,7 @@ export type VitalStatus = 'healthy' | 'watch' | 'critical' | 'unknown';
 export type HealthLabel = 'ON TRACK' | 'AT RISK' | 'CRITICAL' | 'NO DATA';
 export type TrendDirection = 'improving' | 'stable' | 'declining';
 
-export type VitalKey = 'schedule' | 'budget' | 'manpower' | 'safety' | 'reports' | 'drawings';
+export type VitalKey = 'schedule' | 'budget' | 'manpower' | 'safety' | 'reports' | 'drawings' | 'compliance';
 
 export interface ProjectVital {
   key: VitalKey;
@@ -54,22 +56,36 @@ export const buildProjectVitalsCardFromSnapshot = (
   const hasHseData = m.healthSafetyStatus.sublabel !== 'No HSE data';
   const safetyPct = hseLevelToPercent(m.healthSafetyStatus.level, hasHseData);
 
+  const schedulePct = computeScheduleHealthPct(m);
+  const compliancePct = computeCompliancePct(m);
+
   const scheduleNote =
     m.delayDays != null && m.delayDays > 0
       ? `${m.delayDays} days behind`
-      : m.overallProgressPct >= 80
+      : schedulePct != null && schedulePct >= 80
         ? 'On schedule'
-        : 'Physical progress to date';
+        : m.overallProgressPct > 0
+          ? `${m.overallProgressPct}% physical progress`
+          : 'No schedule data';
 
   const reportsNote =
     m.dprCount > 0 ? `${m.dprCount} DPR logged` : 'No DPR data';
+
+  const complianceNote =
+    compliancePct == null
+      ? 'No compliance data'
+      : m.drawingApprovalPct > 0 && m.dprCount > 0
+        ? 'Drawings & DPR active'
+        : m.drawingApprovalPct > 0
+          ? 'Drawing register tracked'
+          : 'DPR reporting active';
 
   const vitals: ProjectVital[] = [
     {
       key: 'schedule',
       label: 'Schedule',
-      percent: m.overallProgressPct,
-      status: statusFromPercent(m.overallProgressPct),
+      percent: schedulePct,
+      status: statusFromPercent(schedulePct),
       note: scheduleNote,
     },
     {
@@ -103,14 +119,21 @@ export const buildProjectVitalsCardFromSnapshot = (
     {
       key: 'drawings',
       label: 'Drawings',
-      percent: m.drawingApprovalPct,
-      status: statusFromPercent(m.drawingApprovalPct, 55, 80),
+      percent: m.drawingApprovalPct > 0 ? m.drawingApprovalPct : null,
+      status: statusFromPercent(m.drawingApprovalPct > 0 ? m.drawingApprovalPct : null, 55, 80),
       note:
         m.drawingApprovalPct >= 75
           ? 'On track'
           : m.drawingApprovalPct > 0
             ? 'Needs improvement'
             : 'No drawing data',
+    },
+    {
+      key: 'compliance',
+      label: 'Compliance',
+      percent: compliancePct,
+      status: statusFromPercent(compliancePct, 55, 80),
+      note: complianceNote,
     },
   ];
 
@@ -144,15 +167,40 @@ export const buildProjectVitalsCardFromSnapshot = (
   };
 };
 
-export const buildPortfolioSummary = (cards: ProjectVitalsCard[]) => {
+export interface PortfolioSummary {
+  portfolioScore: number | null;
+  scheduleHealth: number | null;
+  financialHealth: number | null;
+  compliance: number | null;
+  safetyIndex: number | null;
+  projectsWithScore: number;
+  projectsTotal: number;
+}
+
+export const PORTFOLIO_SCORE_FORMULAS = {
+  portfolioScore:
+    'Average of each project’s overall score (mean of Schedule, Financial, Manpower, Safety, and Compliance where data exists).',
+  schedule:
+    'Per project: 100% when no delay; reduced by delay days (90 days delay → 0%). Uses project dates when loaded, else physical progress.',
+  financial:
+    'Per project: CPI = BCWP ÷ ACWP from dashboard / cost performance (100% = on budget). Portfolio value is the average across projects with cost data.',
+  compliance:
+    'Per project: average of drawing approval % and DPR activity score. Portfolio value averages projects with compliance data.',
+  safety:
+    'Per project: SAFE = 100%, WARNING = 55%, CRITICAL = 15% from HSE incidents. Portfolio value averages projects with HSE data.',
+} as const;
+
+export const buildPortfolioSummary = (cards: ProjectVitalsCard[]): PortfolioSummary => {
   const withScore = cards.filter((c) => c.overallScore != null);
   if (withScore.length === 0) {
     return {
-      portfolioScore: null as number | null,
-      scheduleHealth: null as number | null,
-      financialHealth: null as number | null,
-      compliance: null as number | null,
-      safetyIndex: null as number | null,
+      portfolioScore: null,
+      scheduleHealth: null,
+      financialHealth: null,
+      compliance: null,
+      safetyIndex: null,
+      projectsWithScore: 0,
+      projectsTotal: cards.length,
     };
   }
 
@@ -165,19 +213,25 @@ export const buildPortfolioSummary = (cards: ProjectVitalsCard[]) => {
       : null;
   };
 
-  const drawingsAvg = avgVital('drawings');
-  const compliance = drawingsAvg;
-
   return {
     portfolioScore: Math.round(
       withScore.reduce((s, c) => s + (c.overallScore ?? 0), 0) / withScore.length,
     ),
     scheduleHealth: avgVital('schedule'),
     financialHealth: avgVital('budget'),
-    compliance,
+    compliance: avgVital('compliance'),
     safetyIndex: avgVital('safety'),
+    projectsWithScore: withScore.length,
+    projectsTotal: cards.length,
   };
 };
+
+export function scoreToAccent(value: number | null, healthyColor: string): string {
+  if (value == null) return '#94a3b8';
+  if (value < 50) return '#ef4444';
+  if (value < 75) return '#f59e0b';
+  return healthyColor;
+}
 
 export const statusColor = (status: VitalStatus): string => {
   switch (status) {

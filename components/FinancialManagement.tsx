@@ -17,6 +17,7 @@ import {
   normalizePlannedEarnedByPeriod,
 } from '../services/api';
 import { extractRecordId, formatFinancialMonthYear } from '../utils/financialPeriod';
+import PlannedVsActualPage from './plannedVsActual/PlannedVsActualPage';
 import PlannedEarnedValueFormSection, { type PlannedEarnedPartyFormValues } from './PlannedEarnedValueFormSection';
 import { ContractPerformanceRecord, ContractValueRecord, ContractValueType, getInvoiceTypeLabel, InvoicingRecord, InvoiceType, Project, User } from '../types';
 import FinancialManagementTour from './tours/FinancialManagementTour';
@@ -93,7 +94,7 @@ export type FinancialManagementVariant = 'default' | 'billing';
 const TAB_SUCCESS_BANNERS: Record<SubTab, string> = {
   progress: '✓ Physical Progress Updated Successfully',
   cashflow: '✓ Cashflow Updated Successfully',
-  earned_value: '✓ Planned vs Actual Value Updated Successfully',
+  earned_value: '✓ Planned vs Actual Updated Successfully',
   contract: '✓ Contract Performance Updated Successfully',
   cost: '✓ Financial Progress Updated Successfully',
   budget: '✓ Budget Performance Updated Successfully',
@@ -1083,7 +1084,7 @@ const FinancialManagement: React.FC<FinancialManagementProps> = ({
     [
       { key: 'progress' as const, label: 'Physical Progress' },
       { key: 'cashflow' as const, label: 'Cashflow' },
-      { key: 'earned_value' as const, label: 'Planned vs Actual Value' },
+      { key: 'earned_value' as const, label: 'Planned vs Actual' },
       { key: 'contract' as const, label: 'Contract Performance' },
       { key: 'cost' as const, label: isBillingVariant ? 'Internal Cost Performance' : 'Financial Progress' },
       { key: 'budget' as const, label: 'Budget vs Cost' },
@@ -1269,45 +1270,15 @@ const FinancialManagement: React.FC<FinancialManagementProps> = ({
               />
             )}
 
-            {/* TAB 1.5: Planned vs Actual Value — SCL & Contractor */}
+            {/* TAB: Planned vs Actual — refactored module (backend calculations only) */}
             {activeSubTab === 'earned_value' && (
-              <div className="space-y-8 financial-tab-content">
-                <PlannedEarnedValueFormSection
-                  party="SCL"
-                  projectName={projectName}
-                  periodLabel={periodNote}
-                  values={pevForms.SCL}
-                  error={pevErrors.SCL}
-                  isSaving={savingPev.SCL}
-                  successBanner={pevSuccessParty === 'SCL' ? formSuccessBanner : null}
-                  sectionRef={formEntryRef}
-                  onChange={(field, value) => updatePevField('SCL', field, value)}
-                  onSave={() => handlePlannedEarnedSave('SCL')}
-                  onReset={handleFormReset}
-                  onRefresh={forceRefresh}
-                  refreshDisabled={isForceRefreshing}
-                />
-                <PlannedEarnedValueFormSection
-                  party="CONTRACTOR"
-                  projectName={projectName}
-                  periodLabel={periodNote}
-                  values={pevForms.CONTRACTOR}
-                  error={pevErrors.CONTRACTOR}
-                  isSaving={savingPev.CONTRACTOR}
-                  successBanner={pevSuccessParty === 'CONTRACTOR' ? formSuccessBanner : null}
-                  onChange={(field, value) => updatePevField('CONTRACTOR', field, value)}
-                  onSave={() => handlePlannedEarnedSave('CONTRACTOR')}
-                  onReset={handleFormReset}
-                  onRefresh={forceRefresh}
-                  refreshDisabled={isForceRefreshing}
-                />
-
-                <FinancialTabAnalytics
-                  variant="earned_value"
-                  metrics={executiveMetrics}
-                  isDarkTheme={isDarkTheme}
-                  themeClasses={themeClasses}
-                  projectName={projectName}
+              <div className="financial-tab-content">
+                <PlannedVsActualPage
+                  projects={projects}
+                  initialProjectId={selectedProject || initialProjectId || null}
+                  initialMonth={selectedMonthNumber}
+                  initialYear={selectedYearNumber}
+                  embedInFinancialManagement
                 />
               </div>
             )}

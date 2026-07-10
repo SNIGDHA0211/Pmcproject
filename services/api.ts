@@ -4754,6 +4754,11 @@ export interface PlannedEarnedPartyMetrics {
   variance: number;
   spi: number;
   performancePercentage: number;
+  /** Optional fields from refactored Planned vs Actual API (display only). */
+  collection?: number;
+  collectionPct?: number;
+  varianceStatus?: string;
+  difference?: number;
 }
 
 export type PlannedEarnedPartyType = "scl" | "contractor";

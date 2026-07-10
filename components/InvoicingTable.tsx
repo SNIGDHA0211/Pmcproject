@@ -261,6 +261,7 @@ interface InvoicingGroupCardProps {
   pmcError?: string | null;
   contractorLoading?: boolean;
   onEdit?: (invoiceType: InvoiceType) => void;
+  id?: string;
 }
 
 export const InvoicingGroupCard: React.FC<InvoicingGroupCardProps> = ({
@@ -274,6 +275,7 @@ export const InvoicingGroupCard: React.FC<InvoicingGroupCardProps> = ({
   pmcError = null,
   contractorLoading = false,
   onEdit,
+  id,
 }) => {
   const { isDarkTheme } = useTheme();
   const themeClasses = getThemeClasses(isDarkTheme);
@@ -282,6 +284,7 @@ export const InvoicingGroupCard: React.FC<InvoicingGroupCardProps> = ({
 
   return (
     <div
+      id={id}
       className={`invoicing-group relative flex h-full min-h-0 flex-col overflow-hidden rounded-2xl border ${DASHBOARD_FINANCIAL_CARD_PADDING} transition-shadow hover:shadow-md sm:min-h-[460px] lg:min-h-[520px] ${isDarkTheme
         ? `${themeClasses.glassCard} ${themeClasses.border} shadow-sm`
         : 'border-slate-200 bg-white shadow-[0_6px_20px_rgba(15,23,42,0.06)]'

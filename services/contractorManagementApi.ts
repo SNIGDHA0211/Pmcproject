@@ -532,8 +532,8 @@ export const contractorMasterApi = {
           ...(params?.status ? { status: params.status } : {}),
         },
       });
-      const data = unwrapData<unknown[]>(res.data);
-      return (Array.isArray(data) ? data : [])
+      // Support plain arrays, { success, data }, and DRF { results: [...] } envelopes
+      return unwrapList(res.data)
         .map(normalizeContractorMaster)
         .filter((c): c is ContractorMasterRecord => c != null);
     } catch (error) {

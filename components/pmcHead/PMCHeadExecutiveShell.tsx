@@ -12,6 +12,10 @@ import type { BottleneckItem } from '../../utils/bottleneck';
 import type { ProjectHealthTone } from '../../utils/projectDashboardMetrics';
 import PMCExecutiveOverviewPanel, {
   type ExecutiveProgressPoint,
+  type ExecutiveManpowerPoint,
+  type ExecutiveCostPerformancePoint,
+  type ExecutiveContractSnapshot,
+  type ExecutiveQualitySnapshot,
 } from './PMCExecutiveOverviewPanel';
 import { usePmcExecutiveTheme } from '../../utils/pmcExecutiveTheme';
 
@@ -47,12 +51,20 @@ interface PMCHeadExecutiveShellProps {
   onExport: () => void;
   activeTab: PMCExecutiveTab;
   onTabChange: (tab: PMCExecutiveTab) => void;
+  onNavigate: (tab: PMCExecutiveTab, anchor?: import('../../utils/executiveOverviewNavigation').ExecutiveOverviewAnchor) => void;
   metrics: PMCExecutiveShellMetrics;
   bottleneckItems: BottleneckItem[];
   onJumpToTab: (tab: PMCExecutiveTab) => void;
   sclDates?: ProjectDatesRecord | null;
   contractorDates?: ProjectDatesRecord | null;
   progressTrend?: ExecutiveProgressPoint[];
+  manpowerTrend?: ExecutiveManpowerPoint[];
+  costPerformanceTrend?: ExecutiveCostPerformancePoint[];
+  qualityPerformancePct?: number;
+  qualitySnapshot?: ExecutiveQualitySnapshot | null;
+  correspondenceStats?: import('../../utils/executiveOverviewNavigation').ExecutiveCorrespondenceStats | null;
+  contractSnapshot?: ExecutiveContractSnapshot | null;
+  pvaVelocity?: import('./PMCExecutiveOverviewPanel').ExecutivePvaVelocityData | null;
 }
 
 const TABS: { id: PMCExecutiveTab; label: string }[] = [
@@ -73,12 +85,20 @@ const PMCHeadExecutiveShell: React.FC<PMCHeadExecutiveShellProps> = ({
   onExport,
   activeTab,
   onTabChange,
+  onNavigate,
   metrics,
   bottleneckItems,
   onJumpToTab,
   sclDates = null,
   contractorDates = null,
   progressTrend = [],
+  manpowerTrend = [],
+  costPerformanceTrend = [],
+  qualityPerformancePct,
+  qualitySnapshot = null,
+  correspondenceStats = null,
+  contractSnapshot = null,
+  pvaVelocity = null,
 }) => {
   const ex = usePmcExecutiveTheme();
   const [alertDismissed, setAlertDismissed] = useState(false);
@@ -240,7 +260,14 @@ const PMCHeadExecutiveShell: React.FC<PMCHeadExecutiveShellProps> = ({
           openIssuesCount={openIssues.length}
           sclDates={sclDates}
           contractorDates={contractorDates}
-          onJumpToTab={onJumpToTab}
+          onNavigate={onNavigate}
+          manpowerTrend={manpowerTrend}
+          costPerformanceTrend={costPerformanceTrend}
+          qualityPerformancePct={qualityPerformancePct}
+          qualitySnapshot={qualitySnapshot}
+          correspondenceStats={correspondenceStats}
+          contractSnapshot={contractSnapshot}
+          pvaVelocity={pvaVelocity}
         />
       )}
     </div>

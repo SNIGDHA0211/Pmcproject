@@ -13,6 +13,8 @@ import {
   unwrapList,
   type PlannedEarnedByPeriodResponse,
 } from '../services/api';
+import { plannedVsActualApi } from '../services/plannedVsActualApi';
+import { pvaBundleToPlannedEarnedPeriod } from '../utils/pvaDashboardAdapter';
 import { emptyCashflowRecord, type CashFlowRecord } from '../types/billing';
 import { buildCashflowChartData, summarizeCashflow } from '../utils/billingDashboardAnalytics';
 
@@ -194,13 +196,30 @@ export function useBillingFinanceDashboardData(projectName: string | null, refre
     let cancelled = false;
     setIsLoadingPlannedEarned(true);
     setPlannedEarnedError(null);
-    plannedEarnedValueApi
-      .getByProjectMonthYear(projectName, periodMonth, periodYear)
-      .then((response) => {
-        if (cancelled) return;
-        setPlannedEarnedByPeriod(normalizePlannedEarnedByPeriod(response.data, projectName));
-      })
-      .catch((error) => {
+
+    const load = async () => {
+      try {
+        try {
+          const bundle = await plannedVsActualApi.getByProject(projectName, {
+            month: periodMonth,
+            year: periodYear,
+          });
+          if (!cancelled) setPlannedEarnedByPeriod(pvaBundleToPlannedEarnedPeriod(bundle));
+          return;
+        } catch (pvaError) {
+          const pvaStatus = (pvaError as { response?: { status?: number } })?.response?.status;
+          if (pvaStatus && pvaStatus !== 404) throw pvaError;
+        }
+
+        const response = await plannedEarnedValueApi.getByProjectMonthYear(
+          projectName,
+          periodMonth,
+          periodYear,
+        );
+        if (!cancelled) {
+          setPlannedEarnedByPeriod(normalizePlannedEarnedByPeriod(response.data, projectName));
+        }
+      } catch (error) {
         if (cancelled) return;
         const status = (error as { response?: { status?: number } })?.response?.status;
         if (status === 404) {
@@ -215,10 +234,12 @@ export function useBillingFinanceDashboardData(projectName: string | null, refre
           setPlannedEarnedByPeriod(null);
           setPlannedEarnedError(getApiErrorMessage(error, 'Unable to load Planned vs Actual Value'));
         }
-      })
-      .finally(() => {
+      } finally {
         if (!cancelled) setIsLoadingPlannedEarned(false);
-      });
+      }
+    };
+
+    void load();
 
     return () => {
       cancelled = true;

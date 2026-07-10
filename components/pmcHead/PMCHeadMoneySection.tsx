@@ -103,6 +103,8 @@ const PartyFinanceCard: React.FC<{
   invoicingLoading: boolean;
   contractError: string | null;
   invoicingError: string | null;
+  contractSectionId?: string;
+  invoicingSectionId?: string;
 }> = ({
   party,
   partyLabel,
@@ -112,6 +114,8 @@ const PartyFinanceCard: React.FC<{
   invoicingLoading,
   contractError,
   invoicingError,
+  contractSectionId,
+  invoicingSectionId,
 }) => {
   const ex = usePmcExecutiveTheme();
   const accent = partyAccent(party);
@@ -169,7 +173,7 @@ const PartyFinanceCard: React.FC<{
       </header>
 
       <div className="space-y-5 p-4 sm:p-5">
-        <section>
+        <section id={contractSectionId}>
           <div className="mb-3 flex items-center gap-2">
             <span className={`h-2 w-2 rounded-full ${accent.dot}`} />
             <h4 className={`text-xs font-black uppercase tracking-wide sm:text-sm ${ex.heading}`}>Contract portfolio</h4>
@@ -218,7 +222,7 @@ const PartyFinanceCard: React.FC<{
 
         <div className={ex.dividerGradient} />
 
-        <section>
+        <section id={invoicingSectionId}>
           <div className="mb-3 flex items-center gap-2">
             <Receipt size={14} className={ex.muted} />
             <h4 className={`text-xs font-black uppercase tracking-wide sm:text-sm ${ex.heading}`}>Billing & certification</h4>
@@ -366,6 +370,8 @@ const PMCHeadMoneySection: React.FC<PMCHeadMoneySectionProps> = ({
           invoicingLoading={isLoadingInvoicing}
           contractError={sclContractError}
           invoicingError={pmcInvoicingError}
+          contractSectionId="exec-section-contract-values"
+          invoicingSectionId="exec-section-invoicing"
         />
         <PartyFinanceCard
           party="Contractor"

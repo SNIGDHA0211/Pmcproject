@@ -352,6 +352,8 @@ const MODULE_NAV_MAP: Record<string, AlertNavigationTarget> = {
   'financial progress': { tab: 'financial_management', section: 'cost', returnTab: 'team_projects' },
   'cash flow': { tab: 'financial_management', section: 'cashflow', returnTab: 'team_projects' },
   'planned earned value': { tab: 'financial_management', section: 'earned_value', returnTab: 'team_projects' },
+  'planned vs actual': { tab: 'financial_management', section: 'earned_value', returnTab: 'team_projects' },
+  'planned-vs-actual': { tab: 'financial_management', section: 'earned_value', returnTab: 'team_projects' },
   'project dates': { tab: 'team_projects' },
   'bg status': { tab: 'team_projects' },
   correspondence: { tab: 'team_projects' },

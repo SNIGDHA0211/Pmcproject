@@ -30,7 +30,7 @@ import {
 import axios from 'axios';
 import { fetchProjectProgressChart } from '../services/financialDataService';
 import { computeProjectDashboardMetrics } from '../utils/projectDashboardMetrics';
-import { projectApi, costPerformanceApi, budgetPerformanceApi, manpowerApi, cashflowApi, healthSafetyApi, invoicingApi, contractValuesApi, contractPerformanceApi, projectLogsApi, drawingRegisterApi, projectQualityApi, projectEquipmentApi, correspondenceApi, getApiErrorMessage, normalizeContractPerformanceRecord, normalizeContractValueRecord, normalizeInvoicingRecord, normalizeProjectEquipmentRecord, normalizeProjectQualityStatusRecord, unwrapList, toNum, plannedEarnedValueApi, normalizePlannedEarnedByPeriod, type PlannedEarnedByPeriodResponse, normalizeHSERecord, type HSERecord, normalizeHealthSafetyDashboard, normalizeHealthSafetyYtdSummary, saveHealthSafetyRecord, fetchHealthSafetyYearRecords, fetchHealthSafetyDashboardFallback, type HealthSafetyDashboardData, projectDatesApi, normalizeProjectDatesByProject, mergeBgBundleIntoProjectDatesBundle, type ProjectDatesByProject, type ProjectDateType, type ProjectDatesRecord, mergeQualityRecordsByPeriod, fetchQualityYearRecords, saveProjectQualityRecord, saveDrawingRecord, normalizeCorrespondenceMonthlyPeriod, collectCorrespondenceDocuments, mergeCorrespondenceDocumentLists, mergeCorrespondencePeriods, fetchCorrespondenceYearPeriods, saveCorrespondenceDocument, deleteCorrespondenceDocument } from '../services/api';
+import { projectApi, costPerformanceApi, budgetPerformanceApi, manpowerApi, cashflowApi, healthSafetyApi, invoicingApi, contractValuesApi, contractPerformanceApi, projectLogsApi, drawingRegisterApi, projectQualityApi, projectEquipmentApi, correspondenceApi, correspondenceDocumentsApi, getApiErrorMessage, normalizeContractPerformanceRecord, normalizeContractValueRecord, normalizeInvoicingRecord, normalizeProjectEquipmentRecord, normalizeProjectQualityStatusRecord, unwrapList, toNum, plannedEarnedValueApi, normalizePlannedEarnedByPeriod, type PlannedEarnedByPeriodResponse, normalizeHSERecord, type HSERecord, normalizeHealthSafetyDashboard, normalizeHealthSafetyYtdSummary, saveHealthSafetyRecord, fetchHealthSafetyYearRecords, fetchHealthSafetyDashboardFallback, type HealthSafetyDashboardData, projectDatesApi, normalizeProjectDatesByProject, mergeBgBundleIntoProjectDatesBundle, type ProjectDatesByProject, type ProjectDateType, type ProjectDatesRecord, mergeQualityRecordsByPeriod, fetchQualityYearRecords, saveProjectQualityRecord, saveDrawingRecord, normalizeCorrespondenceMonthlyPeriod, collectCorrespondenceDocuments, mergeCorrespondenceDocumentLists, mergeCorrespondencePeriods, fetchCorrespondenceYearPeriods, saveCorrespondenceDocument, deleteCorrespondenceDocument, type CorrespondenceDashboardResponse } from '../services/api';
 import type { BgStatusBundle } from '../types/bgStatus';
 import type { QualityFormValues } from './QualityMonthlyForm';
 import type { DrawingFormValues } from './DrawingMonthlyForm';
@@ -83,15 +83,23 @@ import PerformanceHighlightCard, {
   getCollectionPerformanceStatus,
   KPI_METRIC_COLORS,
 } from './PerformanceHighlightCard';
-import PlannedEarnedValueCard from './PlannedEarnedValueCard';
+import { PlannedEarnedValueGroupCard } from './PlannedEarnedValueCard';
+import { plannedVsActualApi } from '../services/plannedVsActualApi';
+import { pvaBundleToPlannedEarnedPeriod } from '../utils/pvaDashboardAdapter';
 import PMCHeadExecutiveShell, {
   type PMCExecutiveTab,
 } from './pmcHead/PMCHeadExecutiveShell';
 import {
   buildExecutiveProjectDropdownList,
-  buildPmcHeadExecutiveProjectOptions,
   getKnownExecutiveProjectStubs,
 } from '../utils/pmcHeadExecutiveProjects';
+import {
+  resolveExecutiveCorrespondenceStats,
+  scrollToOverviewSection,
+  teamLeaderSectionElementId,
+  type ExecutiveOverviewAnchor,
+} from '../utils/executiveOverviewNavigation';
+import { aggregateCorrespondenceCumulativePeriod } from '../utils/correspondence';
 import { PMCExecutiveDetailFrame } from './pmcHead/PMCExecutiveDetailFrame';
 import PMCHeadScheduleSection, { PMCExecutivePanel } from './pmcHead/PMCHeadScheduleSection';
 import PMCHeadMoneySection from './pmcHead/PMCHeadMoneySection';
@@ -105,7 +113,7 @@ import TeamLeaderOverviewShell, {
   type TeamLeaderOverviewSection,
   type TeamLeaderOverviewMetrics,
 } from './teamLeader/TeamLeaderOverviewShell';
-import type { ExecutiveDecisionItem } from './pmcHead/PMCExecutiveOverviewPanel';
+import type { ExecutiveDecisionItem, ExecutivePvaVelocityData } from './pmcHead/PMCExecutiveOverviewPanel';
 import {
   buildTeamLeaderOverviewCachePayload,
   readTeamLeaderOverviewCache,
@@ -121,6 +129,8 @@ import {
 } from '../utils/projectDatesSectionCache';
 import ProjectDashboardSummary from './ProjectDashboardSummary';
 import { formatIndianCurrencyCompact } from '../utils/format';
+import { buildExecutiveContractSnapshot } from '../utils/executiveContractSnapshot';
+import { buildExecutiveQualitySnapshot } from '../utils/executiveQualitySnapshot';
 import { validateCorrespondenceDocumentInput } from '../utils/correspondence';
 import {
   downloadProjectReportXlsx,
@@ -431,17 +441,13 @@ const Projects: React.FC<ProjectsProps> = ({
   const typo = useProjectsDashboardTypo();
   const isPmcTeamLead = currentUser.role === UserRole.TEAM_LEAD;
   const isPMCHead = currentUser.role === UserRole.PMC_HEAD;
-  const [executiveProjectOptions, setExecutiveProjectOptions] = useState<Project[]>([]);
-  const [isExecutiveProjectsLoading, setIsExecutiveProjectsLoading] = useState(false);
-
   const allProjects = useMemo(() => {
     if (!isPMCHead) return projects;
     return buildExecutiveProjectDropdownList(
       projects,
-      executiveProjectOptions,
       getKnownExecutiveProjectStubs(projects),
     );
-  }, [isPMCHead, projects, executiveProjectOptions]);
+  }, [isPMCHead, projects]);
   const [execTab, setExecTab] = useState<PMCExecutiveTab>('overview');
   const [tlOverviewCache, setTlOverviewCache] = useState<TeamLeaderOverviewCachePayload | null>(null);
   const tlOverviewCacheSavedRef = useRef<string | null>(null);
@@ -534,6 +540,7 @@ const Projects: React.FC<ProjectsProps> = ({
   const [isSavingEquipment, setIsSavingEquipment] = useState(false);
   const [correspondencePeriod, setCorrespondencePeriod] = useState<CorrespondenceMonthlyPeriod | null>(null);
   const [correspondenceProjectSummary, setCorrespondenceProjectSummary] = useState<CorrespondenceProjectSummary | null>(null);
+  const [correspondenceDashboard, setCorrespondenceDashboard] = useState<CorrespondenceDashboardResponse | null>(null);
   const [correspondenceYearPeriods, setCorrespondenceYearPeriods] = useState<CorrespondenceMonthlyPeriod[]>([]);
   const [correspondenceDocuments, setCorrespondenceDocuments] = useState<CorrespondenceDocument[]>([]);
   const [correspondenceSelectedMonth, setCorrespondenceSelectedMonth] = useState(() => new Date().getMonth() + 1);
@@ -600,6 +607,7 @@ const Projects: React.FC<ProjectsProps> = ({
   const [plannedEarnedByPeriod, setPlannedEarnedByPeriod] = useState<PlannedEarnedByPeriodResponse | null>(null);
   const [isLoadingPlannedEarned, setIsLoadingPlannedEarned] = useState(false);
   const [plannedEarnedError, setPlannedEarnedError] = useState<string | null>(null);
+  const [pvaVelocityTrend, setPvaVelocityTrend] = useState<ExecutivePvaVelocityData | null>(null);
   const [qualityMonthlyRecord, setQualityMonthlyRecord] = useState<ProjectQualityStatusRecord | null>(null);
   const [qualityYearRecords, setQualityYearRecords] = useState<ProjectQualityStatusRecord[]>([]);
   const [qualitySelectedMonth, setQualitySelectedMonth] = useState(() => new Date().getMonth() + 1);
@@ -1291,44 +1299,6 @@ const Projects: React.FC<ProjectsProps> = ({
   };
 
   useEffect(() => {
-    if (!isPMCHead) {
-      setExecutiveProjectOptions([]);
-      setIsExecutiveProjectsLoading(false);
-      return;
-    }
-
-    let cancelled = false;
-    setIsExecutiveProjectsLoading(true);
-
-    (async () => {
-      try {
-        const { projects: merged } = await buildPmcHeadExecutiveProjectOptions(projects);
-        if (!cancelled) {
-          const supplemental = merged.filter(
-            (project) =>
-              !projects.some(
-                (seed) =>
-                  seed.id === project.id ||
-                  seed.title.trim().toLowerCase() === project.title.trim().toLowerCase(),
-              ),
-          );
-          setExecutiveProjectOptions(supplemental);
-        }
-      } catch {
-        if (!cancelled) {
-          setExecutiveProjectOptions(buildExecutiveProjectDropdownList(projects));
-        }
-      } finally {
-        if (!cancelled) setIsExecutiveProjectsLoading(false);
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [isPMCHead, projects]);
-
-  useEffect(() => {
     if (selectedProjectId) {
       projectApi.getDashboardData(selectedProjectId)
         .then(response => {
@@ -1501,6 +1471,7 @@ const Projects: React.FC<ProjectsProps> = ({
     if (!selectedProject?.title) {
       setCorrespondencePeriod(null);
       setCorrespondenceProjectSummary(null);
+      setCorrespondenceDashboard(null);
       setCorrespondenceYearPeriods([]);
       setCorrespondenceDocuments([]);
       setCorrespondenceError(null);
@@ -1510,12 +1481,21 @@ const Projects: React.FC<ProjectsProps> = ({
     setIsLoadingCorrespondence(true);
     setCorrespondenceError(null);
     try {
-      const [listRes, yearPeriodsFromApi] = await Promise.all([
+      const [listRes, yearPeriodsFromApi, dashboardRes] = await Promise.all([
         correspondenceApi.getAll({ project_name: selectedProject.title, month, year }).catch((error) => {
           if ((error as { response?: { status?: number } })?.response?.status === 404) return null;
           throw error;
         }),
         fetchCorrespondenceYearPeriods(selectedProject.title, year),
+        correspondenceDocumentsApi.getDashboard({
+          project_name: selectedProject.title,
+          month,
+          year,
+          view: 'cumulative',
+        }).catch((error) => {
+          console.warn('[Projects] Correspondence dashboard fetch failed:', error);
+          return null;
+        }),
       ]);
 
       const monthlyBody = listRes?.data?.data ?? listRes?.data;
@@ -1537,14 +1517,22 @@ const Projects: React.FC<ProjectsProps> = ({
         []
       );
 
+      const dashboardPayload = dashboardRes?.data as { data?: CorrespondenceDashboardResponse } | CorrespondenceDashboardResponse | undefined;
+      const dashboard =
+        (dashboardPayload && 'data' in dashboardPayload && dashboardPayload.data
+          ? dashboardPayload.data
+          : (dashboardPayload as CorrespondenceDashboardResponse | undefined)) ?? null;
+
       setCorrespondencePeriod(period ? { ...period, month, year } : null);
       setCorrespondenceProjectSummary(projectSummary);
+      setCorrespondenceDashboard(dashboard);
       setCorrespondenceYearPeriods(yearPeriods);
       setCorrespondenceDocuments(documents);
     } catch (error) {
       console.error('Error fetching correspondence:', error);
       setCorrespondencePeriod(null);
       setCorrespondenceProjectSummary(null);
+      setCorrespondenceDashboard(null);
       setCorrespondenceYearPeriods([]);
       setCorrespondenceDocuments([]);
       setCorrespondenceError(getApiErrorMessage(error, 'Unable to load correspondence status'));
@@ -1996,33 +1984,112 @@ const Projects: React.FC<ProjectsProps> = ({
       if (!selectedProject?.title) {
         setPlannedEarnedByPeriod(null);
         setPlannedEarnedError(null);
+        setPvaVelocityTrend(null);
         return;
       }
+
+      const projectName = selectedProject.title;
+      const month = healthSafetySelectedMonth;
+      const year = healthSafetySelectedYear;
 
       setIsLoadingPlannedEarned(true);
       setPlannedEarnedError(null);
       try {
-        const response = await plannedEarnedValueApi.getByProjectMonthYear(
-          selectedProject.title,
-          healthSafetySelectedMonth,
-          healthSafetySelectedYear
-        );
-        setPlannedEarnedByPeriod(
-          normalizePlannedEarnedByPeriod(response.data, selectedProject.title)
-        );
+        // Prefer refactored Planned vs Actual API (backend-computed metrics).
+        try {
+          const [bundle, trend] = await Promise.all([
+            plannedVsActualApi.getByProject(projectName, { month, year }),
+            plannedVsActualApi.getTrend(projectName, { year }).catch(() => null),
+          ]);
+          setPlannedEarnedByPeriod(pvaBundleToPlannedEarnedPeriod(bundle));
+
+          const points = trend?.points ?? [];
+          const sclMonths = points
+            .filter((p) => p.sclPlanned || p.sclActual || p.sclCollection)
+            .map((p) => ({
+              month: p.monthLabel || String(p.month),
+              planned: p.sclPlanned,
+              actual: p.sclActual,
+              collection: p.sclCollection,
+            }));
+          const contractorMonths = points
+            .filter((p) => p.contractorPlanned || p.contractorActual || p.contractorCollection)
+            .map((p) => ({
+              month: p.monthLabel || String(p.month),
+              planned: p.contractorPlanned,
+              actual: p.contractorActual,
+              collection: p.contractorCollection,
+            }));
+
+          setPvaVelocityTrend({
+            year: trend?.year ?? year,
+            sclMonths,
+            contractorMonths,
+            current: {
+              scl: bundle.scl
+                ? {
+                    planned: bundle.scl.plannedValue,
+                    actual: bundle.scl.actualValue,
+                    collection: bundle.scl.collection,
+                  }
+                : null,
+              contractor: bundle.contractorSummary
+                ? {
+                    planned: bundle.contractorSummary.plannedValue,
+                    actual: bundle.contractorSummary.actualValue,
+                    collection: bundle.contractorSummary.collection,
+                  }
+                : null,
+            },
+          });
+          return;
+        } catch (pvaError) {
+          const pvaStatus = (pvaError as { response?: { status?: number } })?.response?.status;
+          if (pvaStatus && pvaStatus !== 404) {
+            throw pvaError;
+          }
+        }
+
+        // Fallback to legacy planned-earned-value endpoint when new API is unavailable.
+        const response = await plannedEarnedValueApi.getByProjectMonthYear(projectName, month, year);
+        const period = normalizePlannedEarnedByPeriod(response.data, projectName);
+        setPlannedEarnedByPeriod(period);
+        setPvaVelocityTrend({
+          year,
+          sclMonths: [],
+          contractorMonths: [],
+          current: {
+            scl: period.scl
+              ? {
+                  planned: period.scl.plannedValue,
+                  actual: period.scl.earnedValue,
+                  collection: period.scl.collection ?? 0,
+                }
+              : null,
+            contractor: period.contractor
+              ? {
+                  planned: period.contractor.plannedValue,
+                  actual: period.contractor.earnedValue,
+                  collection: period.contractor.collection ?? 0,
+                }
+              : null,
+          },
+        });
       } catch (error) {
         const status = (error as { response?: { status?: number } })?.response?.status;
         if (status === 404) {
           setPlannedEarnedByPeriod({
-            projectName: selectedProject.title,
-            month: healthSafetySelectedMonth,
-            year: healthSafetySelectedYear,
+            projectName,
+            month,
+            year,
             scl: null,
             contractor: null,
           });
+          setPvaVelocityTrend(null);
         } else {
           console.error('Error fetching planned vs actual value:', error);
           setPlannedEarnedByPeriod(null);
+          setPvaVelocityTrend(null);
           setPlannedEarnedError(getApiErrorMessage(error, 'Unable to load Planned vs Actual Value'));
         }
       } finally {
@@ -2197,6 +2264,90 @@ const Projects: React.FC<ProjectsProps> = ({
       })),
     [progressSCurveData],
   );
+
+  const executiveManpowerTrend = useMemo(
+    () =>
+      manpowerDataState.slice(-8).map((row: { month?: string; month_year?: string; planned?: number; actual?: number; planned_manpower?: number; actual_manpower?: number }) => ({
+        month: String(row.month ?? row.month_year ?? ''),
+        planned: Number(row.planned ?? row.planned_manpower ?? 0),
+        actual: Number(row.actual ?? row.actual_manpower ?? 0),
+      })),
+    [manpowerDataState],
+  );
+
+  const executiveCostPerformanceTrend = useMemo(
+    () =>
+      costPerformanceData.slice(-8).map((row: { month?: string; month_year?: string; bcws?: number; bcwp?: number; acwp?: number; fcst?: number }) => ({
+        month: String(row.month ?? row.month_year ?? ''),
+        bcws: Number(row.bcws ?? 0),
+        bcwp: Number(row.bcwp ?? 0),
+        acwp: Number(row.acwp ?? 0),
+        fcst: Number(row.fcst ?? 0),
+      })),
+    [costPerformanceData],
+  );
+
+  const executiveContractSnapshot = useMemo(
+    () =>
+      buildExecutiveContractSnapshot(
+        sclContractValue,
+        pmcInvoicing,
+        bcwp,
+        ac,
+        costVariance,
+        cpiGaugePct,
+      ),
+    [sclContractValue, pmcInvoicing, bcwp, ac, costVariance, cpiGaugePct],
+  );
+
+  const executiveQualityPct = qualityMonthlyRecord?.qualityPerformance;
+  const executiveQualitySnapshot = useMemo(
+    () => buildExecutiveQualitySnapshot(qualityMonthlyRecord),
+    [qualityMonthlyRecord],
+  );
+
+  const executiveCorrespondenceStats = useMemo(() => {
+    const cumulativePeriod = selectedProject?.title
+      ? aggregateCorrespondenceCumulativePeriod(
+          correspondenceYearPeriods,
+          correspondenceSelectedMonth,
+          correspondenceSelectedYear,
+          selectedProject.title,
+        )
+      : null;
+
+    return resolveExecutiveCorrespondenceStats({
+      dashboard: correspondenceDashboard,
+      cumulativePeriod,
+      period: correspondencePeriod,
+      summary: correspondenceProjectSummary,
+    });
+  }, [
+    correspondenceDashboard,
+    correspondencePeriod,
+    correspondenceProjectSummary,
+    correspondenceYearPeriods,
+    correspondenceSelectedMonth,
+    correspondenceSelectedYear,
+    selectedProject?.title,
+  ]);
+
+  const handleExecutiveNavigate = useCallback((tab: PMCExecutiveTab, anchor?: ExecutiveOverviewAnchor) => {
+    let targetTab = tab;
+    let targetAnchor = anchor;
+
+    if (anchor === 'hse') {
+      targetTab = 'risk';
+      targetAnchor = 'risk';
+    } else if (anchor === 'quality') {
+      targetTab = 'compliance';
+    }
+
+    setExecTab(targetTab);
+    if (targetAnchor) {
+      scrollToOverviewSection(targetAnchor, 'pmc-head');
+    }
+  }, []);
 
   let progressDeltaLabel: string | undefined;
   if (progressSCurveData.length >= 2) {
@@ -2534,9 +2685,17 @@ const Projects: React.FC<ProjectsProps> = ({
           metrics={executiveMetrics}
           bottleneckItems={bottleneckItems}
           onJumpToTab={setExecTab}
+          onNavigate={handleExecutiveNavigate}
           sclDates={projectDatesBundle?.scl ?? null}
           contractorDates={selectedContractorRecord}
           progressTrend={executiveProgressTrend}
+          manpowerTrend={executiveManpowerTrend}
+          costPerformanceTrend={executiveCostPerformanceTrend}
+          qualityPerformancePct={executiveQualityPct}
+          qualitySnapshot={executiveQualitySnapshot}
+          correspondenceStats={executiveCorrespondenceStats}
+          contractSnapshot={executiveContractSnapshot}
+          pvaVelocity={pvaVelocityTrend}
         />
       )}
 
@@ -2552,17 +2711,23 @@ const Projects: React.FC<ProjectsProps> = ({
           decisionQueueOverride={tlOverviewDisplay.decisionQueueOverride}
           openIssuesCountOverride={tlOverviewDisplay.openIssuesCountOverride}
           isRefreshingLiveData={tlOverviewDisplay.isRefreshingLiveData}
+          manpowerTrend={executiveManpowerTrend}
+          costPerformanceTrend={executiveCostPerformanceTrend}
+          qualityPerformancePct={executiveQualityPct}
+          qualitySnapshot={executiveQualitySnapshot}
+          correspondenceStats={executiveCorrespondenceStats}
+          contractSnapshot={executiveContractSnapshot}
+          pvaVelocity={pvaVelocityTrend}
           onExport={exportProjectDataExcel}
           onOpenFullView={(section) => {
             onTeamLeaderViewChange?.('full');
             if (section) {
               window.setTimeout(() => {
-                const target = document.getElementById(`tl-section-${section}`);
+                const target = document.getElementById(teamLeaderSectionElementId(section));
                 target?.scrollIntoView({ behavior: 'smooth', block: 'start' });
               }, 150);
             }
           }}
-          onNavigateModule={(tab) => onNavigate?.(tab)}
         />
       )}
 
@@ -2677,6 +2842,7 @@ const Projects: React.FC<ProjectsProps> = ({
         <PMCExecutiveDetailFrame active={isPMCHead}>
           <>
             {isPMCHead && tabVisible('schedule') && (
+              <div id="exec-section-schedule">
               <PMCHeadScheduleSection
                 scl={projectDatesBundle?.scl ?? null}
                 contractors={projectContractors}
@@ -2699,9 +2865,11 @@ const Projects: React.FC<ProjectsProps> = ({
                   />
                 </PMCExecutivePanel>
               </PMCHeadScheduleSection>
+              </div>
             )}
 
             {isPMCHead && tabVisible('money') && (
+              <div id="exec-section-financial">
               <PMCHeadMoneySection
                 sclContractValue={sclContractValue}
                 contractorContractValue={selectedContractorContractValue}
@@ -2715,10 +2883,11 @@ const Projects: React.FC<ProjectsProps> = ({
                 pmcInvoicingError={invoicingErrors.PMC}
                 contractorInvoicingError={invoicingErrors.Contractor}
               />
+              </div>
             )}
 
             {!isPMCHead && selectedProject && (
-              <div id="tl-section-contractor">
+              <div id="tl-section-contractor" className="exec-section-schedule">
               <ContractorManagementDashboard
                 project={selectedProject}
                 userId={currentUser.id}
@@ -2740,7 +2909,7 @@ const Projects: React.FC<ProjectsProps> = ({
               </div>
             )}
 
-            <section id="tl-section-financial" className="space-y-3.5">
+            <section id="tl-section-financial" className="exec-section-financial space-y-3.5">
               {tabVisible('money') && (
                 isPMCHead ? (
                   <PMCHeadMoneyKpiSection
@@ -2762,122 +2931,87 @@ const Projects: React.FC<ProjectsProps> = ({
                   />
                 ) : (
                 <>
-                  <div className="earned-value-kpi-row grid grid-cols-1 items-stretch gap-3 md:grid-cols-2 xl:grid-cols-4">
-                    <FullScreenCard
-                      title="Planned vs Actual Value — SCL & Contractor"
-                      className="planned-earned-value-tour-group joyride-target-stable md:col-span-2 xl:col-span-2 min-h-[320px]"
+                  <div className="earned-value-kpi-row space-y-3">
+                    <PlannedEarnedValueGroupCard
+                      className="planned-earned-value-tour-group joyride-target-stable w-full min-h-[320px]"
+                      sclData={plannedEarnedByPeriod?.scl ?? null}
+                      contractorData={plannedEarnedByPeriod?.contractor ?? null}
+                      contractorSectionTitle={plannedValueSectionTitle('Contractor', selectedContractorName)}
+                      groupSubtitle="SCL & Contractor performance"
+                      isLoading={isLoadingPlannedEarned}
+                      sclError={plannedEarnedError}
+                      contractorError={plannedEarnedError}
                       onEdit={() => onNavigate?.({ tab: 'financial_management', section: 'earned_value' })}
-                      editTitle="Edit in Financial Management"
-                    >
-                      <div
-                        className={`relative flex h-full min-h-[320px] flex-col overflow-hidden rounded-xl border ${themeClasses.glassCard} ${themeClasses.border} shadow-sm`}
+                      headerActions={<FormulaInfoButton {...DASHBOARD_FORMULAS.plannedVsEarnedValue} />}
+                    />
+
+                    <div className="grid grid-cols-1 items-stretch gap-3 md:grid-cols-2">
+                      <FullScreenCard
+                        title="Internal Cost Performance"
+                        className="internal-cost-card joyride-target-stable min-h-[320px]"
+                        onEdit={() => onNavigate?.({ tab: 'financial_management', section: 'cost' })}
+                        editTitle="Edit in Financial Management"
                       >
-                        <DashboardCardTopAccent />
-                        <div
-                          className={`flex shrink-0 items-center justify-between gap-2 border-b px-4 py-3 ${themeClasses.border}`}
-                        >
-                          <h3 className={`min-w-0 flex-1 ${typo.sectionTitle(isDarkTheme)}`}>PLANNED VS ACTUAL VALUE</h3>
-                          <FullScreenHeaderToolbar>
-                            <FormulaInfoButton {...DASHBOARD_FORMULAS.plannedVsEarnedValue} />
-                          </FullScreenHeaderToolbar>
-                        </div>
-                        <div className="relative min-h-0 flex-1">
-                          <div className="grid h-full min-h-[240px] grid-cols-1 gap-3 p-3 md:grid-cols-2">
-                            <PlannedEarnedValueCard
-                              className="earned-value-scl-card !min-h-[280px] !shadow-none ring-0"
-                              sectionTitle={plannedValueSectionTitle('SCL')}
-                              data={plannedEarnedByPeriod?.scl ?? null}
-                              isLoading={isLoadingPlannedEarned}
-                              error={plannedEarnedError}
-                              showTbdOverlay
-                            />
-                            <PlannedEarnedValueCard
-                              className="earned-value-contractor-card !min-h-[280px] !shadow-none ring-0"
-                              sectionTitle={plannedValueSectionTitle('Contractor', selectedContractorName)}
-                              data={plannedEarnedByPeriod?.contractor ?? null}
-                              isLoading={isLoadingPlannedEarned}
-                              error={plannedEarnedError}
-                              showTbdOverlay
-                            />
-                          </div>
-                          {/* Always visible while client evaluates keeping this KPI block */}
-                          <div
-                            className="pointer-events-none absolute inset-0 z-[60] flex items-center justify-center rounded-b-xl bg-black/55"
-                            aria-hidden
-                          >
-                            <span className="text-3xl font-black uppercase tracking-[0.35em] text-white drop-shadow-sm">
-                              TBD
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                    </FullScreenCard>
+                        <PerformanceHighlightCard
+                          className="h-full !min-h-[300px] !rounded-xl !border-0 !shadow-none"
+                          title="INTERNAL COST PERFORMANCE"
+                          icon={<Icons.Finance size={14} />}
+                          performancePercent={cpiGaugePct}
+                          performanceLabel="Cost Performance Index"
+                          status={getCostPerformanceStatus(cpiGaugePct)}
+                          showTbdOverlay
+                          metrics={[
+                            { label: 'BCWP', value: formatIndianCurrencyCompact(bcwp), valueClassName: KPI_METRIC_COLORS.primary },
+                            { label: 'AC', value: formatIndianCurrencyCompact(ac), valueClassName: KPI_METRIC_COLORS.primary },
+                            {
+                              label: 'Variance',
+                              value: formatIndianCurrencyCompact(costVariance, { showSign: true }),
+                              valueClassName: costVariance >= 0 ? KPI_METRIC_COLORS.positive : KPI_METRIC_COLORS.negative,
+                            },
+                          ]}
+                          headerActions={<FormulaInfoButton {...DASHBOARD_FORMULAS.projectCostPerformance} />}
+                        />
+                      </FullScreenCard>
 
-                    <FullScreenCard
-                      title="Internal Cost Performance"
-                      className="internal-cost-card joyride-target-stable min-h-[320px]"
-                      onEdit={() => onNavigate?.({ tab: 'financial_management', section: 'cost' })}
-                      editTitle="Edit in Financial Management"
-                    >
-                      <PerformanceHighlightCard
-                        className="h-full !min-h-[300px] !rounded-xl !border-0 !shadow-none"
-                        title="INTERNAL COST PERFORMANCE"
-                        icon={<Icons.Finance size={14} />}
-                        performancePercent={cpiGaugePct}
-                        performanceLabel="Cost Performance Index"
-                        status={getCostPerformanceStatus(cpiGaugePct)}
-                        showTbdOverlay
-                        metrics={[
-                          { label: 'BCWP', value: formatIndianCurrencyCompact(bcwp), valueClassName: KPI_METRIC_COLORS.primary },
-                          { label: 'AC', value: formatIndianCurrencyCompact(ac), valueClassName: KPI_METRIC_COLORS.primary },
-                          {
-                            label: 'Variance',
-                            value: formatIndianCurrencyCompact(costVariance, { showSign: true }),
-                            valueClassName: costVariance >= 0 ? KPI_METRIC_COLORS.positive : KPI_METRIC_COLORS.negative,
-                          },
-                        ]}
-                        headerActions={<FormulaInfoButton {...DASHBOARD_FORMULAS.projectCostPerformance} />}
-                      />
-                    </FullScreenCard>
-
-                    <FullScreenCard
-                      title="Contract Performance"
-                      className="contract-performance-card joyride-target-stable min-h-[320px]"
-                      onEdit={() => onNavigate?.({ tab: 'financial_management', section: 'contract' })}
-                      editTitle="Edit in Financial Management"
-                    >
-                      <PerformanceHighlightCard
-                        className="h-full !min-h-[300px] !rounded-xl !border-0 !shadow-none"
-                        title="CONTRACT PERFORMANCE"
-                        icon={<Icons.Document size={14} />}
-                        performancePercent={contractPerformanceData ? performancePercentage : 0}
-                        performanceLabel="Collection Performance"
-                        status={getCollectionPerformanceStatus(contractPerformanceData ? performancePercentage : 0)}
-                        showTbdOverlay
-                        isLoading={isLoadingContractPerformance}
-                        error={contractPerformanceError}
-                        emptyMessage="No contract performance data"
-                        isEmpty={!isLoadingContractPerformance && !contractPerformanceError && !contractPerformanceData}
-                        metrics={
-                          contractPerformanceData
-                            ? [
-                              { label: 'Billed Value', value: formatIndianCurrencyCompact(billedValue), valueClassName: KPI_METRIC_COLORS.primary },
-                              { label: 'Receipt Value', value: formatIndianCurrencyCompact(actualReceiptValue), valueClassName: KPI_METRIC_COLORS.primary },
-                              {
-                                label: 'Variance',
-                                value: formatIndianCurrencyCompact(receiptVariance, { showSign: true }),
-                                valueClassName: receiptVariance >= 0 ? KPI_METRIC_COLORS.positive : KPI_METRIC_COLORS.negative,
-                              },
-                            ]
-                            : [
-                              { label: 'Billed Value', value: '—', valueClassName: KPI_METRIC_COLORS.primary },
-                              { label: 'Receipt Value', value: '—', valueClassName: KPI_METRIC_COLORS.primary },
-                              { label: 'Variance', value: '—', valueClassName: KPI_METRIC_COLORS.muted },
-                            ]
-                        }
-                        headerActions={<FormulaInfoButton {...DASHBOARD_FORMULAS.contractPerformance} />}
-                      />
-                    </FullScreenCard>
+                      <FullScreenCard
+                        title="Contract Performance"
+                        className="contract-performance-card joyride-target-stable min-h-[320px]"
+                        onEdit={() => onNavigate?.({ tab: 'financial_management', section: 'contract' })}
+                        editTitle="Edit in Financial Management"
+                      >
+                        <PerformanceHighlightCard
+                          className="h-full !min-h-[300px] !rounded-xl !border-0 !shadow-none"
+                          title="CONTRACT PERFORMANCE"
+                          icon={<Icons.Document size={14} />}
+                          performancePercent={contractPerformanceData ? performancePercentage : 0}
+                          performanceLabel="Collection Performance"
+                          status={getCollectionPerformanceStatus(contractPerformanceData ? performancePercentage : 0)}
+                          showTbdOverlay
+                          isLoading={isLoadingContractPerformance}
+                          error={contractPerformanceError}
+                          emptyMessage="No contract performance data"
+                          isEmpty={!isLoadingContractPerformance && !contractPerformanceError && !contractPerformanceData}
+                          metrics={
+                            contractPerformanceData
+                              ? [
+                                { label: 'Billed Value', value: formatIndianCurrencyCompact(billedValue), valueClassName: KPI_METRIC_COLORS.primary },
+                                { label: 'Receipt Value', value: formatIndianCurrencyCompact(actualReceiptValue), valueClassName: KPI_METRIC_COLORS.primary },
+                                {
+                                  label: 'Variance',
+                                  value: formatIndianCurrencyCompact(receiptVariance, { showSign: true }),
+                                  valueClassName: receiptVariance >= 0 ? KPI_METRIC_COLORS.positive : KPI_METRIC_COLORS.negative,
+                                },
+                              ]
+                              : [
+                                { label: 'Billed Value', value: '—', valueClassName: KPI_METRIC_COLORS.primary },
+                                { label: 'Receipt Value', value: '—', valueClassName: KPI_METRIC_COLORS.primary },
+                                { label: 'Variance', value: '—', valueClassName: KPI_METRIC_COLORS.muted },
+                              ]
+                          }
+                          headerActions={<FormulaInfoButton {...DASHBOARD_FORMULAS.contractPerformance} />}
+                        />
+                      </FullScreenCard>
+                    </div>
                   </div>
                 </>
                 )
@@ -2885,6 +3019,7 @@ const Projects: React.FC<ProjectsProps> = ({
 
               {tabVisible('risk') && (
                 isPMCHead ? (
+                  <div id="exec-section-risk">
                   <PMCHeadRiskSection
                     bottleneckItems={bottleneckItems}
                     onBottleneckChange={setBottleneckItems}
@@ -2915,13 +3050,14 @@ const Projects: React.FC<ProjectsProps> = ({
                     onQualityYearChange={handleQualityYearChange}
                     onSaveQualityStatus={handleSaveQualityStatus}
                   />
+                  </div>
                 ) : (
                   <>
                     <div
                       id="tl-section-compliance"
-                      className="grid min-h-[22rem] grid-cols-1 items-stretch gap-4 lg:grid-cols-2"
+                      className="exec-section-hse grid min-h-[22rem] grid-cols-1 items-stretch gap-4 lg:grid-cols-2"
                     >
-                      <div className="flex h-full min-h-0 min-w-0">
+                      <div id="tl-section-hse" className="exec-section-hse flex h-full min-h-0 min-w-0">
                         <HealthSafetyCard
                           projectName={selectedProject?.title}
                           dashboard={healthSafetyDashboard}
@@ -2939,7 +3075,7 @@ const Projects: React.FC<ProjectsProps> = ({
                       </div>
 
                       {selectedProject && (
-                        <div className="flex h-full min-h-0 min-w-0">
+                        <div id="tl-section-quality" className="exec-section-quality flex h-full min-h-0 min-w-0">
                           <FrequencyChartDashboard
                             project={selectedProject}
                             selectedContractorName={selectedContractorName}
@@ -2957,7 +3093,7 @@ const Projects: React.FC<ProjectsProps> = ({
                 <>
                   {/* Drawing Register — Client Report — full width (replaces old DrawingSummaryCard) */}
                   {selectedProject && (
-                    <div className="w-full min-w-0">
+                    <div id="exec-section-drawings" className="tl-section-drawings w-full min-w-0">
                       <DrawingRegisterCard
                         project={selectedProject}
                         selectedContractorName={selectedContractorName}
@@ -2967,7 +3103,7 @@ const Projects: React.FC<ProjectsProps> = ({
                   )}
 
                   {/* Correspondence & Delivery Status — full width */}
-                  <div className="w-full min-w-0">
+                  <div id="exec-section-correspondence" className="tl-section-correspondence w-full min-w-0">
                     <CorrespondenceCard
                       projectName={selectedProject?.title}
                       period={correspondencePeriod}
@@ -2988,7 +3124,7 @@ const Projects: React.FC<ProjectsProps> = ({
                   </div>
 
                   {isPMCHead && selectedProject && (
-                    <div className="w-full min-w-0">
+                    <div id="exec-section-quality" className="w-full min-w-0">
                       <FrequencyChartDashboard
                         project={selectedProject}
                         selectedContractorName={selectedContractorName}
@@ -3160,7 +3296,7 @@ const Projects: React.FC<ProjectsProps> = ({
               />
             </section>
 
-            <section id="tl-section-charts" className="graphs-analytics-section space-y-3">
+            <section id="tl-section-charts" className="exec-section-progress graphs-analytics-section space-y-3">
               {tabVisible('schedule') && (
                 isPMCHead ? (
                   <PMCExecutivePanel title="Physical Progress Status" subtitle="Progress S-curve — executive view">
@@ -3314,6 +3450,7 @@ const Projects: React.FC<ProjectsProps> = ({
 
               {tabVisible('people') && (
                 isPMCHead ? (
+                  <div id="exec-section-manpower">
                   <PMCHeadPeopleSection
                     isDarkTheme={isDarkTheme}
                     manpowerData={manpowerData}
@@ -3334,8 +3471,9 @@ const Projects: React.FC<ProjectsProps> = ({
                     onSaveEquipment={handleSaveEquipment}
                     onDeleteEquipment={handleDeleteEquipment}
                   />
+                  </div>
                 ) : (
-                  <div id="tl-section-people" className="space-y-3">
+                  <div id="tl-section-people" className="exec-section-manpower space-y-3">
                     <ManpowerHistogramChartCard
                       isDarkTheme={isDarkTheme}
                       data={manpowerData}
@@ -3418,7 +3556,7 @@ const Projects: React.FC<ProjectsProps> = ({
             </section>
 
             {tabVisible('risk') && !isPMCHead && (
-              <section id="tl-section-risk" className="space-y-2 pt-1">
+              <section id="tl-section-risk" className="exec-section-risk space-y-2 pt-1">
                 <BottleneckSection
                   cardRef={projectLogsRef}
                   items={bottleneckItems}

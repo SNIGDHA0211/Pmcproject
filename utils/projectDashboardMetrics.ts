@@ -208,6 +208,28 @@ export function computeProjectDashboardMetrics(
   };
 };
 
+/** Schedule health: 100 when on time; penalized by delay days (90d delay ≈ 0%). Falls back to physical progress. */
+export function computeScheduleHealthPct(metrics: ProjectDashboardMetrics): number | null {
+  if (metrics.delayDays != null) {
+    if (metrics.delayDays <= 0) return 100;
+    return Math.round(Math.max(0, 100 - Math.min(100, (metrics.delayDays / 90) * 100)));
+  }
+  return metrics.overallProgressPct > 0 ? metrics.overallProgressPct : null;
+}
+
+/** Compliance blend: drawing approval rate + DPR reporting activity. */
+export function computeCompliancePct(metrics: ProjectDashboardMetrics): number | null {
+  const parts: number[] = [];
+  if (metrics.drawingApprovalPct > 0) {
+    parts.push(Math.min(100, metrics.drawingApprovalPct));
+  }
+  if (metrics.dprCount > 0) {
+    parts.push(Math.min(100, 60 + metrics.dprCount * 8));
+  }
+  if (parts.length === 0) return null;
+  return Math.round(parts.reduce((sum, value) => sum + value, 0) / parts.length);
+}
+
 export function hseLevelToPercent(
   level: 'safe' | 'warning' | 'critical',
   hasData: boolean,
@@ -226,7 +248,8 @@ export function healthToneToLabel(tone: ProjectHealthTone): 'ON TRACK' | 'AT RIS
 
 export function computeOverallScoreFromMetrics(metrics: ProjectDashboardMetrics): number | null {
   const values: number[] = [];
-  if (metrics.overallProgressPct != null) values.push(metrics.overallProgressPct);
+  const schedulePct = computeScheduleHealthPct(metrics);
+  if (schedulePct != null) values.push(schedulePct);
   if (metrics.budgetPct != null) values.push(metrics.budgetPct);
   if (metrics.manpowerPct != null) values.push(metrics.manpowerPct);
   const safetyPct = hseLevelToPercent(
@@ -234,7 +257,9 @@ export function computeOverallScoreFromMetrics(metrics: ProjectDashboardMetrics)
     metrics.healthSafetyStatus.sublabel !== 'No HSE data',
   );
   if (safetyPct != null) values.push(safetyPct);
-  values.push(metrics.drawingApprovalPct);
+  const compliancePct = computeCompliancePct(metrics);
+  if (compliancePct != null) values.push(compliancePct);
+  else if (metrics.drawingApprovalPct > 0) values.push(metrics.drawingApprovalPct);
 
   if (values.length === 0) return null;
   return Math.round(values.reduce((a, b) => a + b, 0) / values.length);

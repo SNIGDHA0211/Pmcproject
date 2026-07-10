@@ -103,6 +103,7 @@ const CmFinancialDashboardRow: React.FC<CmFinancialDashboardRowProps> = ({
       <div className="grid grid-cols-1 items-stretch gap-3 xl:grid-cols-2">
         <ContractValuesGroupCard
           key={`cv-${selectedContractorMasterId ?? 'cumulative'}`}
+          id="tl-section-contract-values"
           className="h-full"
           sclData={contractPanel.sclCv}
           contractorData={contractorContractValues}
@@ -113,6 +114,7 @@ const CmFinancialDashboardRow: React.FC<CmFinancialDashboardRowProps> = ({
         />
         <InvoicingGroupCard
           key={`inv-${selectedContractorMasterId ?? 'cumulative'}`}
+          id="tl-section-invoicing"
           className="h-full"
           pmcData={invoicingPanel.sclInv}
           contractorData={contractorInvoicing}

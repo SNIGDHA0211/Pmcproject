@@ -2,6 +2,7 @@ import type { User } from '../types';
 import { clearAllTeamLeaderOverviewCaches } from './teamLeaderOverviewCache';
 import { clearAllProjectDatesSectionCaches } from './projectDatesSectionCache';
 import { clearAllPMCHead360Caches } from './pmcHead360Cache';
+import { clearProjectRowCache } from './pmcHeadExecutiveProjects';
 
 export const ACCESS_TOKEN_KEY = 'access_token';
 export const REFRESH_TOKEN_KEY = 'refresh_token';
@@ -51,6 +52,7 @@ export function clearAuthStorage(): void {
   clearAllTeamLeaderOverviewCaches();
   clearAllProjectDatesSectionCaches();
   clearAllPMCHead360Caches();
+  clearProjectRowCache();
 }
 
 export function clearLegacyBasicAuth(): void {

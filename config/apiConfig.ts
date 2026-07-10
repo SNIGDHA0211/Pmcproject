@@ -305,13 +305,31 @@ export const API_ENDPOINTS = {
     DETAIL: (id: string | number) => `/budget-performance/${id}/`,
   },
 
-  // Planned vs Actual Value (planned-earned-value API)
+  // Planned vs Actual Value (legacy planned-earned-value API)
   PLANNED_EARNED_VALUE: {
     LIST: '/planned-earned-value/',
     DETAIL: (id: string | number) => `/planned-earned-value/${id}/`,
     PROJECT: (projectName: string) => `/planned-earned-value/project/${encodeURIComponent(projectName)}/`,
     BY_MONTH_YEAR: (projectName: string, month: number, year: number) =>
       `/planned-earned-value/project/${encodeURIComponent(projectName)}/month/${month}/year/${year}/`,
+  },
+
+  /**
+   * Planned vs Actual — /api/planned-vs-actual/
+   * Legacy alias: /api/planned-earned-value/ (same endpoints).
+   * All financial metrics come from the backend.
+   */
+  PLANNED_VS_ACTUAL: {
+    LIST: '/planned-vs-actual/',
+    DETAIL: (id: string | number) => `/planned-vs-actual/${id}/`,
+    DASHBOARD: '/planned-vs-actual/dashboard/',
+    PENDING: '/planned-vs-actual/pending/',
+    PROJECT: (projectName: string) =>
+      `/planned-vs-actual/project/${encodeURIComponent(projectName)}/`,
+    BY_TYPE: (projectName: string, plannedType: string) =>
+      `/planned-vs-actual/project/${encodeURIComponent(projectName)}/type/${plannedType}/`,
+    TREND: (projectName: string) =>
+      `/planned-vs-actual/project/${encodeURIComponent(projectName)}/trend/`,
   },
 
   // Project Dates

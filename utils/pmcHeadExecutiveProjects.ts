@@ -27,7 +27,7 @@ function normalizeTitleKey(title?: string | null): string {
   return String(title ?? '').trim().toLowerCase();
 }
 
-function isSyntheticExecutiveProjectId(id?: string | null): boolean {
+export function isSyntheticExecutiveProjectId(id?: string | null): boolean {
   return String(id ?? '').startsWith('executive-known-');
 }
 
@@ -57,30 +57,117 @@ function buildKnownExecutiveProjectStub(title: string): Project {
   };
 }
 
-async function fetchAllProjectRows(): Promise<Record<string, unknown>[]> {
-  const paramAttempts: Array<Record<string, string | number | boolean> | undefined> = [
-    { page_size: 1000 },
-    { page_size: 500 },
-    undefined,
-  ];
-  const merged = new Map<string, Record<string, unknown>>();
+let cachedProjectRows: Record<string, unknown>[] | null = null;
+let cachedProjectRowsAt = 0;
+let inflightProjectRows: Promise<Record<string, unknown>[]> | null = null;
 
-  for (const params of paramAttempts) {
-    try {
-      const response = await projectApi.getProjects(params);
-      unwrapList(response.data).forEach((row) => {
-        if (!row || typeof row !== 'object') return;
-        const record = row as Record<string, unknown>;
-        const id = String(record.id ?? '');
-        if (id) merged.set(id, record);
-      });
-      if (merged.size > 0) break;
-    } catch {
-      // try next
-    }
+const PROJECT_ROW_CACHE_TTL_MS = 2 * 60 * 1000;
+
+function absorbProjectRowsIntoMap(
+  target: Map<string, Record<string, unknown>>,
+  rows: unknown[],
+): void {
+  rows.forEach((row) => {
+    if (!row || typeof row !== 'object') return;
+    const record = row as Record<string, unknown>;
+    const id = String(record.id ?? '');
+    if (id) target.set(id, record);
+  });
+}
+
+/** Seed in-memory cache from an already-fetched projects response (avoids duplicate API calls). */
+export function seedProjectRowCache(rows: unknown[]): void {
+  if (!Array.isArray(rows) || rows.length === 0) return;
+  const merged = new Map<string, Record<string, unknown>>();
+  if (cachedProjectRows) absorbProjectRowsIntoMap(merged, cachedProjectRows);
+  absorbProjectRowsIntoMap(merged, rows);
+  cachedProjectRows = [...merged.values()];
+  cachedProjectRowsAt = Date.now();
+}
+
+export function clearProjectRowCache(): void {
+  cachedProjectRows = null;
+  cachedProjectRowsAt = 0;
+  inflightProjectRows = null;
+}
+
+export function getCachedProjectRowByTitle(title: string): Record<string, unknown> | null {
+  const titleKey = normalizeTitleKey(title);
+  if (!titleKey || !cachedProjectRows?.length) return null;
+  return (
+    cachedProjectRows.find((row) => {
+      const name = String(row.name ?? row.title ?? row.project_name ?? '').trim();
+      return normalizeTitleKey(name) === titleKey;
+    }) ?? null
+  );
+}
+
+export function getCachedProjectRowById(projectId: string): Record<string, unknown> | null {
+  if (!projectId || !cachedProjectRows?.length) return null;
+  return cachedProjectRows.find((row) => String(row.id ?? '') === projectId) ?? null;
+}
+
+/**
+ * Map executive stubs (executive-known-*) to real backend rows when available,
+ * and merge list-row financial/HSE fields into the project used for vitals.
+ */
+export function resolveExecutiveProjectForApi(project: Project): Project {
+  const row =
+    getCachedProjectRowById(project.id) ?? getCachedProjectRowByTitle(project.title);
+  if (!row) {
+    if (isSyntheticExecutiveProjectId(project.id)) return project;
+    return project;
   }
 
-  return [...merged.values()];
+  const fromRow = normalizeBackendProjectRow(row);
+  const useRowId =
+    isSyntheticExecutiveProjectId(project.id) &&
+    fromRow.id &&
+    !isSyntheticExecutiveProjectId(fromRow.id);
+
+  return {
+    ...project,
+    ...fromRow,
+    id: useRowId ? fromRow.id : project.id || fromRow.id,
+    title: project.title || fromRow.title,
+    location: project.location || fromRow.location,
+    teamLeadId: project.teamLeadId || fromRow.teamLeadId,
+    teamLeadName: project.teamLeadName || fromRow.teamLeadName,
+  };
+}
+
+export function resolveExecutiveProjectsForApi(projects: Project[]): Project[] {
+  return projects.map(resolveExecutiveProjectForApi);
+}
+
+async function fetchAllProjectRows(forceRefresh = false): Promise<Record<string, unknown>[]> {
+  if (
+    !forceRefresh &&
+    cachedProjectRows &&
+    cachedProjectRows.length > 0 &&
+    Date.now() - cachedProjectRowsAt < PROJECT_ROW_CACHE_TTL_MS
+  ) {
+    return cachedProjectRows;
+  }
+
+  if (inflightProjectRows) return inflightProjectRows;
+
+  inflightProjectRows = (async () => {
+    try {
+      const response = await projectApi.getProjects({ page_size: 1000 });
+      const rows = unwrapList(response.data).filter(
+        (row): row is Record<string, unknown> => Boolean(row) && typeof row === 'object',
+      );
+      seedProjectRowCache(rows);
+      return cachedProjectRows ?? rows;
+    } catch {
+      return cachedProjectRows ?? [];
+    } finally {
+      inflightProjectRows = null;
+    }
+  })();
+
+  return inflightProjectRows;
 }
 
 async function resolveProjectFromDatesEndpoint(title: string): Promise<Project | null> {
@@ -324,32 +411,29 @@ async function rowsToProjects(rows: unknown[]): Promise<Project[]> {
     .filter((project) => project.id);
 }
 
-async function fetchProjectsByTitle(title: string): Promise<Project | null> {
-  const titleKey = normalizeTitleKey(title);
+async function fetchProjectsByTitle(
+  title: string,
+  existingProjects: Project[] = [],
+): Promise<Project | null> {
+  const fromExisting = pickProjectByTitle(existingProjects, title);
+  if (fromExisting) return fromExisting;
 
-  const allRows = await fetchAllProjectRows();
-  const fromFullList = pickProjectByTitle(
-    allRows.map((row) => normalizeBackendProjectRow(row)),
+  const rows = await fetchAllProjectRows();
+  const fromCache = pickProjectByTitle(
+    rows.map((row) => normalizeBackendProjectRow(row)),
     title,
   );
-  if (fromFullList) return fromFullList;
+  if (fromCache) return fromCache;
 
-  const paramAttempts: Array<Record<string, string | number | boolean>> = [
-    { search: title },
-    { name: title },
-    { project_name: title },
-    { q: title },
-  ];
-
-  for (const params of paramAttempts) {
-    try {
-      const response = await projectApi.getProjects(params);
-      const projects = await rowsToProjects(unwrapList(response.data));
-      const exact = pickProjectByTitle(projects, title);
-      if (exact) return exact;
-    } catch {
-      // try next
-    }
+  try {
+    const response = await projectApi.getProjects({ search: title });
+    const fetchedRows = unwrapList(response.data);
+    seedProjectRowCache(fetchedRows);
+    const projects = await rowsToProjects(fetchedRows);
+    const exact = pickProjectByTitle(projects, title);
+    if (exact) return exact;
+  } catch {
+    // fall through
   }
 
   const fromDates = await resolveProjectFromDatesEndpoint(title);
@@ -362,23 +446,16 @@ async function fetchProjectsByTitle(title: string): Promise<Project | null> {
   return null;
 }
 
-async function ensureKnownExecutiveProjects(existing: Project[]): Promise<Project[]> {
+function ensureKnownExecutiveStubs(projects: Project[]): Project[] {
   const merged = new Map<string, Project>();
-  const absorb = (project: Project) => {
+  projects.forEach((project) => {
     if (project.id) merged.set(project.id, project);
-  };
-
-  existing.forEach(absorb);
+  });
 
   for (const title of PMC_TL_KNOWN_PROJECT_TITLES) {
     if (pickProjectByTitle([...merged.values()], title)) continue;
-
-    const resolved =
-      (await fetchProjectsByTitle(title)) ??
-      (await resolveProjectFromDatesEndpoint(title)) ??
-      buildKnownExecutiveProjectStub(title);
-
-    absorb(resolved);
+    const stub = buildKnownExecutiveProjectStub(title);
+    merged.set(stub.id, stub);
   }
 
   return [...merged.values()].sort(sortProjectsByTitle);
@@ -398,36 +475,54 @@ export async function fetchPmcTlPortfolioProjects(
 
   existingProjects.filter((p) => isPmcTlUserProject(p, tokens)).forEach(absorb);
 
-  const paramAttempts: Array<Record<string, string | number | boolean> | undefined> = [
-    { team_lead: PMC_TL_USERNAME },
-    { team_lead_username: PMC_TL_USERNAME },
-    { page_size: 1000 },
-    { page_size: 500 },
-    undefined,
-  ];
+  const allRows = await fetchAllProjectRows();
+  allRows.forEach((row) => {
+    if (!rowAssignedToPmcTl(row, tokens)) return;
+    absorb(normalizeBackendProjectRow(row));
+  });
 
-  for (const params of paramAttempts) {
-    try {
-      const response = await projectApi.getProjects(params);
-      const rows = unwrapList(response.data);
+  const missingKnown = PMC_TL_KNOWN_PROJECT_TITLES.filter(
+    (title) => !pickProjectByTitle([...merged.values()], title),
+  );
+
+  if (missingKnown.length > 0) {
+    const supplementalResponses = await Promise.allSettled([
+      projectApi.getProjects({ team_lead: PMC_TL_USERNAME }),
+      projectApi.getProjects({ team_lead_username: PMC_TL_USERNAME }),
+    ]);
+
+    for (const result of supplementalResponses) {
+      if (result.status !== 'fulfilled') continue;
+      const rows = unwrapList(result.value.data);
+      seedProjectRowCache(rows);
       rows.forEach((row) => {
         if (!row || typeof row !== 'object') return;
         const record = row as Record<string, unknown>;
-        if (!rowAssignedToPmcTl(record, tokens)) return;
-        absorb(normalizeBackendProjectRow(record));
+        const title = String(record.name ?? record.title ?? record.project_name ?? '');
+        if (
+          rowAssignedToPmcTl(record, tokens) ||
+          isKnownPmcTlProjectTitle(title)
+        ) {
+          absorb(normalizeBackendProjectRow(record));
+        }
       });
-    } catch {
-      // try next
+    }
+
+    const stillMissing = PMC_TL_KNOWN_PROJECT_TITLES.filter(
+      (title) => !pickProjectByTitle([...merged.values()], title),
+    );
+
+    if (stillMissing.length > 0) {
+      const resolved = await Promise.all(
+        stillMissing.map((title) => fetchProjectsByTitle(title, [...merged.values()])),
+      );
+      resolved.forEach((project) => {
+        if (project) absorb(project);
+      });
     }
   }
 
-  for (const title of PMC_TL_KNOWN_PROJECT_TITLES) {
-    if (pickProjectByTitle([...merged.values()], title)) continue;
-    const found = await fetchProjectsByTitle(title);
-    if (found) absorb(found);
-  }
-
-  return ensureKnownExecutiveProjects([...merged.values()]);
+  return ensureKnownExecutiveStubs([...merged.values()]);
 }
 
 /** PMC Head: merge portfolio with pmc_tl team-lead projects into one dropdown list. */

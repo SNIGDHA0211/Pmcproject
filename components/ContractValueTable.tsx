@@ -243,6 +243,7 @@ interface ContractValuesGroupCardProps {
   contractorSectionTitle: string;
   groupSubtitle?: string;
   className?: string;
+  id?: string;
   isLoading?: boolean;
   sclError?: string | null;
   contractorError?: string | null;
@@ -261,6 +262,7 @@ export const ContractValuesGroupCard: React.FC<ContractValuesGroupCardProps> = (
   contractorError = null,
   contractorLoading = false,
   onEdit,
+  id,
 }) => {
   const { isDarkTheme } = useTheme();
   const themeClasses = getThemeClasses(isDarkTheme);
@@ -269,6 +271,7 @@ export const ContractValuesGroupCard: React.FC<ContractValuesGroupCardProps> = (
 
   return (
     <div
+      id={id}
       className={`contract-values-group relative flex h-full min-h-0 flex-col overflow-hidden rounded-2xl border ${DASHBOARD_FINANCIAL_CARD_PADDING} transition-shadow hover:shadow-md sm:min-h-[460px] lg:min-h-[520px] ${isDarkTheme
         ? `${themeClasses.glassCard} ${themeClasses.border} shadow-sm`
         : 'border-slate-200 bg-white shadow-[0_6px_20px_rgba(15,23,42,0.06)]'
