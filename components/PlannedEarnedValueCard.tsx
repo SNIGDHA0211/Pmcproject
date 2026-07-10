@@ -80,37 +80,46 @@ const PlannedEarnedValueCard: React.FC<PlannedEarnedValueCardProps> = ({
       emptyMessage={emptyMessage ?? `No ${sectionTitle} data available.`}
       metrics={
         data
-          ? [
-            {
-              label: 'Planned Value',
-              value: formatIndianCurrencyCompact(data.plannedValue),
-              valueClassName: KPI_METRIC_COLORS.primary,
-            },
-            {
-              label: 'Actual Value',
-              value: formatIndianCurrencyCompact(data.earnedValue),
-              valueClassName: KPI_METRIC_COLORS.primary,
-            },
-            ...(hasCollection
-              ? [
-                  {
-                    label: 'Collection',
-                    value: formatIndianCurrencyCompact(data.collection ?? 0),
-                    valueClassName: KPI_METRIC_COLORS.primary,
-                  },
-                ]
-              : []),
-            {
-              label: 'Difference',
-              value: formatIndianCurrencyCompact(variance, { showSign: true }),
-              valueClassName: variance >= 0 ? KPI_METRIC_COLORS.positive : KPI_METRIC_COLORS.negative,
-            },
-          ]
+          ? hasCollection
+            ? [
+                {
+                  label: 'Planned Value',
+                  value: formatIndianCurrencyCompact(data.plannedValue),
+                  valueClassName: KPI_METRIC_COLORS.primary,
+                },
+                {
+                  label: 'Actual Value',
+                  value: formatIndianCurrencyCompact(data.earnedValue),
+                  valueClassName: KPI_METRIC_COLORS.primary,
+                },
+                {
+                  label: 'Collection',
+                  value: formatIndianCurrencyCompact(data.collection ?? 0),
+                  valueClassName: KPI_METRIC_COLORS.primary,
+                },
+              ]
+            : [
+                {
+                  label: 'Planned Value',
+                  value: formatIndianCurrencyCompact(data.plannedValue),
+                  valueClassName: KPI_METRIC_COLORS.primary,
+                },
+                {
+                  label: 'Actual Value',
+                  value: formatIndianCurrencyCompact(data.earnedValue),
+                  valueClassName: KPI_METRIC_COLORS.primary,
+                },
+                {
+                  label: 'Difference',
+                  value: formatIndianCurrencyCompact(variance, { showSign: true }),
+                  valueClassName: variance >= 0 ? KPI_METRIC_COLORS.positive : KPI_METRIC_COLORS.negative,
+                },
+              ]
           : [
-            { label: 'Planned Value', value: '—', valueClassName: KPI_METRIC_COLORS.primary },
-            { label: 'Actual Value', value: '—', valueClassName: KPI_METRIC_COLORS.primary },
-            { label: 'Difference', value: '—', valueClassName: KPI_METRIC_COLORS.muted },
-          ]
+              { label: 'Planned Value', value: '—', valueClassName: KPI_METRIC_COLORS.primary },
+              { label: 'Actual Value', value: '—', valueClassName: KPI_METRIC_COLORS.primary },
+              { label: 'Difference', value: '—', valueClassName: KPI_METRIC_COLORS.muted },
+            ]
       }
       headerActions={headerActions}
       showTbdOverlay={showTbdOverlay}
