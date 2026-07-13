@@ -475,46 +475,43 @@ const PMCExecutiveOverviewPanel: React.FC<PMCExecutiveOverviewPanelProps> = ({
     const correspondenceScore = correspondenceStats
       ? Math.round((correspondenceStats.client.efficiency + correspondenceStats.contractor.efficiency) / 2)
       : null;
+    const drawingsScore = Math.round(Number(metrics.drawingApprovalPct) || 0);
+    const bottleneckScore =
+      metrics.openBottleneckCount === 0 ? 100 : Math.max(20, 100 - metrics.openBottleneckCount * 25);
+
     return [
       { name: 'HSE', score: hseScore, fill: hseScore >= 80 ? PALETTE.emerald : PALETTE.rose, anchor: 'hse' as ExecutiveOverviewAnchor },
-      ...(qualityScore != null
-        ? [
-            {
-              name: 'Quality',
-              score: qualityScore,
-              fill: qualityScore >= 75 ? PALETTE.emerald : PALETTE.amber,
-              anchor: 'quality' as ExecutiveOverviewAnchor,
-            },
-          ]
-        : []),
-      ...(correspondenceScore != null
-        ? [
-            {
-              name: 'Correspondence',
-              score: correspondenceScore,
-              fill: correspondenceScore >= 75 ? PALETTE.emerald : PALETTE.amber,
-              anchor: 'correspondence' as ExecutiveOverviewAnchor,
-            },
-          ]
-        : []),
+      {
+        name: 'Quality',
+        score: qualityScore ?? 0,
+        fill: (qualityScore ?? 0) >= 75 ? PALETTE.emerald : qualityScore == null ? PALETTE.slate : PALETTE.amber,
+        anchor: 'quality' as ExecutiveOverviewAnchor,
+        empty: qualityScore == null,
+      },
+      {
+        name: 'Correspondence',
+        score: correspondenceScore ?? 0,
+        fill:
+          (correspondenceScore ?? 0) >= 75
+            ? PALETTE.emerald
+            : correspondenceScore == null
+              ? PALETTE.slate
+              : PALETTE.amber,
+        anchor: 'correspondence' as ExecutiveOverviewAnchor,
+        empty: correspondenceScore == null,
+      },
       {
         name: 'Drawings',
-        score: Math.round(metrics.drawingApprovalPct),
-        fill: metrics.drawingApprovalPct >= 75 ? PALETTE.emerald : PALETTE.amber,
+        score: drawingsScore,
+        fill: drawingsScore >= 75 ? PALETTE.emerald : drawingsScore > 0 ? PALETTE.amber : PALETTE.slate,
         anchor: 'drawings' as ExecutiveOverviewAnchor,
       },
       {
         name: 'Bottlenecks',
-        score: metrics.openBottleneckCount === 0 ? 100 : Math.max(20, 100 - metrics.openBottleneckCount * 25),
+        score: bottleneckScore,
         fill: metrics.openBottleneckCount === 0 ? PALETTE.emerald : PALETTE.rose,
         anchor: 'risk' as ExecutiveOverviewAnchor,
       },
-      // {
-      //   name: 'Risks',
-      //   score: metrics.criticalRisks === 0 ? 100 : Math.max(15, 100 - metrics.criticalRisks * 20),
-      //   fill: metrics.criticalRisks === 0 ? PALETTE.emerald : PALETTE.rose,
-      //   anchor: 'risk' as ExecutiveOverviewAnchor,
-      // },
     ];
   }, [metrics, qualityPct, correspondenceStats]);
 
@@ -974,7 +971,7 @@ const PMCExecutiveOverviewPanel: React.FC<PMCExecutiveOverviewPanelProps> = ({
           )}
         </article>
 
-        <article className={`p-3 sm:p-4 ${cardBase}`}>
+        <article className={`flex flex-col p-3 sm:p-4 ${cardBase}`}>
           <SectionHeader
             icon={<Shield size={15} />}
             title="Compliance pulse"
@@ -983,24 +980,54 @@ const PMCExecutiveOverviewPanel: React.FC<PMCExecutiveOverviewPanelProps> = ({
             action={{ label: 'Details', onClick: () => onNavigate('compliance', 'hse') }}
             isDark={ex.isDark}
           />
-          <div style={{ height: CHART_H_SM }}>
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={complianceBars} layout="vertical" margin={{ top: 0, right: 12, left: 4, bottom: 0 }} barCategoryGap="20%">
-                <CartesianGrid strokeDasharray="3 6" stroke={chartGridStroke(ex.isDark)} horizontal={false} />
-                <XAxis type="number" domain={[0, 100]} hide />
-                <YAxis type="category" dataKey="name" tick={chartAxisTick(ex.isDark, 10)} axisLine={false} tickLine={false} width={72} />
-                <Tooltip contentStyle={chartTooltipStyle(ex.isDark)} formatter={(v: number) => [`${v}%`, 'Score']} />
-                <Bar dataKey="score" radius={[0, 8, 8, 0]} maxBarSize={16}>
-                  {complianceBars.map((entry) => (
-                    <Cell key={entry.name} fill={entry.fill} />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
+          <ul className="mt-1 flex flex-1 flex-col justify-center gap-2.5">
+            {complianceBars.map((row) => {
+              const widthPct = row.empty ? 0 : Math.min(100, Math.max(0, row.score));
+              return (
+                <li key={row.name}>
+                  <button
+                    type="button"
+                    onClick={() => onNavigate('compliance', row.anchor)}
+                    className="group w-full text-left"
+                  >
+                    <div className="mb-1 flex items-center justify-between gap-2">
+                      <span
+                        className={`text-[11px] font-bold tracking-wide ${
+                          ex.isDark ? 'text-slate-200 group-hover:text-white' : 'text-slate-700 group-hover:text-slate-900'
+                        }`}
+                      >
+                        {row.name}
+                      </span>
+                      <span
+                        className={`tabular-nums text-[11px] font-black ${
+                          ex.isDark ? 'text-slate-100' : 'text-slate-800'
+                        }`}
+                      >
+                        {row.empty ? '—' : `${row.score}%`}
+                      </span>
+                    </div>
+                    <div
+                      className={`h-2.5 overflow-hidden rounded-full ${
+                        ex.isDark ? 'bg-white/10' : 'bg-slate-100'
+                      }`}
+                    >
+                      <div
+                        className="h-full rounded-full transition-[width] duration-300"
+                        style={{
+                          width: `${widthPct}%`,
+                          backgroundColor: row.fill,
+                          minWidth: widthPct > 0 ? 6 : 0,
+                        }}
+                      />
+                    </div>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
         </article>
 
-        <article className={`p-3 sm:p-4 md:col-span-2 xl:col-span-1 ${cardBase}`}>
+        <article className={`flex flex-col p-3 sm:p-4 md:col-span-2 xl:col-span-1 ${cardBase}`}>
           <SectionHeader
             icon={<MessageSquare size={15} />}
             title="Correspondence & delivery"
@@ -1011,16 +1038,54 @@ const PMCExecutiveOverviewPanel: React.FC<PMCExecutiveOverviewPanelProps> = ({
           />
           {correspondenceBars.length > 0 ? (
             <>
-              <div style={{ height: CHART_H_SM }}>
+              <div className="mt-1 min-h-0 flex-1" style={{ height: CHART_H_SM + 8 }}>
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={correspondenceBars} margin={{ top: 4, right: 8, left: -12, bottom: 0 }} barGap={2} barCategoryGap="22%">
+                  <BarChart
+                    data={correspondenceBars}
+                    margin={{ top: 8, right: 4, left: 0, bottom: 0 }}
+                    barGap={3}
+                    barCategoryGap="28%"
+                  >
                     <CartesianGrid strokeDasharray="3 6" stroke={chartGridStroke(ex.isDark)} vertical={false} />
-                    <XAxis dataKey="party" tick={chartAxisTick(ex.isDark, 10)} axisLine={false} tickLine={false} />
-                    <YAxis tick={chartAxisTick(ex.isDark, 10)} axisLine={false} tickLine={false} width={28} tickFormatter={formatChartCountAxisTick} />
-                    <Tooltip contentStyle={chartTooltipStyle(ex.isDark)} />
-                    <Bar dataKey="received" fill={PALETTE.indigo} radius={[4, 4, 0, 0]} maxBarSize={24} name="Received" />
-                    <Bar dataKey="delivered" fill={PALETTE.teal} radius={[4, 4, 0, 0]} maxBarSize={24} name="Delivered" />
-                    <Bar dataKey="pending" fill={PALETTE.amber} radius={[4, 4, 0, 0]} maxBarSize={24} name="Pending" />
+                    <XAxis
+                      dataKey="party"
+                      tick={chartAxisTick(ex.isDark, 11)}
+                      axisLine={false}
+                      tickLine={false}
+                    />
+                    <YAxis
+                      tick={chartAxisTick(ex.isDark, 10)}
+                      axisLine={false}
+                      tickLine={false}
+                      width={26}
+                      allowDecimals={false}
+                      tickFormatter={formatChartCountAxisTick}
+                    />
+                    <Tooltip
+                      contentStyle={chartTooltipStyle(ex.isDark)}
+                      formatter={(v: number, name: string) => [v, name]}
+                    />
+                    <Bar
+                      dataKey="received"
+                      fill={PALETTE.indigo}
+                      radius={[4, 4, 0, 0]}
+                      maxBarSize={20}
+                      name="Received"
+                    />
+                    <Bar
+                      dataKey="delivered"
+                      fill={PALETTE.teal}
+                      radius={[4, 4, 0, 0]}
+                      maxBarSize={20}
+                      name="Delivered"
+                    />
+                    <Bar
+                      dataKey="pending"
+                      fill={PALETTE.amber}
+                      radius={[4, 4, 0, 0]}
+                      maxBarSize={20}
+                      name="Pending"
+                    />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
@@ -1031,6 +1096,33 @@ const PMCExecutiveOverviewPanel: React.FC<PMCExecutiveOverviewPanelProps> = ({
                   { label: 'Pending', color: PALETTE.amber },
                 ]}
               />
+              <div
+                className={`mt-2 grid grid-cols-2 gap-2 border-t pt-2 ${
+                  ex.isDark ? 'border-white/10' : 'border-slate-100'
+                }`}
+              >
+                {correspondenceBars.map((row) => (
+                  <div
+                    key={row.party}
+                    className={`rounded-lg px-2 py-1.5 ${ex.isDark ? 'bg-white/5' : 'bg-slate-50'}`}
+                  >
+                    <p
+                      className={`text-[9px] font-bold uppercase tracking-wide ${
+                        ex.isDark ? 'text-slate-400' : 'text-slate-500'
+                      }`}
+                    >
+                      {row.party}
+                    </p>
+                    <p
+                      className={`mt-0.5 text-[10px] font-semibold tabular-nums ${
+                        ex.isDark ? 'text-slate-200' : 'text-slate-700'
+                      }`}
+                    >
+                      {row.received} in · {row.delivered} out · {row.pending} pending
+                    </p>
+                  </div>
+                ))}
+              </div>
             </>
           ) : (
             <p className={emptyStateClass} style={{ minHeight: EMPTY_STATE_H }}>
