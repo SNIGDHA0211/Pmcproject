@@ -32,6 +32,7 @@ const NOTIFY_SOURCE_ROLES = new Set<UserRole>([
   UserRole.TEAM_LEAD,
   UserRole.SITE_ENGINEER,
   UserRole.QAQC_SITE_ENGINEER,
+  UserRole.HSE_SITE_ENGINEER,
   UserRole.BILLING_SITE_ENGINEER,
   UserRole.COORDINATOR,
 ]);

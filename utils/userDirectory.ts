@@ -34,6 +34,8 @@ function normalizeDirectoryUser(raw: Record<string, unknown>): DirectoryUser | n
   let roleLabel: string | undefined;
   if (groups.includes('Team Leader') || primaryRole === 'Team Leader') {
     roleLabel = ROLE_LABELS[UserRole.TEAM_LEAD];
+  } else if (groups.includes('HSE Site Engineer') || primaryRole === 'HSE Site Engineer') {
+    roleLabel = ROLE_LABELS[UserRole.HSE_SITE_ENGINEER];
   } else if (groups.includes('QAQC Site Engineer') || primaryRole === 'QAQC Site Engineer') {
     roleLabel = ROLE_LABELS[UserRole.QAQC_SITE_ENGINEER];
   } else if (groups.includes('Billing Site Engineer') || primaryRole === 'Billing Site Engineer') {
@@ -76,6 +78,7 @@ export async function loadUserDirectory(force = false): Promise<DirectoryUser[]>
       fetchUsersForRole('Site Engineer'),
       fetchUsersForRole('Billing Site Engineer'),
       fetchUsersForRole('QAQC Site Engineer'),
+      fetchUsersForRole('HSE Site Engineer'),
       fetchUsersForRole('Coordinator'),
     ]);
 

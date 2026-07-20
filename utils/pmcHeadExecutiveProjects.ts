@@ -244,6 +244,7 @@ export function normalizeBackendProjectRow(row: Record<string, unknown>): Projec
       .filter(Boolean),
     billingEngineerId: extractAssigneeId(row.billing_site_engineer),
     qaqcEngineerId: extractAssigneeId(row.qaqc_site_engineer),
+    hseEngineerId: extractAssigneeId(row.hse_site_engineer),
     coordinatorIds: (Array.isArray(row.coordinators) ? row.coordinators : []).map((id) =>
       String(id),
     ),

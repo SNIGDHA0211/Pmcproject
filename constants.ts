@@ -19,6 +19,7 @@ export const ROLE_LABELS: Record<UserRole, string> = {
   [UserRole.SITE_ENGINEER]: 'Site Engineer',
   [UserRole.BILLING_SITE_ENGINEER]: 'Billing Site Engineer',
   [UserRole.QAQC_SITE_ENGINEER]: 'QAQC Site Engineer',
+  [UserRole.HSE_SITE_ENGINEER]: 'HSE Site Engineer',
 };
 
 export const WORKFLOW_STEPS = [

@@ -6,12 +6,14 @@ import { ModalPortal } from './ModalPortal';
 import { CardActionToolbar, CardEditButton, CardExpandButton, FormulaInfoButton } from './FormulaInfoButton';
 import HealthSafetyMonthSelector from './HealthSafetyMonthSelector';
 import HealthSafetyIncidentKpiCard from './HealthSafetyIncidentKpiCard';
+import HealthSafetyScorecardGrid from './HealthSafetyScorecardGrid';
 import HealthSafetySummaryStrip from './HealthSafetySummaryStrip';
 import HealthSafetyCompactSummary from './HealthSafetyCompactSummary';
 import HealthSafetyPyramid from './HealthSafetyPyramid';
 import HealthSafetyYtdSummarySection from './HealthSafetyYtdSummary';
 import HealthSafetyTrendChart from './HealthSafetyTrendChart';
 import HealthSafetyMonthlyForm, { type HealthSafetyFormValues } from './HealthSafetyMonthlyForm';
+import { createEmptyHSERecord } from '../services/api';
 import { DASHBOARD_FORMULAS } from '../utils/dashboardFormulas';
 import {
   INCIDENT_KPI_CONFIG,
@@ -37,6 +39,8 @@ interface HealthSafetyCardProps {
   variant?: 'dashboard' | 'executive';
   /** Tighter layout when shown beside Material Testing Frequency Chart */
   pairLayout?: boolean;
+  /** When false, hide Add/Edit actions (view-only roles). */
+  canEdit?: boolean;
 }
 
 const HealthSafetyCardHeader: React.FC<{
@@ -144,6 +148,8 @@ const HealthSafetyCardBody: React.FC<{
 
   return (
     <div className="flex flex-col gap-5">
+      <HealthSafetyScorecardGrid record={monthlyRecord} />
+
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
         {INCIDENT_KPI_CONFIG.map((config) => (
           <HealthSafetyIncidentKpiCard
@@ -197,6 +203,7 @@ const HealthSafetyCard: React.FC<HealthSafetyCardProps> = ({
   onSave,
   variant = 'dashboard',
   pairLayout = false,
+  canEdit = true,
 }) => {
   const { isDarkTheme } = useTheme();
   const themeClasses = getThemeClasses(isDarkTheme);
@@ -230,24 +237,17 @@ const HealthSafetyCard: React.FC<HealthSafetyCardProps> = ({
   );
 
   const openCreate = () => {
+    if (!canEdit) return;
     setEditingRecord(
-      monthlyRecord ?? {
-        projectName,
-        month: selectedMonth,
-        year: selectedYear,
-        fatalities: 0,
-        significant: 0,
-        major: 0,
-        minor: 0,
-        nearMiss: 0,
-        totalManhours: 0,
-        lossOfManhours: 0,
-      }
+      monthlyRecord
+        ? { ...monthlyRecord }
+        : createEmptyHSERecord(projectName, selectedMonth, selectedYear),
     );
     setIsModalOpen(true);
   };
 
   const openEdit = () => {
+    if (!canEdit) return;
     setEditingRecord(monthlyRecord);
     setIsModalOpen(true);
   };
@@ -266,7 +266,7 @@ const HealthSafetyCard: React.FC<HealthSafetyCardProps> = ({
     selectedYear,
     onMonthChange,
     onYearChange,
-    onEdit: openEdit,
+    onEdit: canEdit ? openEdit : undefined,
   };
 
   const renderContent = (mode: 'compact' | 'expanded') => {
@@ -304,15 +304,17 @@ const HealthSafetyCard: React.FC<HealthSafetyCardProps> = ({
           <p className={`text-sm font-black uppercase tracking-widest ${themeClasses.textMuted}`}>
             No Health & Safety records for selected month.
           </p>
-          <button
-            type="button"
-            onClick={openCreate}
-            disabled={!projectName}
-            className="inline-flex items-center gap-1 rounded-lg bg-blue-600 px-3 py-2 text-[10px] font-black uppercase tracking-widest text-white hover:bg-blue-700 disabled:opacity-60"
-          >
-            <Icons.Add size={12} />
-            Add Record
-          </button>
+          {canEdit && (
+            <button
+              type="button"
+              onClick={openCreate}
+              disabled={!projectName}
+              className="inline-flex items-center gap-1 rounded-lg bg-blue-600 px-3 py-2 text-[10px] font-black uppercase tracking-widest text-white hover:bg-blue-700 disabled:opacity-60"
+            >
+              <Icons.Add size={12} />
+              Add Record
+            </button>
+          )}
         </div>
       );
     }

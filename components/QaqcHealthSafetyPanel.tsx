@@ -1,9 +1,10 @@
 import React, { useMemo } from 'react';
 import { AlertTriangle, Clock, Shield } from 'lucide-react';
 import type { HealthSafetyDashboardData } from '../services/api';
-import HealthSafetyIncidentKpiCard from './HealthSafetyIncidentKpiCard';
 import HealthSafetyPyramid from './HealthSafetyPyramid';
 import HealthSafetyTrendChart from './HealthSafetyTrendChart';
+import HealthSafetyScorecardGrid from './HealthSafetyScorecardGrid';
+import { resolveManHoursWorked } from '../utils/healthSafetyScorecard';
 import {
   getHealthSafetyStatus,
   INCIDENT_KPI_CONFIG,
@@ -131,19 +132,13 @@ const QaqcHealthSafetyPanel: React.FC<QaqcHealthSafetyPanelProps> = ({
         </div>
       ) : (
         <div className="space-y-4">
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
-            {INCIDENT_KPI_CONFIG.map((cfg) => (
-              <HealthSafetyIncidentKpiCard
-                key={cfg.key}
-                metricKey={cfg.key}
-                value={record[cfg.key]}
-                variant="expanded"
-              />
-            ))}
-          </div>
+          <HealthSafetyScorecardGrid record={record} />
 
           <div className="grid grid-cols-1 gap-4 xl:grid-cols-12">
-            <div className={`min-h-[220px] rounded-xl border p-3 sm:p-4 xl:col-span-5 ${isDarkTheme ? 'border-white/10 bg-white/[0.02]' : 'border-slate-100 bg-slate-50/60'}`}>
+            <div className={`min-h-[180px] rounded-xl border p-3 sm:p-4 xl:col-span-5 ${isDarkTheme ? 'border-white/10 bg-white/[0.02]' : 'border-slate-100 bg-slate-50/60'}`}>
+              <p className={`mb-2 text-[10px] font-bold uppercase tracking-widest ${themeClasses.textSecondary}`}>
+                Legacy incident pyramid
+              </p>
               <HealthSafetyPyramid stats={toIncidentMetrics(record)} variant="summary" />
             </div>
 
@@ -157,10 +152,10 @@ const QaqcHealthSafetyPanel: React.FC<QaqcHealthSafetyPanelProps> = ({
                 <div className="flex items-start justify-between gap-2 pl-2">
                   <div>
                     <p className={`text-[10px] font-bold uppercase tracking-widest ${themeClasses.textSecondary}`}>
-                      Total Manhours
+                      Man Hrs Worked (#3)
                     </p>
                     <p className={`mt-1 text-2xl font-black tabular-nums sm:text-3xl ${themeClasses.textPrimary}`}>
-                      {record.totalManhours.toLocaleString('en-IN')}
+                      {resolveManHoursWorked(record).toLocaleString('en-IN')}
                     </p>
                   </div>
                   <span className={`flex h-9 w-9 items-center justify-center rounded-lg ${isDarkTheme ? 'bg-blue-500/15 text-blue-300' : 'bg-blue-50 text-blue-600'}`}>
@@ -178,7 +173,7 @@ const QaqcHealthSafetyPanel: React.FC<QaqcHealthSafetyPanelProps> = ({
                 <div className="flex items-start justify-between gap-2 pl-2">
                   <div>
                     <p className={`text-[10px] font-bold uppercase tracking-widest ${themeClasses.textSecondary}`}>
-                      Loss of Manhours
+                      Man Hours Lost (#9)
                     </p>
                     <p className="mt-1 text-2xl font-black tabular-nums text-rose-500 sm:text-3xl">
                       {record.lossOfManhours.toLocaleString('en-IN')}
@@ -203,13 +198,14 @@ const QaqcHealthSafetyPanel: React.FC<QaqcHealthSafetyPanelProps> = ({
                     {INCIDENT_KPI_CONFIG.map((cfg) => {
                       const ytdMetrics = toIncidentMetrics(ytd);
                       return (
-                      <div key={cfg.key} className="text-center">
-                        <p className={`text-[9px] font-bold uppercase ${themeClasses.textSecondary}`}>{cfg.shortLabel}</p>
-                        <p className={`text-lg font-black tabular-nums ${themeClasses.textPrimary}`}>
-                          {(ytdMetrics[cfg.key] ?? 0).toLocaleString('en-IN')}
-                        </p>
-                      </div>
-                    );})}
+                        <div key={cfg.key} className="text-center">
+                          <p className={`text-[9px] font-bold uppercase ${themeClasses.textSecondary}`}>{cfg.shortLabel}</p>
+                          <p className={`text-lg font-black tabular-nums ${themeClasses.textPrimary}`}>
+                            {(ytdMetrics[cfg.key] ?? 0).toLocaleString('en-IN')}
+                          </p>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               )}

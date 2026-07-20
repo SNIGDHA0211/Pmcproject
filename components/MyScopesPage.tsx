@@ -21,7 +21,11 @@ import QaqcScopeDashboardPanel from './QaqcScopeDashboardPanel';
 import BillingEngineerDashboardPanel, { type BillingProjectOption } from './BillingEngineerDashboardPanel';
 import type { BillingFinancialSection } from './billing/BillingFinanceDashboardCards';
 import QaqcScopeUpdateModal, { buildScopeUpdatePayload } from './QaqcScopeUpdateModal';
-import HealthSafetyMonthlyForm, { type HealthSafetyFormValues } from './HealthSafetyMonthlyForm';
+import HealthSafetyMonthlyForm, {
+  healthSafetyPayloadFromForm,
+  type HealthSafetyFormValues,
+} from './HealthSafetyMonthlyForm';
+import { canEditHealthSafety } from '../utils/healthSafetyAccess';
 import DashboardToastStack, { type DashboardToastItem } from './DashboardToastStack';
 import { websocketService, NotificationData } from '../services/websocket';
 import {
@@ -31,6 +35,7 @@ import {
 import { primaryProjectName } from '../utils/qaqcScopeAnalytics';
 import { scopeProjectName } from '../utils/billingDashboardAnalytics';
 import {
+  assignedHseProjectsForUser,
   assignedProjectsFromList,
   assignedProjectsFromRawApi,
   mergeAssignedProjectOptions,
@@ -81,8 +86,11 @@ const MyScopesPage: React.FC<MyScopesPageProps> = ({
   const [qaqcAssignments, setQaqcAssignments] = useState<AssignedProjectOption[]>([]);
 
   const isQaqcEngineer = user.role === UserRole.QAQC_SITE_ENGINEER;
+  const isHseEngineer = user.role === UserRole.HSE_SITE_ENGINEER;
   const isBillingEngineer = user.role === UserRole.BILLING_SITE_ENGINEER;
   const isSiteEngineer = user.role === UserRole.SITE_ENGINEER;
+  const showsHseDashboard = isQaqcEngineer || isHseEngineer;
+  const canEditHse = canEditHealthSafety(user.role);
 
   const assignedQaqcProjects = useMemo(
     () =>
@@ -93,21 +101,29 @@ const MyScopesPage: React.FC<MyScopesPageProps> = ({
     [qaqcAssignments, projects, user],
   );
 
+  const assignedHseProjects = useMemo(
+    () => assignedHseProjectsForUser(projects, user),
+    [projects, user],
+  );
+
   const activeQaqcProject = useMemo(() => {
-    if (!isQaqcEngineer) return null;
+    if (!isQaqcEngineer && !isHseEngineer) return null;
     return (
       qaqcProjectSelection ??
       primaryProject ??
-      primaryProjectName(scopes) ??
+      (isQaqcEngineer ? primaryProjectName(scopes) : null) ??
+      (isHseEngineer ? assignedHseProjects[0]?.title : null) ??
       assignedQaqcProjects[0]?.title ??
       null
     );
   }, [
     isQaqcEngineer,
+    isHseEngineer,
     qaqcProjectSelection,
     primaryProject,
     scopes,
     assignedQaqcProjects,
+    assignedHseProjects,
   ]);
 
   const assignedBillingProjects = useMemo(
@@ -137,12 +153,21 @@ const MyScopesPage: React.FC<MyScopesPageProps> = ({
   ]);
 
   useEffect(() => {
-    if (!isQaqcEngineer || qaqcProjectSelection) return;
-    const fromAssignment = assignedQaqcProjects[0]?.title;
-    const fromScopes = primaryProjectName(scopes);
+    if ((!isQaqcEngineer && !isHseEngineer) || qaqcProjectSelection) return;
+    const fromAssignment = isHseEngineer
+      ? assignedHseProjects[0]?.title
+      : assignedQaqcProjects[0]?.title;
+    const fromScopes = isQaqcEngineer ? primaryProjectName(scopes) : null;
     if (fromAssignment) setQaqcProjectSelection(fromAssignment);
     else if (fromScopes) setQaqcProjectSelection(fromScopes);
-  }, [isQaqcEngineer, assignedQaqcProjects, scopes, qaqcProjectSelection]);
+  }, [
+    isQaqcEngineer,
+    isHseEngineer,
+    assignedQaqcProjects,
+    assignedHseProjects,
+    scopes,
+    qaqcProjectSelection,
+  ]);
 
   useEffect(() => {
     if (!isBillingEngineer || billingProjectSelection) return;
@@ -199,8 +224,8 @@ const MyScopesPage: React.FC<MyScopesPageProps> = ({
   );
 
   const resolvedProject = useMemo(() => {
-    if (isQaqcEngineer) {
-      return activeQaqcProject ?? primaryProject ?? primaryProjectName(scopes);
+    if (isQaqcEngineer || isHseEngineer) {
+      return activeQaqcProject ?? primaryProject ?? (isQaqcEngineer ? primaryProjectName(scopes) : assignedHseProjects[0]?.title ?? null);
     }
     if (isBillingEngineer) {
       return activeBillingProject ?? primaryProject ?? scopeProjectName(scopes);
@@ -208,11 +233,13 @@ const MyScopesPage: React.FC<MyScopesPageProps> = ({
     return primaryProject ?? primaryProjectName(scopes);
   }, [
     isQaqcEngineer,
+    isHseEngineer,
     isBillingEngineer,
     activeQaqcProject,
     activeBillingProject,
     primaryProject,
     scopes,
+    assignedHseProjects,
   ]);
 
   const openHseForm = useCallback(() => {
@@ -254,7 +281,7 @@ const MyScopesPage: React.FC<MyScopesPageProps> = ({
   }, [isQaqcEngineer]);
 
   const loadHealthSafetyForProject = useCallback(async (projectName: string | null) => {
-    if (!isQaqcEngineer) {
+    if (!showsHseDashboard) {
       setHseDashboard(null);
       return;
     }
@@ -280,7 +307,7 @@ const MyScopesPage: React.FC<MyScopesPageProps> = ({
     } finally {
       setHseLoading(false);
     }
-  }, [isQaqcEngineer]);
+  }, [showsHseDashboard]);
 
   const refreshHealthSafety = useCallback(async (project: string) => {
     const now = new Date();
@@ -315,18 +342,7 @@ const MyScopesPage: React.FC<MyScopesPageProps> = ({
     setHseFormError(null);
     try {
       await saveHealthSafetyRecord(
-        {
-          projectName: project,
-          month: values.month,
-          year: values.year,
-          fatalities: values.fatalities,
-          significant: values.significant,
-          major: values.major,
-          minor: values.minor,
-          nearMiss: values.nearMiss,
-          totalManhours: values.totalManhours,
-          lossOfManhours: values.lossOfManhours,
-        },
+        healthSafetyPayloadFromForm(project, values),
         {
           record,
           knownRecords: [
@@ -457,10 +473,18 @@ const MyScopesPage: React.FC<MyScopesPageProps> = ({
   ]);
 
   useEffect(() => {
-    if (!isQaqcEngineer || !activeQaqcProject) return;
-    void loadQualitySnapshot(activeQaqcProject);
+    if ((!isQaqcEngineer && !isHseEngineer) || !activeQaqcProject) return;
+    if (isQaqcEngineer) {
+      void loadQualitySnapshot(activeQaqcProject);
+    }
     void loadHealthSafetyForProject(activeQaqcProject);
-  }, [isQaqcEngineer, activeQaqcProject, loadQualitySnapshot, loadHealthSafetyForProject]);
+  }, [
+    isQaqcEngineer,
+    isHseEngineer,
+    activeQaqcProject,
+    loadQualitySnapshot,
+    loadHealthSafetyForProject,
+  ]);
 
   const handleSaveScopeProgress = useCallback(async (values: {
     executed_quantity: number;
@@ -561,22 +585,26 @@ const MyScopesPage: React.FC<MyScopesPageProps> = ({
   const paginatedScopes = sortedScopes.slice((currentPage - 1) * pageSize, currentPage * pageSize);
   const totalPages = Math.ceil(sortedScopes.length / pageSize);
 
-  const pageTitle = isQaqcEngineer
-    ? 'QAQC Engineer Dashboard'
-    : isBillingEngineer
-      ? 'Billing Engineer Dashboard'
-      : isSiteEngineer
-        ? 'Monthly Scope'
-        : 'My Assigned Scopes';
-  const pageSubtitle = isQaqcEngineer
-    ? 'Scopes, quality, and health & safety overview'
-    : isBillingEngineer
-      ? 'Financial overview & project performance'
-      : isSiteEngineer
-        ? 'Your assigned monthly scope items'
-        : 'Scopes assigned to you';
+  const pageTitle = isHseEngineer
+    ? 'HSE Engineer Dashboard'
+    : isQaqcEngineer
+      ? 'QAQC Engineer Dashboard'
+      : isBillingEngineer
+        ? 'Billing Engineer Dashboard'
+        : isSiteEngineer
+          ? 'Monthly Scope'
+          : 'My Assigned Scopes';
+  const pageSubtitle = isHseEngineer
+    ? 'Health & safety scorecard for your assigned projects'
+    : isQaqcEngineer
+      ? 'Scopes, quality, and health & safety overview'
+      : isBillingEngineer
+        ? 'Financial overview & project performance'
+        : isSiteEngineer
+          ? 'Your assigned monthly scope items'
+          : 'Scopes assigned to you';
 
-  const showAssignedScopesSection = !isBillingEngineer;
+  const showAssignedScopesSection = !isBillingEngineer && !isHseEngineer;
 
   if (loading && showAssignedScopesSection) {
     return (
@@ -642,19 +670,19 @@ const MyScopesPage: React.FC<MyScopesPageProps> = ({
         </div>
       </div>
 
-      {isQaqcEngineer && (
+      {(isQaqcEngineer || isHseEngineer) && (
         <QaqcScopeDashboardPanel
-          scopes={scopes}
+          scopes={isHseEngineer ? [] : scopes}
           projectName={resolvedProject}
-          assignedProjects={assignedQaqcProjects}
+          assignedProjects={isHseEngineer ? assignedHseProjects : assignedQaqcProjects}
           onProjectChange={setQaqcProjectSelection}
-          qualityRecord={qualityRecord}
-          qualityLoading={qualityLoading}
+          qualityRecord={isHseEngineer ? null : qualityRecord}
+          qualityLoading={isHseEngineer ? false : qualityLoading}
           hseDashboard={hseDashboard}
           hseLoading={hseLoading}
-          onEditHealthSafety={openHseForm}
-          onDeleteHealthSafety={handleDeleteHse}
-          canDeleteHealthSafety={Boolean(hseDashboard?.currentMonth?.id)}
+          onEditHealthSafety={canEditHse ? openHseForm : undefined}
+          onDeleteHealthSafety={canEditHse ? handleDeleteHse : undefined}
+          canDeleteHealthSafety={canEditHse && Boolean(hseDashboard?.currentMonth?.id)}
         />
       )}
 

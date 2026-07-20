@@ -2,6 +2,7 @@ import React from 'react';
 import { Clock, Users } from 'lucide-react';
 import type { HSERecord } from '../services/api';
 import { calculateSafetyScore } from '../utils/healthSafety';
+import { resolveManHoursWorked } from '../utils/healthSafetyScorecard';
 import { statusDashboardValueClass } from '../utils/dashboardSemanticColors';
 import HealthSafetyScoreGauge from './HealthSafetyScoreGauge';
 import { DASHBOARD_STATUS_METRIC_LABEL_CLASS, getThemeClasses, useTheme } from '../utils/theme';
@@ -31,9 +32,9 @@ const HealthSafetySummaryStrip: React.FC<HealthSafetySummaryStripProps> = ({
             <Users size={22} className={statusDashboardValueClass('neutral', isDarkTheme)} />
           </div>
           <div>
-            <p className={`text-[9px] font-black uppercase tracking-widest ${DASHBOARD_STATUS_METRIC_LABEL_CLASS(isDarkTheme)}`}>Total Manhours</p>
+            <p className={`text-[9px] font-black uppercase tracking-widest ${DASHBOARD_STATUS_METRIC_LABEL_CLASS(isDarkTheme)}`}>Man Hours Worked</p>
             <p className={`text-3xl font-black tabular-nums ${statusDashboardValueClass('neutral', isDarkTheme)}`}>
-              {record.totalManhours.toLocaleString('en-IN')}
+              {resolveManHoursWorked(record).toLocaleString('en-IN')}
             </p>
             <p className={`text-[10px] font-semibold ${statusDashboardValueClass('neutral', isDarkTheme)} opacity-80`}>Manhours</p>
           </div>
@@ -77,9 +78,9 @@ const HealthSafetySummaryStrip: React.FC<HealthSafetySummaryStripProps> = ({
             <Users size={18} className={statusDashboardValueClass('neutral', isDarkTheme)} />
           </div>
           <div className="min-w-0">
-            <p className={`text-[8px] font-black uppercase tracking-widest ${DASHBOARD_STATUS_METRIC_LABEL_CLASS(isDarkTheme)}`}>Total Manhours</p>
+            <p className={`text-[8px] font-black uppercase tracking-widest ${DASHBOARD_STATUS_METRIC_LABEL_CLASS(isDarkTheme)}`}>Man Hrs Worked</p>
             <p className={`text-2xl font-black tabular-nums ${statusDashboardValueClass('neutral', isDarkTheme)}`}>
-              {record.totalManhours.toLocaleString('en-IN')}
+              {resolveManHoursWorked(record).toLocaleString('en-IN')}
             </p>
           </div>
         </div>

@@ -21,6 +21,8 @@ export interface ProjectAssigneeInfo {
   billingEngineerName?: string;
   qaqcEngineerId?: string;
   qaqcEngineerName?: string;
+  hseEngineerId?: string;
+  hseEngineerName?: string;
 }
 
 function uniqueStrings(values: Array<string | undefined>): string[] {
@@ -320,6 +322,8 @@ export async function loadProjectsForActorFallback(): Promise<ProjectAssigneeInf
         String(p.billing_engineer_name ?? '').trim() || undefined,
       qaqcEngineerId: extractAssigneeId(p.qaqc_site_engineer) || undefined,
       qaqcEngineerName: String(p.qaqc_engineer_name ?? '').trim() || undefined,
+      hseEngineerId: extractAssigneeId(p.hse_site_engineer) || undefined,
+      hseEngineerName: String(p.hse_engineer_name ?? '').trim() || undefined,
     }));
   } catch {
     return [];

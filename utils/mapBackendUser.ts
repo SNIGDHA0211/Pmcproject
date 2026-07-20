@@ -64,6 +64,12 @@ export function mapBackendUserToUser(userData: BackendUserProfile | null | undef
   ) {
     role = UserRole.BILLING_SITE_ENGINEER;
   } else if (
+    userGroups.includes('HSE Site Engineer') ||
+    primaryRole === 'HSE Site Engineer' ||
+    /^pmc_hse\d+$/i.test(String(userData.username ?? '').trim())
+  ) {
+    role = UserRole.HSE_SITE_ENGINEER;
+  } else if (
     userGroups.includes('QAQC Site Engineer') ||
     primaryRole === 'QAQC Site Engineer'
   ) {

@@ -71,7 +71,11 @@ import ProjectEquipmentCard, { type EquipmentFormValues } from './ProjectEquipme
 import CorrespondenceCard from './CorrespondenceCard';
 import type { CorrespondenceDocumentFormValues } from './CorrespondenceDocumentForm';
 import HealthSafetyCard from './HealthSafetyCard';
-import type { HealthSafetyFormValues } from './HealthSafetyMonthlyForm';
+import {
+  healthSafetyPayloadFromForm,
+  type HealthSafetyFormValues,
+} from './HealthSafetyMonthlyForm';
+import { canEditHealthSafety } from '../utils/healthSafetyAccess';
 import type { SubTab } from './FinancialManagement';
 import MachinerySubmissionsTL from './MachinerySubmissionsTL';
 import ProjectsDashboardTour from './tours/ProjectsDashboardTour';
@@ -770,18 +774,7 @@ const Projects: React.FC<ProjectsProps> = ({
     setIsSavingHealthSafety(true);
     setHealthSafetyFormError(null);
     try {
-      const payload = {
-        projectName: selectedProject.title,
-        month: values.month,
-        year: values.year,
-        fatalities: values.fatalities,
-        significant: values.significant,
-        major: values.major,
-        minor: values.minor,
-        nearMiss: values.nearMiss,
-        totalManhours: values.totalManhours,
-        lossOfManhours: values.lossOfManhours,
-      };
+      const payload = healthSafetyPayloadFromForm(selectedProject.title, values);
 
       const saved = await saveHealthSafetyRecord(payload, {
         record,
@@ -2169,8 +2162,25 @@ const Projects: React.FC<ProjectsProps> = ({
     major: currentHealthSafetyRecord.major || 0,
     minor: currentHealthSafetyRecord.minor || 0,
     nearMiss: currentHealthSafetyRecord.nearMiss || 0,
-    totalManhours: currentHealthSafetyRecord.totalManhours || 0,
-    lossOfManhours: currentHealthSafetyRecord.lossOfManhours || 0
+    totalManhours: currentHealthSafetyRecord.totalManhours || currentHealthSafetyRecord.manHoursWorked || 0,
+    lossOfManhours: currentHealthSafetyRecord.lossOfManhours || 0,
+    averageDailyManpower: currentHealthSafetyRecord.averageDailyManpower || 0,
+    workingDays: currentHealthSafetyRecord.workingDays || 0,
+    manDaysWorked: currentHealthSafetyRecord.manDaysWorked || 0,
+    manHoursWorked: currentHealthSafetyRecord.manHoursWorked || 0,
+    reportableAccidentLti: currentHealthSafetyRecord.reportableAccidentLti || 0,
+    dangerousOccurrences: currentHealthSafetyRecord.dangerousOccurrences || 0,
+    firstAidCases: currentHealthSafetyRecord.firstAidCases || 0,
+    medicalTreatmentCases: currentHealthSafetyRecord.medicalTreatmentCases || 0,
+    utilityDamage: currentHealthSafetyRecord.utilityDamage || 0,
+    internalTrainingCount: currentHealthSafetyRecord.internalTrainingCount || 0,
+    internalTrainingHours: currentHealthSafetyRecord.internalTrainingHours || 0,
+    externalTrainingCount: currentHealthSafetyRecord.externalTrainingCount || 0,
+    externalTrainingHours: currentHealthSafetyRecord.externalTrainingHours || 0,
+    mockDrills: currentHealthSafetyRecord.mockDrills || 0,
+    medicalCheckupWorkers: currentHealthSafetyRecord.medicalCheckupWorkers || 0,
+    medicalCheckupStaff: currentHealthSafetyRecord.medicalCheckupStaff || 0,
+    medicalCheckupTotal: currentHealthSafetyRecord.medicalCheckupTotal || 0,
   } : {
     fatalities: dashboardData?.fatalities || 0,
     significant: dashboardData?.significant || 0,
@@ -3070,6 +3080,7 @@ const Projects: React.FC<ProjectsProps> = ({
                           onMonthChange={handleHealthSafetyMonthChange}
                           onYearChange={handleHealthSafetyYearChange}
                           onSave={handleSaveHealthSafety}
+                          canEdit={canEditHealthSafety(currentUser.role)}
                           pairLayout
                         />
                       </div>

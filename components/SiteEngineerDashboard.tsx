@@ -10,7 +10,10 @@ import {
 } from '../services/api';
 import type { Project, User } from '../types';
 import { getSiteEngineerProjects } from '../utils/siteEngineerProjects';
-import HealthSafetyMonthlyForm, { type HealthSafetyFormValues } from './HealthSafetyMonthlyForm';
+import HealthSafetyMonthlyForm, {
+  healthSafetyPayloadFromForm,
+  type HealthSafetyFormValues,
+} from './HealthSafetyMonthlyForm';
 import SiteEngineerOverviewPanel, { type SiteEngineerDashboardSnapshot } from './SiteEngineerOverviewPanel';
 
 interface SiteEngineerDashboardProps {
@@ -164,18 +167,7 @@ const SiteEngineerDashboard: React.FC<SiteEngineerDashboardProps> = ({
     setHseFormError(null);
     try {
       await saveHealthSafetyRecord(
-        {
-          projectName,
-          month: values.month,
-          year: values.year,
-          fatalities: values.fatalities,
-          significant: values.significant,
-          major: values.major,
-          minor: values.minor,
-          nearMiss: values.nearMiss,
-          totalManhours: values.totalManhours,
-          lossOfManhours: values.lossOfManhours,
-        },
+        healthSafetyPayloadFromForm(projectName, values),
         { record: record ?? hseRecord ?? undefined },
       );
       setHseFormOpen(false);

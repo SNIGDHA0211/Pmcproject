@@ -10,6 +10,7 @@ const GENERIC_ACTOR_NAMES = new Set([
   'team lead',
   'site engineer',
   'qaqc site engineer',
+  'hse site engineer',
   'billing site engineer',
   'coordinator',
   'system',
@@ -61,7 +62,7 @@ export function parseSubRoleUsername(input?: string): string | undefined {
   const withoutPrefix = raw.replace(/^pmc[_-]?/, '').replace(/\s+/g, '');
   if (!withoutPrefix) return undefined;
 
-  if (/^(tl|se|qaqc|bse|coord)\d+$/i.test(withoutPrefix)) {
+  if (/^(tl|se|qaqc|bse|hse|coord)\d+$/i.test(withoutPrefix)) {
     return withoutPrefix;
   }
 
@@ -221,7 +222,7 @@ export function pickActorFieldsFromRecord(
 function resolveRoleLabelFromModule(moduleName?: string): string | undefined {
   const key = (moduleName || '').trim().toLowerCase();
   const map: Record<string, string> = {
-    'health & safety': 'QAQC Site Engineer',
+    'health & safety': 'HSE Site Engineer',
     'quality status': 'QAQC Site Engineer',
     'site photos': 'Site Engineer',
     invoicing: 'Billing Site Engineer',

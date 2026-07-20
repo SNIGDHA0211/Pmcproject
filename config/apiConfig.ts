@@ -4,8 +4,8 @@
  * Centralized configuration for all API endpoints.
  * For production deploys, set VITE_API_BASE_URL (and optionally VITE_WS_BASE_URL) in the host environment.
  */
-// https://pms-backend-production-4438.up.railway.app  this is for local testing with devtunnels (adjust port as needed)
-// https://pms-backend-production-4438.up.railway.app  this is the production backend URL (Railway)
+// https://pms-backend-production-4438.up.railway.apps  this is for local testing with devtunnels (adjust port as needed)
+// https://pms-backend-production-4438.up.railway.appp  this is the production backend URL (Railway)
 
 const DEFAULT_MAIN_API_BASE_URL = 'https://pms-backend-production-4438.up.railway.app/api';
 const DEFAULT_WS_BASE_URL = 'wss://pms-backend-production-4438.up.railway.app';

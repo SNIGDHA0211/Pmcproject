@@ -18,6 +18,7 @@ const ROLE_DEFAULT_TAB: Record<UserRole, string> = {
   [UserRole.SITE_ENGINEER]: 'site_engineer_dashboard',
   [UserRole.BILLING_SITE_ENGINEER]: 'my_scopes',
   [UserRole.QAQC_SITE_ENGINEER]: 'my_scopes',
+  [UserRole.HSE_SITE_ENGINEER]: 'my_scopes',
 };
 
 function teamLeadTabs(): string[] {
@@ -76,6 +77,7 @@ export function getAllowedTabsForRole(role: UserRole, username?: string): Readon
     [UserRole.SITE_ENGINEER]: [...SITE_ENGINEER_NAV_IDS],
     [UserRole.BILLING_SITE_ENGINEER]: ['my_scopes', 'financial_management'],
     [UserRole.QAQC_SITE_ENGINEER]: ['my_scopes'],
+    [UserRole.HSE_SITE_ENGINEER]: ['my_scopes'],
   };
 
   const allowed = new Set(map[role] ?? ['dashboard']);

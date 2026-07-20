@@ -11,6 +11,7 @@ import type {
   Project,
   ProjectEquipmentRecord,
   ProjectQualityStatusRecord,
+  SafetyStats,
 } from '../types';
 import type {
   HealthSafetyDashboardData,
@@ -44,6 +45,10 @@ import {
   normalizeBottleneckType,
   normalizeReportStatus,
 } from './reportFormatting';
+import {
+  HSE_SCORECARD_EXPORT_HEADERS,
+  hseScorecardRowForExport,
+} from './healthSafetyScorecard';
 
 function buildProjectDatesRow(
   dateType: string,
@@ -154,31 +159,12 @@ function buildCorrespondenceRow(
   ];
 }
 
-function buildHseRow(stats: {
-  fatalities: number;
-  significant: number;
-  major: number;
-  minor: number;
-  nearMiss: number;
-  totalManhours: number;
-  lossOfManhours: number;
-}): unknown[] {
-  return [
-    formatReportCell(stats.fatalities),
-    formatReportCell(stats.significant),
-    formatReportCell(stats.major),
-    formatReportCell(stats.minor),
-    formatReportCell(stats.nearMiss),
-    formatReportCell(stats.totalManhours),
-    formatReportCell(stats.lossOfManhours),
-  ];
+function buildHseRow(record: HSERecord): unknown[] {
+  return hseScorecardRowForExport(record);
 }
 
 function buildHseTrendRow(record: HSERecord): unknown[] {
-  return [
-    monthYearLabel(record.month, record.year),
-    ...buildHseRow(record),
-  ];
+  return [monthYearLabel(record.month, record.year), ...buildHseRow(record)];
 }
 
 function buildQualityRow(record: ProjectQualityStatusRecord): unknown[] {
@@ -218,21 +204,38 @@ function countBottleneckByType(items: BottleneckItem[], type: BottleneckType): n
 
 function resolveHseStats(
   healthSafetyDashboard: HealthSafetyDashboardData | null,
-  safetyStats: ProjectReportExportInput['safetyStats']
-) {
+  safetyStats: ProjectReportExportInput['safetyStats'],
+): HSERecord | null {
   const current = healthSafetyDashboard?.currentMonth;
-  if (current) {
-    return {
-      fatalities: current.fatalities,
-      significant: current.significant,
-      major: current.major,
-      minor: current.minor,
-      nearMiss: current.nearMiss,
-      totalManhours: current.totalManhours,
-      lossOfManhours: current.lossOfManhours,
-    };
-  }
-  return safetyStats;
+  if (current) return current;
+  if (!safetyStats) return null;
+  return {
+    projectName: '',
+    fatalities: safetyStats.fatalities ?? 0,
+    significant: safetyStats.significant ?? 0,
+    major: safetyStats.major ?? 0,
+    minor: safetyStats.minor ?? 0,
+    nearMiss: safetyStats.nearMiss ?? 0,
+    totalManhours: safetyStats.totalManhours ?? 0,
+    lossOfManhours: safetyStats.lossOfManhours ?? 0,
+    averageDailyManpower: safetyStats.averageDailyManpower ?? 0,
+    workingDays: safetyStats.workingDays ?? 0,
+    manDaysWorked: safetyStats.manDaysWorked ?? 0,
+    manHoursWorked: safetyStats.manHoursWorked ?? 0,
+    reportableAccidentLti: safetyStats.reportableAccidentLti ?? 0,
+    dangerousOccurrences: safetyStats.dangerousOccurrences ?? 0,
+    firstAidCases: safetyStats.firstAidCases ?? 0,
+    medicalTreatmentCases: safetyStats.medicalTreatmentCases ?? 0,
+    utilityDamage: safetyStats.utilityDamage ?? 0,
+    internalTrainingCount: safetyStats.internalTrainingCount ?? 0,
+    internalTrainingHours: safetyStats.internalTrainingHours ?? 0,
+    externalTrainingCount: safetyStats.externalTrainingCount ?? 0,
+    externalTrainingHours: safetyStats.externalTrainingHours ?? 0,
+    mockDrills: safetyStats.mockDrills ?? 0,
+    medicalCheckupWorkers: safetyStats.medicalCheckupWorkers ?? 0,
+    medicalCheckupStaff: safetyStats.medicalCheckupStaff ?? 0,
+    medicalCheckupTotal: safetyStats.medicalCheckupTotal ?? 0,
+  };
 }
 
 function resolveCorrespondenceMetrics(
@@ -304,15 +307,7 @@ export interface ProjectReportExportInput {
     vac?: number;
     cv?: number;
   } | null;
-  safetyStats: {
-    fatalities: number;
-    significant: number;
-    major: number;
-    minor: number;
-    nearMiss: number;
-    totalManhours: number;
-    lossOfManhours: number;
-  };
+  safetyStats: SafetyStats;
   healthSafetyDashboard: HealthSafetyDashboardData | null;
   qualityMonthlyRecord: ProjectQualityStatusRecord | null;
   qualityYearRecords: ProjectQualityStatusRecord[];
@@ -520,32 +515,15 @@ export function buildProjectReportSections(input: ProjectReportExportInput): Csv
       ]),
     },
     {
-      title: 'HEALTH & SAFETY',
+      title: 'HEALTH & SAFETY SCORECARD',
       sheet: 'healthSafety',
-      headers: [
-        'Fatalities',
-        'Significant',
-        'Major',
-        'Minor',
-        'Near Miss',
-        'Total Manhours',
-        'Loss Manhours',
-      ],
-      rows: [buildHseRow(hseStats)],
+      headers: HSE_SCORECARD_EXPORT_HEADERS,
+      rows: hseStats ? [buildHseRow(hseStats)] : [],
     },
     {
       title: 'HEALTH & SAFETY MONTHLY TREND',
       sheet: 'healthSafety',
-      headers: [
-        'Period',
-        'Fatalities',
-        'Significant',
-        'Major',
-        'Minor',
-        'Near Miss',
-        'Total Manhours',
-        'Loss Manhours',
-      ],
+      headers: ['Period', ...HSE_SCORECARD_EXPORT_HEADERS],
       rows: (input.healthSafetyDashboard?.monthlyRecords ?? []).map(buildHseTrendRow),
     },
     {

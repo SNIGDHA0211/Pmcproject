@@ -8,7 +8,7 @@ import {
   Shield,
   TriangleAlert,
 } from 'lucide-react';
-import type { HSERecord, HealthSafetyDashboardData } from '../../services/api';
+import { createEmptyHSERecord, type HSERecord, type HealthSafetyDashboardData } from '../../services/api';
 import type { ProjectQualityStatusRecord } from '../../types';
 import type { BottleneckItem } from '../../utils/bottleneck';
 import { countOpenByType } from '../../utils/bottleneck';
@@ -18,6 +18,7 @@ import {
   statusBadgeClasses,
   toIncidentMetrics,
 } from '../../utils/healthSafety';
+import { resolveManHoursWorked } from '../../utils/healthSafetyScorecard';
 import {
   getQualityPerformanceBarTone,
   getQualityPerformanceStatus,
@@ -136,18 +137,7 @@ const ExecutiveHsePanel: React.FC<{
 
   const openEdit = () => {
     setEditingRecord(
-      monthlyRecord ?? {
-        projectName,
-        month: selectedMonth,
-        year: selectedYear,
-        fatalities: 0,
-        significant: 0,
-        major: 0,
-        minor: 0,
-        nearMiss: 0,
-        totalManhours: 0,
-        lossOfManhours: 0,
-      },
+      monthlyRecord ?? createEmptyHSERecord(projectName, selectedMonth, selectedYear),
     );
     setIsModalOpen(true);
   };
@@ -196,15 +186,41 @@ const ExecutiveHsePanel: React.FC<{
             <div className={`${ex.hsePyramidWrap} [&>div]:h-full [&>div]:rounded-none [&>div]:border-0 [&>div]:p-2 [&>div]:shadow-none`}>
               <HealthSafetyPyramid stats={toIncidentMetrics(monthlyRecord)} variant="summary" />
             </div>
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+              <div className={ex.manhoursCard}>
+                <p className={`text-[9px] font-bold uppercase ${ex.isDark ? 'text-slate-400' : 'text-slate-500'}`}>LTI</p>
+                <p className={`text-base font-black tabular-nums ${ex.slateValue}`}>
+                  {monthlyRecord.reportableAccidentLti.toLocaleString('en-IN')}
+                </p>
+              </div>
+              <div className={ex.manhoursCard}>
+                <p className={`text-[9px] font-bold uppercase ${ex.isDark ? 'text-slate-400' : 'text-slate-500'}`}>First Aid</p>
+                <p className={`text-base font-black tabular-nums ${ex.slateValue}`}>
+                  {monthlyRecord.firstAidCases.toLocaleString('en-IN')}
+                </p>
+              </div>
+              <div className={ex.manhoursCard}>
+                <p className={`text-[9px] font-bold uppercase ${ex.isDark ? 'text-slate-400' : 'text-slate-500'}`}>Avg Daily MP</p>
+                <p className={`text-base font-black tabular-nums ${ex.slateValue}`}>
+                  {monthlyRecord.averageDailyManpower.toLocaleString('en-IN')}
+                </p>
+              </div>
+              <div className={ex.manhoursCard}>
+                <p className={`text-[9px] font-bold uppercase ${ex.isDark ? 'text-slate-400' : 'text-slate-500'}`}>Mock Drills</p>
+                <p className={`text-base font-black tabular-nums ${ex.slateValue}`}>
+                  {monthlyRecord.mockDrills.toLocaleString('en-IN')}
+                </p>
+              </div>
+            </div>
             <div className="grid grid-cols-2 gap-2">
               <div className={ex.manhoursCard}>
                 <Clock3 size={15} className={`shrink-0 ${ex.isDark ? 'text-blue-400' : 'text-blue-600'}`} />
                 <div className="min-w-0">
                   <p className={`text-[9px] font-bold uppercase tracking-wide ${ex.isDark ? 'text-blue-400/80' : 'text-blue-600/80'}`}>
-                    Total Manhours
+                    Man Hours Worked
                   </p>
                   <p className={`text-lg font-black tabular-nums ${ex.slateValue}`}>
-                    {monthlyRecord.totalManhours.toLocaleString('en-IN')}
+                    {resolveManHoursWorked(monthlyRecord).toLocaleString('en-IN')}
                   </p>
                 </div>
               </div>

@@ -6,7 +6,8 @@ export enum UserRole {
   TEAM_LEAD = 'TEAM_LEAD',
   SITE_ENGINEER = 'SITE_ENGINEER',
   BILLING_SITE_ENGINEER = 'BILLING_SITE_ENGINEER',
-  QAQC_SITE_ENGINEER = 'QAQC_SITE_ENGINEER'
+  QAQC_SITE_ENGINEER = 'QAQC_SITE_ENGINEER',
+  HSE_SITE_ENGINEER = 'HSE_SITE_ENGINEER',
 }
 
 export enum ProjectStatus {
@@ -38,7 +39,7 @@ export interface AppNotification {
   timestamp: string;
   isRead: boolean;
   senderName?: string;
-  /** Login id such as pmc_tl19, qaqc1, bse1 */
+  /** Login id such as pmc_tl19, pmc_hse1, qaqc1, bse1 */
   senderUsername?: string;
   /** Human-readable role label, e.g. "Team Leader", "QAQC Site Engineer" */
   senderRole?: string;
@@ -67,6 +68,23 @@ export interface SafetyStats {
   nearMiss: number;
   lossOfManhours: number;
   totalManhours: number;
+  averageDailyManpower?: number;
+  workingDays?: number;
+  manDaysWorked?: number;
+  manHoursWorked?: number;
+  reportableAccidentLti?: number;
+  dangerousOccurrences?: number;
+  firstAidCases?: number;
+  medicalTreatmentCases?: number;
+  utilityDamage?: number;
+  internalTrainingCount?: number;
+  internalTrainingHours?: number;
+  externalTrainingCount?: number;
+  externalTrainingHours?: number;
+  mockDrills?: number;
+  medicalCheckupWorkers?: number;
+  medicalCheckupStaff?: number;
+  medicalCheckupTotal?: number;
 }
 
 export interface FinancialStats {
@@ -445,6 +463,7 @@ export interface Project {
   siteEngineerIds: string[];
   billingEngineerId?: string;
   qaqcEngineerId?: string;
+  hseEngineerId?: string;
   coordinatorIds: string[];
   createdAt: string;
   updatedAt: string;

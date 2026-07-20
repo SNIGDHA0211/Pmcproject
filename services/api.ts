@@ -557,18 +557,42 @@ export const monthlyScopeApi = {
 
 // ─── Health, Safety & Environment (HSE) ──────────────────────────────────────
 
+/** Writable + read fields aligned with Neon HSE upsert contract. */
 export interface HSERecord {
   id?: number;
   projectName: string;
   month?: number;
   year?: number;
+  /** Legacy incident pyramid */
   fatalities: number;
   significant: number;
   major: number;
   minor: number;
   nearMiss: number;
+  /** Display / legacy; server overwrites when working_days > 0 */
   totalManhours: number;
   lossOfManhours: number;
+  /** Client HSE scorecard */
+  averageDailyManpower: number;
+  workingDays: number;
+  /** Auto: avg daily × working days — never send on write */
+  manDaysWorked: number;
+  /** Auto: man days × 8 — never send on write */
+  manHoursWorked: number;
+  reportableAccidentLti: number;
+  dangerousOccurrences: number;
+  firstAidCases: number;
+  medicalTreatmentCases: number;
+  utilityDamage: number;
+  internalTrainingCount: number;
+  internalTrainingHours: number;
+  externalTrainingCount: number;
+  externalTrainingHours: number;
+  mockDrills: number;
+  medicalCheckupWorkers: number;
+  medicalCheckupStaff: number;
+  /** Auto: workers + staff — never send on write */
+  medicalCheckupTotal: number;
   status?: string;
   updatedAt?: string;
   updatedBy?: string;
@@ -577,6 +601,7 @@ export interface HSERecord {
 
 export interface HealthSafetyYtdSummary {
   year: number;
+  projectName?: string;
   fatalities: number;
   significant: number;
   major: number;
@@ -584,6 +609,23 @@ export interface HealthSafetyYtdSummary {
   nearMiss: number;
   totalManhours?: number;
   lossOfManhours?: number;
+  averageDailyManpower?: number;
+  workingDays?: number;
+  manDaysWorked?: number;
+  manHoursWorked?: number;
+  reportableAccidentLti?: number;
+  dangerousOccurrences?: number;
+  firstAidCases?: number;
+  medicalTreatmentCases?: number;
+  utilityDamage?: number;
+  internalTrainingCount?: number;
+  internalTrainingHours?: number;
+  externalTrainingCount?: number;
+  externalTrainingHours?: number;
+  mockDrills?: number;
+  medicalCheckupWorkers?: number;
+  medicalCheckupStaff?: number;
+  medicalCheckupTotal?: number;
 }
 
 export interface HealthSafetyDashboardData {
@@ -594,42 +636,83 @@ export interface HealthSafetyDashboardData {
   selectedYear?: number;
 }
 
-export type HealthSafetyCreatePayload = Pick<
-  HSERecord,
-  | "projectName"
-  | "month"
-  | "year"
-  | "fatalities"
-  | "significant"
-  | "major"
-  | "minor"
-  | "nearMiss"
-  | "totalManhours"
-  | "lossOfManhours"
-> & {
+/** Fields the client may send on POST upsert (excludes auto-calculated). */
+export type HealthSafetyCreatePayload = {
+  projectName: string;
   month: number;
   year: number;
+  averageDailyManpower: number;
+  workingDays: number;
+  fatalities: number;
+  significant: number;
+  major: number;
+  minor: number;
+  nearMiss: number;
+  reportableAccidentLti: number;
+  dangerousOccurrences: number;
+  firstAidCases: number;
+  medicalTreatmentCases: number;
+  utilityDamage: number;
+  lossOfManhours: number;
+  internalTrainingCount: number;
+  internalTrainingHours: number;
+  externalTrainingCount: number;
+  externalTrainingHours: number;
+  mockDrills: number;
+  medicalCheckupWorkers: number;
+  medicalCheckupStaff: number;
+  /** Legacy optional; ignored by server when working_days > 0 */
+  totalManhours?: number;
 };
 
 export type HSEPayload = Omit<HSERecord, "id">;
 
+export function createEmptyHSERecord(
+  projectName = "",
+  month?: number,
+  year?: number,
+): HSERecord {
+  return {
+    projectName,
+    month,
+    year,
+    fatalities: 0,
+    significant: 0,
+    major: 0,
+    minor: 0,
+    nearMiss: 0,
+    totalManhours: 0,
+    lossOfManhours: 0,
+    averageDailyManpower: 0,
+    workingDays: 0,
+    manDaysWorked: 0,
+    manHoursWorked: 0,
+    reportableAccidentLti: 0,
+    dangerousOccurrences: 0,
+    firstAidCases: 0,
+    medicalTreatmentCases: 0,
+    utilityDamage: 0,
+    internalTrainingCount: 0,
+    internalTrainingHours: 0,
+    externalTrainingCount: 0,
+    externalTrainingHours: 0,
+    mockDrills: 0,
+    medicalCheckupWorkers: 0,
+    medicalCheckupStaff: 0,
+    medicalCheckupTotal: 0,
+  };
+}
+
 export function normalizeHSERecord(row: any, projectName = ""): HSERecord {
   if (!row || typeof row !== "object") {
-    return {
-      projectName,
-      fatalities: 0,
-      significant: 0,
-      major: 0,
-      minor: 0,
-      nearMiss: 0,
-      totalManhours: 0,
-      lossOfManhours: 0,
-    };
+    return createEmptyHSERecord(projectName);
   }
 
   const source = row.record ?? row.monthly_record ?? row.monthlyRecord ?? row;
+  const empty = createEmptyHSERecord(projectName);
 
   return {
+    ...empty,
     id: source?.id ?? source?.pk ?? source?.record_id ?? source?.recordId,
     projectName: source?.projectName ?? source?.project_name ?? projectName,
     month: source?.month != null ? toNum(source.month) : undefined,
@@ -641,21 +724,62 @@ export function normalizeHSERecord(row: any, projectName = ""): HSERecord {
     nearMiss: toNum(source?.nearMiss ?? source?.near_miss),
     totalManhours: toNum(source?.totalManhours ?? source?.total_manhours),
     lossOfManhours: toNum(source?.lossOfManhours ?? source?.loss_of_manhours),
+    averageDailyManpower: toNum(
+      source?.averageDailyManpower ?? source?.average_daily_manpower,
+    ),
+    workingDays: toNum(source?.workingDays ?? source?.working_days),
+    manDaysWorked: toNum(source?.manDaysWorked ?? source?.man_days_worked),
+    manHoursWorked: toNum(source?.manHoursWorked ?? source?.man_hours_worked),
+    reportableAccidentLti: toNum(
+      source?.reportableAccidentLti ?? source?.reportable_accident_lti,
+    ),
+    dangerousOccurrences: toNum(
+      source?.dangerousOccurrences ?? source?.dangerous_occurrences,
+    ),
+    firstAidCases: toNum(source?.firstAidCases ?? source?.first_aid_cases),
+    medicalTreatmentCases: toNum(
+      source?.medicalTreatmentCases ?? source?.medical_treatment_cases,
+    ),
+    utilityDamage: toNum(source?.utilityDamage ?? source?.utility_damage),
+    internalTrainingCount: toNum(
+      source?.internalTrainingCount ?? source?.internal_training_count,
+    ),
+    internalTrainingHours: toNum(
+      source?.internalTrainingHours ?? source?.internal_training_hours,
+    ),
+    externalTrainingCount: toNum(
+      source?.externalTrainingCount ?? source?.external_training_count,
+    ),
+    externalTrainingHours: toNum(
+      source?.externalTrainingHours ?? source?.external_training_hours,
+    ),
+    mockDrills: toNum(source?.mockDrills ?? source?.mock_drills),
+    medicalCheckupWorkers: toNum(
+      source?.medicalCheckupWorkers ?? source?.medical_checkup_workers,
+    ),
+    medicalCheckupStaff: toNum(
+      source?.medicalCheckupStaff ?? source?.medical_checkup_staff,
+    ),
+    medicalCheckupTotal: toNum(
+      source?.medicalCheckupTotal ?? source?.medical_checkup_total,
+    ),
     status: source?.status ?? "",
     updatedAt:
-      (typeof source?.updated_at === 'string' && source.updated_at) ||
-      (typeof source?.updatedAt === 'string' && source.updatedAt) ||
-      (typeof source?.modified_at === 'string' && source.modified_at) ||
-      (typeof source?.created_at === 'string' && source.created_at) ||
+      (typeof source?.updated_at === "string" && source.updated_at) ||
+      (typeof source?.updatedAt === "string" && source.updatedAt) ||
+      (typeof source?.modified_at === "string" && source.modified_at) ||
+      (typeof source?.created_at === "string" && source.created_at) ||
       undefined,
     updatedBy:
-      (typeof source?.updated_by_name === 'string' && source.updated_by_name) ||
-      (typeof source?.created_by_name === 'string' && source.created_by_name) ||
+      (typeof source?.updated_by_name === "string" && source.updated_by_name) ||
+      (typeof source?.created_by_name === "string" && source.created_by_name) ||
       undefined,
     updatedByUsername:
-      (typeof source?.updated_by_username === 'string' && source.updated_by_username) ||
-      (typeof source?.created_by_username === 'string' && source.created_by_username) ||
-      (typeof source?.username === 'string' && source.username) ||
+      (typeof source?.updated_by_username === "string" &&
+        source.updated_by_username) ||
+      (typeof source?.created_by_username === "string" &&
+        source.created_by_username) ||
+      (typeof source?.username === "string" && source.username) ||
       undefined,
   };
 }
@@ -664,8 +788,10 @@ export function normalizeHealthSafetyYtdSummary(
   row: any,
   year?: number,
 ): HealthSafetyYtdSummary {
+  const normalized = normalizeHSERecord(row, row?.project_name ?? row?.projectName ?? "");
   return {
     year: toNum(row?.year ?? year),
+    projectName: normalized.projectName || undefined,
     fatalities: toNum(
       row?.fatalities ?? row?.total_fatalities ?? row?.totalFatalities,
     ),
@@ -676,12 +802,29 @@ export function normalizeHealthSafetyYtdSummary(
     minor: toNum(row?.minor ?? row?.total_minor ?? row?.totalMinor),
     nearMiss: toNum(
       row?.nearMiss ??
-      row?.near_miss ??
-      row?.total_near_miss ??
-      row?.totalNearMiss,
+        row?.near_miss ??
+        row?.total_near_miss ??
+        row?.totalNearMiss,
     ),
     totalManhours: toNum(row?.totalManhours ?? row?.total_manhours),
     lossOfManhours: toNum(row?.lossOfManhours ?? row?.loss_of_manhours),
+    averageDailyManpower: normalized.averageDailyManpower,
+    workingDays: normalized.workingDays,
+    manDaysWorked: normalized.manDaysWorked,
+    manHoursWorked: normalized.manHoursWorked,
+    reportableAccidentLti: normalized.reportableAccidentLti,
+    dangerousOccurrences: normalized.dangerousOccurrences,
+    firstAidCases: normalized.firstAidCases,
+    medicalTreatmentCases: normalized.medicalTreatmentCases,
+    utilityDamage: normalized.utilityDamage,
+    internalTrainingCount: normalized.internalTrainingCount,
+    internalTrainingHours: normalized.internalTrainingHours,
+    externalTrainingCount: normalized.externalTrainingCount,
+    externalTrainingHours: normalized.externalTrainingHours,
+    mockDrills: normalized.mockDrills,
+    medicalCheckupWorkers: normalized.medicalCheckupWorkers,
+    medicalCheckupStaff: normalized.medicalCheckupStaff,
+    medicalCheckupTotal: normalized.medicalCheckupTotal,
   };
 }
 
@@ -718,6 +861,8 @@ export function normalizeHealthSafetyDashboard(
     data.ytd_summary ??
     data.yearToDateSummary ??
     data.year_to_date_summary ??
+    data.year_to_date ??
+    data.yearToDate ??
     data.summary;
 
   const monthlyRaw =
@@ -765,13 +910,31 @@ function toHealthSafetyPayload(data: HealthSafetyCreatePayload) {
     project_name: data.projectName,
     month: data.month,
     year: data.year,
+    average_daily_manpower: data.averageDailyManpower,
+    working_days: data.workingDays,
     fatalities: data.fatalities,
     significant: data.significant,
     major: data.major,
     minor: data.minor,
     near_miss: data.nearMiss,
-    total_manhours: data.totalManhours,
+    reportable_accident_lti: data.reportableAccidentLti,
+    dangerous_occurrences: data.dangerousOccurrences,
+    first_aid_cases: data.firstAidCases,
+    medical_treatment_cases: data.medicalTreatmentCases,
+    utility_damage: data.utilityDamage,
     loss_of_manhours: data.lossOfManhours,
+    internal_training_count: data.internalTrainingCount,
+    internal_training_hours: data.internalTrainingHours,
+    external_training_count: data.externalTrainingCount,
+    external_training_hours: data.externalTrainingHours,
+    mock_drills: data.mockDrills,
+    medical_checkup_workers: data.medicalCheckupWorkers,
+    medical_checkup_staff: data.medicalCheckupStaff,
+    // Do not send man_days_worked, man_hours_worked, medical_checkup_total.
+    // total_manhours is overwritten when working_days > 0 — omit unless legacy-only save.
+    ...(data.workingDays <= 0 && data.totalManhours != null
+      ? { total_manhours: data.totalManhours }
+      : {}),
   };
 }
 
@@ -823,17 +986,56 @@ export const healthSafetyApi = {
       ...(data.projectName !== undefined && { project_name: data.projectName }),
       ...(data.month !== undefined && { month: data.month }),
       ...(data.year !== undefined && { year: data.year }),
+      ...(data.averageDailyManpower !== undefined && {
+        average_daily_manpower: data.averageDailyManpower,
+      }),
+      ...(data.workingDays !== undefined && { working_days: data.workingDays }),
       ...(data.fatalities !== undefined && { fatalities: data.fatalities }),
       ...(data.significant !== undefined && { significant: data.significant }),
       ...(data.major !== undefined && { major: data.major }),
       ...(data.minor !== undefined && { minor: data.minor }),
       ...(data.nearMiss !== undefined && { near_miss: data.nearMiss }),
-      ...(data.totalManhours !== undefined && {
-        total_manhours: data.totalManhours,
+      ...(data.reportableAccidentLti !== undefined && {
+        reportable_accident_lti: data.reportableAccidentLti,
+      }),
+      ...(data.dangerousOccurrences !== undefined && {
+        dangerous_occurrences: data.dangerousOccurrences,
+      }),
+      ...(data.firstAidCases !== undefined && {
+        first_aid_cases: data.firstAidCases,
+      }),
+      ...(data.medicalTreatmentCases !== undefined && {
+        medical_treatment_cases: data.medicalTreatmentCases,
+      }),
+      ...(data.utilityDamage !== undefined && {
+        utility_damage: data.utilityDamage,
       }),
       ...(data.lossOfManhours !== undefined && {
         loss_of_manhours: data.lossOfManhours,
       }),
+      ...(data.internalTrainingCount !== undefined && {
+        internal_training_count: data.internalTrainingCount,
+      }),
+      ...(data.internalTrainingHours !== undefined && {
+        internal_training_hours: data.internalTrainingHours,
+      }),
+      ...(data.externalTrainingCount !== undefined && {
+        external_training_count: data.externalTrainingCount,
+      }),
+      ...(data.externalTrainingHours !== undefined && {
+        external_training_hours: data.externalTrainingHours,
+      }),
+      ...(data.mockDrills !== undefined && { mock_drills: data.mockDrills }),
+      ...(data.medicalCheckupWorkers !== undefined && {
+        medical_checkup_workers: data.medicalCheckupWorkers,
+      }),
+      ...(data.medicalCheckupStaff !== undefined && {
+        medical_checkup_staff: data.medicalCheckupStaff,
+      }),
+      ...(data.totalManhours !== undefined &&
+        (data.workingDays == null || data.workingDays <= 0) && {
+          total_manhours: data.totalManhours,
+        }),
     }),
 
   /** DELETE /api/health-safety/{id}/ */
@@ -1079,22 +1281,11 @@ function isDuplicateHealthSafetyError(error: unknown): boolean {
   return combined.includes("already exists") || combined.includes("unique");
 }
 
-/** Create when no record exists for project/month/year; otherwise update via PUT/PATCH. */
+/** Upsert via POST /health-safety/ (project_name + month + year). Falls back to PUT/PATCH if needed. */
 export async function saveHealthSafetyRecord(
   payload: HealthSafetyCreatePayload,
   options?: { record?: HSERecord | null; knownRecords?: HSERecord[] },
 ): Promise<HSERecord> {
-  const existing = await resolveHealthSafetyRecordForPeriod(
-    payload.projectName,
-    payload.month,
-    payload.year,
-    options,
-  );
-
-  if (existing?.id) {
-    return updateHealthSafetyRecord(existing.id, payload);
-  }
-
   try {
     const response = await healthSafetyApi.create(payload);
     throwIfHealthSafetyFailure(response.data, response.status);
@@ -1103,15 +1294,17 @@ export async function saveHealthSafetyRecord(
       payload.projectName,
     );
   } catch (error) {
+    // Older backends may reject upsert POST when a row already exists without upsert logic.
     if (!isDuplicateHealthSafetyError(error)) throw error;
 
-    const fetched = await fetchHealthSafetyRecordByPeriod(
+    const existing = await resolveHealthSafetyRecordForPeriod(
       payload.projectName,
       payload.month,
       payload.year,
+      options,
     );
-    if (!fetched?.id) throw error;
-    return updateHealthSafetyRecord(fetched.id, payload);
+    if (!existing?.id) throw error;
+    return updateHealthSafetyRecord(existing.id, payload);
   }
 }
 

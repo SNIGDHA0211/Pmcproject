@@ -10,7 +10,7 @@ export function getLoginFailureMessage(error: unknown, fallback = 'Invalid usern
   const lower = message.toLowerCase();
 
   if (lower.includes('invalid username') || lower.includes('invalid password')) {
-    return 'Invalid username or password. Usernames are lowercase (e.g. pmc_tl19). Passwords are case-sensitive (e.g. Pmc@TL19).';
+    return 'Invalid username or password. Usernames are lowercase (e.g. pmc_hse1, pmc_tl19). Passwords are case-sensitive (e.g. Pmc@HSE1).';
   }
 
   return fallback;

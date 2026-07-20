@@ -1,0 +1,91 @@
+import type { Project } from '../types';
+
+/** Official HSE Site Engineer accounts — username → assigned project title. */
+export const HSE_SITE_ENGINEER_ACCOUNTS: ReadonlyArray<{
+  index: number;
+  username: string;
+  projectTitle: string;
+}> = [
+  { index: 1, username: 'pmc_hse1', projectTitle: 'KHB Multiplex, Kengeri (A-3462)' },
+  { index: 2, username: 'pmc_hse2', projectTitle: 'SWB Shillong PKG -1' },
+  { index: 3, username: 'pmc_hse3', projectTitle: 'SWB Shillong PKG -II' },
+  { index: 4, username: 'pmc_hse4', projectTitle: 'SWB Shillong PKG – III' },
+  { index: 5, username: 'pmc_hse5', projectTitle: 'G3 Building – Girgaon (MMRCL)' },
+  { index: 6, username: 'pmc_hse6', projectTitle: 'K3 Building – Kalbadevi (MMRCL)' },
+  { index: 7, username: 'pmc_hse7', projectTitle: 'KBR Park -I Flyover – Hyderabad' },
+  { index: 8, username: 'pmc_hse8', projectTitle: 'KBR Park -II Flyover – Hyderabad' },
+  { index: 9, username: 'pmc_hse9', projectTitle: 'FOX SAGAR – Hyderabad' },
+  { index: 10, username: 'pmc_hse10', projectTitle: 'Mayapur Flyover' },
+  { index: 11, username: 'pmc_hse11', projectTitle: 'Nongstoin-Rambrai Road' },
+  { index: 12, username: 'pmc_hse12', projectTitle: 'Multi-Modal Transit Hub – Thane' },
+  { index: 13, username: 'pmc_hse13', projectTitle: '4-Lane ROB – Rawanfonda, Margao' },
+  { index: 14, username: 'pmc_hse14', projectTitle: 'New Promenade – Margao' },
+  { index: 15, username: 'pmc_hse15', projectTitle: 'Police HSG at MIDC Metro Station' },
+  { index: 16, username: 'pmc_hse16', projectTitle: 'Chembur (M-Four Atlas)' },
+  { index: 17, username: 'pmc_hse17', projectTitle: 'JK PKG -1' },
+  { index: 18, username: 'pmc_hse18', projectTitle: 'JK-PKG -2' },
+  { index: 19, username: 'pmc_hse19', projectTitle: 'JK-PKG 3' },
+  { index: 20, username: 'pmc_hse20', projectTitle: 'AOC Center Hyderabad' },
+  { index: 21, username: 'pmc_hse21', projectTitle: 'Uppal Hyderabad' },
+  { index: 22, username: 'pmc_hse22', projectTitle: 'Avissa G+40, Mahim' },
+  { index: 23, username: 'pmc_hse23', projectTitle: 'Shivalik Building Santacruz' },
+  { index: 24, username: 'pmc_hse24', projectTitle: 'AVISSA' },
+  { index: 25, username: 'pmc_hse25', projectTitle: 'SHIVALIKA' },
+] as const;
+
+const HSE_USERNAME_PATTERN = /^pmc_hse(\d+)$/i;
+
+export function normalizeProjectTitleKey(title?: string | null): string {
+  return String(title ?? '')
+    .trim()
+    .toLowerCase()
+    .replace(/[–—−]/g, '-')
+    .replace(/\s+/g, ' ');
+}
+
+export function isHseSiteEngineerUsername(username?: string | null): boolean {
+  return HSE_USERNAME_PATTERN.test(String(username ?? '').trim());
+}
+
+export function parseHseSiteEngineerIndex(username?: string | null): number | null {
+  const match = String(username ?? '').trim().match(HSE_USERNAME_PATTERN);
+  if (!match) return null;
+  const index = Number(match[1]);
+  return Number.isFinite(index) && index > 0 ? index : null;
+}
+
+export function resolveHseSiteEngineerAccount(username?: string | null) {
+  const normalized = String(username ?? '').trim().toLowerCase();
+  return HSE_SITE_ENGINEER_ACCOUNTS.find((row) => row.username === normalized) ?? null;
+}
+
+export function resolveHseSiteEngineerProjectTitle(username?: string | null): string | null {
+  return resolveHseSiteEngineerAccount(username)?.projectTitle ?? null;
+}
+
+/** Match API project row to a canonical HSE assignment title. */
+export function pickProjectByHseTitle(projects: Project[], canonicalTitle: string): Project | null {
+  const targetKey = normalizeProjectTitleKey(canonicalTitle);
+  if (!targetKey) return null;
+
+  const exact = projects.find(
+    (project) => normalizeProjectTitleKey(project.title) === targetKey,
+  );
+  if (exact) return exact;
+
+  const loose = projects.find((project) => {
+    const key = normalizeProjectTitleKey(project.title);
+    return key.includes(targetKey) || targetKey.includes(key);
+  });
+  return loose ?? null;
+}
+
+export function projectTitleMatchesHseAssignment(
+  projectTitle: string | undefined,
+  canonicalTitle: string,
+): boolean {
+  const rowKey = normalizeProjectTitleKey(projectTitle);
+  const targetKey = normalizeProjectTitleKey(canonicalTitle);
+  if (!rowKey || !targetKey) return false;
+  return rowKey === targetKey || rowKey.includes(targetKey) || targetKey.includes(rowKey);
+}

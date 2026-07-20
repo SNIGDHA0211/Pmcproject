@@ -30,11 +30,14 @@ export interface HealthSafetyStatusBadge {
   label: 'SAFE' | 'WARNING' | 'CRITICAL';
 }
 
-export function getHealthSafetyStatus(record: Pick<HSERecord, 'fatalities' | 'minor'>): HealthSafetyStatusBadge {
-  if (record.fatalities > 0) {
+export function getHealthSafetyStatus(
+  record: Pick<HSERecord, 'fatalities' | 'minor'> &
+    Partial<Pick<HSERecord, 'reportableAccidentLti' | 'major' | 'significant'>>,
+): HealthSafetyStatusBadge {
+  if (record.fatalities > 0 || (record.reportableAccidentLti ?? 0) > 0) {
     return { level: 'critical', label: 'CRITICAL' };
   }
-  if (record.minor > 0) {
+  if ((record.significant ?? 0) > 0 || (record.major ?? 0) > 0 || record.minor > 0) {
     return { level: 'warning', label: 'WARNING' };
   }
   return { level: 'safe', label: 'SAFE' };
@@ -293,6 +296,8 @@ export function computeHealthSafetyYtdFromRecords(
   year: number
 ): HealthSafetyYtdSummary {
   const yearRecords = records.filter((row) => Number(row.year) === year);
+  const sum = (key: keyof HSERecord) =>
+    yearRecords.reduce((s, r) => s + (Number(r[key]) || 0), 0);
   return {
     year,
     fatalities: sumIncidentField(yearRecords, 'fatalities'),
@@ -300,8 +305,25 @@ export function computeHealthSafetyYtdFromRecords(
     major: sumIncidentField(yearRecords, 'major'),
     minor: sumIncidentField(yearRecords, 'minor'),
     nearMiss: sumIncidentField(yearRecords, 'nearMiss'),
-    totalManhours: yearRecords.reduce((s, r) => s + (Number(r.totalManhours) || 0), 0),
-    lossOfManhours: yearRecords.reduce((s, r) => s + (Number(r.lossOfManhours) || 0), 0),
+    totalManhours: sum('totalManhours'),
+    lossOfManhours: sum('lossOfManhours'),
+    averageDailyManpower: sum('averageDailyManpower'),
+    workingDays: sum('workingDays'),
+    manDaysWorked: sum('manDaysWorked'),
+    manHoursWorked: sum('manHoursWorked'),
+    reportableAccidentLti: sum('reportableAccidentLti'),
+    dangerousOccurrences: sum('dangerousOccurrences'),
+    firstAidCases: sum('firstAidCases'),
+    medicalTreatmentCases: sum('medicalTreatmentCases'),
+    utilityDamage: sum('utilityDamage'),
+    internalTrainingCount: sum('internalTrainingCount'),
+    internalTrainingHours: sum('internalTrainingHours'),
+    externalTrainingCount: sum('externalTrainingCount'),
+    externalTrainingHours: sum('externalTrainingHours'),
+    mockDrills: sum('mockDrills'),
+    medicalCheckupWorkers: sum('medicalCheckupWorkers'),
+    medicalCheckupStaff: sum('medicalCheckupStaff'),
+    medicalCheckupTotal: sum('medicalCheckupTotal'),
   };
 }
 

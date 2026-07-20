@@ -132,6 +132,7 @@ const Layout: React.FC<LayoutProps> = ({
         UserRole.SITE_ENGINEER,
         UserRole.BILLING_SITE_ENGINEER,
         UserRole.QAQC_SITE_ENGINEER,
+        UserRole.HSE_SITE_ENGINEER,
       ],
     },
     {
@@ -400,7 +401,9 @@ const Layout: React.FC<LayoutProps> = ({
                     ? SITE_ENGINEER_NAV_LABELS[item.id] ?? item.label
                     : item.id === 'my_scopes' && user.role === UserRole.QAQC_SITE_ENGINEER
                       ? 'QAQC Dashboard'
-                      : item.id === 'my_scopes' && user.role === UserRole.BILLING_SITE_ENGINEER
+                      : item.id === 'my_scopes' && user.role === UserRole.HSE_SITE_ENGINEER
+                        ? 'HSE Dashboard'
+                        : item.id === 'my_scopes' && user.role === UserRole.BILLING_SITE_ENGINEER
                         ? 'Billing Dashboard'
                         : item.id === 'financial_management' && user.role === UserRole.BILLING_SITE_ENGINEER
                           ? 'Financial Management'
