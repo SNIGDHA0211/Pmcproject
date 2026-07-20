@@ -1,33 +1,17 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   equipmentApi,
-  healthSafetyApi,
   manpowerApi,
-  normalizeHSERecord,
   projectProgressApi,
-  saveHealthSafetyRecord,
-  type HSERecord,
 } from '../services/api';
 import type { Project, User } from '../types';
 import { getSiteEngineerProjects } from '../utils/siteEngineerProjects';
-import HealthSafetyMonthlyForm, {
-  healthSafetyPayloadFromForm,
-  type HealthSafetyFormValues,
-} from './HealthSafetyMonthlyForm';
 import SiteEngineerOverviewPanel, { type SiteEngineerDashboardSnapshot } from './SiteEngineerOverviewPanel';
 
 interface SiteEngineerDashboardProps {
   user: User;
   projects?: Project[];
   onNavigate?: (tab: string) => void;
-}
-
-function calculateSafetyScore(hs: SiteEngineerDashboardSnapshot['healthSafety']): number {
-  if (!hs) return 100;
-  const total =
-    hs.fatalities + hs.significant + hs.major + hs.minor + hs.near_miss;
-  if (total === 0) return 100;
-  return Math.max(0, 100 - total * 5);
 }
 
 const SiteEngineerDashboard: React.FC<SiteEngineerDashboardProps> = ({
@@ -46,13 +30,9 @@ const SiteEngineerDashboard: React.FC<SiteEngineerDashboardProps> = ({
   );
 
   const [projectName, setProjectName] = useState('');
-    const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [snapshot, setSnapshot] = useState<SiteEngineerDashboardSnapshot | null>(null);
-    const [hseRecord, setHseRecord] = useState<HSERecord | null>(null);
-  const [hseFormOpen, setHseFormOpen] = useState(false);
-  const [isSavingHse, setIsSavingHse] = useState(false);
-  const [hseFormError, setHseFormError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!projectName && projectOptions.length > 0) {
@@ -61,38 +41,21 @@ const SiteEngineerDashboard: React.FC<SiteEngineerDashboardProps> = ({
   }, [projectName, projectOptions]);
 
   const loadDashboard = useCallback(async (background = false) => {
-        if (!projectName.trim()) {
+    if (!projectName.trim()) {
       setSnapshot(null);
-            return;
-        }
+      return;
+    }
     if (background) setIsRefreshing(true);
     else setLoading(true);
 
     try {
-      const [hsRes, ppRes, mpDashRes, eqRes] = await Promise.all([
-                healthSafetyApi.getAll({ project_name: projectName }),
-                projectProgressApi.getProjectProgress({ project_name: projectName }),
-                manpowerApi.getManpowerDashboard(projectName),
-                equipmentApi.getEquipment({ project_name: projectName }),
-            ]);
+      const [ppRes, mpDashRes, eqRes] = await Promise.all([
+        projectProgressApi.getProjectProgress({ project_name: projectName }),
+        manpowerApi.getManpowerDashboard(projectName),
+        equipmentApi.getEquipment({ project_name: projectName }),
+      ]);
 
-            const hsData = hsRes.data?.results ?? hsRes.data;
-      const hsRows = Array.isArray(hsData) ? hsData : hsData ? [hsData] : [];
-      const record = hsRows.length > 0 ? normalizeHSERecord(hsRows[0]) : null;
-                setHseRecord(record);
-
-      const healthSafety = record
-        ? {
-                    fatalities: record.fatalities,
-                    significant: record.significant,
-                    major: record.major,
-                    minor: record.minor,
-                    near_miss: record.nearMiss,
-                    total_manhours: record.totalManhours,
-          }
-        : null;
-
-            const ppData = ppRes.data.results || ppRes.data;
+      const ppData = ppRes.data.results || ppRes.data;
       const progressRows = Array.isArray(ppData) ? ppData : [];
       const progressChart = progressRows.map((pp: Record<string, unknown>) => ({
         month: pp.progress_month
@@ -120,7 +83,7 @@ const SiteEngineerDashboard: React.FC<SiteEngineerDashboardProps> = ({
           ? Number(mpDash.actual_manpower[mpDash.actual_manpower.length - 1]) || 0
           : 0;
 
-            const eqData = eqRes.data.results || eqRes.data;
+      const eqData = eqRes.data.results || eqRes.data;
       const eqRows = Array.isArray(eqData) ? eqData : [];
       const equipmentChart = eqRows.map((eq: Record<string, unknown>) => ({
         month: String(eq.month_display ?? 'N/A'),
@@ -138,18 +101,18 @@ const SiteEngineerDashboard: React.FC<SiteEngineerDashboardProps> = ({
       setSnapshot({
         progressPct: latestProgress,
         manpowerTotal,
-        safetyScore: calculateSafetyScore(healthSafety),
+        safetyScore: 100,
         equipmentCount,
         progressChart,
         manpowerChart,
         equipmentChart,
-        healthSafety,
+        healthSafety: null,
       });
     } catch (err) {
       console.error('Site engineer dashboard load failed:', err);
       setSnapshot(null);
-        } finally {
-            setLoading(false);
+    } finally {
+      setLoading(false);
       setIsRefreshing(false);
     }
   }, [projectName]);
@@ -158,60 +121,18 @@ const SiteEngineerDashboard: React.FC<SiteEngineerDashboardProps> = ({
     void loadDashboard();
   }, [loadDashboard]);
 
-  const handleSaveHse = async (
-    values: HealthSafetyFormValues,
-    record?: HSERecord | null,
-  ): Promise<boolean> => {
-    if (!projectName) return false;
-    setIsSavingHse(true);
-    setHseFormError(null);
-    try {
-      await saveHealthSafetyRecord(
-        healthSafetyPayloadFromForm(projectName, values),
-        { record: record ?? hseRecord ?? undefined },
-      );
-      setHseFormOpen(false);
-      await loadDashboard(true);
-      return true;
-    } catch {
-      setHseFormError('Failed to save Health & Safety data.');
-      return false;
-        } finally {
-      setIsSavingHse(false);
-    }
-  };
-
-    return (
-    <>
-      <SiteEngineerOverviewPanel
-        projectName={projectName}
-        projectOptions={projectOptions}
-        onProjectChange={setProjectName}
-        loading={loading}
-        snapshot={snapshot}
-        onNavigate={onNavigate}
-        onRefresh={() => void loadDashboard(true)}
-        isRefreshing={isRefreshing}
-        onEditHse={() => {
-          setHseFormError(null);
-          setHseFormOpen(true);
-        }}
-      />
-
-      {hseFormOpen && projectName && (
-        <HealthSafetyMonthlyForm
-          projectName={projectName}
-          record={hseRecord}
-          isSaving={isSavingHse}
-          error={hseFormError}
-          onClose={() => {
-            if (!isSavingHse) setHseFormOpen(false);
-          }}
-          onSubmit={handleSaveHse}
-        />
-      )}
-    </>
-    );
+  return (
+    <SiteEngineerOverviewPanel
+      projectName={projectName}
+      projectOptions={projectOptions}
+      onProjectChange={setProjectName}
+      loading={loading}
+      snapshot={snapshot}
+      onNavigate={onNavigate}
+      onRefresh={() => void loadDashboard(true)}
+      isRefreshing={isRefreshing}
+    />
+  );
 };
 
 export default SiteEngineerDashboard;

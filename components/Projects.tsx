@@ -75,7 +75,10 @@ import {
   healthSafetyPayloadFromForm,
   type HealthSafetyFormValues,
 } from './HealthSafetyMonthlyForm';
-import { canEditHealthSafety } from '../utils/healthSafetyAccess';
+import {
+  canEditHealthSafetyForProject,
+  canViewHealthSafetyForProject,
+} from '../utils/healthSafetyAccess';
 import type { SubTab } from './FinancialManagement';
 import MachinerySubmissionsTL from './MachinerySubmissionsTL';
 import ProjectsDashboardTour from './tours/ProjectsDashboardTour';
@@ -661,8 +664,18 @@ const Projects: React.FC<ProjectsProps> = ({
 
   const selectedProject = allProjects.find(p => p.id === selectedProjectId) || allProjects[0] || null;
 
+  const hseCanView = useMemo(
+    () => canViewHealthSafetyForProject(currentUser, selectedProject),
+    [currentUser, selectedProject],
+  );
+
+  const hseCanEdit = useMemo(
+    () => canEditHealthSafetyForProject(currentUser, selectedProject),
+    [currentUser, selectedProject],
+  );
+
   const fetchHealthSafetyDashboard = useCallback(async () => {
-    if (!selectedProject?.title) {
+    if (!selectedProject?.title || !hseCanView) {
       setHealthSafetyDashboard(null);
       setHealthSafetyError(null);
       return;
@@ -722,10 +735,10 @@ const Projects: React.FC<ProjectsProps> = ({
     } finally {
       setIsLoadingHealthSafety(false);
     }
-  }, [selectedProject?.title]);
+  }, [selectedProject?.title, hseCanView]);
 
   const fetchHealthSafetyForPeriod = useCallback(async (month: number, year: number) => {
-    if (!selectedProject?.title) return;
+    if (!selectedProject?.title || !hseCanView) return;
 
     setIsLoadingHealthSafety(true);
     setHealthSafetyError(null);
@@ -762,7 +775,7 @@ const Projects: React.FC<ProjectsProps> = ({
     } finally {
       setIsLoadingHealthSafety(false);
     }
-  }, [selectedProject?.title]);
+  }, [selectedProject?.title, hseCanView]);
 
   const handleSaveHealthSafety = async (
     values: HealthSafetyFormValues,
@@ -770,6 +783,10 @@ const Projects: React.FC<ProjectsProps> = ({
   ): Promise<boolean> => {
     if (!selectedProject?.title) {
       setHealthSafetyFormError('Select a project before saving Health & Safety data.');
+      return false;
+    }
+    if (!hseCanEdit) {
+      setHealthSafetyFormError('You do not have permission to edit Health & Safety for this project.');
       return false;
     }
 
@@ -3063,12 +3080,12 @@ const Projects: React.FC<ProjectsProps> = ({
                     onSaveQualityStatus={handleSaveQualityStatus}
                   />
                   </div>
-                ) : (
-                  <>
-                    <div
-                      id="tl-section-compliance"
-                      className="exec-section-hse grid min-h-[22rem] grid-cols-1 items-stretch gap-4 lg:grid-cols-2"
-                    >
+                ) : selectedProject ? (
+                  <div
+                    id="tl-section-compliance"
+                    className={`exec-section-hse grid min-h-[22rem] grid-cols-1 items-stretch gap-4 ${hseCanView ? 'lg:grid-cols-2' : ''}`}
+                  >
+                    {hseCanView && (
                       <div id="tl-section-hse" className="exec-section-hse flex h-full min-h-0 min-w-0">
                         <HealthSafetyCard
                           projectName={selectedProject?.title}
@@ -3082,24 +3099,22 @@ const Projects: React.FC<ProjectsProps> = ({
                           onMonthChange={handleHealthSafetyMonthChange}
                           onYearChange={handleHealthSafetyYearChange}
                           onSave={handleSaveHealthSafety}
-                          canEdit={canEditHealthSafety(currentUser.role)}
+                          canEdit={hseCanEdit}
                           pairLayout
                         />
                       </div>
+                    )}
 
-                      {selectedProject && (
-                        <div id="tl-section-quality" className="exec-section-quality flex h-full min-h-0 min-w-0">
-                          <FrequencyChartDashboard
-                            project={selectedProject}
-                            selectedContractorName={selectedContractorName}
-                            syncContractorFromDashboard={useGlobalContractorFilter}
-                            layout="embedded"
-                          />
-                        </div>
-                      )}
+                    <div id="tl-section-quality" className="exec-section-quality flex h-full min-h-0 min-w-0">
+                      <FrequencyChartDashboard
+                        project={selectedProject}
+                        selectedContractorName={selectedContractorName}
+                        syncContractorFromDashboard={useGlobalContractorFilter}
+                        layout="embedded"
+                      />
                     </div>
-                  </>
-                )
+                  </div>
+                ) : null
               )}
 
               {tabVisible('compliance') && (

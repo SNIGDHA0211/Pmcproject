@@ -190,7 +190,8 @@ const SiteEngineerOverviewPanel: React.FC<SiteEngineerOverviewPanelProps> = ({
             </div>
           </div>
 
-          <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+          <div className={`grid grid-cols-1 gap-4 ${onEditHse ? 'lg:grid-cols-3' : ''}`}>
+            {onEditHse && (
             <div className={`${cardCls} lg:col-span-1`}>
               <div className="mb-3 flex items-center justify-between">
                 <h3 className={`text-xs font-black uppercase tracking-widest ${themeClasses.textPrimary}`}>Health &amp; Safety</h3>
@@ -216,8 +217,9 @@ const SiteEngineerOverviewPanel: React.FC<SiteEngineerOverviewPanelProps> = ({
                 <p className={`py-8 text-center text-sm ${themeClasses.textSecondary}`}>No H&amp;S data</p>
               )}
             </div>
+            )}
 
-            <div className={`${cardCls} lg:col-span-2`}>
+            <div className={`${cardCls} ${onEditHse ? 'lg:col-span-2' : 'lg:col-span-full'}`}>
               <h3 className={`mb-3 text-xs font-black uppercase tracking-widest ${themeClasses.textPrimary}`}>Project Equipment</h3>
               <ProjectEquipmentChart data={snapshot?.equipmentChart ?? []} embedded />
             </div>
@@ -249,7 +251,7 @@ const SiteEngineerOverviewPanel: React.FC<SiteEngineerOverviewPanelProps> = ({
         </div>
       </div>
 
-      {!loading && projectName && snapshot && snapshot.healthSafety && snapshot.safetyScore < 70 && (
+      {onEditHse && !loading && projectName && snapshot && snapshot.healthSafety && snapshot.safetyScore < 70 && (
         <div className={`flex items-start gap-3 rounded-xl border px-4 py-3 ${isDarkTheme ? 'border-amber-500/30 bg-amber-500/10' : 'border-amber-200 bg-amber-50'}`}>
           <AlertTriangle className="mt-0.5 shrink-0 text-amber-500" size={18} />
           <p className={`text-xs font-semibold ${isDarkTheme ? 'text-amber-200' : 'text-amber-800'}`}>

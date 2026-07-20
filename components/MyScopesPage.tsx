@@ -25,7 +25,7 @@ import HealthSafetyMonthlyForm, {
   healthSafetyPayloadFromForm,
   type HealthSafetyFormValues,
 } from './HealthSafetyMonthlyForm';
-import { canEditHealthSafety } from '../utils/healthSafetyAccess';
+import { canEditHealthSafetyForProject } from '../utils/healthSafetyAccess';
 import DashboardToastStack, { type DashboardToastItem } from './DashboardToastStack';
 import { websocketService, NotificationData } from '../services/websocket';
 import {
@@ -89,8 +89,7 @@ const MyScopesPage: React.FC<MyScopesPageProps> = ({
   const isHseEngineer = user.role === UserRole.HSE_SITE_ENGINEER;
   const isBillingEngineer = user.role === UserRole.BILLING_SITE_ENGINEER;
   const isSiteEngineer = user.role === UserRole.SITE_ENGINEER;
-  const showsHseDashboard = isQaqcEngineer || isHseEngineer;
-  const canEditHse = canEditHealthSafety(user.role);
+  const showsHseDashboard = isHseEngineer;
 
   const assignedQaqcProjects = useMemo(
     () =>
@@ -246,6 +245,32 @@ const MyScopesPage: React.FC<MyScopesPageProps> = ({
     scopes,
     assignedHseProjects,
   ]);
+
+  const canEditHse = useMemo(
+    () =>
+      canEditHealthSafetyForProject(user, null, {
+        projectTitle: resolvedProject,
+      }),
+    [user, resolvedProject],
+  );
+
+  const qaqcSelectedProject = useMemo(() => {
+    if (!isQaqcEngineer || !resolvedProject) return null;
+    const fromList = projects.find(
+      (p) => p.title.trim().toLowerCase() === resolvedProject.trim().toLowerCase(),
+    );
+    if (fromList) return fromList;
+
+    const assigned = assignedQaqcProjects.find(
+      (p) => p.title.trim().toLowerCase() === resolvedProject.trim().toLowerCase(),
+    );
+    if (!assigned) return null;
+
+    return {
+      id: assigned.id,
+      title: assigned.title,
+    } as Project;
+  }, [isQaqcEngineer, resolvedProject, projects, assignedQaqcProjects]);
 
   const openHseForm = useCallback(() => {
     const project = resolvedProject;
@@ -480,11 +505,13 @@ const MyScopesPage: React.FC<MyScopesPageProps> = ({
   ]);
 
   useEffect(() => {
-    if ((!isQaqcEngineer && !isHseEngineer) || !activeQaqcProject) return;
+    if (!activeQaqcProject) return;
     if (isQaqcEngineer) {
       void loadQualitySnapshot(activeQaqcProject);
     }
-    void loadHealthSafetyForProject(activeQaqcProject);
+    if (isHseEngineer) {
+      void loadHealthSafetyForProject(activeQaqcProject);
+    }
   }, [
     isQaqcEngineer,
     isHseEngineer,
@@ -604,7 +631,7 @@ const MyScopesPage: React.FC<MyScopesPageProps> = ({
   const pageSubtitle = isHseEngineer
     ? 'Health & safety scorecard for your assigned projects'
     : isQaqcEngineer
-      ? 'Scopes, quality, and health & safety overview'
+      ? 'Scopes, material testing & quality for your assigned projects'
       : isBillingEngineer
         ? 'Financial overview & project performance'
         : isSiteEngineer
@@ -637,14 +664,22 @@ const MyScopesPage: React.FC<MyScopesPageProps> = ({
   }
 
   return (
-    <div className="space-y-8 animate-in fade-in duration-500">
+    <div className={`space-y-5 animate-in fade-in duration-500 ${isQaqcEngineer ? 'max-w-[1600px]' : ''}`}>
       {/* Header */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
+      <div
+        className={`flex flex-wrap items-end justify-between gap-3 rounded-2xl border px-4 py-3.5 sm:px-5 ${
+          isQaqcEngineer
+            ? isDarkTheme
+              ? 'border-indigo-500/20 bg-indigo-500/10'
+              : 'border-indigo-100 bg-white shadow-sm'
+            : ''
+        } ${!isQaqcEngineer ? themeClasses.border : ''}`}
+      >
         <div>
-          <h2 className={`text-2xl font-black uppercase tracking-tight ${themeClasses.textPrimary}`}>
+          <h2 className={`text-xl font-black tracking-tight sm:text-2xl ${themeClasses.textPrimary}`}>
             {pageTitle}
           </h2>
-          <p className={`text-[10px] font-black uppercase tracking-widest ${themeClasses.textSecondary}`}>
+          <p className={`mt-0.5 text-[11px] font-semibold ${themeClasses.textSecondary}`}>
             {pageSubtitle}
           </p>
         </div>
@@ -654,7 +689,7 @@ const MyScopesPage: React.FC<MyScopesPageProps> = ({
               <button
                 onClick={() => fetchMyScopes(true)}
                 disabled={isRefreshing}
-                className={`flex items-center gap-2 px-3 py-1.5 border rounded-lg text-xs font-bold transition-all ${isRefreshing
+                className={`flex items-center gap-2 rounded-xl border px-3 py-2 text-xs font-bold transition-all ${isRefreshing
                   ? 'opacity-50 cursor-not-allowed'
                   : themeClasses.buttonSecondary
                   } ${themeClasses.border}`}
@@ -664,12 +699,12 @@ const MyScopesPage: React.FC<MyScopesPageProps> = ({
                 Refresh
               </button>
               {lastUpdated && (
-                <div className={`text-xs ${themeClasses.textSecondary}`}>
-                  Last updated: {lastUpdated.toLocaleTimeString('en-US', {
+                <div className={`text-[11px] font-medium ${themeClasses.textSecondary}`}>
+                  Updated {lastUpdated.toLocaleTimeString('en-US', {
                     hour: 'numeric',
                     minute: '2-digit',
                     hour12: true
-                  })} (Real-time)
+                  })}
                 </div>
               )}
             </>
@@ -681,15 +716,18 @@ const MyScopesPage: React.FC<MyScopesPageProps> = ({
         <QaqcScopeDashboardPanel
           scopes={isHseEngineer ? [] : scopes}
           projectName={resolvedProject}
+          selectedProject={isQaqcEngineer ? qaqcSelectedProject : null}
           assignedProjects={isHseEngineer ? assignedHseProjects : assignedQaqcProjects}
           onProjectChange={setQaqcProjectSelection}
           qualityRecord={isHseEngineer ? null : qualityRecord}
           qualityLoading={isHseEngineer ? false : qualityLoading}
-          hseDashboard={hseDashboard}
-          hseLoading={hseLoading}
-          onEditHealthSafety={canEditHse ? openHseForm : undefined}
-          onDeleteHealthSafety={canEditHse ? handleDeleteHse : undefined}
-          canDeleteHealthSafety={canEditHse && Boolean(hseDashboard?.currentMonth?.id)}
+          showFrequencyChart={isQaqcEngineer}
+          showHealthSafety={isHseEngineer}
+          hseDashboard={isHseEngineer ? hseDashboard : null}
+          hseLoading={isHseEngineer ? hseLoading : false}
+          onEditHealthSafety={isHseEngineer && canEditHse ? openHseForm : undefined}
+          onDeleteHealthSafety={isHseEngineer && canEditHse ? handleDeleteHse : undefined}
+          canDeleteHealthSafety={isHseEngineer && canEditHse && Boolean(hseDashboard?.currentMonth?.id)}
         />
       )}
 
@@ -707,87 +745,100 @@ const MyScopesPage: React.FC<MyScopesPageProps> = ({
       )}
 
       {showAssignedScopesSection && (
-        <>
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <h3 className={`text-sm font-black uppercase tracking-widest ${themeClasses.textPrimary}`}>
-              Assigned Scopes
-            </h3>
-            {isQaqcEngineer && (
-              <p className={`text-xs font-semibold ${themeClasses.textSecondary}`}>
-                Tap update to record progress on your scopes
-              </p>
+        <section
+          className={`overflow-hidden rounded-2xl border ${
+            isDarkTheme
+              ? `${themeClasses.glassCard} ${themeClasses.border}`
+              : 'border-slate-200/90 bg-white shadow-sm'
+          }`}
+        >
+          <div
+            className={`flex flex-wrap items-center justify-between gap-3 border-b px-4 py-3 sm:px-5 ${
+              isDarkTheme ? 'border-white/10' : 'border-slate-100'
+            }`}
+          >
+            <div>
+              <h3 className={`text-sm font-black tracking-tight ${themeClasses.textPrimary}`}>
+                Assigned Scopes
+              </h3>
+              {isQaqcEngineer && (
+                <p className={`mt-0.5 text-[11px] font-medium ${themeClasses.textSecondary}`}>
+                  Update executed quantity and status for your scopes
+                </p>
+              )}
+            </div>
+          </div>
+
+          <div className="space-y-4 p-4 sm:p-5">
+          {/* Filters */}
+          <div className="flex flex-wrap items-end gap-3">
+            <div className={`min-w-[160px] rounded-xl border ${themeClasses.input} ${themeClasses.border}`}>
+              <label className={`mb-1 block px-3 pt-2 text-[10px] font-bold uppercase tracking-wider ${themeClasses.textSecondary}`}>
+                Status
+              </label>
+              <select
+                value={filters.status || ''}
+                onChange={(e) =>
+                  setFilters((prev) => {
+                    const next = { ...prev };
+                    if (e.target.value) {
+                      next.status = e.target.value;
+                    } else {
+                      delete next.status;
+                    }
+                    return next;
+                  })
+                }
+                className={`w-full rounded-xl border-0 bg-transparent px-3 pb-2 text-sm outline-none ${themeClasses.textPrimary}`}
+              >
+                <option value="">All Statuses</option>
+                <option value="pending">Pending</option>
+                <option value="in_progress">In Progress</option>
+                <option value="completed">Completed</option>
+              </select>
+            </div>
+            <div className={`relative min-w-[220px] flex-1 rounded-xl border ${themeClasses.input} ${themeClasses.border}`}>
+              <label className={`mb-1 block px-3 pt-2 text-[10px] font-bold uppercase tracking-wider ${themeClasses.textSecondary}`}>
+                Search
+              </label>
+              <Icons.Search className={`absolute left-3 bottom-2.5 ${themeClasses.textMuted}`} size={16} />
+              <input
+                type="text"
+                placeholder="Search scopes..."
+                value={filters.search || ''}
+                onChange={(e) =>
+                  setFilters((prev) => {
+                    const next = { ...prev };
+                    const value = e.target.value.trim();
+                    if (value) {
+                      next.search = value;
+                    } else {
+                      delete next.search;
+                    }
+                    return next;
+                  })
+                }
+                className={`w-full bg-transparent py-0 pl-9 pr-3 pb-2 text-sm outline-none ${themeClasses.textPrimary}`}
+              />
+            </div>
+            {(filters.status || filters.search) && (
+              <button
+                type="button"
+                onClick={() => setFilters((prev) => {
+                  const next = { ...prev };
+                  delete next.status;
+                  delete next.search;
+                  return next;
+                })}
+                className={`rounded-xl border px-3 py-2 text-xs font-bold ${themeClasses.buttonSecondary} ${themeClasses.border}`}
+              >
+                Clear filters
+              </button>
             )}
           </div>
 
-          {/* Filters */}
-          <div className="flex flex-wrap items-end gap-4">
-        <div className={`min-w-[180px] ${themeClasses.input} ${themeClasses.border} rounded-xl`}>
-          <label className={`mb-1 block text-[11px] font-bold uppercase tracking-wider ${themeClasses.textSecondary}`}>
-            Status
-          </label>
-          <select
-            value={filters.status || ''}
-            onChange={(e) =>
-              setFilters((prev) => {
-                const next = { ...prev };
-                if (e.target.value) {
-                  next.status = e.target.value;
-                } else {
-                  delete next.status;
-                }
-                return next;
-              })
-            }
-            className={`w-full rounded-xl border px-3 py-2 text-sm outline-none bg-transparent ${themeClasses.textPrimary} ${themeClasses.border}`}
-          >
-            <option value="">All Statuses</option>
-            <option value="pending">Pending</option>
-            <option value="in_progress">In Progress</option>
-            <option value="completed">Completed</option>
-          </select>
-        </div>
-        <div className={`relative flex-1 min-w-[220px] ${themeClasses.input} ${themeClasses.border} rounded-xl`}>
-          <label className={`mb-1 block text-[11px] font-bold uppercase tracking-wider ${themeClasses.textSecondary}`}>
-            Search
-          </label>
-          <Icons.Search className={`absolute left-3 bottom-2.5 ${themeClasses.textMuted}`} size={16} />
-          <input
-            type="text"
-            placeholder="Search scopes..."
-            value={filters.search || ''}
-            onChange={(e) =>
-              setFilters((prev) => {
-                const next = { ...prev };
-                const value = e.target.value.trim();
-                if (value) {
-                  next.search = value;
-                } else {
-                  delete next.search;
-                }
-                return next;
-              })
-            }
-            className={`w-full pl-9 pr-3 py-2 text-sm outline-none bg-transparent ${themeClasses.textPrimary}`}
-          />
-        </div>
-        {(filters.status || filters.search) && (
-          <button
-            type="button"
-            onClick={() => setFilters((prev) => {
-              const next = { ...prev };
-              delete next.status;
-              delete next.search;
-              return next;
-            })}
-            className={`px-3 py-2 text-xs font-bold rounded-lg ${themeClasses.buttonSecondary} ${themeClasses.border} border`}
-          >
-            Clear filters
-          </button>
-        )}
-      </div>
-
       {/* Scope list — cards on mobile, table on desktop */}
-      <div className={`rounded-[2rem] overflow-hidden border ${themeClasses.glassCard} ${themeClasses.border}`}>
+      <div className={`overflow-hidden rounded-xl border ${themeClasses.border} ${isDarkTheme ? 'bg-white/[0.02]' : 'bg-slate-50/50'}`}>
         <div className="space-y-3 p-4 lg:hidden">
           {paginatedScopes.length === 0 ? (
             <div className="py-8 text-center">
@@ -1057,7 +1108,8 @@ const MyScopesPage: React.FC<MyScopesPageProps> = ({
           </div>
         )}
       </div>
-        </>
+          </div>
+        </section>
       )}
 
       <DashboardToastStack toasts={toasts} />

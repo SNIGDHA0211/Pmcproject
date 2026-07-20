@@ -21,6 +21,8 @@ interface Props {
   selectedContractorName?: string | null;
   syncContractorFromDashboard?: boolean;
   layout?: 'default' | 'embedded';
+  /** Open the test register table by default (useful on QAQC dashboard). */
+  defaultShowTable?: boolean;
 }
 
 function safeN(v: unknown): number {
@@ -92,6 +94,7 @@ export default function FrequencyChartDashboard({
   selectedContractorName = null,
   syncContractorFromDashboard = false,
   layout = 'default',
+  defaultShowTable = false,
 }: Props) {
   const isEmbedded = layout === 'embedded';
   const { isDarkTheme } = useTheme();
@@ -120,7 +123,7 @@ export default function FrequencyChartDashboard({
   const [editRow,     setEditRow]     = useState<FrequencyChartRegisterRow | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<{ id: number; label: string } | null>(null);
   const [deleting,    setDeleting]    = useState(false);
-  const [showTestTable, setShowTestTable] = useState(false);
+  const [showTestTable, setShowTestTable] = useState(defaultShowTable);
 
   const loadData = useCallback(async () => {
     if (!project?.title) return;
