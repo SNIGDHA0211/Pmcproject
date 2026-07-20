@@ -94,8 +94,9 @@ import PMCHeadExecutiveShell, {
   type PMCExecutiveTab,
 } from './pmcHead/PMCHeadExecutiveShell';
 import {
-  buildExecutiveProjectDropdownList,
+  buildPmcHeadDropdownProjects,
   getKnownExecutiveProjectStubs,
+  getHseExecutiveProjectStubs,
 } from '../utils/pmcHeadExecutiveProjects';
 import {
   resolveExecutiveCorrespondenceStats,
@@ -447,9 +448,10 @@ const Projects: React.FC<ProjectsProps> = ({
   const isPMCHead = currentUser.role === UserRole.PMC_HEAD;
   const allProjects = useMemo(() => {
     if (!isPMCHead) return projects;
-    return buildExecutiveProjectDropdownList(
+    return buildPmcHeadDropdownProjects(
       projects,
       getKnownExecutiveProjectStubs(projects),
+      getHseExecutiveProjectStubs(projects),
     );
   }, [isPMCHead, projects]);
   const [execTab, setExecTab] = useState<PMCExecutiveTab>('overview');

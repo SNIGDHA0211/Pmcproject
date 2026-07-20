@@ -3,15 +3,24 @@ import { ProjectStatus } from '../types';
 import { projectApi, projectDatesApi, unwrapList } from '../services/api';
 import { extractAssigneeId } from './roleProjectAssignments';
 import { loadUserDirectory, type DirectoryUser } from './userDirectory';
+import {
+  HSE_SITE_ENGINEER_ACCOUNTS,
+  normalizeProjectTitleKey,
+  pickProjectByHseTitle,
+} from './hseSiteEngineerProjects';
 
 /** Exact login id — not pmc_tl1, pmc_tl19, etc. */
 export const PMC_TL_USERNAME = 'pmc_tl';
 
 /** Team-lead projects that must appear in the PMC Head executive dropdown. */
-export const PMC_TL_KNOWN_PROJECT_TITLES = [
+export const PMC_TL_KNOWN_PROJECT_TITLES = [] as const;
+
+/** Projects explicitly excluded from the PMC Head executive dropdown. */
+export const PMC_TL_DROPDOWN_EXCLUDE_TITLES = [
   'Thane Project',
   'White bliss',
   'Democracy',
+  'Multi-Modal Transit Hub – Thane',
 ] as const;
 
 export function isExactPmcTlLogin(value?: string | null): boolean {
@@ -27,8 +36,70 @@ function normalizeTitleKey(title?: string | null): string {
   return String(title ?? '').trim().toLowerCase();
 }
 
+export function isExcludedPmcTlProjectTitle(title?: string | null): boolean {
+  const key = normalizeProjectTitleKey(title);
+  if (!key) return false;
+  return PMC_TL_DROPDOWN_EXCLUDE_TITLES.some((t) => {
+    const excluded = normalizeProjectTitleKey(t);
+    return (
+      key === excluded ||
+      key.startsWith(`${excluded} (`) ||
+      key.startsWith(`${excluded}(`)
+    );
+  });
+}
+
 export function isSyntheticExecutiveProjectId(id?: string | null): boolean {
-  return String(id ?? '').startsWith('executive-known-');
+  const value = String(id ?? '');
+  return value.startsWith('executive-known-') || value.startsWith('executive-hse-');
+}
+
+/** Canonical HSE portfolio titles (pmc_hse1–pmc_hse25 assignments). */
+export const PMC_HEAD_HSE_PROJECT_TITLES = HSE_SITE_ENGINEER_ACCOUNTS.map(
+  (row) => row.projectTitle,
+);
+
+function buildHseExecutiveProjectStub(title: string, index: number): Project {
+  const stub = buildKnownExecutiveProjectStub(title);
+  return { ...stub, id: `executive-hse-${index}` };
+}
+
+/** Stubs for HSE portfolio projects missing from the backend list. */
+export function getHseExecutiveProjectStubs(existingProjects: Project[]): Project[] {
+  return HSE_SITE_ENGINEER_ACCOUNTS.filter(
+    ({ projectTitle }) =>
+      !isExcludedPmcTlProjectTitle(projectTitle) &&
+      !pickProjectByHseTitle(existingProjects, projectTitle),
+  ).map(({ projectTitle, index }) => buildHseExecutiveProjectStub(projectTitle, index));
+}
+
+/** Ensure all 25 HSE-assigned projects appear in the PMC Head dropdown. */
+export function ensureHsePortfolioProjects(projects: Project[]): Project[] {
+  const merged = new Map<string, Project>();
+  projects.forEach((project) => {
+    if (project.id) merged.set(project.id, project);
+  });
+
+  for (const { projectTitle, index } of HSE_SITE_ENGINEER_ACCOUNTS) {
+    if (isExcludedPmcTlProjectTitle(projectTitle)) continue;
+    const matched = pickProjectByHseTitle([...merged.values()], projectTitle);
+    if (matched) {
+      if (!merged.has(matched.id)) merged.set(matched.id, matched);
+      continue;
+    }
+    const stub = buildHseExecutiveProjectStub(projectTitle, index);
+    merged.set(stub.id, stub);
+  }
+
+  return [...merged.values()].sort(sortProjectsByTitle);
+}
+
+/** PMC Head dropdown: merge lists, inject HSE portfolio, drop excluded titles. */
+export function buildPmcHeadDropdownProjects(...lists: Project[][]): Project[] {
+  const merged = buildExecutiveProjectDropdownList(...lists);
+  return ensureHsePortfolioProjects(merged).filter(
+    (project) => !isExcludedPmcTlProjectTitle(project.title),
+  );
 }
 
 function buildKnownExecutiveProjectStub(title: string): Project {
@@ -102,6 +173,14 @@ export function getCachedProjectRowByTitle(title: string): Record<string, unknow
   );
 }
 
+function getCachedProjectRowByHseTitle(title: string): Record<string, unknown> | null {
+  if (!cachedProjectRows?.length) return null;
+  const projects = cachedProjectRows.map((row) => normalizeBackendProjectRow(row));
+  const matched = pickProjectByHseTitle(projects, title);
+  if (!matched?.id) return null;
+  return getCachedProjectRowById(matched.id);
+}
+
 export function getCachedProjectRowById(projectId: string): Record<string, unknown> | null {
   if (!projectId || !cachedProjectRows?.length) return null;
   return cachedProjectRows.find((row) => String(row.id ?? '') === projectId) ?? null;
@@ -113,7 +192,9 @@ export function getCachedProjectRowById(projectId: string): Record<string, unkno
  */
 export function resolveExecutiveProjectForApi(project: Project): Project {
   const row =
-    getCachedProjectRowById(project.id) ?? getCachedProjectRowByTitle(project.title);
+    getCachedProjectRowById(project.id) ??
+    getCachedProjectRowByTitle(project.title) ??
+    getCachedProjectRowByHseTitle(project.title);
   if (!row) {
     if (isSyntheticExecutiveProjectId(project.id)) return project;
     return project;
@@ -523,7 +604,10 @@ export async function fetchPmcTlPortfolioProjects(
     }
   }
 
-  return ensureKnownExecutiveStubs([...merged.values()]);
+  const mergedProjects = [...merged.values()].filter(
+    (p) => !isExcludedPmcTlProjectTitle(p.title),
+  );
+  return ensureKnownExecutiveStubs(mergedProjects);
 }
 
 /** PMC Head: merge portfolio with pmc_tl team-lead projects into one dropdown list. */
@@ -533,17 +617,18 @@ export async function buildPmcHeadExecutiveProjectOptions(
   try {
     const tokens = await resolvePmcTlAssigneeTokens();
     const pmcTlProjects = await fetchPmcTlPortfolioProjects(seedProjects, tokens);
-    const projects = buildExecutiveProjectDropdownList(seedProjects, pmcTlProjects);
+    const projects = buildPmcHeadDropdownProjects(seedProjects, pmcTlProjects);
 
     return {
-      projects: projects.length > 0 ? projects : buildExecutiveProjectDropdownList(seedProjects),
+      projects: projects.length > 0 ? projects : buildPmcHeadDropdownProjects(seedProjects),
       tokens,
     };
   } catch {
     return {
-      projects: buildExecutiveProjectDropdownList(
+      projects: buildPmcHeadDropdownProjects(
         seedProjects,
         getKnownExecutiveProjectStubs(seedProjects),
+        getHseExecutiveProjectStubs(seedProjects),
       ),
       tokens: new Set([PMC_TL_USERNAME]),
     };

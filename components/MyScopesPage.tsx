@@ -107,12 +107,14 @@ const MyScopesPage: React.FC<MyScopesPageProps> = ({
   );
 
   const activeQaqcProject = useMemo(() => {
-    if (!isQaqcEngineer && !isHseEngineer) return null;
+    if (isHseEngineer) {
+      return qaqcProjectSelection ?? assignedHseProjects[0]?.title ?? null;
+    }
+    if (!isQaqcEngineer) return null;
     return (
       qaqcProjectSelection ??
       primaryProject ??
-      (isQaqcEngineer ? primaryProjectName(scopes) : null) ??
-      (isHseEngineer ? assignedHseProjects[0]?.title : null) ??
+      primaryProjectName(scopes) ??
       assignedQaqcProjects[0]?.title ??
       null
     );
@@ -224,8 +226,11 @@ const MyScopesPage: React.FC<MyScopesPageProps> = ({
   );
 
   const resolvedProject = useMemo(() => {
-    if (isQaqcEngineer || isHseEngineer) {
-      return activeQaqcProject ?? primaryProject ?? (isQaqcEngineer ? primaryProjectName(scopes) : assignedHseProjects[0]?.title ?? null);
+    if (isHseEngineer) {
+      return activeQaqcProject ?? assignedHseProjects[0]?.title ?? null;
+    }
+    if (isQaqcEngineer) {
+      return activeQaqcProject ?? primaryProject ?? primaryProjectName(scopes);
     }
     if (isBillingEngineer) {
       return activeBillingProject ?? primaryProject ?? scopeProjectName(scopes);
@@ -432,8 +437,10 @@ const MyScopesPage: React.FC<MyScopesPageProps> = ({
 
       setScopes(list);
 
-      const roleProject = isQaqcEngineer
-        ? activeQaqcProject
+      const roleProject = isHseEngineer
+        ? assignedHseProjects[0]?.title ?? activeQaqcProject
+        : isQaqcEngineer
+          ? activeQaqcProject
         : isBillingEngineer
           ? activeBillingProject
           : isSiteEngineer

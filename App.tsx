@@ -69,7 +69,7 @@ import {
   type PendingUpdatesSummary,
 } from "./utils/pmcHeadPendingUpdates";
 import { userMatchesAssignee, extractAssigneeId, projectAssignedToUser } from "./utils/roleProjectAssignments";
-import { normalizeBackendProjectRow, buildExecutiveProjectDropdownList, buildPmcHeadExecutiveProjectOptions, getKnownExecutiveProjectStubs, seedProjectRowCache } from "./utils/pmcHeadExecutiveProjects";
+import { normalizeBackendProjectRow, buildPmcHeadDropdownProjects, buildPmcHeadExecutiveProjectOptions, getKnownExecutiveProjectStubs, getHseExecutiveProjectStubs, seedProjectRowCache } from "./utils/pmcHeadExecutiveProjects";
 import {
   clearAppRouteOnLogout,
   getDefaultTabForRole,
@@ -221,9 +221,10 @@ const App: React.FC = () => {
 
       let projectsForState = backendProjects;
       if (isPmcHead) {
-        projectsForState = buildExecutiveProjectDropdownList(
+        projectsForState = buildPmcHeadDropdownProjects(
           backendProjects,
           getKnownExecutiveProjectStubs(backendProjects),
+          getHseExecutiveProjectStubs(backendProjects),
         );
       }
 
