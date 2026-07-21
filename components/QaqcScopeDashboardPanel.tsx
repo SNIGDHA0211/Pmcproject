@@ -1,17 +1,5 @@
 import React, { useMemo } from 'react';
 import {
-  Bar,
-  BarChart,
-  CartesianGrid,
-  Cell,
-  Pie,
-  PieChart,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from 'recharts';
-import {
   CheckCircle2,
   ClipboardList,
   Clock,
@@ -24,12 +12,7 @@ import type { MonthlyScope, Project, ProjectQualityStatusRecord } from '../types
 import type { HealthSafetyDashboardData } from '../services/api';
 import QaqcHealthSafetyPanel from './QaqcHealthSafetyPanel';
 import FrequencyChartDashboard from './FrequencyChartDashboard';
-import {
-  buildCategoryProgressData,
-  buildProjectScopeData,
-  buildStatusChartData,
-  computeQaqcScopeSummary,
-} from '../utils/qaqcScopeAnalytics';
+import { computeQaqcScopeSummary } from '../utils/qaqcScopeAnalytics';
 import type { AssignedProjectOption } from '../utils/roleProjectAssignments';
 import { getThemeClasses, useTheme } from '../utils/theme';
 
@@ -88,10 +71,6 @@ const QaqcScopeDashboardPanel: React.FC<QaqcScopeDashboardPanelProps> = ({
   const themeClasses = getThemeClasses(isDarkTheme);
 
   const summary = useMemo(() => computeQaqcScopeSummary(scopes), [scopes]);
-  const statusData = useMemo(() => buildStatusChartData(summary), [summary]);
-  const categoryData = useMemo(() => buildCategoryProgressData(scopes), [scopes]);
-  const projectData = useMemo(() => buildProjectScopeData(scopes), [scopes]);
-  const hasScopeCharts = statusData.length > 0 || categoryData.length > 0 || projectData.length > 0;
 
   const cardCls = `rounded-2xl border ${
     isDarkTheme
@@ -125,13 +104,6 @@ const QaqcScopeDashboardPanel: React.FC<QaqcScopeDashboardPanelProps> = ({
       tone: isDarkTheme ? 'text-emerald-300 bg-emerald-500/15' : 'text-emerald-700 bg-emerald-50',
     },
   ];
-
-  const tooltipStyle = {
-    backgroundColor: isDarkTheme ? '#1e293b' : '#fff',
-    border: `1px solid ${isDarkTheme ? 'rgba(255,255,255,0.1)' : '#e2e8f0'}`,
-    borderRadius: 12,
-    fontSize: 12,
-  };
 
   return (
     <div className="space-y-4">
@@ -270,7 +242,7 @@ const QaqcScopeDashboardPanel: React.FC<QaqcScopeDashboardPanelProps> = ({
         </section>
       )}
 
-      {!showFrequencyChart && (
+      {!showFrequencyChart && !showHealthSafety && (
         <section className={`${cardCls} p-4 sm:p-5`}>
           <h3 className={`mb-3 text-xs font-black uppercase tracking-widest ${themeClasses.textPrimary}`}>
             Project Quality Snapshot
@@ -314,224 +286,6 @@ const QaqcScopeDashboardPanel: React.FC<QaqcScopeDashboardPanelProps> = ({
         </section>
       )}
 
-      {/* Scope analytics — compact when empty */}
-      <section className="space-y-2">
-        <div className="flex items-center justify-between gap-2 px-0.5">
-          <h3 className={`text-xs font-black uppercase tracking-widest ${themeClasses.textPrimary}`}>
-            Scope Overview
-          </h3>
-          <span className={`text-[10px] font-semibold tabular-nums ${themeClasses.textMuted}`}>
-            {summary.avgProgress}% avg progress
-          </span>
-        </div>
-
-        {!hasScopeCharts ? (
-          <div className={`${cardCls} p-4`}>
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-              <div
-                className={`rounded-xl border px-4 py-3 ${
-                  isDarkTheme ? 'border-white/10 bg-white/[0.03]' : 'border-slate-100 bg-slate-50'
-                }`}
-              >
-                <p className={`text-[10px] font-bold uppercase ${themeClasses.textSecondary}`}>Overall Progress</p>
-                <p className={`mt-1 text-2xl font-black tabular-nums ${themeClasses.textPrimary}`}>
-                  {summary.avgProgress}%
-                </p>
-                <div className={`mt-2 h-2 overflow-hidden rounded-full ${isDarkTheme ? 'bg-white/10' : 'bg-slate-200'}`}>
-                  <div
-                    className="h-full rounded-full bg-gradient-to-r from-indigo-500 to-sky-500"
-                    style={{ width: `${Math.min(100, summary.avgProgress)}%` }}
-                  />
-                </div>
-              </div>
-              <div
-                className={`rounded-xl border px-4 py-3 ${
-                  isDarkTheme ? 'border-white/10 bg-white/[0.03]' : 'border-slate-100 bg-slate-50'
-                }`}
-              >
-                <p className={`text-[10px] font-bold uppercase ${themeClasses.textSecondary}`}>Planned Qty</p>
-                <p className={`mt-1 text-2xl font-black tabular-nums ${themeClasses.textPrimary}`}>
-                  {summary.plannedQty.toLocaleString('en-IN')}
-                </p>
-              </div>
-              <div
-                className={`rounded-xl border px-4 py-3 ${
-                  isDarkTheme ? 'border-white/10 bg-white/[0.03]' : 'border-slate-100 bg-slate-50'
-                }`}
-              >
-                <p className={`text-[10px] font-bold uppercase ${themeClasses.textSecondary}`}>Executed Qty</p>
-                <p className="mt-1 text-2xl font-black tabular-nums text-emerald-500">
-                  {summary.executedQty.toLocaleString('en-IN')}
-                </p>
-              </div>
-            </div>
-            <p className={`mt-3 text-center text-[11px] ${themeClasses.textMuted}`}>
-              Charts appear once monthly scopes are assigned to this project.
-            </p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 gap-3 lg:grid-cols-12">
-            <div className={`${cardCls} p-4 lg:col-span-4`}>
-              <h4 className={`mb-2 text-[10px] font-black uppercase tracking-widest ${themeClasses.textSecondary}`}>
-                Status Mix
-              </h4>
-              {statusData.length > 0 ? (
-                <>
-                  <div className="h-[180px]">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <PieChart>
-                        <Pie
-                          data={statusData}
-                          dataKey="value"
-                          nameKey="name"
-                          cx="50%"
-                          cy="50%"
-                          innerRadius={44}
-                          outerRadius={68}
-                          paddingAngle={3}
-                        >
-                          {statusData.map((entry) => (
-                            <Cell key={entry.name} fill={entry.color} />
-                          ))}
-                        </Pie>
-                        <Tooltip contentStyle={tooltipStyle} />
-                      </PieChart>
-                    </ResponsiveContainer>
-                  </div>
-                  <div className="mt-1 flex flex-wrap justify-center gap-2.5">
-                    {statusData.map((row) => (
-                      <span
-                        key={row.name}
-                        className={`inline-flex items-center gap-1.5 text-[11px] font-semibold ${themeClasses.textSecondary}`}
-                      >
-                        <span className="h-2 w-2 rounded-full" style={{ backgroundColor: row.color }} />
-                        {row.name}: {row.value}
-                      </span>
-                    ))}
-                  </div>
-                </>
-              ) : (
-                <EmptyHint
-                  title="No status data"
-                  hint="Scope status chart will fill when scopes exist."
-                  isDarkTheme={isDarkTheme}
-                  themeClasses={themeClasses}
-                />
-              )}
-            </div>
-
-            <div className={`${cardCls} p-4 lg:col-span-5`}>
-              <h4 className={`mb-2 text-[10px] font-black uppercase tracking-widest ${themeClasses.textSecondary}`}>
-                Progress by Category
-              </h4>
-              {categoryData.length > 0 ? (
-                <div className="h-[200px]">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={categoryData} margin={{ top: 4, right: 8, left: -16, bottom: 28 }}>
-                      <CartesianGrid
-                        strokeDasharray="3 3"
-                        stroke={isDarkTheme ? 'rgba(255,255,255,0.08)' : '#e2e8f0'}
-                      />
-                      <XAxis
-                        dataKey="category"
-                        tick={{ fontSize: 10, fill: isDarkTheme ? '#94a3b8' : '#64748b' }}
-                        angle={-24}
-                        textAnchor="end"
-                        height={48}
-                      />
-                      <YAxis
-                        domain={[0, 100]}
-                        tick={{ fontSize: 10, fill: isDarkTheme ? '#94a3b8' : '#64748b' }}
-                        unit="%"
-                      />
-                      <Tooltip
-                        contentStyle={tooltipStyle}
-                        formatter={(value: number) => [`${value}%`, 'Avg Progress']}
-                        labelFormatter={(_, payload) => payload?.[0]?.payload?.fullCategory ?? ''}
-                      />
-                      <Bar dataKey="progress" fill="#6366F1" radius={[6, 6, 0, 0]} maxBarSize={36} />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-              ) : (
-                <EmptyHint
-                  title="No categories"
-                  hint="Category progress appears when scopes have categories."
-                  isDarkTheme={isDarkTheme}
-                  themeClasses={themeClasses}
-                />
-              )}
-            </div>
-
-            <div className={`${cardCls} flex flex-col gap-3 p-4 lg:col-span-3`}>
-              <div>
-                <h4 className={`mb-2 text-[10px] font-black uppercase tracking-widest ${themeClasses.textSecondary}`}>
-                  Execution
-                </h4>
-                <div className="mb-1 flex justify-between text-xs font-semibold">
-                  <span className={themeClasses.textSecondary}>Progress</span>
-                  <span className={themeClasses.textPrimary}>{summary.avgProgress}%</span>
-                </div>
-                <div className={`h-2 overflow-hidden rounded-full ${isDarkTheme ? 'bg-white/10' : 'bg-slate-100'}`}>
-                  <div
-                    className="h-full rounded-full bg-gradient-to-r from-indigo-500 to-sky-500"
-                    style={{ width: `${Math.min(100, summary.avgProgress)}%` }}
-                  />
-                </div>
-                <div className="mt-3 grid grid-cols-2 gap-2">
-                  <div
-                    className={`rounded-lg border px-2.5 py-2 ${
-                      isDarkTheme ? 'border-white/10 bg-white/[0.03]' : 'border-slate-100 bg-slate-50'
-                    }`}
-                  >
-                    <p className={`text-[9px] font-bold uppercase ${themeClasses.textSecondary}`}>Planned</p>
-                    <p className={`text-sm font-black tabular-nums ${themeClasses.textPrimary}`}>
-                      {summary.plannedQty.toLocaleString('en-IN')}
-                    </p>
-                  </div>
-                  <div
-                    className={`rounded-lg border px-2.5 py-2 ${
-                      isDarkTheme ? 'border-white/10 bg-white/[0.03]' : 'border-slate-100 bg-slate-50'
-                    }`}
-                  >
-                    <p className={`text-[9px] font-bold uppercase ${themeClasses.textSecondary}`}>Executed</p>
-                    <p className="text-sm font-black tabular-nums text-emerald-500">
-                      {summary.executedQty.toLocaleString('en-IN')}
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              {projectData.length > 0 && (
-                <div className="min-h-0 flex-1">
-                  <h4 className={`mb-2 text-[10px] font-black uppercase tracking-widest ${themeClasses.textSecondary}`}>
-                    By Project
-                  </h4>
-                  <div className="h-[120px]">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <BarChart
-                        data={projectData}
-                        layout="vertical"
-                        margin={{ top: 0, right: 8, left: 0, bottom: 0 }}
-                      >
-                        <XAxis type="number" hide allowDecimals={false} />
-                        <YAxis
-                          type="category"
-                          dataKey="project"
-                          width={72}
-                          tick={{ fontSize: 9, fill: isDarkTheme ? '#94a3b8' : '#64748b' }}
-                        />
-                        <Tooltip contentStyle={tooltipStyle} />
-                        <Bar dataKey="count" fill="#0EA5E9" radius={[0, 4, 4, 0]} maxBarSize={14} />
-                      </BarChart>
-                    </ResponsiveContainer>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-      </section>
     </div>
   );
 };

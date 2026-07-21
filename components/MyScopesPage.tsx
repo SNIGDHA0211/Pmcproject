@@ -640,7 +640,7 @@ const MyScopesPage: React.FC<MyScopesPageProps> = ({
           ? 'Your assigned monthly scope items'
           : 'Scopes assigned to you';
 
-  const showAssignedScopesSection = !isBillingEngineer && !isHseEngineer;
+  const showAssignedScopesSection = !isBillingEngineer && !isHseEngineer && !isQaqcEngineer;
 
   if (loading && showAssignedScopesSection) {
     return (
