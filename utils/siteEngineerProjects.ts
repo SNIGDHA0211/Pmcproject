@@ -26,6 +26,7 @@ export const SITE_ENGINEER_NAV_IDS = [
   'machinery_list',
   'dpr_records',
   'wpr_records',
+  'project_feedback',
 ] as const;
 
 export const SITE_ENGINEER_NAV_LABELS: Record<string, string> = {
@@ -37,6 +38,7 @@ export const SITE_ENGINEER_NAV_LABELS: Record<string, string> = {
   machinery_list: 'Plant Machinery',
   dpr_records: 'DPR',
   wpr_records: 'WPR',
+  project_feedback: 'Project Feedback',
 };
 
 export const SITE_ENGINEER_QUICK_LINKS: { tab: string; label: string; description: string }[] = [

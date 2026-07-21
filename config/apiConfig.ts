@@ -385,6 +385,13 @@ export const API_ENDPOINTS = {
     DOWNLOAD: (id: string | number) => `/testing-documents/${id}/download/`,
   },
 
+  // Project Feedback (issues raised on projects)
+  PROJECT_FEEDBACK: {
+    LIST: '/project-feedback/',
+    DETAIL: (id: string | number) => `/project-feedback/${id}/`,
+    STATUS: (id: string | number) => `/project-feedback/${id}/status/`,
+  },
+
   MEETING_DOCUMENTS: {
     LIST: '/meeting-documents/',
     DASHBOARD: '/meeting-documents/dashboard/',

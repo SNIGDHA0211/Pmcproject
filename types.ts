@@ -191,6 +191,29 @@ export interface TestingDocument {
   isActive?: boolean;
 }
 
+export type FeedbackPriority = 'Low' | 'Medium' | 'High' | 'Critical';
+export type FeedbackStatus = 'Open' | 'In Progress' | 'Resolved' | 'Closed';
+
+/** Issue / feedback raised against a project. */
+export interface ProjectFeedback {
+  id: number;
+  projectId: number;
+  projectName: string;
+  issueTitle: string;
+  issueDescription: string;
+  priority: FeedbackPriority;
+  status: FeedbackStatus;
+  remarks: string;
+  reportedById?: number;
+  reportedByUsername: string;
+  reportedByRole: string;
+  attachmentUrl: string;
+  attachmentName: string;
+  createdAt?: string;
+  updatedAt?: string;
+  resolvedAt?: string | null;
+}
+
 export interface DrawingMonthlyRecord {
   id?: string | number;
   projectName: string;

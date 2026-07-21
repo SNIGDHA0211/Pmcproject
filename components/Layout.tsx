@@ -102,6 +102,7 @@ const Layout: React.FC<LayoutProps> = ({
       financial_management: "financial-menu",
       site_photos: "site-photos-menu",
       testing_photos: "testing-photos-menu",
+      project_feedback: "project-feedback-menu",
       machinery_list: "plant-menu",
       hse: "hse-menu",
       projects: "portfolio-menu",
@@ -189,6 +190,12 @@ const Layout: React.FC<LayoutProps> = ({
       label: "Testing Photos",
       icon: Icons.ClipboardList,
       roles: [UserRole.PMC_HEAD, UserRole.TEAM_LEAD, UserRole.QAQC_SITE_ENGINEER],
+    },
+    {
+      id: "project_feedback",
+      label: "Project Feedback",
+      icon: Icons.Comment,
+      roles: [UserRole.PMC_HEAD, UserRole.TEAM_LEAD, UserRole.SITE_ENGINEER],
     },
     {
       id: "machinery_list",

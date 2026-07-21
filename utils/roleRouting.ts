@@ -35,6 +35,7 @@ function teamLeadTabs(): string[] {
     'dpr_records',
     'wpr_records',
     'meeting_documents',
+    'project_feedback',
     'alerts',
   ];
 }
@@ -53,6 +54,7 @@ export function getAllowedTabsForRole(role: UserRole, username?: string): Readon
       'dpr_records',
       'wpr_records',
       'meeting_documents',
+      'project_feedback',
       'alerts',
     ],
     [UserRole.CEO]: [

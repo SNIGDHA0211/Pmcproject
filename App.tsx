@@ -21,6 +21,7 @@ import MachineryList from "./components/MachineryList";
 import ManpowerManagement from "./components/ManpowerManagement";
 import SitePhotosManagement from "./components/sitePhotos/SitePhotosManagement";
 import TestingPhotosPage from "./components/testingPhotos/TestingPhotosPage";
+import ProjectFeedbackPage from "./components/projectFeedback/ProjectFeedbackPage";
 import FinancialManagement, {
   SubTab,
   normalizeBillingFinancialSubTab,
@@ -1701,6 +1702,8 @@ const App: React.FC = () => {
             currentUser={currentUser}
             initialProjectId={testingPhotosInitialProjectId}
           />
+        ) : activeTab === "project_feedback" ? (
+          <ProjectFeedbackPage projects={projects} currentUser={currentUser} />
         ) : activeTab === "financial_management" ? (
           <FinancialManagement
             projects={

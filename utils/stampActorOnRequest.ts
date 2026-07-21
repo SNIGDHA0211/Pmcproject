@@ -10,6 +10,7 @@ const SKIP_URL_PARTS = [
   '/available-users/',
   '/testing-documents/',
   '/site-images/',
+  '/project-feedback/',
 ];
 
 function shouldSkipUrl(url?: string): boolean {
