@@ -8,6 +8,8 @@ const SKIP_URL_PARTS = [
   '/auth/',
   '/token/',
   '/available-users/',
+  '/testing-documents/',
+  '/site-images/',
 ];
 
 function shouldSkipUrl(url?: string): boolean {

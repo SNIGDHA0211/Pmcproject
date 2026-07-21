@@ -168,6 +168,29 @@ export interface ProjectQualityStatusRecord {
   updatedBy?: string;
 }
 
+/** Material testing evidence uploaded by QAQC (PDF / image / video). */
+export interface TestingDocument {
+  id: number;
+  projectId: number;
+  projectName: string;
+  title: string;
+  remarks: string;
+  documentType: string;
+  fileName: string;
+  fileUrl: string;
+  fileSize: number;
+  mimeType: string;
+  testDate: string;
+  month: number;
+  year: number;
+  uploadedById?: number;
+  uploadedByUsername?: string;
+  uploadedByRole?: string;
+  createdAt?: string;
+  updatedAt?: string;
+  isActive?: boolean;
+}
+
 export interface DrawingMonthlyRecord {
   id?: string | number;
   projectName: string;

@@ -378,6 +378,13 @@ export const API_ENDPOINTS = {
     REGISTER_DELETE: (id: string | number) => `/frequency-chart/register/${id}/`,
   },
 
+  // Testing Documents / Photos (QAQC material test evidence)
+  TESTING_DOCUMENTS: {
+    LIST: '/testing-documents/',
+    DETAIL: (id: string | number) => `/testing-documents/${id}/`,
+    DOWNLOAD: (id: string | number) => `/testing-documents/${id}/download/`,
+  },
+
   MEETING_DOCUMENTS: {
     LIST: '/meeting-documents/',
     DASHBOARD: '/meeting-documents/dashboard/',

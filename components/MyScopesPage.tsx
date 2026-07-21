@@ -46,6 +46,7 @@ interface MyScopesPageProps {
   user: User;
   projects?: Project[];
   onNavigateFinancial?: (section: BillingFinancialSection, projectId?: string) => void;
+  onNavigateTestingPhotos?: (projectId?: string) => void;
   financialDataVersion?: number;
 }
 
@@ -53,6 +54,7 @@ const MyScopesPage: React.FC<MyScopesPageProps> = ({
   user,
   projects = [],
   onNavigateFinancial,
+  onNavigateTestingPhotos,
   financialDataVersion = 0,
 }) => {
   const { isDarkTheme } = useTheme();
@@ -728,6 +730,11 @@ const MyScopesPage: React.FC<MyScopesPageProps> = ({
           onEditHealthSafety={isHseEngineer && canEditHse ? openHseForm : undefined}
           onDeleteHealthSafety={isHseEngineer && canEditHse ? handleDeleteHse : undefined}
           canDeleteHealthSafety={isHseEngineer && canEditHse && Boolean(hseDashboard?.currentMonth?.id)}
+          onNavigateTestingPhotos={
+            isQaqcEngineer
+              ? () => onNavigateTestingPhotos?.(qaqcSelectedProject?.id)
+              : undefined
+          }
         />
       )}
 

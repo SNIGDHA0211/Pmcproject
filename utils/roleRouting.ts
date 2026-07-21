@@ -29,6 +29,7 @@ function teamLeadTabs(): string[] {
     'manpower_management',
     'financial_management',
     'site_photos',
+    'testing_photos',
     'machinery_list',
     'projects',
     'dpr_records',
@@ -47,6 +48,7 @@ export function getAllowedTabsForRole(role: UserRole, username?: string): Readon
       'project_init',
       'execution',
       'site_photos',
+      'testing_photos',
       'projects',
       'dpr_records',
       'wpr_records',
@@ -76,7 +78,7 @@ export function getAllowedTabsForRole(role: UserRole, username?: string): Readon
     [UserRole.TEAM_LEAD]: teamLeadTabs(),
     [UserRole.SITE_ENGINEER]: [...SITE_ENGINEER_NAV_IDS],
     [UserRole.BILLING_SITE_ENGINEER]: ['my_scopes', 'financial_management'],
-    [UserRole.QAQC_SITE_ENGINEER]: ['my_scopes'],
+    [UserRole.QAQC_SITE_ENGINEER]: ['my_scopes', 'testing_photos'],
     [UserRole.HSE_SITE_ENGINEER]: ['my_scopes'],
   };
 

@@ -58,6 +58,7 @@ import type {
   ProjectEquipmentRecord,
   ProjectQualityStatusRecord,
   SiteImageRecord,
+  TestingDocument,
 } from "../types";
 
 export { normalizeApiUrl };
@@ -6415,4 +6416,189 @@ export const notificationApi = {
     });
   },
 };
+
+// ─── Testing Documents / Photos (QAQC material test evidence) ─────────────────
+
+function normalizeTestingDocument(row: any): TestingDocument {
+  const project = row?.project;
+  const uploadedBy = row?.uploaded_by ?? row?.uploadedBy;
+  return {
+    id: Number(row?.id) || 0,
+    projectId: Number(
+      typeof project === "object" ? project?.id : row?.project_id ?? row?.projectId,
+    ) || 0,
+    projectName: String(
+      (typeof project === "object" ? project?.name : null) ??
+        row?.project_name ??
+        row?.projectName ??
+        "",
+    ),
+    title: String(row?.title ?? ""),
+    remarks: String(row?.remarks ?? ""),
+    documentType: String(row?.document_type ?? row?.documentType ?? ""),
+    fileName: String(row?.file_name ?? row?.fileName ?? ""),
+    fileUrl: String(row?.file_url ?? row?.fileUrl ?? ""),
+    fileSize: Number(row?.file_size ?? row?.fileSize) || 0,
+    mimeType: String(row?.mime_type ?? row?.mimeType ?? ""),
+    testDate: String(row?.test_date ?? row?.testDate ?? ""),
+    month: Number(row?.month) || 0,
+    year: Number(row?.year) || 0,
+    uploadedById:
+      typeof uploadedBy === "object"
+        ? Number(uploadedBy?.id) || undefined
+        : Number(row?.uploaded_by_id) || undefined,
+    uploadedByUsername:
+      typeof uploadedBy === "object"
+        ? String(uploadedBy?.username ?? "")
+        : String(row?.uploaded_by_username ?? ""),
+    uploadedByRole:
+      typeof uploadedBy === "object"
+        ? String(uploadedBy?.role ?? "")
+        : String(row?.uploaded_by_role ?? ""),
+    createdAt: row?.created_at ?? row?.createdAt,
+    updatedAt: row?.updated_at ?? row?.updatedAt,
+    isActive: row?.is_active ?? row?.isActive ?? true,
+  };
+}
+
+function collectTestingDocuments(payload: unknown): TestingDocument[] {
+  const unwrapped = unwrapApiData(payload) ?? payload;
+  if (!unwrapped || typeof unwrapped !== "object") return [];
+  const body = unwrapped as Record<string, unknown>;
+  const results = body.results ?? body.data ?? unwrapped;
+  if (Array.isArray(results)) {
+    return results.map(normalizeTestingDocument).filter((d) => d.id);
+  }
+  if (results && typeof results === "object") {
+    const nested = (results as Record<string, unknown>).results;
+    if (Array.isArray(nested)) {
+      return nested.map(normalizeTestingDocument).filter((d) => d.id);
+    }
+    const single = normalizeTestingDocument(results);
+    return single.id ? [single] : [];
+  }
+  return [];
+}
+
+/** Let axios/browser set multipart boundary (do not set Content-Type manually). */
+function multipartUploadConfig(onUploadProgress?: (percent: number) => void) {
+  return {
+    headers: { "Content-Type": undefined as unknown as string },
+    onUploadProgress: onUploadProgress
+      ? (event: { loaded: number; total?: number }) => {
+          if (!event.total) return;
+          onUploadProgress(Math.round((event.loaded * 100) / event.total));
+        }
+      : undefined,
+  };
+}
+
+function parseTestingDocumentProjectId(projectId: number | string): number {
+  const parsed = Number(String(projectId ?? "").trim());
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    throw new Error("A valid project is required before uploading.");
+  }
+  return parsed;
+}
+
+export type TestingDocumentUploadPayload = {
+  projectId: number | string;
+  title: string;
+  remarks?: string;
+  testDate: string;
+  file: File;
+};
+
+export type TestingDocumentUpdatePayload = {
+  title?: string;
+  remarks?: string;
+  testDate?: string;
+  file?: File | null;
+};
+
+export const testingDocumentsApi = {
+  list: (params?: {
+    project?: number | string;
+    month?: number;
+    year?: number;
+    page?: number;
+    page_size?: number;
+  }) => api.get(API_ENDPOINTS.TESTING_DOCUMENTS.LIST, { params }),
+
+  getById: (id: string | number) =>
+    api.get(API_ENDPOINTS.TESTING_DOCUMENTS.DETAIL(id)),
+
+  upload: (
+    payload: TestingDocumentUploadPayload,
+    onUploadProgress?: (percent: number) => void,
+  ) => {
+    const project = parseTestingDocumentProjectId(payload.projectId);
+    const formData = new FormData();
+    formData.append("project", String(project));
+    formData.append("title", payload.title.trim());
+    formData.append("remarks", payload.remarks ?? "");
+    formData.append("test_date", payload.testDate);
+    formData.append("file", payload.file, payload.file.name);
+
+    return api.post(
+      API_ENDPOINTS.TESTING_DOCUMENTS.LIST,
+      formData,
+      multipartUploadConfig(onUploadProgress),
+    );
+  },
+
+  update: (
+    id: string | number,
+    payload: TestingDocumentUpdatePayload,
+    onUploadProgress?: (percent: number) => void,
+  ) => {
+    const formData = new FormData();
+    if (payload.title !== undefined) formData.append("title", payload.title.trim());
+    if (payload.remarks !== undefined) formData.append("remarks", payload.remarks);
+    if (payload.testDate !== undefined) formData.append("test_date", payload.testDate);
+    if (payload.file) formData.append("file", payload.file, payload.file.name);
+
+    return api.patch(
+      API_ENDPOINTS.TESTING_DOCUMENTS.DETAIL(id),
+      formData,
+      multipartUploadConfig(onUploadProgress),
+    );
+  },
+
+  delete: (id: string | number) =>
+    api.delete(API_ENDPOINTS.TESTING_DOCUMENTS.DETAIL(id)),
+
+  download: (id: string | number) =>
+    api.get(API_ENDPOINTS.TESTING_DOCUMENTS.DOWNLOAD(id)),
+};
+
+export function normalizeTestingDocumentsList(payload: unknown): TestingDocument[] {
+  return collectTestingDocuments(payload);
+}
+
+export function normalizeTestingDocumentResponse(payload: unknown): TestingDocument | null {
+  const unwrapped = unwrapApiData(payload) ?? payload;
+  if (!unwrapped || typeof unwrapped !== "object") return null;
+  const doc = normalizeTestingDocument(unwrapped);
+  return doc.id ? doc : null;
+}
+
+/** Parse POST/PATCH testing-documents envelope `{ success, message, data }`. */
+export function parseTestingDocumentMutationResponse(payload: unknown): {
+  document: TestingDocument | null;
+  message: string;
+  success: boolean;
+} {
+  const body =
+    payload && typeof payload === "object"
+      ? (payload as Record<string, unknown>)
+      : {};
+  const document = normalizeTestingDocumentResponse(payload);
+  return {
+    document,
+    message: String(body.message ?? ""),
+    success: body.success === true,
+  };
+}
+
 export default api;

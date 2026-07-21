@@ -20,6 +20,7 @@ import MyScopesPage from "./components/MyScopesPage";
 import MachineryList from "./components/MachineryList";
 import ManpowerManagement from "./components/ManpowerManagement";
 import SitePhotosManagement from "./components/sitePhotos/SitePhotosManagement";
+import TestingPhotosPage from "./components/testingPhotos/TestingPhotosPage";
 import FinancialManagement, {
   SubTab,
   normalizeBillingFinancialSubTab,
@@ -113,6 +114,7 @@ const App: React.FC = () => {
   const [financialSectionLocked, setFinancialSectionLocked] = useState(false);
   const [financialReturnTab, setFinancialReturnTab] = useState<string | null>(null);
   const [financialInitialProjectId, setFinancialInitialProjectId] = useState<string | null>(null);
+  const [testingPhotosInitialProjectId, setTestingPhotosInitialProjectId] = useState<string | null>(null);
   const [alertsLoading, setAlertsLoading] = useState(false);
   const [alertsRefreshing, setAlertsRefreshing] = useState(false);
   const [pendingUpdates, setPendingUpdates] = useState<PendingUpdatesSummary | null>(null);
@@ -1428,6 +1430,9 @@ const App: React.FC = () => {
           }
           setFinancialSectionLocked(false);
           setFinancialReturnTab(null);
+          if (nextTab !== "testing_photos") {
+            setTestingPhotosInitialProjectId(null);
+          }
           setSelectedProjectId(null);
           setProjectFilter("all");
         }}
@@ -1526,6 +1531,14 @@ const App: React.FC = () => {
                 syncAppRoutePath(targetPath, "push");
               }
             }}
+            onNavigateTestingPhotos={(projectId) => {
+              setTestingPhotosInitialProjectId(projectId ?? null);
+              setActiveTab("testing_photos");
+              const targetPath = TAB_PATHS.testing_photos;
+              if (targetPath && getAppRoutePath() !== targetPath) {
+                syncAppRoutePath(targetPath, "push");
+              }
+            }}
           />
         ) : activeTab === "execution" ? (
           <SiteExecution
@@ -1550,7 +1563,16 @@ const App: React.FC = () => {
               setSelectedProjectId(id);
             }}
             onNavigate={(navData) => {
-              if (typeof navData === 'object' && navData.tab && navData.section) {
+              if (typeof navData === 'object' && navData.tab === 'testing_photos') {
+                setTestingPhotosInitialProjectId(navData.projectId ?? null);
+                setFinancialSectionLocked(false);
+                setFinancialReturnTab(null);
+                setActiveTab('testing_photos');
+                const targetPath = TAB_PATHS.testing_photos;
+                if (targetPath && getAppRoutePath() !== targetPath) {
+                  syncAppRoutePath(targetPath, "push");
+                }
+              } else if (typeof navData === 'object' && navData.tab && navData.section) {
                 setFinancialSection(normalizeFinancialSubTab(navData.section));
                 setFinancialSectionLocked(true);
                 setFinancialReturnTab(navData.returnTab ?? null);
@@ -1673,6 +1695,12 @@ const App: React.FC = () => {
           <ManpowerManagement projects={projects} currentUser={currentUser} />
         ) : activeTab === "site_photos" ? (
           <SitePhotosManagement projects={projects} currentUser={currentUser} />
+        ) : activeTab === "testing_photos" ? (
+          <TestingPhotosPage
+            projects={projects}
+            currentUser={currentUser}
+            initialProjectId={testingPhotosInitialProjectId}
+          />
         ) : activeTab === "financial_management" ? (
           <FinancialManagement
             projects={

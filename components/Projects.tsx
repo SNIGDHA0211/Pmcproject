@@ -172,7 +172,9 @@ interface ProjectsProps {
   projects: Project[];
   currentUser: { id: string; role: UserRole };
   onViewProject: (id: string) => void;
-  onNavigate?: (tab: string | { tab: string; section: SubTab; returnTab?: string }) => void;
+  onNavigate?: (
+    tab: string | { tab: string; section?: SubTab; returnTab?: string; projectId?: string },
+  ) => void;
   selectedProjectId?: string | null;
   financialDataVersion?: number;
   onTourStateChange?: (isActive: boolean) => void;
@@ -3111,6 +3113,15 @@ const Projects: React.FC<ProjectsProps> = ({
                         selectedContractorName={selectedContractorName}
                         syncContractorFromDashboard={useGlobalContractorFilter}
                         layout="embedded"
+                        onOpenTestingPhotos={
+                          isPmcTeamLead || isPMCHead
+                            ? () =>
+                              onNavigate?.({
+                                tab: 'testing_photos',
+                                projectId: selectedProject.id,
+                              })
+                            : undefined
+                        }
                       />
                     </div>
                   </div>
@@ -3157,6 +3168,12 @@ const Projects: React.FC<ProjectsProps> = ({
                         project={selectedProject}
                         selectedContractorName={selectedContractorName}
                         syncContractorFromDashboard={useGlobalContractorFilter}
+                        onOpenTestingPhotos={() =>
+                          onNavigate?.({
+                            tab: 'testing_photos',
+                            projectId: selectedProject.id,
+                          })
+                        }
                       />
                     </div>
                   )}

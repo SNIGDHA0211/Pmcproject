@@ -18,6 +18,7 @@ import {
   FolderKanban,
   FlaskConical,
   TrendingUp,
+  Upload,
 } from 'lucide-react';
 import type { MonthlyScope, Project, ProjectQualityStatusRecord } from '../types';
 import type { HealthSafetyDashboardData } from '../services/api';
@@ -47,6 +48,7 @@ interface QaqcScopeDashboardPanelProps {
   onEditHealthSafety?: () => void;
   onDeleteHealthSafety?: () => void;
   canDeleteHealthSafety?: boolean;
+  onNavigateTestingPhotos?: () => void;
 }
 
 const EmptyHint: React.FC<{
@@ -80,6 +82,7 @@ const QaqcScopeDashboardPanel: React.FC<QaqcScopeDashboardPanelProps> = ({
   onEditHealthSafety,
   onDeleteHealthSafety,
   canDeleteHealthSafety = false,
+  onNavigateTestingPhotos,
 }) => {
   const { isDarkTheme } = useTheme();
   const themeClasses = getThemeClasses(isDarkTheme);
@@ -218,7 +221,7 @@ const QaqcScopeDashboardPanel: React.FC<QaqcScopeDashboardPanelProps> = ({
       {/* Quality — primary for QAQC */}
       {showFrequencyChart && (
         <section className="space-y-2">
-          <div className="flex items-center gap-2 px-0.5">
+          <div className="flex flex-wrap items-center gap-2 px-0.5">
             <FlaskConical
               size={15}
               className={isDarkTheme ? 'text-indigo-300' : 'text-indigo-600'}
@@ -230,6 +233,20 @@ const QaqcScopeDashboardPanel: React.FC<QaqcScopeDashboardPanelProps> = ({
             <span className={`text-[10px] font-semibold ${themeClasses.textMuted}`}>
               Primary QAQC workspace
             </span>
+            {onNavigateTestingPhotos && (
+              <button
+                type="button"
+                onClick={onNavigateTestingPhotos}
+                className={`ml-auto inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[11px] font-bold uppercase tracking-wide transition ${
+                  isDarkTheme
+                    ? 'bg-indigo-500/20 text-indigo-200 hover:bg-indigo-500/30'
+                    : 'bg-indigo-600 text-white hover:bg-indigo-700 shadow-sm'
+                }`}
+              >
+                <Upload size={13} strokeWidth={2.5} />
+                Upload Testing Photos
+              </button>
+            )}
           </div>
 
           {selectedProject ? (

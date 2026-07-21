@@ -23,6 +23,8 @@ interface Props {
   layout?: 'default' | 'embedded';
   /** Open the test register table by default (useful on QAQC dashboard). */
   defaultShowTable?: boolean;
+  /** When provided, shows a "Testing Photos" button that redirects to the Testing Photos page. */
+  onOpenTestingPhotos?: () => void;
 }
 
 function safeN(v: unknown): number {
@@ -95,6 +97,7 @@ export default function FrequencyChartDashboard({
   syncContractorFromDashboard = false,
   layout = 'default',
   defaultShowTable = false,
+  onOpenTestingPhotos,
 }: Props) {
   const isEmbedded = layout === 'embedded';
   const { isDarkTheme } = useTheme();
@@ -232,6 +235,20 @@ export default function FrequencyChartDashboard({
             isEmbedded ? 'gap-1.5' : 'w-full flex-wrap gap-1.5 sm:w-auto'
           }`}
         >
+          {onOpenTestingPhotos && (
+            <button
+              type="button"
+              onClick={onOpenTestingPhotos}
+              className={`inline-flex items-center justify-center gap-1 rounded-lg bg-violet-600 font-bold text-white transition-colors hover:bg-violet-700 ${
+                isEmbedded ? 'h-8 px-2.5 text-[11px]' : 'rounded-xl px-3 py-2 text-xs'
+              }`}
+              title="Open Testing Photos for this project"
+            >
+              <Icons.Upload size={isEmbedded ? 12 : 14} />
+              <span className="whitespace-nowrap">Testing Photos</span>
+            </button>
+          )}
+
           <button
             type="button"
             onClick={() => {
