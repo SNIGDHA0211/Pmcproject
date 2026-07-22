@@ -705,6 +705,17 @@ export const bgStatusDashboardApi = {
   },
 };
 
+function emptyProjectDatesDashboard(projectName: string): ProjectDatesDashboard {
+  return {
+    project_name: projectName,
+    scl: null,
+    contractors: [],
+    contractor_bg: [],
+    scl_bg: [],
+    bg_summary: null,
+  };
+}
+
 export async function fetchContractorManagementBundle(projectName: string) {
   const [mastersResult, contractValuesResult, invoicingResult, projectDatesResult] =
     await Promise.allSettled([
@@ -714,23 +725,26 @@ export async function fetchContractorManagementBundle(projectName: string) {
       fetchProjectDatesDashboardWithFallback(projectName),
     ]);
 
-  if (mastersResult.status === 'rejected') {
-    throw mastersResult.reason;
-  }
-
-  const dashboardFailures = [contractValuesResult, invoicingResult, projectDatesResult].filter(
-    (result): result is PromiseRejectedResult => result.status === 'rejected',
-  );
-  if (dashboardFailures.length === 3) {
-    throw dashboardFailures[0].reason;
-  }
-
-  let masters = mastersResult.value;
+  let masters = mastersResult.status === 'fulfilled' ? mastersResult.value : [];
   const contractValues =
     contractValuesResult.status === 'fulfilled' ? contractValuesResult.value : null;
   const invoicing = invoicingResult.status === 'fulfilled' ? invoicingResult.value : null;
-  const projectDates =
+  let projectDates =
     projectDatesResult.status === 'fulfilled' ? projectDatesResult.value : null;
+
+  const allRequestsFailed =
+    mastersResult.status === 'rejected' &&
+    contractValuesResult.status === 'rejected' &&
+    invoicingResult.status === 'rejected' &&
+    projectDatesResult.status === 'rejected';
+
+  if (allRequestsFailed) {
+    throw mastersResult.reason;
+  }
+
+  if (!projectDates) {
+    projectDates = emptyProjectDatesDashboard(projectName);
+  }
 
   if (!masters.length) {
     masters = deriveContractorMastersFromDashboards(

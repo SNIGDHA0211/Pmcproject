@@ -7,13 +7,21 @@ import type {
   FrequencyChartRegisterRow,
   Project,
 } from "../types";
-import { getThemeClasses, useTheme } from "../utils/theme";
+import {
+  DASHBOARD_STATUS_CARD_PADDING,
+  DASHBOARD_STATUS_CARD_TITLE_CLASS,
+  getThemeClasses,
+  useTheme,
+} from "../utils/theme";
+import { dashboardChartShellBorder } from "../utils/dashboardCharts";
 import { downloadFrequencyChartExcel, triggerExcelBlobDownload } from "../utils/frequencyChartExport";
 import { ModalPortal } from "./ModalPortal";
 import FrequencyChartSummaryPanel from "./FrequencyChartSummary";
 import FrequencyChartTable from "./FrequencyChartTable";
 import FrequencyChartFilters from "./FrequencyChartFilters";
 import FrequencyChartRegisterModal from "./FrequencyChartRegisterModal";
+import DashboardCardTopAccent from "./DashboardCardTopAccent";
+import { FullScreenCard, FullScreenHeaderToolbar } from "./FullScreenCard";
 import { Icons } from "./Icons";
 
 interface Props {
@@ -210,232 +218,256 @@ export default function FrequencyChartDashboard({
     ? `Jan – ${MONTH_NAMES[(selectedMonth - 1) % 12]} ${selectedYear}`
     : `${MONTH_NAMES[(selectedMonth - 1) % 12]} ${selectedYear}`;
 
+  const shellBorder = dashboardChartShellBorder(isDarkTheme);
+  const cardSurface = isDarkTheme
+    ? `${tc.glassCard} ${tc.border} shadow-sm`
+    : 'border-slate-200/90 bg-white shadow-[0_8px_24px_rgba(15,23,42,0.07)] ring-1 ring-slate-100';
+
+  const actionBtnBase = `inline-flex items-center justify-center gap-1 rounded-lg font-bold transition-colors ${
+    isEmbedded ? 'h-8 px-2.5 text-[11px]' : 'rounded-xl px-3 py-2 text-xs'
+  }`;
+
   return (
-    <div className={`flex h-full min-h-[22rem] w-full flex-col overflow-hidden rounded-2xl border shadow-md ${tc.bgPrimary} ${tc.border}`}>
-
-      {/* ── Header ─────────────────────────────────────────────── */}
+    <FullScreenCard
+      title="Material Testing Frequency Chart"
+      expandSize="fullWidth"
+      className="exec-section-quality joyride-target-stable flex h-full min-h-[28rem] min-w-0 flex-col"
+    >
       <div
-        className={`flex shrink-0 items-center gap-2 border-b ${
-          isEmbedded ? 'px-3 py-2.5' : 'flex-col gap-2 px-4 py-3.5 sm:flex-row sm:items-center sm:justify-between sm:px-5 sm:py-4'
-        } ${tc.border} ${isDarkTheme ? 'bg-white/5' : 'bg-gradient-to-r from-indigo-50 to-purple-50'}`}
+        className={`relative flex h-full min-h-[28rem] w-full flex-col overflow-hidden rounded-2xl border transition-all duration-200 hover:shadow-lg ${cardSurface} ${
+          isEmbedded ? 'px-4 py-3' : DASHBOARD_STATUS_CARD_PADDING
+        }`}
       >
-        <div className="flex min-w-0 flex-1 items-center gap-2">
-          <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-indigo-500" />
-          <h2
-            className={`truncate font-semibold tracking-tight ${tc.textPrimary} ${
-              isEmbedded ? 'text-sm sm:text-[15px]' : 'text-base sm:text-lg'
-            }`}
-          >
-            Material Testing Frequency Chart
-          </h2>
-        </div>
+        <DashboardCardTopAccent />
 
-        <div
-          className={`flex shrink-0 items-center ${
-            isEmbedded ? 'gap-1.5' : 'w-full flex-wrap gap-1.5 sm:w-auto'
-          }`}
-        >
-          {onOpenTestingPhotos && (
-            <button
-              type="button"
-              onClick={onOpenTestingPhotos}
-              className={`inline-flex items-center justify-center gap-1 rounded-lg bg-violet-600 font-bold text-white transition-colors hover:bg-violet-700 ${
-                isEmbedded ? 'h-8 px-2.5 text-[11px]' : 'rounded-xl px-3 py-2 text-xs'
-              }`}
-              title="Open Testing Photos for this project"
-            >
-              <Icons.Upload size={isEmbedded ? 12 : 14} />
-              <span className="whitespace-nowrap">Testing Photos</span>
-            </button>
-          )}
-
-          <button
-            type="button"
-            onClick={() => {
-              setEditRow(null);
-              setModalOpen(true);
-            }}
-            className={`inline-flex items-center justify-center gap-1 rounded-lg bg-indigo-600 font-bold text-white transition-colors hover:bg-indigo-700 ${
-              isEmbedded ? 'h-8 px-2.5 text-[11px]' : 'rounded-xl px-3 py-2 text-xs'
-            }`}
-            title="Add test record"
-          >
-            <Icons.Add size={isEmbedded ? 12 : 14} />
-            <span className="whitespace-nowrap">Add Record</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={handleExportExcel}
-            disabled={loading || !reportData || reportData.rows.length === 0}
-            className={`inline-flex items-center justify-center gap-1 rounded-lg bg-emerald-600 font-bold text-white transition-colors hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-40 ${
-              isEmbedded ? 'h-8 px-2.5 text-[11px]' : 'rounded-xl px-3 py-2 text-xs'
-            }`}
-            title="Download Excel workbook"
-          >
-            <Icons.Download size={isEmbedded ? 12 : 14} />
-            <span className="whitespace-nowrap">{isEmbedded ? 'Excel' : 'Export Excel'}</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={loadData}
-            disabled={loading}
-            title="Refresh"
-            className={`inline-flex items-center justify-center rounded-lg border font-bold transition-colors disabled:opacity-40 ${tc.border} ${tc.textSecondary} ${
-              isEmbedded ? 'h-8 w-8' : 'gap-1 rounded-xl px-3 py-2 text-xs'
-            } ${isDarkTheme ? 'hover:bg-white/10' : 'hover:bg-slate-100'}`}
-          >
-            <Icons.History size={isEmbedded ? 14 : 14} className={loading ? 'animate-spin' : ''} />
-            {!isEmbedded && <span>Refresh</span>}
-          </button>
-        </div>
-      </div>
-
-      <FrequencyChartFilters
-        isDarkTheme={isDarkTheme}
-        selectedMonth={selectedMonth}
-        setSelectedMonth={setSelectedMonth}
-        selectedYear={selectedYear}
-        setSelectedYear={setSelectedYear}
-        view={view}
-        setView={setView}
-        activityFilter={activityFilter}
-        setActivityFilter={setActivityFilter}
-        testTypeFilter={testTypeFilter}
-        setTestTypeFilter={setTestTypeFilter}
-        contractorFilter={contractorFilter}
-        setContractorFilter={setContractorFilter}
-        searchQuery={searchQuery}
-        setSearchQuery={setSearchQuery}
-        compact={isEmbedded}
-      />
-
-      {/* ── Body ───────────────────────────────────────────────── */}
-      <div className={`flex min-h-0 flex-1 flex-col ${isEmbedded ? 'p-3' : 'space-y-4 p-4 sm:p-6'}`}>
-
-        {error && (
-          <div className={`rounded-xl px-4 py-3 border ${isDarkTheme ? "bg-rose-950/40 border-rose-800 text-rose-300" : "bg-red-50 border-red-200 text-red-700"}`}>
-            <p className="text-sm font-medium">{error}</p>
-          </div>
-        )}
-
-        {loading && (
-          <div className={`flex flex-1 items-center justify-center ${isEmbedded ? 'py-10' : 'py-16'}`}>
-            <div className={`animate-spin rounded-full border-[3px] border-indigo-500 border-t-transparent ${isEmbedded ? 'h-9 w-9' : 'h-10 w-10'}`} />
-          </div>
-        )}
-
-        {!loading && !error && reportData && reportData.rows.length > 0 && (
+        {/* ── Header (matches Manpower / HSE dashboard cards) ── */}
+        <div className={`flex shrink-0 flex-col ${isEmbedded ? 'gap-0' : 'gap-2.5'} pt-0.5`}>
           <div
-            className={`flex min-h-0 flex-1 flex-col rounded-xl border ${
-              isEmbedded
-                ? isDarkTheme
-                  ? 'border-white/10 bg-white/[0.02] p-3'
-                  : 'border-slate-200/90 bg-gradient-to-br from-slate-50 via-white to-indigo-50/40 p-3 shadow-inner'
-                : 'border-transparent p-0'
-            }`}
+            className={`flex shrink-0 flex-col border-b ${
+              isEmbedded ? 'gap-2 pb-2.5' : 'gap-2.5 pb-3'
+            } ${tc.border}`}
           >
-            <FrequencyChartSummaryPanel
-              summary={reportData.summary}
-              isDarkTheme={isDarkTheme}
-              compact={isEmbedded}
-            />
+            <div className={`flex items-start justify-between gap-2 ${isEmbedded ? '' : 'flex-wrap gap-3'}`}>
+              <div className={`flex min-w-0 flex-1 items-center ${isEmbedded ? 'gap-2' : 'gap-3'}`}>
+                <h2
+                  className={`${DASHBOARD_STATUS_CARD_TITLE_CLASS} ${
+                    isEmbedded ? 'text-xs sm:text-sm' : ''
+                  }`}
+                >
+                  Material Testing Frequency Chart
+                </h2>
+              </div>
 
-            <div
-              className={`mt-auto flex items-center justify-between gap-2 ${
-                isEmbedded ? `border-t pt-2.5 ${isDarkTheme ? 'border-white/10' : 'border-slate-200/80'}` : 'pt-3'
-              }`}
-            >
-              <p className={`min-w-0 truncate font-medium ${tc.textSecondary} ${isEmbedded ? 'text-[11px]' : 'text-xs'}`}>
-                {reportData.rows.length} test record{reportData.rows.length !== 1 ? 's' : ''} · {periodLabel}
-              </p>
-              <button
-                type="button"
-                onClick={() => setShowTestTable((v) => !v)}
-                className={`inline-flex shrink-0 items-center justify-center gap-1 rounded-lg border font-bold transition-colors ${
-                  isEmbedded ? 'h-8 px-2.5 text-[11px]' : 'rounded-xl px-3 py-2 text-xs'
-                } ${tc.border} ${showTestTable ? (isDarkTheme ? 'bg-indigo-950/50 text-indigo-300 border-indigo-700/50' : 'bg-indigo-50 text-indigo-700 border-indigo-200') : (isDarkTheme ? 'text-white/70 hover:bg-white/10' : 'text-slate-600 hover:bg-slate-100')}`}
+              <div
+                className={`flex shrink-0 flex-wrap items-center justify-end ${
+                  isEmbedded ? 'max-w-[62%] gap-1' : 'gap-1.5 sm:gap-2'
+                }`}
               >
-                {showTestTable ? <Icons.EyeOff size={isEmbedded ? 13 : 14} /> : <Icons.Eye size={isEmbedded ? 13 : 14} />}
-                <span className="whitespace-nowrap">{showTestTable ? 'Hide Data' : 'Show Data'}</span>
-                <Icons.ChevronDown size={isEmbedded ? 13 : 14} className={`transition-transform ${showTestTable ? 'rotate-180' : ''}`} />
-              </button>
-            </div>
-          </div>
-        )}
+                {onOpenTestingPhotos && (
+                  <button
+                    type="button"
+                    onClick={onOpenTestingPhotos}
+                    className={`${actionBtnBase} bg-violet-600 text-white hover:bg-violet-700`}
+                    title="Open Testing Photos for this project"
+                  >
+                    <Icons.Upload size={isEmbedded ? 12 : 14} />
+                    <span className="whitespace-nowrap">Testing Photos</span>
+                  </button>
+                )}
 
-        {!loading && !error && reportData && reportData.rows.length > 0 && showTestTable && (
-          <div className={isEmbedded ? 'mt-2 min-h-0 flex-1 overflow-auto' : 'mt-4'}>
-            <FrequencyChartTable
-              rows={reportData.rows as any}
-              view={reportData.view}
-              projectName={project.title}
-              isDarkTheme={isDarkTheme}
-              onRefresh={loadData}
-              onEdit={(row) => { setEditRow(row as any); setModalOpen(true); }}
-              onDelete={(id, label) => setDeleteConfirm({ id, label })}
-            />
-          </div>
-        )}
-
-        {!loading && !error && reportData && reportData.rows.length === 0 && (
-          <div className={`rounded-xl border-2 border-dashed text-center ${isEmbedded ? 'p-6' : 'p-10'} ${isDarkTheme ? "border-white/10" : "border-gray-200"}`}>
-            <p className={`text-sm font-medium ${tc.textSecondary}`}>No test records for {periodLabel}.</p>
-            <button
-              onClick={() => { setEditRow(null); setModalOpen(true); }}
-              className="mt-3 inline-flex items-center gap-1.5 rounded-xl bg-indigo-600 px-4 py-2 text-xs font-bold text-white hover:bg-indigo-700 transition-colors"
-            >
-              <Icons.Add size={13} /> Add First Record
-            </button>
-          </div>
-        )}
-      </div>
-
-      {/* ── Create / Edit Modal ─────────────────────────────────── */}
-      {modalOpen && (
-        <FrequencyChartRegisterModal
-          projectName={project.title}
-          month={selectedMonth}
-          year={selectedYear}
-          editRow={editRow}
-          onClose={() => { setModalOpen(false); setEditRow(null); }}
-          onSaved={() => { setModalOpen(false); setEditRow(null); loadData(); }}
-        />
-      )}
-
-      {/* ── Delete Confirmation ─────────────────────────────────── */}
-      {deleteConfirm && (
-        <ModalPortal open>
-          <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black/60 p-4">
-            <div className={`w-full max-w-sm rounded-3xl border p-6 shadow-2xl ${tc.bgPrimary} ${tc.border}`}>
-              <h3 className={`text-lg font-black uppercase tracking-tight mb-2 ${tc.textPrimary}`}>
-                Delete Record?
-              </h3>
-              <p className={`text-sm mb-6 ${tc.textSecondary}`}>
-                This will permanently delete <strong className={tc.textPrimary}>"{deleteConfirm.label}"</strong>.
-                This action cannot be undone.
-              </p>
-              <div className="flex gap-3">
                 <button
-                  onClick={() => setDeleteConfirm(null)}
-                  disabled={deleting}
-                  className={`flex-1 rounded-2xl px-4 py-3 text-sm font-bold transition-colors ${isDarkTheme ? "bg-white/10 text-white hover:bg-white/15" : "bg-slate-100 text-slate-800 hover:bg-slate-200"}`}
+                  type="button"
+                  onClick={() => {
+                    setEditRow(null);
+                    setModalOpen(true);
+                  }}
+                  className={`${actionBtnBase} bg-indigo-600 text-white hover:bg-indigo-700`}
+                  title="Add test record"
                 >
-                  Cancel
+                  <Icons.Add size={isEmbedded ? 12 : 14} />
+                  <span className="whitespace-nowrap">Add Record</span>
                 </button>
+
                 <button
-                  onClick={() => handleDelete(deleteConfirm.id)}
-                  disabled={deleting}
-                  className="flex-1 rounded-2xl bg-rose-600 px-4 py-3 text-sm font-bold text-white hover:bg-rose-700 disabled:opacity-60 transition-colors"
+                  type="button"
+                  onClick={handleExportExcel}
+                  disabled={loading || !reportData || reportData.rows.length === 0}
+                  className={`${actionBtnBase} bg-emerald-600 text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-40`}
+                  title="Download Excel workbook"
                 >
-                  {deleting ? "Deleting…" : "Delete"}
+                  <Icons.Download size={isEmbedded ? 12 : 14} />
+                  <span className="whitespace-nowrap">{isEmbedded ? 'Excel' : 'Export Excel'}</span>
                 </button>
+
+                <button
+                  type="button"
+                  onClick={loadData}
+                  disabled={loading}
+                  title="Refresh"
+                  className={`${actionBtnBase} border ${tc.border} ${tc.textSecondary} ${
+                    isEmbedded ? 'w-8 px-0' : ''
+                  } ${isDarkTheme ? 'hover:bg-white/10' : 'hover:bg-slate-100'}`}
+                >
+                  <Icons.History size={14} className={loading ? 'animate-spin' : ''} />
+                  {!isEmbedded && <span>Refresh</span>}
+                </button>
+
+                <FullScreenHeaderToolbar />
               </div>
             </div>
           </div>
-        </ModalPortal>
-      )}
-    </div>
+
+          <FrequencyChartFilters
+            isDarkTheme={isDarkTheme}
+            selectedMonth={selectedMonth}
+            setSelectedMonth={setSelectedMonth}
+            selectedYear={selectedYear}
+            setSelectedYear={setSelectedYear}
+            view={view}
+            setView={setView}
+            activityFilter={activityFilter}
+            setActivityFilter={setActivityFilter}
+            testTypeFilter={testTypeFilter}
+            setTestTypeFilter={setTestTypeFilter}
+            contractorFilter={contractorFilter}
+            setContractorFilter={setContractorFilter}
+            searchQuery={searchQuery}
+            setSearchQuery={setSearchQuery}
+            compact={isEmbedded}
+          />
+        </div>
+
+        {/* ── Body ───────────────────────────────────────────────── */}
+        <div className={`flex min-h-0 flex-1 flex-col ${isEmbedded ? 'mt-2.5' : 'mt-3 space-y-4'}`}>
+
+          {error && (
+            <div className={`rounded-xl px-4 py-3 border ${isDarkTheme ? "bg-rose-950/40 border-rose-800 text-rose-300" : "bg-red-50 border-red-200 text-red-700"}`}>
+              <p className="text-sm font-medium">{error}</p>
+            </div>
+          )}
+
+          {loading && (
+            <div className={`flex flex-1 items-center justify-center ${isEmbedded ? 'py-10' : 'py-16'}`}>
+              <div className={`animate-spin rounded-full border-[3px] border-indigo-500 border-t-transparent ${isEmbedded ? 'h-9 w-9' : 'h-10 w-10'}`} />
+            </div>
+          )}
+
+          {!loading && !error && reportData && reportData.rows.length > 0 && (
+            <div
+              className={`flex min-h-0 flex-1 flex-col rounded-xl border ${shellBorder} ${
+                isEmbedded
+                  ? isDarkTheme
+                    ? 'bg-white/[0.02] p-3'
+                    : 'bg-slate-50/80 p-3'
+                  : isDarkTheme
+                    ? 'bg-white/[0.02] p-3 sm:p-4'
+                    : 'bg-slate-50/60 p-3 sm:p-4'
+              }`}
+            >
+              <FrequencyChartSummaryPanel
+                summary={reportData.summary}
+                isDarkTheme={isDarkTheme}
+                compact={isEmbedded}
+              />
+
+              <div
+                className={`mt-auto flex items-center justify-between gap-2 ${
+                  isEmbedded ? `border-t pt-2.5 ${isDarkTheme ? 'border-white/10' : 'border-slate-200/80'}` : 'pt-3'
+                }`}
+              >
+                <p className={`min-w-0 truncate font-medium ${tc.textSecondary} ${isEmbedded ? 'text-[11px]' : 'text-xs'}`}>
+                  {reportData.rows.length} test record{reportData.rows.length !== 1 ? 's' : ''} · {periodLabel}
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setShowTestTable((v) => !v)}
+                  className={`inline-flex shrink-0 items-center justify-center gap-1 rounded-lg border font-bold transition-colors ${
+                    isEmbedded ? 'h-8 px-2.5 text-[11px]' : 'rounded-xl px-3 py-2 text-xs'
+                  } ${tc.border} ${showTestTable ? (isDarkTheme ? 'bg-indigo-950/50 text-indigo-300 border-indigo-700/50' : 'bg-indigo-50 text-indigo-700 border-indigo-200') : (isDarkTheme ? 'text-white/70 hover:bg-white/10' : 'text-slate-600 hover:bg-slate-100')}`}
+                >
+                  {showTestTable ? <Icons.EyeOff size={isEmbedded ? 13 : 14} /> : <Icons.Eye size={isEmbedded ? 13 : 14} />}
+                  <span className="whitespace-nowrap">{showTestTable ? 'Hide Data' : 'Show Data'}</span>
+                  <Icons.ChevronDown size={isEmbedded ? 13 : 14} className={`transition-transform ${showTestTable ? 'rotate-180' : ''}`} />
+                </button>
+              </div>
+            </div>
+          )}
+
+          {!loading && !error && reportData && reportData.rows.length > 0 && showTestTable && (
+            <div className={isEmbedded ? 'mt-2 min-h-0 flex-1 overflow-auto' : 'mt-4'}>
+              <FrequencyChartTable
+                rows={reportData.rows as any}
+                view={reportData.view}
+                projectName={project.title}
+                isDarkTheme={isDarkTheme}
+                onRefresh={loadData}
+                onEdit={(row) => { setEditRow(row as any); setModalOpen(true); }}
+                onDelete={(id, label) => setDeleteConfirm({ id, label })}
+              />
+            </div>
+          )}
+
+          {!loading && !error && reportData && reportData.rows.length === 0 && (
+            <div
+              className={`flex flex-1 flex-col items-center justify-center rounded-xl border-2 border-dashed text-center ${
+                isEmbedded ? 'px-4 py-8' : 'p-10'
+              } ${isDarkTheme ? 'border-white/10' : 'border-gray-200'}`}
+            >
+              <p className={`text-sm font-medium ${tc.textSecondary}`}>No test records for {periodLabel}.</p>
+              <button
+                onClick={() => { setEditRow(null); setModalOpen(true); }}
+                className="mt-3 inline-flex items-center gap-1.5 rounded-xl bg-indigo-600 px-4 py-2 text-xs font-bold text-white hover:bg-indigo-700 transition-colors"
+              >
+                <Icons.Add size={13} /> Add First Record
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* ── Create / Edit Modal ─────────────────────────────────── */}
+        {modalOpen && (
+          <FrequencyChartRegisterModal
+            projectName={project.title}
+            month={selectedMonth}
+            year={selectedYear}
+            editRow={editRow}
+            onClose={() => { setModalOpen(false); setEditRow(null); }}
+            onSaved={() => { setModalOpen(false); setEditRow(null); loadData(); }}
+          />
+        )}
+
+        {/* ── Delete Confirm ──────────────────────────────────────── */}
+        {deleteConfirm && (
+          <ModalPortal open>
+            <div className="fixed inset-0 z-[100040] flex items-center justify-center bg-black/50 p-4">
+              <div className={`w-full max-w-sm rounded-2xl border p-5 shadow-2xl ${tc.bgPrimary} ${tc.border}`}>
+                <h3 className={`text-sm font-black ${tc.textPrimary}`}>Delete Record</h3>
+                <p className={`mt-2 text-sm ${tc.textSecondary}`}>
+                  Delete “{deleteConfirm.label}”?
+                </p>
+                <div className="mt-4 flex justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setDeleteConfirm(null)}
+                    disabled={deleting}
+                    className={`rounded-xl border px-4 py-2 text-xs font-bold ${tc.buttonSecondary} ${tc.border}`}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void handleDelete(deleteConfirm.id)}
+                    disabled={deleting}
+                    className="rounded-xl bg-rose-600 px-4 py-2 text-xs font-bold text-white hover:bg-rose-500 disabled:opacity-60"
+                  >
+                    {deleting ? 'Deleting…' : 'Delete'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </ModalPortal>
+        )}
+      </div>
+    </FullScreenCard>
   );
 }

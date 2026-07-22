@@ -17,6 +17,8 @@ import { createEmptyHSERecord } from '../services/api';
 import { DASHBOARD_FORMULAS } from '../utils/dashboardFormulas';
 import {
   INCIDENT_KPI_CONFIG,
+  MONTH_OPTIONS,
+  buildHealthSafetyYearOptions,
   mergeHealthSafetyRecords,
   resolveHealthSafetyYtdSummary,
   toIncidentMetrics,
@@ -42,6 +44,49 @@ interface HealthSafetyCardProps {
   /** When false, hide Add/Edit actions (view-only roles). */
   canEdit?: boolean;
 }
+
+const HealthSafetyPairFilters: React.FC<{
+  selectedMonth: number;
+  selectedYear: number;
+  onMonthChange: (month: number) => void;
+  onYearChange: (year: number) => void;
+}> = ({ selectedMonth, selectedYear, onMonthChange, onYearChange }) => {
+  const { isDarkTheme } = useTheme();
+  const themeClasses = getThemeClasses(isDarkTheme);
+  const selectClass = `w-full rounded-lg px-2.5 py-2 text-xs font-medium outline-none transition-colors ${themeClasses.input} ${themeClasses.textPrimary}`;
+  const years = buildHealthSafetyYearOptions(selectedYear);
+
+  return (
+    <div className={`shrink-0 border-b py-2 ${themeClasses.border}`}>
+      <div className="grid w-[11.5rem] shrink-0 grid-cols-2 gap-2">
+        <select
+          value={selectedMonth}
+          onChange={(e) => onMonthChange(Number(e.target.value))}
+          className={selectClass}
+          aria-label="Select month"
+        >
+          {MONTH_OPTIONS.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </select>
+        <select
+          value={selectedYear}
+          onChange={(e) => onYearChange(Number(e.target.value))}
+          className={selectClass}
+          aria-label="Select year"
+        >
+          {years.map((year) => (
+            <option key={year} value={year}>
+              {year}
+            </option>
+          ))}
+        </select>
+      </div>
+    </div>
+  );
+};
 
 const HealthSafetyCardHeader: React.FC<{
   selectedMonth: number;
@@ -273,7 +318,7 @@ const HealthSafetyCard: React.FC<HealthSafetyCardProps> = ({
     if (isLoading) {
       if (mode === 'compact') {
         return (
-          <div className="flex h-full min-h-0 flex-1 flex-col py-1">
+          <div className="flex min-h-0 flex-1 flex-col py-1">
             <div className={`min-h-0 flex-1 animate-pulse rounded-lg ${themeClasses.bgSecondary}`} />
             <div className="mt-auto grid shrink-0 grid-cols-2 gap-2.5">
               <div className={`h-[58px] animate-pulse rounded-xl ${themeClasses.bgSecondary}`} />
@@ -295,12 +340,14 @@ const HealthSafetyCard: React.FC<HealthSafetyCardProps> = ({
     }
     if (error) {
       return (
-        <div className="flex min-h-[200px] items-center justify-center text-sm font-bold text-rose-500">{error}</div>
+        <div className="flex min-h-0 flex-1 items-center justify-center text-sm font-bold text-rose-500">
+          {error}
+        </div>
       );
     }
     if (!monthlyRecord) {
       return (
-        <div className="flex min-h-[200px] flex-col items-center justify-center gap-3 rounded-xl border border-dashed px-4 text-center">
+        <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3 rounded-xl border border-dashed px-4 py-8 text-center">
           <p className={`text-sm font-black uppercase tracking-widest ${themeClasses.textMuted}`}>
             No Health & Safety records for selected month.
           </p>
@@ -372,7 +419,7 @@ const HealthSafetyCard: React.FC<HealthSafetyCardProps> = ({
     <>
       <div
         className={`hse-status-card joyride-target-stable relative flex h-full w-full min-w-0 flex-col overflow-hidden rounded-2xl border transition-all duration-200 hover:shadow-lg ${
-          pairLayout ? 'min-h-[22rem] px-4 py-3' : DASHBOARD_STATUS_CARD_PADDING
+          pairLayout ? 'min-h-[28rem] px-4 py-3' : DASHBOARD_STATUS_CARD_PADDING
         } ${
           isDarkTheme
             ? `${themeClasses.glassCard} ${themeClasses.border} shadow-sm`
@@ -387,7 +434,17 @@ const HealthSafetyCard: React.FC<HealthSafetyCardProps> = ({
           showExpand
           pairLayout={pairLayout}
         />
-        <div className={`min-h-0 flex-1 ${pairLayout ? 'mt-2.5' : 'mt-3'}`}>{renderContent('compact')}</div>
+        {pairLayout && (
+          <HealthSafetyPairFilters
+            selectedMonth={selectedMonth}
+            selectedYear={selectedYear}
+            onMonthChange={onMonthChange}
+            onYearChange={onYearChange}
+          />
+        )}
+        <div className={`flex min-h-0 flex-1 flex-col ${pairLayout ? 'mt-2.5' : 'mt-3'}`}>
+          {renderContent('compact')}
+        </div>
       </div>
 
       <ModalPortal open={isExpanded}>

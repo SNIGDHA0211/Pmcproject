@@ -44,7 +44,7 @@ export default function FrequencyChartFilters({
 
   return (
     <div
-      className={`shrink-0 border-b ${compact ? 'px-3 py-2' : 'px-4 py-3 sm:px-6'} ${tc.border} ${isDarkTheme ? "bg-white/[0.02]" : "bg-white"}`}
+      className={`shrink-0 border-b ${compact ? 'px-0 py-2' : 'px-0 py-3'} ${tc.border}`}
     >
       <div className={`flex items-center gap-2.5 ${compact ? '' : 'flex-col sm:flex-row sm:items-center sm:gap-3'}`}>
         <div

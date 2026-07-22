@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Plus, Users } from 'lucide-react';
 import type { Project } from '../../types';
 import type { ContractorMasterRecord, ProjectDatesApiRecord } from '../../types/contractorManagement';
+import type { ProjectDatesRecord } from '../../services/api';
 import type { BgManageScope } from '../ProjectDatesCard';
 import { ProjectDatesGroupCard } from '../ProjectDatesCard';
 import { useContractorManagementDashboard } from '../../hooks/useContractorManagementDashboard';
@@ -27,9 +28,10 @@ interface ContractorManagementDashboardProps {
   showProjectDates?: boolean;
   showFinancial?: boolean;
   onNavigateFinancial?: (section: 'contracts' | 'invoicing') => void;
-  onEditSclDates?: () => void;
+  onEditSclDates?: (sclRecord?: ProjectDatesApiRecord | null) => void;
   onEditContractorDates?: (record: ProjectDatesApiRecord) => void;
   onAddContractorSchedule?: () => void;
+  onDeleteContractorSchedule?: (record: ProjectDatesRecord) => void;
   onManageBg?: (scope: 'all' | 'SCL' | 'CONTRACTOR') => void;
   onContractorCreated?: (record: ContractorMasterRecord) => void;
 }
@@ -43,6 +45,7 @@ const ContractorManagementDashboard: React.FC<ContractorManagementDashboardProps
   onEditSclDates,
   onEditContractorDates,
   onAddContractorSchedule,
+  onDeleteContractorSchedule,
   onManageBg,
   onContractorCreated,
   onNavigateFinancial,
@@ -106,6 +109,20 @@ const ContractorManagementDashboard: React.FC<ContractorManagementDashboardProps
     };
   }, [effectiveProjectDates]);
 
+  const hasProjectDatesContent = Boolean(
+    mappedProjectDates?.scl ||
+      (mappedProjectDates?.contractors.length ?? 0) > 0 ||
+      (mappedProjectDates?.sclBg.length ?? 0) > 0 ||
+      (mappedProjectDates?.contractorBg.length ?? 0) > 0,
+  );
+
+  const showInitialSkeleton =
+    cm.loading &&
+    !projectDatesCache &&
+    !cm.contractValues &&
+    !cm.invoicing &&
+    !effectiveProjectDates;
+
   useEffect(() => {
     if (!mappedProjectDates?.contractors.length) {
       setProjectDatesContractorId(null);
@@ -127,7 +144,7 @@ const ContractorManagementDashboard: React.FC<ContractorManagementDashboardProps
     [onManageBg],
   );
 
-  if (cm.loading && !cm.contractValues && !effectiveProjectDates) {
+  if (showInitialSkeleton) {
     return (
       <div className={theme.root}>
         <CmLoadingSkeleton />
@@ -135,42 +152,51 @@ const ContractorManagementDashboard: React.FC<ContractorManagementDashboardProps
     );
   }
 
-  const projectDatesSection =
-    mappedProjectDates ? (
-      <div className="space-y-2">
-        {projectDatesRefreshing && (
-          <p className="rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-1.5 text-center text-[10px] font-bold uppercase tracking-wide text-indigo-700 dark:border-indigo-500/25 dark:bg-indigo-500/10 dark:text-indigo-200">
-            Showing saved project dates — updating live data…
-          </p>
-        )}
-        <ProjectDatesGroupCard
-          sclData={mappedProjectDates.scl}
-          contractors={mappedProjectDates.contractors}
-          selectedContractorId={projectDatesContractorId}
-          onSelectContractor={setProjectDatesContractorId}
-          hideContractorSelector={false}
-          sclBgEntries={mappedProjectDates.sclBg}
-          contractorBgEntries={mappedProjectDates.contractorBg}
-          bgSummary={mappedProjectDates.bgSummary}
-          isLoading={projectDatesCardLoading}
-          onEditScl={onEditSclDates}
-          onEditContractor={
-            onEditContractorDates
-              ? (record) => {
+  const projectDatesSection = showProjectDates ? (
+    <div id="tl-section-project-dates" className="space-y-2">
+      {projectDatesRefreshing && (
+        <p className="rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-1.5 text-center text-[10px] font-bold uppercase tracking-wide text-indigo-700 dark:border-indigo-500/25 dark:bg-indigo-500/10 dark:text-indigo-200">
+          Showing saved project dates — updating live data…
+        </p>
+      )}
+      <ProjectDatesGroupCard
+        sclData={mappedProjectDates?.scl ?? null}
+        contractors={mappedProjectDates?.contractors ?? []}
+        selectedContractorId={projectDatesContractorId}
+        onSelectContractor={setProjectDatesContractorId}
+        hideContractorSelector={false}
+        sclBgEntries={mappedProjectDates?.sclBg ?? []}
+        contractorBgEntries={mappedProjectDates?.contractorBg ?? []}
+        bgSummary={mappedProjectDates?.bgSummary ?? null}
+        isLoading={projectDatesCardLoading}
+        sclError={
+          !projectDatesCardLoading && !mappedProjectDates?.scl && cm.error
+            ? cm.error
+            : null
+        }
+        onEditScl={
+          onEditSclDates
+            ? () => onEditSclDates(effectiveProjectDates?.scl ?? null)
+            : undefined
+        }
+        onEditContractor={
+          onEditContractorDates
+            ? (record) => {
                 const apiRecord = effectiveProjectDates?.contractors.find((c) => c.id === record.id);
                 if (apiRecord) onEditContractorDates(apiRecord);
               }
-              : undefined
-          }
-          onAddContractor={onAddContractorSchedule}
-          onManageBg={onManageBg ? handleManageBgScope : undefined}
-        />
-      </div>
-    ) : null;
+            : undefined
+        }
+        onAddContractor={onAddContractorSchedule}
+        onDeleteContractor={onDeleteContractorSchedule}
+        onManageBg={onManageBg ? handleManageBgScope : undefined}
+      />
+    </div>
+  ) : null;
 
   return (
     <div className={`contractor-management-dashboard font-[Inter,system-ui,sans-serif] ${theme.root}`}>
-      {showProjectDates && projectDatesSection}
+      {projectDatesSection}
 
       {showFinancial && (
         <CmDashboardHeader
@@ -187,7 +213,7 @@ const ContractorManagementDashboard: React.FC<ContractorManagementDashboardProps
       )}
 
       <div className={`${theme.content} contractor-management-sections`}>
-        {showFinancial && cm.contractValues && cm.invoicing && (
+        {showFinancial && (cm.loading || cm.contractValues || cm.invoicing) && (
           <CmFinancialDashboardRow
             contractValues={cm.contractValues}
             invoicing={cm.invoicing}
@@ -197,12 +223,23 @@ const ContractorManagementDashboard: React.FC<ContractorManagementDashboardProps
             selectedContractorContractValues={cm.selectedContractorContractValues}
             selectedContractorInvoicing={cm.selectedContractorInvoicing}
             loadingSelectedContractorFinancial={cm.loadingSelectedContractorFinancial}
+            loadingFinancial={cm.loading}
             onNavigateFinancial={onNavigateFinancial}
           />
         )}
+        {showFinancial && !cm.loading && !cm.contractValues && !cm.invoicing && (
+          <div className={`${theme.panel} p-6 text-center`}>
+            <p className={theme.emptyTitle}>No contract or invoicing data</p>
+            <p className={`mt-0.5 ${theme.emptySubtitle}`}>
+              {cm.error
+                ? 'Financial records could not be loaded. Try Refresh above.'
+                : 'Add contract values and invoicing records in Financial Management.'}
+            </p>
+          </div>
+        )}
       </div>
 
-      {cm.contractorCount === 0 && !cm.loading && (
+      {cm.contractorCount === 0 && !cm.loading && !hasProjectDatesContent && !cm.contractValues && !cm.invoicing && (
         <div className={`${theme.panel} p-6 text-center`}>
           <Users className={`mx-auto ${theme.emptyIcon}`} size={32} aria-hidden />
           <p className={`mt-2 ${theme.emptyTitle}`}>No contractors yet</p>

@@ -83,13 +83,13 @@ export const chartBarPlotMarginExecutive = {
   bottom: 4,
 };
 
-export const chartLegendProps = (legendFontSize: number) => ({
+export const chartLegendProps = (legendFontSize: number, isDarkTheme = false) => ({
   wrapperStyle: {
     fontSize: `${legendFontSize}px`,
     paddingTop: 8,
     paddingBottom: 4,
     lineHeight: 1.35,
-    color: '#334155',
+    color: isDarkTheme ? '#e2e8f0' : '#334155',
   },
   iconSize: 8,
   iconType: 'circle' as const,
@@ -99,10 +99,10 @@ export const chartLegendProps = (legendFontSize: number) => ({
 });
 
 /** Bar charts with in-chart legend — keep legend below axis labels */
-export const chartBarLegendProps = (legendFontSize: number) => ({
-  ...chartLegendProps(legendFontSize),
+export const chartBarLegendProps = (legendFontSize: number, isDarkTheme = false) => ({
+  ...chartLegendProps(legendFontSize, isDarkTheme),
   wrapperStyle: {
-    ...chartLegendProps(legendFontSize).wrapperStyle,
+    ...chartLegendProps(legendFontSize, isDarkTheme).wrapperStyle,
     paddingTop: 6,
     marginTop: 0,
   },

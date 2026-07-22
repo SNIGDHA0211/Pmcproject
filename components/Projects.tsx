@@ -275,7 +275,7 @@ const FinancialProgressChartPlot: React.FC<{
           tickLine={{ stroke: chartAxisStroke(isDarkTheme) }}
         />
         <Tooltip contentStyle={chartTooltipStyle(isDarkTheme)} />
-        {!hideLegend && <Legend {...chartLegendProps(chart.legendFontSize)} />}
+        {!hideLegend && <Legend {...chartLegendProps(chart.legendFontSize, isDarkTheme)} />}
         <Line type="monotone" dataKey="bcws" stroke="#4f46e5" strokeWidth={2} name="BCWS" dot={false} activeDot={chartActiveDot} />
         <Line type="monotone" dataKey="bcwp" stroke="#f59e0b" strokeWidth={2} name="BCWP" dot={false} activeDot={chartActiveDot} />
         <Line type="monotone" dataKey="acwp" stroke="#ef4444" strokeWidth={2} name="ACWP" dot={false} activeDot={chartActiveDot} />
@@ -364,7 +364,7 @@ const ManpowerHistogramChartPlot: React.FC<{
           tickLine={{ stroke: chartAxisStroke(isDarkTheme) }}
         />
         <Tooltip contentStyle={chartTooltipStyle(isDarkTheme)} />
-        {!hideLegend && <Legend {...chartBarLegendProps(chart.legendFontSize)} />}
+        {!hideLegend && <Legend {...chartBarLegendProps(chart.legendFontSize, isDarkTheme)} />}
         <Bar
           dataKey="planned"
           fill="url(#plannedBarGradient)"
@@ -509,6 +509,7 @@ const Projects: React.FC<ProjectsProps> = ({
   const [editingContractorRecord, setEditingContractorRecord] = useState<ProjectDatesRecord | null>(
     null,
   );
+  const [editingSclId, setEditingSclId] = useState<number | null>(null);
   const [selectedContractorId, setSelectedContractorId] = useState<number | null>(null);
   const [projectDatesForm, setProjectDatesForm] = useState({
     contractor_id: null as number | null,
@@ -521,6 +522,8 @@ const Projects: React.FC<ProjectsProps> = ({
   const [contractorDashboardRevision, setContractorDashboardRevision] = useState(0);
   const [isSavingProjectDates, setIsSavingProjectDates] = useState(false);
   const [projectDatesFormError, setProjectDatesFormError] = useState<string | null>(null);
+  const [newContractorMasterName, setNewContractorMasterName] = useState('');
+  const [isCreatingContractorMaster, setIsCreatingContractorMaster] = useState(false);
   // BG Status modal state
   const [isBgStatusModalOpen, setIsBgStatusModalOpen] = useState(false);
   const [bgModalScope, setBgModalScope] = useState<BgModalScope>({ mode: 'all' });
@@ -860,16 +863,17 @@ const Projects: React.FC<ProjectsProps> = ({
       .catch(() => setContractorMasters([]));
   }, [selectedProject?.title, contractorDashboardRevision]);
 
-  const loadProjectDatesFormScl = () => {
-    const record = projectDatesBundle?.scl ?? null;
+  const loadProjectDatesFormScl = (record?: ProjectDatesRecord | ProjectDatesApiRecord | null) => {
+    const scl = record ?? projectDatesBundle?.scl ?? null;
     setProjectDatesModalMode('edit_scl');
     setEditingContractorRecord(null);
+    setEditingSclId(scl?.id ?? null);
     setProjectDatesForm({
       contractor_id: null,
-      project_start: toDateInputValue(record?.project_start),
-      contract_finish: toDateInputValue(record?.contract_finish),
-      forecast_finish: toDateInputValue(record?.forecast_finish),
-      eot_date: toDateInputValue(record?.eot_date),
+      project_start: toDateInputValue(scl?.project_start),
+      contract_finish: toDateInputValue(scl?.contract_finish),
+      forecast_finish: toDateInputValue(scl?.forecast_finish),
+      eot_date: toDateInputValue(scl?.eot_date),
     });
     setProjectDatesFormError(null);
   };
@@ -880,6 +884,7 @@ const Projects: React.FC<ProjectsProps> = ({
   ) => {
     setProjectDatesModalMode(mode);
     setEditingContractorRecord(record as ProjectDatesRecord | null);
+    setEditingSclId(null);
     const scheduledIds = new Set(
       (projectDatesBundle?.contractors ?? []).flatMap((c) => {
         const id = (c as ProjectDatesApiRecord).contractor?.id;
@@ -904,8 +909,8 @@ const Projects: React.FC<ProjectsProps> = ({
     setProjectDatesFormError(null);
   };
 
-  const openEditSclModal = () => {
-    loadProjectDatesFormScl();
+  const openEditSclModal = (sclOverride?: ProjectDatesApiRecord | null) => {
+    loadProjectDatesFormScl(sclOverride ?? projectDatesBundle?.scl ?? null);
     setIsProjectDatesModalOpen(true);
   };
 
@@ -915,9 +920,55 @@ const Projects: React.FC<ProjectsProps> = ({
   };
 
   const openAddContractorModal = () => {
+    setNewContractorMasterName('');
     loadProjectDatesFormContractor(null, 'add_contractor');
     setIsProjectDatesModalOpen(true);
   };
+
+  const handleCreateContractorMaster = async () => {
+    if (!selectedProject?.title || !newContractorMasterName.trim()) {
+      setProjectDatesFormError('Enter a contractor name.');
+      return;
+    }
+
+    setIsCreatingContractorMaster(true);
+    setProjectDatesFormError(null);
+    try {
+      const record = await contractorMasterApi.create(selectedProject.title, {
+        contractor_name: newContractorMasterName.trim(),
+      });
+      if (!record) {
+        setProjectDatesFormError('Failed to add contractor to master.');
+        return;
+      }
+      setContractorMasters((prev) => [...prev.filter((m) => m.id !== record.id), record]);
+      setProjectDatesForm((prev) => ({ ...prev, contractor_id: record.id }));
+      setNewContractorMasterName('');
+      bumpContractorDashboard();
+      showToast(`Contractor "${record.contractor_name}" added to master`);
+    } catch (error) {
+      setProjectDatesFormError(getApiErrorMessage(error, 'Failed to add contractor to master.'));
+    } finally {
+      setIsCreatingContractorMaster(false);
+    }
+  };
+
+  const availableContractorMasters = useMemo(
+    () =>
+      contractorMasters
+        .filter((m) => m.status === 'ACTIVE')
+        .filter((m) => {
+          if (projectDatesModalMode !== 'add_contractor') return true;
+          const scheduled = (projectDatesBundle?.contractors ?? []).some((c) => {
+            const cid = (c as ProjectDatesApiRecord).contractor?.id;
+            return cid === m.id || c.contractor_name === m.contractor_name;
+          });
+          return !scheduled;
+        }),
+    [contractorMasters, projectDatesBundle?.contractors, projectDatesModalMode],
+  );
+
+  const isAddingSclDates = projectDatesModalMode === 'edit_scl' && editingSclId == null;
 
   const fetchProjectDatesData = useCallback(async () => {
     if (!selectedProject?.title) {
@@ -1041,7 +1092,7 @@ const Projects: React.FC<ProjectsProps> = ({
     };
 
     const existing = isScl
-      ? projectDatesBundle?.scl
+      ? projectDatesBundle?.scl ?? (editingSclId ? { id: editingSclId } : null)
       : projectDatesModalMode === 'add_contractor'
         ? null
         : editingContractorRecord ??
@@ -2931,6 +2982,7 @@ const Projects: React.FC<ProjectsProps> = ({
                 onEditSclDates={openEditSclModal}
                 onEditContractorDates={openEditContractorModal}
                 onAddContractorSchedule={openAddContractorModal}
+                onDeleteContractorSchedule={handleDeleteContractor}
                 onManageBg={() => openBgStatusModal('all')}
                 onContractorCreated={(record) => {
                   bumpContractorDashboard();
@@ -3085,10 +3137,12 @@ const Projects: React.FC<ProjectsProps> = ({
                 ) : selectedProject ? (
                   <div
                     id="tl-section-compliance"
-                    className={`exec-section-hse grid min-h-[22rem] grid-cols-1 items-stretch gap-4 ${hseCanView ? 'lg:grid-cols-2' : ''}`}
+                    className={`exec-section-hse grid grid-cols-1 items-stretch gap-4 ${
+                      hseCanView ? 'lg:grid-cols-2 lg:min-h-[28rem]' : 'min-h-[28rem]'
+                    }`}
                   >
                     {hseCanView && (
-                      <div id="tl-section-hse" className="exec-section-hse flex h-full min-h-0 min-w-0">
+                      <div id="tl-section-hse" className="flex h-full min-h-[28rem] min-w-0 flex-col">
                         <HealthSafetyCard
                           projectName={selectedProject?.title}
                           dashboard={healthSafetyDashboard}
@@ -3107,7 +3161,7 @@ const Projects: React.FC<ProjectsProps> = ({
                       </div>
                     )}
 
-                    <div id="tl-section-quality" className="exec-section-quality flex h-full min-h-0 min-w-0">
+                    <div id="tl-section-quality" className="flex h-full min-h-[28rem] min-w-0 flex-col">
                       <FrequencyChartDashboard
                         project={selectedProject}
                         selectedContractorName={selectedContractorName}
@@ -3202,10 +3256,14 @@ const Projects: React.FC<ProjectsProps> = ({
                             ? 'Add Contractor Schedule'
                             : projectDatesModalMode === 'edit_contractor'
                               ? 'Edit Contractor Schedule'
-                              : 'Edit SCL Project Dates'}
+                              : isAddingSclDates
+                                ? 'Add SCL Project Dates'
+                                : 'Edit SCL Project Dates'}
                         </h3>
                         <p className={`mt-1 text-[11px] ${themeClasses.textSecondary}`}>
-                          Update schedule dates. Calculated fields refresh from the API after save.
+                          {isAddingSclDates || projectDatesModalMode === 'add_contractor'
+                            ? 'Enter schedule dates. Delay and summary fields are calculated by the API after save.'
+                            : 'Update schedule dates. Calculated fields refresh from the API after save.'}
                         </p>
                       </div>
                       <button
@@ -3232,7 +3290,7 @@ const Projects: React.FC<ProjectsProps> = ({
                                 editingContractorRecord?.contractor_name ??
                                 '—'}
                             </div>
-                          ) : (
+                          ) : availableContractorMasters.length > 0 ? (
                             <select
                               value={projectDatesForm.contractor_id ?? ''}
                               onChange={(e) =>
@@ -3247,26 +3305,41 @@ const Projects: React.FC<ProjectsProps> = ({
                               <option value="" disabled>
                                 Select contractor
                               </option>
-                              {contractorMasters
-                                .filter((m) => m.status === 'ACTIVE')
-                                .filter((m) => {
-                                  const scheduled = (projectDatesBundle?.contractors ?? []).some((c) => {
-                                    const cid = (c as ProjectDatesApiRecord).contractor?.id;
-                                    return cid === m.id || c.contractor_name === m.contractor_name;
-                                  });
-                                  return !scheduled;
-                                })
-                                .map((m) => (
-                                  <option key={m.id} value={m.id}>
-                                    {m.contractor_name}
-                                  </option>
-                                ))}
+                              {availableContractorMasters.map((m) => (
+                                <option key={m.id} value={m.id}>
+                                  {m.contractor_name}
+                                </option>
+                              ))}
                             </select>
+                          ) : (
+                            <div className={`space-y-3 rounded-2xl border px-4 py-3 ${themeClasses.border} ${isDarkTheme ? 'bg-white/[0.03]' : 'bg-slate-50'}`}>
+                              <p className={`text-[11px] font-bold ${themeClasses.textSecondary}`}>
+                                No contractors in master yet. Create one to attach a schedule.
+                              </p>
+                              <div className="flex flex-col gap-2 sm:flex-row">
+                                <input
+                                  type="text"
+                                  value={newContractorMasterName}
+                                  onChange={(e) => setNewContractorMasterName(e.target.value)}
+                                  placeholder="Contractor name"
+                                  className={`min-w-0 flex-1 rounded-xl border px-3 py-2.5 text-sm font-bold outline-none ${themeClasses.input} ${themeClasses.border}`}
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => void handleCreateContractorMaster()}
+                                  disabled={isCreatingContractorMaster || !newContractorMasterName.trim()}
+                                  className="shrink-0 rounded-xl bg-emerald-600 px-4 py-2.5 text-xs font-black uppercase tracking-widest text-white hover:bg-emerald-500 disabled:opacity-60"
+                                >
+                                  {isCreatingContractorMaster ? 'Adding…' : 'Add to Master'}
+                                </button>
+                              </div>
+                            </div>
                           )}
                           {projectDatesModalMode === 'add_contractor' &&
-                            contractorMasters.filter((m) => m.status === 'ACTIVE').length === 0 && (
+                            availableContractorMasters.length === 0 &&
+                            contractorMasters.some((m) => m.status === 'ACTIVE') && (
                               <p className="mt-2 text-[11px] font-bold text-amber-600">
-                                Add contractors in Contractor Master before creating a schedule.
+                                All active contractors already have schedules. Add a new contractor to master first.
                               </p>
                             )}
                         </div>
@@ -3314,7 +3387,11 @@ const Projects: React.FC<ProjectsProps> = ({
                           disabled={isSavingProjectDates}
                           className="flex-1 rounded-2xl bg-blue-600 px-4 py-3 font-bold text-white transition-colors hover:bg-blue-500 disabled:opacity-60"
                         >
-                          {isSavingProjectDates ? 'Saving...' : 'Save Project Dates'}
+                          {isSavingProjectDates
+                            ? 'Saving...'
+                            : projectDatesModalMode === 'add_contractor' || isAddingSclDates
+                              ? 'Create Project Dates'
+                              : 'Save Project Dates'}
                         </button>
                       </div>
                     </form>
@@ -3434,7 +3511,7 @@ const Projects: React.FC<ProjectsProps> = ({
                                 tickLine={{ stroke: chartAxisStroke(isDarkTheme) }}
                               />
                               <Tooltip contentStyle={chartTooltipStyle(isDarkTheme)} />
-                              <Legend {...chartLegendProps(11)} />
+                              <Legend {...chartLegendProps(11, isDarkTheme)} />
                               <Line type="monotone" dataKey="monthlyPlanned" stroke="#3B82F6" strokeWidth={2} name="Monthly Planned" dot={false} activeDot={chartActiveDot} />
                               <Line type="monotone" dataKey="monthlyActual" stroke="#10B981" strokeWidth={2} name="Monthly Actual" dot={false} activeDot={chartActiveDot} />
                               <Line type="monotone" dataKey="planned" stroke="#F59E0B" strokeWidth={2.5} strokeDasharray="6 4" name="Cumulative Planned" dot={false} activeDot={chartActiveDot} />

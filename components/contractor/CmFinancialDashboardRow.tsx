@@ -18,14 +18,15 @@ import {
 } from '../../utils/dashboardContractorLabels';
 
 interface CmFinancialDashboardRowProps {
-  contractValues: ContractValuesDashboard;
-  invoicing: InvoicingDashboard;
+  contractValues: ContractValuesDashboard | null;
+  invoicing: InvoicingDashboard | null;
   contractors: ContractorMasterRecord[];
   selectedContractorMasterId: number | null;
   contractorDisplayName?: string;
   selectedContractorContractValues?: ContractValueApiRecord | null;
   selectedContractorInvoicing?: InvoicingApiRecord | null;
   loadingSelectedContractorFinancial?: boolean;
+  loadingFinancial?: boolean;
   onNavigateFinancial?: (section: 'contracts' | 'invoicing') => void;
 }
 
@@ -38,6 +39,7 @@ const CmFinancialDashboardRow: React.FC<CmFinancialDashboardRowProps> = ({
   selectedContractorContractValues = null,
   selectedContractorInvoicing = null,
   loadingSelectedContractorFinancial = false,
+  loadingFinancial = false,
   onNavigateFinancial,
 }) => {
   const contractorLabel = contractorDisplayName ?? 'Contractor';
@@ -50,13 +52,15 @@ const CmFinancialDashboardRow: React.FC<CmFinancialDashboardRowProps> = ({
 
   const contractPanel = useMemo(
     () =>
-      resolveCmContractValuesPanel(
-        contractValues,
-        selectedContractorMasterId,
-        contractorLabel,
-        selectedMaster,
-        selectedContractorContractValues,
-      ),
+      contractValues
+        ? resolveCmContractValuesPanel(
+            contractValues,
+            selectedContractorMasterId,
+            contractorLabel,
+            selectedMaster,
+            selectedContractorContractValues,
+          )
+        : null,
     [
       contractValues,
       contractorLabel,
@@ -68,13 +72,15 @@ const CmFinancialDashboardRow: React.FC<CmFinancialDashboardRowProps> = ({
 
   const invoicingPanel = useMemo(
     () =>
-      resolveCmInvoicingPanel(
-        invoicing,
-        selectedContractorMasterId,
-        contractorLabel,
-        selectedMaster,
-        selectedContractorInvoicing,
-      ),
+      invoicing
+        ? resolveCmInvoicingPanel(
+            invoicing,
+            selectedContractorMasterId,
+            contractorLabel,
+            selectedMaster,
+            selectedContractorInvoicing,
+          )
+        : null,
     [
       contractorLabel,
       invoicing,
@@ -84,19 +90,27 @@ const CmFinancialDashboardRow: React.FC<CmFinancialDashboardRowProps> = ({
     ],
   );
 
-  const contractorContractValues = isCumulativeView
-    ? contractPanel.contractorSummaryCv
-    : contractPanel.selectedContractorCv;
-  const contractorInvoicing = isCumulativeView
-    ? invoicingPanel.contractorSummaryInv
-    : invoicingPanel.selectedContractorInv;
+  const contractorContractValues = contractPanel
+    ? isCumulativeView
+      ? contractPanel.contractorSummaryCv
+      : contractPanel.selectedContractorCv
+    : null;
+  const contractorInvoicing = invoicingPanel
+    ? isCumulativeView
+      ? invoicingPanel.contractorSummaryInv
+      : invoicingPanel.selectedContractorInv
+    : null;
 
-  const contractorContractValuesTitle = isCumulativeView
-    ? contractValuesSectionTitle('ContractorSummary')
-    : contractValuesSectionTitle('SelectedContractor', contractPanel.contractorLabel);
-  const contractorInvoicingTitle = isCumulativeView
-    ? invoicingSectionTitle('ContractorSummary')
-    : invoicingSectionTitle('SelectedContractor', invoicingPanel.contractorLabel);
+  const contractorContractValuesTitle = contractPanel
+    ? isCumulativeView
+      ? contractValuesSectionTitle('ContractorSummary')
+      : contractValuesSectionTitle('SelectedContractor', contractPanel.contractorLabel)
+    : contractValuesSectionTitle('ContractorSummary');
+  const contractorInvoicingTitle = invoicingPanel
+    ? isCumulativeView
+      ? invoicingSectionTitle('ContractorSummary')
+      : invoicingSectionTitle('SelectedContractor', invoicingPanel.contractorLabel)
+    : invoicingSectionTitle('ContractorSummary');
 
   return (
     <section className="cm-financial-dashboard-row" aria-label="Contract values and invoicing">
@@ -105,10 +119,11 @@ const CmFinancialDashboardRow: React.FC<CmFinancialDashboardRowProps> = ({
           key={`cv-${selectedContractorMasterId ?? 'cumulative'}`}
           id="tl-section-contract-values"
           className="h-full"
-          sclData={contractPanel.sclCv}
+          sclData={contractPanel?.sclCv ?? null}
           contractorData={contractorContractValues}
           contractorSectionTitle={contractorContractValuesTitle}
           groupSubtitle="SCL & Contractor Portfolio"
+          isLoading={loadingFinancial && !contractValues}
           contractorLoading={!isCumulativeView && loadingSelectedContractorFinancial}
           onEdit={onNavigateFinancial ? () => onNavigateFinancial('contracts') : undefined}
         />
@@ -116,10 +131,11 @@ const CmFinancialDashboardRow: React.FC<CmFinancialDashboardRowProps> = ({
           key={`inv-${selectedContractorMasterId ?? 'cumulative'}`}
           id="tl-section-invoicing"
           className="h-full"
-          pmcData={invoicingPanel.sclInv}
+          pmcData={invoicingPanel?.sclInv ?? null}
           contractorData={contractorInvoicing}
           contractorSectionTitle={contractorInvoicingTitle}
           groupSubtitle="SCL & Contractor Billing"
+          isLoading={loadingFinancial && !invoicing}
           contractorLoading={!isCumulativeView && loadingSelectedContractorFinancial}
           onEdit={onNavigateFinancial ? () => onNavigateFinancial('invoicing') : undefined}
         />

@@ -134,13 +134,25 @@ export const ProjectDatesPartyColumn: React.FC<{
 
   if (!data) {
     return (
-      <div className={`flex min-h-[120px] flex-col items-center justify-center gap-2 border-dashed p-3.5 ${borderClass}`}>
+      <div
+        className={`flex min-h-[120px] flex-col items-center justify-center gap-3 border-dashed p-3.5 ${borderClass}`}
+      >
         <span
           className={`flex h-8 w-8 items-center justify-center rounded-full text-xs font-bold lowercase ${iconTile}`}
         >
           {partyInitial}
         </span>
         <p className={`text-sm font-semibold ${mutedClass}`}>No {partyLabel} dates</p>
+        {onEdit && (
+          <button
+            type="button"
+            onClick={onEdit}
+            className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2 text-xs font-bold uppercase tracking-wide text-white hover:bg-blue-500"
+          >
+            <Plus size={14} />
+            {variant === 'SCL' ? 'Add SCL Dates' : 'Add Schedule'}
+          </button>
+        )}
       </div>
     );
   }
@@ -332,7 +344,8 @@ export const ProjectDatesGroupCard: React.FC<ProjectDatesGroupCardProps> = ({
   /** Project-level contractor BG rows (not tied to schedule contractor name). */
   const contractorBgForPanel = contractorBgEntries;
 
-  const showBgPanel = sclBgEntries.length > 0 || contractorBgForPanel.length > 0;
+  const showBgPanel =
+    sclBgEntries.length > 0 || contractorBgForPanel.length > 0 || Boolean(onManageBg);
 
   const summaryItems = bgSummary
     ? [
@@ -563,7 +576,7 @@ export const ProjectDatesGroupCard: React.FC<ProjectDatesGroupCardProps> = ({
               party="SCL"
               partyTitle="SCL Bank Guarantee"
               onManageBg={onManageBg ? () => onManageBg('SCL') : undefined}
-              hideWhenEmpty
+              hideWhenEmpty={!onManageBg}
             />
             <ScheduleBgStrip
               entries={contractorBgForPanel}
@@ -580,7 +593,7 @@ export const ProjectDatesGroupCard: React.FC<ProjectDatesGroupCardProps> = ({
                       )
                   : undefined
               }
-              hideWhenEmpty
+              hideWhenEmpty={!onManageBg}
             />
           </div>
         </div>
