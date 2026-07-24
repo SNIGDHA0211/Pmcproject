@@ -2,6 +2,8 @@ import { DPR, Project } from '../types';
 import {
   projectApi,
   projectDatesApi,
+  projectProgressApi,
+  drawingRegisterApi,
   normalizeProjectDatesByProject,
   toNum,
   type ProjectDatesByProject,
@@ -12,6 +14,11 @@ import {
   type ProjectMetricsInput,
 } from '../utils/projectDashboardMetrics';
 import {
+  mapProjectProgressToChartPoints,
+  unwrapProjectProgressList,
+  type ProjectProgressChartPoint,
+} from '../utils/projectProgress';
+import {
   isSyntheticExecutiveProjectId,
   resolveExecutiveProjectForApi,
 } from '../utils/pmcHeadExecutiveProjects';
@@ -21,6 +28,7 @@ export interface ProjectVitalsSnapshot {
   title: string;
   location: string;
   pmName: string;
+  client: string;
   updatedAt: string;
   metrics: ProjectDashboardMetrics;
 }
@@ -28,6 +36,12 @@ export interface ProjectVitalsSnapshot {
 /** Parallel dashboard fetches — dates are optional second pass (many 404s). */
 const DASHBOARD_CONCURRENCY = 6;
 const DATES_CONCURRENCY = 4;
+
+type VitalsExtras = {
+  progressChart?: ProjectProgressChartPoint[];
+  drawingApprovalRate?: number | null;
+  hasDrawingData?: boolean;
+};
 
 const dprsForProject = (project: Project, dprs: DPR[]) =>
   dprs.filter((d) => d.projectId === project.id || d.projectName === project.title);
@@ -65,18 +79,75 @@ function hasSeedHseData(project: Project): boolean {
   );
 }
 
+/** Pull drawing / progress hints if dashboard-data already includes them. */
+function extrasFromDashboard(dashboardData: Record<string, unknown>): VitalsExtras {
+  const approval = toNum(
+    dashboardData.drawing_approval_pct ??
+      dashboardData.drawing_approval_rate ??
+      dashboardData.approval_rate ??
+      dashboardData.drawingApprovalPct,
+  );
+  const hasDrawingHint =
+    dashboardData.drawing_approval_pct != null ||
+    dashboardData.drawing_approval_rate != null ||
+    dashboardData.approval_rate != null ||
+    dashboardData.drawingApprovalPct != null ||
+    dashboardData.has_drawing_data === true;
+
+  const progressHint = toNum(
+    dashboardData.overall_progress ??
+      dashboardData.overall_progress_pct ??
+      dashboardData.progress_pct ??
+      dashboardData.cumulative_actual,
+  );
+
+  const progressChart: ProjectProgressChartPoint[] =
+    progressHint > 0
+      ? [
+          {
+            month: 'Latest',
+            monthlyPlanned: 0,
+            monthlyActual: 0,
+            planned: 0,
+            actual: progressHint,
+            cumulativePlanned: 0,
+            cumulativeActual: progressHint,
+          },
+        ]
+      : [];
+
+  return {
+    progressChart,
+    drawingApprovalRate: hasDrawingHint ? approval : null,
+    hasDrawingData: hasDrawingHint,
+  };
+}
+
 function metricsInputFromDashboard(
   project: Project,
   dprs: DPR[],
   dashboardData: Record<string, unknown>,
   projectDatesBundle: ProjectDatesByProject | null = null,
+  extras: VitalsExtras = {},
 ): ProjectMetricsInput {
   const dprCount = dprsForProject(project, dprs).length;
   const planned = toNum(dashboardData.planned_value ?? project.plannedValue);
   const earned = toNum(dashboardData.earned_value ?? project.earnedValue);
+  const fromDash = extrasFromDashboard(dashboardData);
+
+  const progressChart =
+    extras.progressChart && extras.progressChart.length > 0
+      ? extras.progressChart
+      : fromDash.progressChart ?? [];
+
+  const hasDrawingData =
+    extras.hasDrawingData === true || fromDash.hasDrawingData === true;
+  const drawingApprovalRate = hasDrawingData
+    ? (extras.drawingApprovalRate ?? fromDash.drawingApprovalRate ?? null)
+    : null;
 
   return {
-    progressChart: [],
+    progressChart,
     projectDatesBundle,
     costPerformanceRows: [
       {
@@ -89,8 +160,8 @@ function metricsInputFromDashboard(
     hseMetrics: null,
     hasHseData: hasSeedHseData(project) || Object.keys(dashboardData).length > 0,
     bottleneckItems: [],
-    drawingApprovalRate: null,
-    hasDrawingData: false,
+    drawingApprovalRate,
+    hasDrawingData,
     dashboardData,
     plannedEarnedScl:
       planned > 0
@@ -113,6 +184,7 @@ function snapshotFromMetrics(
     title: project.title,
     location: project.location || '—',
     pmName: project.teamLeadName || 'Unassigned',
+    client: project.client || '',
     updatedAt: project.updatedAt,
     metrics,
   };
@@ -163,40 +235,56 @@ async function safeGetProjectDates(
   }
 }
 
-function needsScheduleDatesRefresh(metrics: ProjectDashboardMetrics): boolean {
-  return metrics.delayDays == null && metrics.overallProgressPct <= 0;
+/** Same source as project detail / site engineer Progress %. */
+async function safeGetProgressChart(
+  projectName: string,
+): Promise<ProjectProgressChartPoint[]> {
+  try {
+    const response = await projectProgressApi.getProjectProgress({
+      project_name: projectName,
+    });
+    return mapProjectProgressToChartPoints(
+      unwrapProjectProgressList(response.data),
+      projectName,
+    );
+  } catch (error) {
+    if (!isNotFoundError(error)) {
+      console.warn(`[vitals] project-progress failed for ${projectName}`, error);
+    }
+    return [];
+  }
 }
 
-async function fetchProjectVitalsSnapshotLite(
-  project: Project,
-  dprs: DPR[],
-  datesBundle: ProjectDatesByProject | null,
-): Promise<ProjectVitalsSnapshot> {
-  const resolved = resolveExecutiveProjectForApi(project);
-  if (isUnresolvedStubProject(resolved)) {
-    return buildSeedVitalsSnapshot(project, dprs);
+/** Drawing approval % for Quality cell (same register as Compliance tab). */
+async function safeGetDrawingApproval(
+  projectName: string,
+): Promise<{ rate: number; hasData: boolean }> {
+  const now = new Date();
+  try {
+    const response = await drawingRegisterApi.getClientReport({
+      projectName,
+      month: now.getMonth() + 1,
+      year: now.getFullYear(),
+      view: 'cumulative',
+    });
+    const summary = response.data?.summary;
+    if (!summary) return { rate: 0, hasData: false };
+    const rate = toNum(summary.approvalRate);
+    const hasData =
+      toNum(summary.submittedDrawings) > 0 ||
+      toNum(summary.approvedDrawings) > 0 ||
+      rate > 0;
+    return { rate, hasData };
+  } catch (error) {
+    if (!isNotFoundError(error)) {
+      console.warn(`[vitals] drawings failed for ${projectName}`, error);
+    }
+    return { rate: 0, hasData: false };
   }
+}
 
-  const seedDashboard = dashboardDataFromProject(resolved);
-  const dashboardPayload = await safeGetDashboardData(resolved.id);
-  const mergedDashboard = dashboardPayload
-    ? { ...seedDashboard, ...dashboardPayload }
-    : seedDashboard;
-
-  let projectDatesBundle = datesBundle;
-  const metricsWithoutDates = computeProjectDashboardMetrics(
-    metricsInputFromDashboard(resolved, dprs, mergedDashboard, projectDatesBundle),
-  );
-
-  if (!projectDatesBundle && needsScheduleDatesRefresh(metricsWithoutDates)) {
-    projectDatesBundle = await safeGetProjectDates(resolved.title);
-  }
-
-  const metrics = computeProjectDashboardMetrics(
-    metricsInputFromDashboard(resolved, dprs, mergedDashboard, projectDatesBundle),
-  );
-
-  return snapshotFromMetrics(resolved, metrics);
+function needsScheduleDatesRefresh(metrics: ProjectDashboardMetrics): boolean {
+  return metrics.delayDays == null && metrics.overallProgressPct <= 0;
 }
 
 async function mapPool<T, R>(
@@ -222,8 +310,14 @@ async function mapPool<T, R>(
   return results;
 }
 
+type LiveBundle = {
+  dashboard: Record<string, unknown>;
+  extras: VitalsExtras;
+};
+
 /**
- * Instant cards from list + DPR data, then parallel dashboard refresh (dates only when needed).
+ * Instant cards from list + DPR data, then parallel live refresh:
+ * dashboard + project progress + drawings (same sources as project detail).
  */
 export async function loadProjectVitalsProgressively(
   projects: Project[],
@@ -249,23 +343,32 @@ export async function loadProjectVitalsProgressively(
     return snapshots;
   }
 
-  const dashboardByIndex = new Map<number, Record<string, unknown> | null>();
+  const liveByIndex = new Map<number, LiveBundle>();
   let dashboardCompleted = 0;
 
   await mapPool(realIndices, DASHBOARD_CONCURRENCY, async (index) => {
     const project = resolvedProjects[index];
     const seedDashboard = dashboardDataFromProject(project);
-    const payload = await safeGetDashboardData(project.id);
-    dashboardByIndex.set(
-      index,
-      payload ? { ...seedDashboard, ...payload } : seedDashboard,
-    );
 
-    const merged = dashboardByIndex.get(index) ?? seedDashboard;
+    const [payload, progressChart, drawings] = await Promise.all([
+      safeGetDashboardData(project.id),
+      safeGetProgressChart(project.title),
+      safeGetDrawingApproval(project.title),
+    ]);
+
+    const merged = payload ? { ...seedDashboard, ...payload } : seedDashboard;
+    const extras: VitalsExtras = {
+      progressChart,
+      drawingApprovalRate: drawings.hasData ? drawings.rate : null,
+      hasDrawingData: drawings.hasData,
+    };
+
+    liveByIndex.set(index, { dashboard: merged, extras });
+
     snapshots[index] = snapshotFromMetrics(
       project,
       computeProjectDashboardMetrics(
-        metricsInputFromDashboard(project, dprs, merged, null),
+        metricsInputFromDashboard(project, dprs, merged, null, extras),
       ),
     );
     dashboardCompleted += 1;
@@ -289,16 +392,21 @@ export async function loadProjectVitalsProgressively(
 
     datesIndices.forEach((index) => {
       const project = resolvedProjects[index];
-      const merged =
-        dashboardByIndex.get(index) ?? dashboardDataFromProject(project);
+      const live =
+        liveByIndex.get(index) ??
+        ({
+          dashboard: dashboardDataFromProject(project),
+          extras: {},
+        } satisfies LiveBundle);
       snapshots[index] = snapshotFromMetrics(
         project,
         computeProjectDashboardMetrics(
           metricsInputFromDashboard(
             project,
             dprs,
-            merged,
+            live.dashboard,
             datesByIndex.get(index) ?? null,
+            live.extras,
           ),
         ),
       );

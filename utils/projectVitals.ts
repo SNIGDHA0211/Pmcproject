@@ -26,8 +26,13 @@ export interface ProjectVitalsCard {
   title: string;
   location: string;
   pmName: string;
+  client: string;
   overallScore: number | null;
   healthLabel: HealthLabel;
+  progressPct: number | null;
+  openIssues: number;
+  dprCount: number;
+  drawingApprovalPct: number | null;
   vitals: ProjectVital[];
   trend: TrendDirection;
   lastUpdate: string;
@@ -159,13 +164,25 @@ export const buildProjectVitalsCardFromSnapshot = (
     title: snapshot.title,
     location: snapshot.location,
     pmName: snapshot.pmName,
+    client: snapshot.client?.trim() || extractClientFromTitle(snapshot.title),
     overallScore,
     healthLabel,
+    progressPct: m.overallProgressPct > 0 ? m.overallProgressPct : null,
+    openIssues: Math.max(0, m.criticalRisks),
+    dprCount: Math.max(0, m.dprCount),
+    drawingApprovalPct: m.drawingApprovalPct > 0 ? m.drawingApprovalPct : null,
     vitals,
     trend,
     lastUpdate: formatRelativeUpdate(snapshot.updatedAt),
   };
 };
+
+/** Pull client acronym from titles like "G3 Building – Girgaon (MMRCL)". */
+function extractClientFromTitle(title: string): string {
+  const match = title.match(/\(([^)]+)\)\s*$/);
+  if (match?.[1]) return match[1].trim();
+  return '—';
+}
 
 export interface PortfolioSummary {
   portfolioScore: number | null;
@@ -226,30 +243,37 @@ export const buildPortfolioSummary = (cards: ProjectVitalsCard[]): PortfolioSumm
   };
 };
 
-export function scoreToAccent(value: number | null, healthyColor: string): string {
-  if (value == null) return '#94a3b8';
-  if (value < 50) return '#ef4444';
-  if (value < 75) return '#f59e0b';
+export const SCORE_COLORS = {
+  critical: '#F43F5E',
+  watch: '#F59E0B',
+  healthy: '#10B981',
+  unknown: '#94a3b8',
+} as const;
+
+export function scoreToAccent(value: number | null, healthyColor: string = SCORE_COLORS.healthy): string {
+  if (value == null) return SCORE_COLORS.unknown;
+  if (value < 50) return SCORE_COLORS.critical;
+  if (value < 75) return SCORE_COLORS.watch;
   return healthyColor;
 }
 
 export const statusColor = (status: VitalStatus): string => {
   switch (status) {
     case 'healthy':
-      return '#22c55e';
+      return SCORE_COLORS.healthy;
     case 'watch':
-      return '#f59e0b';
+      return SCORE_COLORS.watch;
     case 'critical':
-      return '#ef4444';
+      return SCORE_COLORS.critical;
     default:
-      return '#94a3b8';
+      return SCORE_COLORS.unknown;
   }
 };
 
 export const healthBorderClass = (label: HealthLabel): string => {
   switch (label) {
     case 'CRITICAL':
-      return 'border-red-200 ring-1 ring-red-100';
+      return 'border-rose-200 ring-1 ring-rose-100';
     case 'AT RISK':
       return 'border-amber-200 ring-1 ring-amber-100';
     case 'ON TRACK':
@@ -262,7 +286,7 @@ export const healthBorderClass = (label: HealthLabel): string => {
 export const healthBadgeClass = (label: HealthLabel): string => {
   switch (label) {
     case 'CRITICAL':
-      return 'bg-red-50 text-red-700 border-red-200';
+      return 'bg-rose-50 text-rose-600 border-rose-200';
     case 'AT RISK':
       return 'bg-amber-50 text-amber-700 border-amber-200';
     case 'ON TRACK':

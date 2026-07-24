@@ -1,18 +1,20 @@
 import type { Project, User } from '../types';
 import { UserRole } from '../types';
 import { projectAssignedToUser, userMatchesAssignee } from './roleProjectAssignments';
+import { isPmcHeadEquivalent } from './pmcRoleAccess';
 
 /**
  * Project Feedback RBAC:
  * - Site Engineer: view only, assigned projects
  * - Team Leader: view / create / edit / delete on own projects
- * - PMC Head: view all projects, update status / remarks / priority
- * (No dedicated Admin role exists in the frontend enum — PMC Head is highest.)
+ * - PMC Head / PMC Manager: view all projects, update status / remarks / priority
  */
 
 export function canViewProjectFeedback(role: UserRole): boolean {
   switch (role) {
     case UserRole.PMC_HEAD:
+    case UserRole.PMC_HEAD_OFFICE:
+    case UserRole.COORDINATOR:
     case UserRole.TEAM_LEAD:
     case UserRole.SITE_ENGINEER:
       return true;
@@ -26,16 +28,16 @@ export function canCreateProjectFeedback(role: UserRole): boolean {
 }
 
 export function canEditProjectFeedback(role: UserRole): boolean {
-  return role === UserRole.TEAM_LEAD || role === UserRole.PMC_HEAD;
+  return role === UserRole.TEAM_LEAD || isPmcHeadEquivalent(role);
 }
 
 export function canDeleteProjectFeedback(role: UserRole): boolean {
   return role === UserRole.TEAM_LEAD;
 }
 
-/** Status dropdown is PMC Head only. */
+/** Status dropdown is PMC Head / PMC Manager. */
 export function canUpdateFeedbackStatus(role: UserRole): boolean {
-  return role === UserRole.PMC_HEAD;
+  return isPmcHeadEquivalent(role);
 }
 
 /** Team Leaders can edit content fields; PMC Head edits status/remarks/priority only. */
@@ -48,7 +50,7 @@ export function feedbackProjectsForUser(
   user: User,
 ): Project[] {
   if (!canViewProjectFeedback(user.role)) return [];
-  if (user.role === UserRole.PMC_HEAD) return projects;
+  if (isPmcHeadEquivalent(user.role)) return projects;
 
   if (user.role === UserRole.TEAM_LEAD) {
     return projects.filter(

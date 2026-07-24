@@ -91,11 +91,11 @@ const AssignmentModal: React.FC<AssignmentModalProps> = ({ users, onClose, onCon
               </div>
             </section>
 
-            {/* Coordinators Section */}
+            {/* PMC Managers Section */}
             <section className="space-y-6">
               <div className="flex items-center justify-between">
                 <h4 className={`text-[10px] font-black uppercase tracking-widest flex items-center gap-2 ${isDarkTheme ? 'text-slate-400' : 'text-gray-500'}`}>
-                  <div className="w-2 h-2 rounded-full bg-blue-400"></div> Support: Project Coordinators
+                  <div className="w-2 h-2 rounded-full bg-blue-400"></div> Support: PMC Managers
                 </h4>
                 <span className={`text-[10px] font-black uppercase ${isDarkTheme ? 'text-blue-400' : 'text-blue-600'}`}>Multi-Select Enabled ({selectedCoords.length})</span>
               </div>
@@ -116,7 +116,7 @@ const AssignmentModal: React.FC<AssignmentModalProps> = ({ users, onClose, onCon
                       </div>
                       <div>
                         <p className={`text-sm font-black leading-tight ${themeClasses.textPrimary}`}>{user.name}</p>
-                        <p className={`text-[10px] font-bold uppercase mt-1 ${isDarkTheme ? 'text-blue-400' : 'text-blue-600'}`}>Coordinator</p>
+                        <p className={`text-[10px] font-bold uppercase mt-1 ${isDarkTheme ? 'text-blue-400' : 'text-blue-600'}`}>PMC Manager</p>
                       </div>
                     </div>
                     {selectedCoords.includes(user.id) && (

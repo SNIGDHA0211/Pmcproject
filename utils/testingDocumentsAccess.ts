@@ -1,6 +1,7 @@
 import type { Project, User } from '../types';
 import { UserRole } from '../types';
 import { projectAssignedToUser, userMatchesAssignee } from './roleProjectAssignments';
+import { isPmcHeadEquivalent } from './pmcRoleAccess';
 
 type TestingPhotosUserRef = Pick<User, 'id' | 'role'> &
   Partial<Pick<User, 'username' | 'email' | 'name'>>;
@@ -14,6 +15,8 @@ type TestingPhotosProjectRef = Pick<
 export function canViewTestingPhotos(role: UserRole): boolean {
   switch (role) {
     case UserRole.PMC_HEAD:
+    case UserRole.PMC_HEAD_OFFICE:
+    case UserRole.COORDINATOR:
     case UserRole.TEAM_LEAD:
     case UserRole.QAQC_SITE_ENGINEER:
       return true;
@@ -28,7 +31,7 @@ export function canEditTestingPhotos(role: UserRole): boolean {
 
 /**
  * Project-scoped Testing Photos access:
- * - PMC Head: all projects
+ * - PMC Head / PMC Manager: all projects
  * - Team Leader: only projects where they are team lead
  * - QAQC Site Engineer: only their assigned QAQC projects
  */
@@ -37,7 +40,7 @@ export function canAccessTestingPhotosForProject(
   project: TestingPhotosProjectRef | null | undefined,
 ): boolean {
   if (!canViewTestingPhotos(user.role)) return false;
-  if (user.role === UserRole.PMC_HEAD) return true;
+  if (isPmcHeadEquivalent(user.role)) return true;
   if (!project?.id && !project?.title) return false;
 
   if (user.role === UserRole.TEAM_LEAD) {
@@ -58,6 +61,6 @@ export function testingPhotosProjectsForUser(
   user: TestingPhotosUserRef,
 ): Project[] {
   if (!canViewTestingPhotos(user.role)) return [];
-  if (user.role === UserRole.PMC_HEAD) return projects;
+  if (isPmcHeadEquivalent(user.role)) return projects;
   return projects.filter((project) => canAccessTestingPhotosForProject(user, project));
 }

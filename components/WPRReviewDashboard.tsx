@@ -206,8 +206,9 @@ function wprStatusFieldTone(key: string): StatusCardTone {
 }
 
 function wprBackendRole(role?: UserRole): string | undefined {
-  if (role === UserRole.PMC_HEAD) return "PMC Head";
+  if (role === UserRole.PMC_HEAD || role === UserRole.PMC_HEAD_OFFICE) return "PMC Head";
   if (role === UserRole.TEAM_LEAD) return "Team Leader";
+  // Backend may still expect Coordinator group for PMC Manager
   if (role === UserRole.COORDINATOR) return "Coordinator";
   if (role === UserRole.BILLING_SITE_ENGINEER) return "Billing Site Engineer";
   return undefined;

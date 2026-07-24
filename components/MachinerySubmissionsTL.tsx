@@ -156,12 +156,37 @@ const MachinerySubmissionsTL: React.FC<MachinerySubmissionsTLProps> = ({
 
   const cardShellClass = `relative flex h-full min-h-0 flex-col overflow-hidden rounded-2xl border p-3 shadow-sm sm:p-4 ${themeClasses.glassCard} ${themeClasses.border}`;
 
+  const statusChipClass = (status: string) => {
+    if (isWorkingMachineryStatus(status)) {
+      return isDarkTheme
+        ? 'border-slate-500/40 bg-slate-500/15 text-slate-200'
+        : 'border-slate-200 bg-slate-100 text-slate-700';
+    }
+    if (normalizeMachineryStatus(status) === 'Under Maintenance') {
+      return isDarkTheme
+        ? 'border-amber-500/30 bg-amber-500/10 text-amber-200/90'
+        : 'border-amber-200/80 bg-amber-50 text-amber-800';
+    }
+    return isDarkTheme
+      ? 'border-rose-500/30 bg-rose-500/10 text-rose-200/90'
+      : 'border-rose-200/80 bg-rose-50 text-rose-800';
+  };
+
+  const qtyChipClass = (qty: number) =>
+    qty > 0
+      ? isDarkTheme
+        ? 'border-slate-500/40 bg-slate-500/15 text-slate-200'
+        : 'border-slate-200 bg-slate-100 text-slate-800'
+      : isDarkTheme
+        ? 'border-white/10 bg-white/5 text-slate-400'
+        : 'border-slate-200 bg-white text-slate-500';
+
   const renderCardHeader = (subtitle?: string, showDateBadge = false, dateLabel?: string) => (
     <div className={`mb-3 flex flex-col gap-2 border-b pb-3 pt-0.5 sm:flex-row sm:items-start sm:justify-between sm:gap-3 ${themeClasses.border}`}>
       <div className="min-w-0 flex-1">
         <h3 className={typo.sectionTitle(isDarkTheme)}>Site Machinery Log</h3>
         {subtitle && (
-          <p className={`mt-1 line-clamp-3 text-[10px] font-medium uppercase leading-snug tracking-wide sm:text-xs ${themeClasses.textMuted}`}>
+          <p className={`mt-1 line-clamp-3 text-[10px] font-medium leading-snug tracking-wide sm:text-xs ${themeClasses.textMuted}`}>
             {subtitle}
           </p>
         )}
@@ -169,8 +194,10 @@ const MachinerySubmissionsTL: React.FC<MachinerySubmissionsTLProps> = ({
       <div className="flex shrink-0 flex-wrap items-center justify-end gap-1.5 self-stretch sm:self-auto">
         {showDateBadge && dateLabel && (
           <div
-            className={`max-w-full truncate rounded-lg px-2.5 py-1 text-[10px] font-semibold uppercase sm:text-xs ${
-              isDarkTheme ? 'bg-indigo-500/20 text-indigo-400' : 'bg-indigo-50 text-indigo-600'
+            className={`max-w-full truncate rounded-md border px-2.5 py-1 text-[10px] font-semibold uppercase sm:text-xs ${
+              isDarkTheme
+                ? 'border-white/10 bg-white/5 text-slate-300'
+                : 'border-slate-200 bg-slate-50 text-[#1e3a5f]'
             }`}
           >
             Date: {dateLabel}
@@ -187,7 +214,7 @@ const MachinerySubmissionsTL: React.FC<MachinerySubmissionsTLProps> = ({
   if (isLoading && !latestSubmission) {
     return (
       <div className={cardShellClass}>
-        <DashboardCardTopAccent />
+        <DashboardCardTopAccent variant="executive" />
         {renderCardHeader('Loading today\'s report…')}
         <div className="flex flex-1 flex-col items-center justify-center">
           <div
@@ -202,7 +229,7 @@ const MachinerySubmissionsTL: React.FC<MachinerySubmissionsTLProps> = ({
   if (!latestSubmission) {
     return (
       <div className={cardShellClass}>
-        <DashboardCardTopAccent />
+        <DashboardCardTopAccent variant="executive" />
         {renderCardHeader(`Today: ${formatIsoDateLabel(reportDateIso)}`)}
         <div className="flex flex-1 flex-col items-center justify-center text-center">
           <Icons.Activity className={`mb-2 ${themeClasses.textMuted}`} size={24} />
@@ -226,7 +253,7 @@ const MachinerySubmissionsTL: React.FC<MachinerySubmissionsTLProps> = ({
 
   return (
     <div className={`${cardShellClass} transition-shadow hover:shadow-md`}>
-      <DashboardCardTopAccent />
+      <DashboardCardTopAccent variant="executive" />
       {renderCardHeader(subtitle, true, reportDateLabel)}
 
       <div className={`min-h-0 flex-1 overflow-auto rounded-xl border ${themeClasses.border}`}>
@@ -238,39 +265,17 @@ const MachinerySubmissionsTL: React.FC<MachinerySubmissionsTLProps> = ({
               className={`rounded-xl border p-3 ${themeClasses.border} ${isDarkTheme ? 'bg-white/[0.03]' : 'bg-white'}`}
             >
               <div className="flex items-start justify-between gap-2">
-                <p className={`min-w-0 flex-1 text-sm font-bold leading-snug ${themeClasses.textPrimary}`}>
+                <p className={`min-w-0 flex-1 text-sm font-semibold leading-snug ${themeClasses.textPrimary}`}>
                   {item.particular}
                 </p>
                 <span
-                  className={`shrink-0 rounded-md px-2 py-0.5 text-xs font-bold ${
-                    parseMachineryQty(item.qty) > 0
-                      ? isDarkTheme
-                        ? 'bg-emerald-500/20 text-emerald-400'
-                        : 'bg-emerald-100 text-emerald-700'
-                      : isDarkTheme
-                        ? 'bg-slate-500/20 text-slate-400'
-                        : 'bg-slate-100 text-slate-500'
-                  }`}
+                  className={`shrink-0 rounded-md border px-2 py-0.5 text-xs font-semibold tabular-nums ${qtyChipClass(parseMachineryQty(item.qty))}`}
                 >
                   Qty: {item.qty}
                 </span>
               </div>
               <div className="mt-2 flex flex-wrap items-center gap-2">
-                <span
-                  className={`rounded-full px-2.5 py-0.5 ${typo.badge} ${
-                    isWorkingMachineryStatus(item.status)
-                      ? isDarkTheme
-                        ? 'bg-emerald-500/20 text-emerald-400'
-                        : 'bg-emerald-100 text-emerald-700'
-                      : normalizeMachineryStatus(item.status) === 'Under Maintenance'
-                        ? isDarkTheme
-                          ? 'bg-amber-500/20 text-amber-400'
-                          : 'bg-amber-100 text-amber-700'
-                        : isDarkTheme
-                          ? 'bg-rose-500/20 text-rose-400'
-                          : 'bg-rose-100 text-rose-700'
-                  }`}
-                >
+                <span className={`rounded-md border px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${statusChipClass(item.status ?? '')}`}>
                   {normalizeMachineryStatus(item.status)}
                 </span>
                 {item.remark && (
@@ -291,41 +296,19 @@ const MachinerySubmissionsTL: React.FC<MachinerySubmissionsTLProps> = ({
               <th className={`px-2.5 py-2 ${typo.tableHeader} ${themeClasses.textMuted}`}>Remark</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-white/5">
+          <tbody className={`divide-y ${isDarkTheme ? 'divide-white/5' : 'divide-slate-100'}`}>
             {visibleMachinery.map((item, idx) => (
               <tr key={`${item.srNo}-${item.particular}-${idx}`} className={`${themeClasses.bgHover} transition-colors`}>
                 <td className={`px-2.5 py-2 font-semibold ${themeClasses.textPrimary}`}>{item.particular}</td>
                 <td className="px-2.5 py-2 text-center">
                   <span
-                    className={`rounded-md px-2.5 py-0.5 text-xs font-bold ${
-                      parseMachineryQty(item.qty) > 0
-                        ? isDarkTheme
-                          ? 'bg-emerald-500/20 text-emerald-400'
-                          : 'bg-emerald-100 text-emerald-700'
-                        : isDarkTheme
-                          ? 'bg-slate-500/20 text-slate-400'
-                          : 'bg-slate-100 text-slate-500'
-                    }`}
+                    className={`inline-flex min-w-[1.75rem] justify-center rounded-md border px-2 py-0.5 text-xs font-semibold tabular-nums ${qtyChipClass(parseMachineryQty(item.qty))}`}
                   >
                     {item.qty}
                   </span>
                 </td>
                 <td className="px-2.5 py-2 text-center">
-                  <span
-                    className={`rounded-full px-2.5 py-0.5 ${typo.badge} ${
-                      isWorkingMachineryStatus(item.status)
-                        ? isDarkTheme
-                          ? 'bg-emerald-500/20 text-emerald-400'
-                          : 'bg-emerald-100 text-emerald-700'
-                        : normalizeMachineryStatus(item.status) === 'Under Maintenance'
-                          ? isDarkTheme
-                            ? 'bg-amber-500/20 text-amber-400'
-                            : 'bg-amber-100 text-amber-700'
-                          : isDarkTheme
-                            ? 'bg-rose-500/20 text-rose-400'
-                            : 'bg-rose-100 text-rose-700'
-                    }`}
-                  >
+                  <span className={`inline-flex rounded-md border px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${statusChipClass(item.status ?? '')}`}>
                     {normalizeMachineryStatus(item.status)}
                   </span>
                 </td>
@@ -338,15 +321,23 @@ const MachinerySubmissionsTL: React.FC<MachinerySubmissionsTLProps> = ({
       <div className="mt-3 grid grid-cols-1 gap-2 min-[380px]:grid-cols-3 sm:gap-2.5">
         {[
           ['Total Machines', totalMachines, themeClasses.textPrimary],
-          ['Working', workingMachines, 'text-emerald-500'],
-          ['Not Working', notWorkingMachines, notWorkingMachines > 0 ? 'text-rose-500' : themeClasses.textPrimary],
+          ['Working', workingMachines, isDarkTheme ? 'text-slate-200' : 'text-[#1e3a5f]'],
+          [
+            'Not Working',
+            notWorkingMachines,
+            notWorkingMachines > 0
+              ? isDarkTheme
+                ? 'text-rose-300'
+                : 'text-rose-700'
+              : themeClasses.textPrimary,
+          ],
         ].map(([label, value, color]) => (
           <div
             key={label as string}
-            className={`rounded-xl border px-3 py-2.5 text-center min-[380px]:text-left ${themeClasses.border} ${themeClasses.bgSecondary}`}
+            className={`rounded-lg border px-3 py-2.5 text-center min-[380px]:text-left ${themeClasses.border} ${isDarkTheme ? 'bg-white/[0.03]' : 'bg-slate-50/80'}`}
           >
             <p className={`${typo.totalsLabel} ${themeClasses.textMuted}`}>{label}</p>
-            <p className={`${typo.totalsValue} tabular-nums ${color}`}>{Number(value).toLocaleString('en-IN')}</p>
+            <p className={`${typo.totalsValue} font-bold tabular-nums ${color}`}>{Number(value).toLocaleString('en-IN')}</p>
           </div>
         ))}
       </div>

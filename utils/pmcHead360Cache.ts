@@ -1,7 +1,7 @@
 import type { DPR, Project } from '../types';
 import type { ProjectVitalsCard } from './projectVitals';
 
-const CACHE_VERSION = 1;
+const CACHE_VERSION = 2;
 const CACHE_PREFIX = 'pmc.head360';
 /** Display cache TTL — stale entries are discarded */
 const TTL_MS = 30 * 60 * 1000;
@@ -50,7 +50,14 @@ function isValidCard(card: unknown): card is ProjectVitalsCard {
 
 function sanitizeCards(cards: unknown): ProjectVitalsCard[] {
   if (!Array.isArray(cards)) return [];
-  return cards.filter(isValidCard);
+  return cards.filter(isValidCard).map((card) => ({
+    ...card,
+    client: card.client ?? '—',
+    progressPct: card.progressPct ?? null,
+    openIssues: card.openIssues ?? 0,
+    dprCount: card.dprCount ?? 0,
+    drawingApprovalPct: card.drawingApprovalPct ?? null,
+  }));
 }
 
 export function readPMCHead360Cache(

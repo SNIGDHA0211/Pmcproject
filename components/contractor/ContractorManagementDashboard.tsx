@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Plus, Users } from 'lucide-react';
-import type { Project } from '../../types';
+import type { Project, UserRole } from '../../types';
 import type { ContractorMasterRecord, ProjectDatesApiRecord } from '../../types/contractorManagement';
 import type { ProjectDatesRecord } from '../../services/api';
 import type { BgManageScope } from '../ProjectDatesCard';
@@ -16,6 +16,7 @@ import {
   readProjectDatesSectionCache,
   writeProjectDatesSectionCache,
 } from '../../utils/projectDatesSectionCache';
+import { getProjectDatesSectionAccess } from '../../utils/pmcRoleAccess';
 import AddContractorModal from './AddContractorModal';
 import CmFinancialDashboardRow from './CmFinancialDashboardRow';
 import { useCmTheme } from './enterpriseTheme';
@@ -24,6 +25,7 @@ import { CmButton, CmDashboardHeader, CmLoadingSkeleton } from './ui';
 interface ContractorManagementDashboardProps {
   project: Project;
   userId?: string;
+  userRole?: UserRole;
   dataRevision?: number;
   showProjectDates?: boolean;
   showFinancial?: boolean;
@@ -39,6 +41,7 @@ interface ContractorManagementDashboardProps {
 const ContractorManagementDashboard: React.FC<ContractorManagementDashboardProps> = ({
   project,
   userId = '',
+  userRole,
   dataRevision = 0,
   showProjectDates = true,
   showFinancial = true,
@@ -56,6 +59,7 @@ const ContractorManagementDashboard: React.FC<ContractorManagementDashboardProps
     userId && project.id ? readProjectDatesSectionCache(userId, project.id) : null,
   );
   const theme = useCmTheme();
+  const datesAccess = getProjectDatesSectionAccess(userRole);
   const cm = useContractorManagementDashboard(project.title, dataRevision);
 
   useEffect(() => {
@@ -175,21 +179,23 @@ const ContractorManagementDashboard: React.FC<ContractorManagementDashboardProps
             : null
         }
         onEditScl={
-          onEditSclDates
+          datesAccess.canEditDates && onEditSclDates
             ? () => onEditSclDates(effectiveProjectDates?.scl ?? null)
             : undefined
         }
         onEditContractor={
-          onEditContractorDates
+          datesAccess.canEditDates && onEditContractorDates
             ? (record) => {
                 const apiRecord = effectiveProjectDates?.contractors.find((c) => c.id === record.id);
                 if (apiRecord) onEditContractorDates(apiRecord);
               }
             : undefined
         }
-        onAddContractor={onAddContractorSchedule}
-        onDeleteContractor={onDeleteContractorSchedule}
-        onManageBg={onManageBg ? handleManageBgScope : undefined}
+        onAddContractor={datesAccess.canAddContractor ? onAddContractorSchedule : undefined}
+        onDeleteContractor={
+          datesAccess.canDeleteContractor ? onDeleteContractorSchedule : undefined
+        }
+        onManageBg={datesAccess.canManageBg && onManageBg ? handleManageBgScope : undefined}
       />
     </div>
   ) : null;

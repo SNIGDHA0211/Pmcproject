@@ -5,6 +5,7 @@ import { extractAssigneeId } from './roleProjectAssignments';
 import { loadUserDirectory, type DirectoryUser } from './userDirectory';
 import {
   HSE_SITE_ENGINEER_ACCOUNTS,
+  areDuplicateProjectTitles,
   normalizeProjectTitleKey,
   pickProjectByHseTitle,
 } from './hseSiteEngineerProjects';
@@ -73,33 +74,103 @@ export function getHseExecutiveProjectStubs(existingProjects: Project[]): Projec
   ).map(({ projectTitle, index }) => buildHseExecutiveProjectStub(projectTitle, index));
 }
 
-/** Ensure all 25 HSE-assigned projects appear in the PMC Head dropdown. */
-export function ensureHsePortfolioProjects(projects: Project[]): Project[] {
-  const merged = new Map<string, Project>();
-  projects.forEach((project) => {
-    if (project.id) merged.set(project.id, project);
-  });
-
-  for (const { projectTitle, index } of HSE_SITE_ENGINEER_ACCOUNTS) {
-    if (isExcludedPmcTlProjectTitle(projectTitle)) continue;
-    const matched = pickProjectByHseTitle([...merged.values()], projectTitle);
-    if (matched) {
-      if (!merged.has(matched.id)) merged.set(matched.id, matched);
-      continue;
-    }
-    const stub = buildHseExecutiveProjectStub(projectTitle, index);
-    merged.set(stub.id, stub);
-  }
-
-  return [...merged.values()].sort(sortProjectsByTitle);
+/** True when title matches one of the 25 client PDF portfolio projects. */
+export function isClientPortfolioProjectTitle(title?: string | null): boolean {
+  if (!String(title ?? '').trim()) return false;
+  return HSE_SITE_ENGINEER_ACCOUNTS.some((row) =>
+    areDuplicateProjectTitles(row.projectTitle, title),
+  );
 }
 
-/** PMC Head dropdown: merge lists, inject HSE portfolio, drop excluded titles. */
-export function buildPmcHeadDropdownProjects(...lists: Project[][]): Project[] {
-  const merged = buildExecutiveProjectDropdownList(...lists);
-  return ensureHsePortfolioProjects(merged).filter(
-    (project) => !isExcludedPmcTlProjectTitle(project.title),
+/** Prefer PDF / HSE canonical titles when merging spelling variants. */
+function isCanonicalClientTitle(title?: string | null): boolean {
+  const key = normalizeProjectTitleKey(title);
+  return HSE_SITE_ENGINEER_ACCOUNTS.some(
+    (row) => normalizeProjectTitleKey(row.projectTitle) === key,
   );
+}
+
+/** Prefer real backend rows over stubs, and PDF-exact titles over variants. */
+function preferProjectForDropdown(a: Project, b: Project): Project {
+  const aSynthetic = isSyntheticExecutiveProjectId(a.id);
+  const bSynthetic = isSyntheticExecutiveProjectId(b.id);
+  if (aSynthetic !== bSynthetic) return aSynthetic ? b : a;
+
+  const aCanonical = isCanonicalClientTitle(a.title);
+  const bCanonical = isCanonicalClientTitle(b.title);
+  if (aCanonical !== bCanonical) return aCanonical ? a : b;
+
+  const aLen = String(a.title ?? '').trim().length;
+  const bLen = String(b.title ?? '').trim().length;
+  if (aLen !== bLen) return aLen >= bLen ? a : b;
+
+  return a;
+}
+
+/**
+ * Remove duplicate PMC Head dropdown entries caused by spelling variants
+ * (Mayapur/Miyapur) or backend titles with extra location suffixes.
+ * Display titles prefer the client PDF wording when known.
+ */
+export function dedupePmcHeadDropdownProjects(projects: Project[]): Project[] {
+  const unique: Project[] = [];
+
+  for (const project of projects) {
+    if (!project?.title?.trim()) continue;
+    const existingIndex = unique.findIndex((row) =>
+      areDuplicateProjectTitles(row.title, project.title),
+    );
+    if (existingIndex < 0) {
+      unique.push(withCanonicalClientTitle(project));
+      continue;
+    }
+    unique[existingIndex] = withCanonicalClientTitle(
+      preferProjectForDropdown(unique[existingIndex], project),
+    );
+  }
+
+  return unique.sort(sortProjectsByTitle);
+}
+
+function withCanonicalClientTitle(project: Project): Project {
+  const canonical = HSE_SITE_ENGINEER_ACCOUNTS.find((row) =>
+    areDuplicateProjectTitles(row.projectTitle, project.title),
+  );
+  if (!canonical) return project;
+  if (normalizeProjectTitleKey(project.title) === normalizeProjectTitleKey(canonical.projectTitle)) {
+    return project;
+  }
+  return { ...project, title: canonical.projectTitle };
+}
+
+/**
+ * Build exactly the client PDF portfolio (25 projects).
+ * Wrong / extra backend projects are dropped; missing ones use stubs.
+ */
+export function ensureHsePortfolioProjects(projects: Project[]): Project[] {
+  const pool = projects.filter((project) => project?.id && project?.title?.trim());
+  const picked: Project[] = [];
+
+  for (const { projectTitle, index } of HSE_SITE_ENGINEER_ACCOUNTS) {
+    const matched = pickProjectByHseTitle(pool, projectTitle);
+    if (matched) {
+      picked.push(withCanonicalClientTitle(matched));
+      continue;
+    }
+    picked.push(buildHseExecutiveProjectStub(projectTitle, index));
+  }
+
+  return dedupePmcHeadDropdownProjects(picked);
+}
+
+/** PMC Head dropdown: only the 25 client PDF projects (no wrong / extra titles). */
+export function buildPmcHeadDropdownProjects(...lists: Project[][]): Project[] {
+  const merged = buildExecutiveProjectDropdownList(...lists).filter(
+    (project) =>
+      !isExcludedPmcTlProjectTitle(project.title) &&
+      isClientPortfolioProjectTitle(project.title),
+  );
+  return ensureHsePortfolioProjects(merged);
 }
 
 function buildKnownExecutiveProjectStub(title: string): Project {

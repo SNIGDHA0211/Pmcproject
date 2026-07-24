@@ -169,6 +169,8 @@ const TeamLeaderOverviewShell: React.FC<TeamLeaderOverviewShellProps> = ({
         correspondenceStats={correspondenceStats}
         contractSnapshot={contractSnapshot}
         pvaVelocity={pvaVelocity}
+        projectTitle={project.title}
+        bottleneckItems={bottleneckItems}
       />
     </div>
   );

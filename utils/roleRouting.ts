@@ -10,10 +10,26 @@ import {
 
 export { LOGIN_ROUTE };
 
+const PMC_HEAD_TABS = [
+  'dashboard',
+  'team_projects',
+  'project_init',
+  'execution',
+  'site_photos',
+  'testing_photos',
+  'projects',
+  'dpr_records',
+  'wpr_records',
+  'meeting_documents',
+  'project_feedback',
+  'alerts',
+] as const;
+
 const ROLE_DEFAULT_TAB: Record<UserRole, string> = {
   [UserRole.PMC_HEAD]: 'dashboard',
+  [UserRole.PMC_HEAD_OFFICE]: 'dashboard',
   [UserRole.CEO]: 'dashboard',
-  [UserRole.COORDINATOR]: 'projects',
+  [UserRole.COORDINATOR]: 'dashboard', // PMC Manager — same home as PMC Head
   [UserRole.TEAM_LEAD]: 'team_projects',
   [UserRole.SITE_ENGINEER]: 'site_engineer_dashboard',
   [UserRole.BILLING_SITE_ENGINEER]: 'my_scopes',
@@ -43,20 +59,8 @@ function teamLeadTabs(): string[] {
 /** Tabs each role may open (mirrors Layout navigation). */
 export function getAllowedTabsForRole(role: UserRole, username?: string): ReadonlySet<string> {
   const map: Record<UserRole, readonly string[]> = {
-    [UserRole.PMC_HEAD]: [
-      'dashboard',
-      'team_projects',
-      'project_init',
-      'execution',
-      'site_photos',
-      'testing_photos',
-      'projects',
-      'dpr_records',
-      'wpr_records',
-      'meeting_documents',
-      'project_feedback',
-      'alerts',
-    ],
+    [UserRole.PMC_HEAD]: [...PMC_HEAD_TABS],
+    [UserRole.PMC_HEAD_OFFICE]: [...PMC_HEAD_TABS],
     [UserRole.CEO]: [
       'dashboard',
       'team_projects',
@@ -68,15 +72,8 @@ export function getAllowedTabsForRole(role: UserRole, username?: string): Readon
       'wpr_records',
       'meeting_documents',
     ],
-    [UserRole.COORDINATOR]: [
-      'dashboard',
-      'team_projects',
-      'site_photos',
-      'projects',
-      'dpr_records',
-      'wpr_records',
-      'meeting_documents',
-    ],
+    // PMC Manager — identical navigation to PMC Head
+    [UserRole.COORDINATOR]: [...PMC_HEAD_TABS],
     [UserRole.TEAM_LEAD]: teamLeadTabs(),
     [UserRole.SITE_ENGINEER]: [...SITE_ENGINEER_NAV_IDS],
     [UserRole.BILLING_SITE_ENGINEER]: ['my_scopes', 'financial_management'],

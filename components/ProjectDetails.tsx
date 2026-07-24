@@ -11,6 +11,7 @@ import ReportGenerator from './ReportGenerator';
 import { MOCK_USERS } from '../services/mockData';
 import { projectApi } from '../services/api';
 import { useTheme, getThemeClasses } from '../utils/theme';
+import { isPmcHeadEquivalent } from '../utils/pmcRoleAccess';
 
 interface ProjectDetailsProps {
   project: Project;
@@ -55,14 +56,14 @@ const ProjectDetails: React.FC<ProjectDetailsProps> = ({ project, currentUser, o
   const [showBillingEngineerDropdown, setShowBillingEngineerDropdown] = useState(false);
   const [showQAQCEngineerDropdown, setShowQAQCEngineerDropdown] = useState(false);
 
-  // Check if current user is coordinator without team lead assigned
+  // Check if current user is PMC Manager / Head
   const isCoordinator = currentUser.role === UserRole.COORDINATOR;
   const isTeamLead = currentUser.role === UserRole.TEAM_LEAD;
-  const isPMCHead = currentUser.role === UserRole.PMC_HEAD;
+  const isPMCHead = isPmcHeadEquivalent(currentUser);
   const hasTeamLead = project.teamLeadId && project.teamLeadId !== '';
   const hasSiteEngineers = project.siteEngineerIds && project.siteEngineerIds.length > 0;
-  // Coordinator can always assign team lead (to allow reassignment)
-  const canAssignTeamLead = isCoordinator || isPMCHead;
+  // PMC Manager / Head can assign team lead
+  const canAssignTeamLead = isPMCHead;
   // Team lead can always add site engineers (they can reassign)
   const canAddSiteEngineers = isTeamLead;
 
@@ -204,7 +205,7 @@ const ProjectDetails: React.FC<ProjectDetailsProps> = ({ project, currentUser, o
   const isCompleted = project.status === ProjectStatus.APPROVED;
 
   const canApprove = (status: ProjectStatus) => {
-    if (currentUser.role === UserRole.PMC_HEAD && status === ProjectStatus.REVIEWED) return true;
+    if (isPmcHeadEquivalent(currentUser) && status === ProjectStatus.REVIEWED) return true;
     if (currentUser.role === UserRole.TEAM_LEAD && status === ProjectStatus.SUBMITTED) return true;
     return false;
   };
@@ -567,7 +568,7 @@ const ProjectDetails: React.FC<ProjectDetailsProps> = ({ project, currentUser, o
             </>
           )}
 
-          {currentUser.role === UserRole.PMC_HEAD && (
+          {isPmcHeadEquivalent(currentUser) && (
             <button
               onClick={() => setIsReportGeneratorOpen(true)}
               className={`px-4 py-2 flex items-center gap-2 font-black border rounded-lg transition-all text-[10px] uppercase tracking-widest ${
@@ -1108,7 +1109,7 @@ const ProjectDetails: React.FC<ProjectDetailsProps> = ({ project, currentUser, o
                 </div>
               )}
             </div>
-            {currentUser.role === UserRole.PMC_HEAD && (
+            {isPmcHeadEquivalent(currentUser) && (
               <button
                 onClick={() => setShowAssignmentModal(true)}
                 className={`w-full mt-6 py-3 border text-xs font-black uppercase rounded-xl transition-all ${isDarkTheme ? 'bg-slate-800/95 border-white/10 text-contrast hover:bg-slate-800' : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50 shadow-sm'}`}

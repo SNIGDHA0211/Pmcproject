@@ -61,7 +61,6 @@ const readableStatus = (status: string) => status ? status.replace(/_/g, ' ') : 
 export const EquipmentKpiCards: React.FC<{ records: ProjectEquipmentRecord[] }> = ({ records }) => {
   const { isDarkTheme } = useTheme();
   const themeClasses = getThemeClasses(isDarkTheme);
-  const typo = useProjectsDashboardTypo();
   const summary = useMemo(() => {
     const planned = records.reduce((sum, item) => sum + item.plannedEquipment, 0);
     const actual = records.reduce((sum, item) => sum + item.actualEquipment, 0);
@@ -72,9 +71,19 @@ export const EquipmentKpiCards: React.FC<{ records: ProjectEquipmentRecord[] }> 
 
   const cards = [
     ['Total Planned', summary.planned, themeClasses.textPrimary],
-    ['Total Actual', summary.actual, 'text-orange-400'],
-    ['Total Variance', summary.variance, summary.variance >= 0 ? 'text-emerald-500' : 'text-rose-500'],
-    ['Avg Performance', fmtPct(summary.performance), 'text-blue-500'],
+    ['Total Actual', summary.actual, isDarkTheme ? 'text-slate-200' : 'text-[#1e3a5f]'],
+    [
+      'Total Variance',
+      summary.variance,
+      summary.variance > 0
+        ? isDarkTheme
+          ? 'text-slate-200'
+          : 'text-slate-800'
+        : summary.variance < 0
+          ? 'text-rose-600/90'
+          : themeClasses.textPrimary,
+    ],
+    ['Avg Performance', fmtPct(summary.performance), isDarkTheme ? 'text-slate-200' : 'text-[#1e3a5f]'],
   ];
 
   return (
@@ -82,14 +91,14 @@ export const EquipmentKpiCards: React.FC<{ records: ProjectEquipmentRecord[] }> 
       {cards.map(([label, value, color]) => (
         <div
           key={label as string}
-          className={`flex min-h-[4.5rem] min-w-0 flex-col overflow-hidden rounded-xl border px-3 py-2.5 ${themeClasses.border} ${themeClasses.bgSecondary}`}
+          className={`flex min-h-[4.25rem] min-w-0 flex-col overflow-hidden rounded-lg border px-3 py-2 ${themeClasses.border} ${isDarkTheme ? 'bg-white/[0.03]' : 'bg-slate-50/80'}`}
         >
           <p
-            className={`min-w-0 line-clamp-2 break-words leading-snug tracking-wide ${typo.kpiTitle} ${themeClasses.textMuted}`}
+            className={`min-w-0 line-clamp-2 break-words text-[10px] font-semibold uppercase leading-snug tracking-wide ${themeClasses.textMuted}`}
           >
             {label}
           </p>
-          <p className={`mt-auto min-w-0 truncate pt-2 ${typo.compactValue} font-black tabular-nums ${color}`}>
+          <p className={`mt-auto min-w-0 truncate pt-1.5 text-lg font-bold tabular-nums sm:text-xl ${color}`}>
             {typeof value === 'number' ? value.toLocaleString('en-IN') : value}
           </p>
         </div>
@@ -131,8 +140,8 @@ export const EquipmentBarChart: React.FC<{ records: ProjectEquipmentRecord[] }> 
             contentStyle={{ background: isDarkTheme ? 'rgba(15,23,42,0.95)' : 'rgba(255,255,255,0.95)', border: `1px solid ${isDarkTheme ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'}`, borderRadius: '6px', fontSize: '12px' }}
           />
           <Legend wrapperStyle={{ fontSize: '11px' }} verticalAlign="bottom" height={24} />
-          <Bar dataKey="planned" fill="#4f46e5" radius={[3, 3, 0, 0]} name="Planned" />
-          <Bar dataKey="actual" fill="#f59e0b" radius={[3, 3, 0, 0]} name="Actual" />
+          <Bar dataKey="planned" fill="#1e3a5f" radius={[3, 3, 0, 0]} name="Planned" />
+          <Bar dataKey="actual" fill="#64748b" radius={[3, 3, 0, 0]} name="Actual" />
         </BarChart>
       </ResponsiveContainer>
     </div>
@@ -250,7 +259,7 @@ const ProjectEquipmentCard: React.FC<EquipmentCardProps> = ({
 
   return (
     <div className={`project-equipment-card joyride-target-stable relative flex h-full min-h-0 flex-col overflow-hidden rounded-2xl border p-3 transition-shadow hover:shadow-md sm:p-3.5 ${themeClasses.glassCard} ${themeClasses.border} shadow-sm`}>
-      <DashboardCardTopAccent />
+      <DashboardCardTopAccent variant="executive" />
       <div className={`mb-2.5 flex flex-col gap-2 border-b pb-3 pt-0.5 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between ${themeClasses.border}`}>
         <div className="min-w-0 flex-1">
           <h3 className={typo.sectionTitle(isDarkTheme)}>PROJECT EQUIPMENT</h3>
@@ -267,7 +276,7 @@ const ProjectEquipmentCard: React.FC<EquipmentCardProps> = ({
             type="button"
             onClick={() => { setEditingRecord(null); setIsModalOpen(true); }}
             disabled={!projectName}
-            className={`h-9 shrink-0 rounded-lg bg-blue-600 px-3 sm:h-8 ${typo.buttonSm} text-white hover:bg-blue-700 disabled:opacity-60`}
+            className={`h-9 shrink-0 rounded-lg bg-[#1e3a5f] px-3 sm:h-8 ${typo.buttonSm} text-white hover:bg-[#274868] disabled:opacity-60`}
           >
             Add
           </button>

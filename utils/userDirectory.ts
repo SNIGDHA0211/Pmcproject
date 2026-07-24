@@ -42,7 +42,12 @@ function normalizeDirectoryUser(raw: Record<string, unknown>): DirectoryUser | n
     roleLabel = ROLE_LABELS[UserRole.BILLING_SITE_ENGINEER];
   } else if (groups.includes('Site Engineer') || primaryRole === 'Site Engineer') {
     roleLabel = ROLE_LABELS[UserRole.SITE_ENGINEER];
-  } else if (groups.includes('Coordinator') || primaryRole === 'Coordinator') {
+  } else if (
+    groups.includes('Coordinator') ||
+    groups.includes('PMC Manager') ||
+    primaryRole === 'Coordinator' ||
+    primaryRole === 'PMC Manager'
+  ) {
     roleLabel = ROLE_LABELS[UserRole.COORDINATOR];
   }
 
@@ -80,6 +85,7 @@ export async function loadUserDirectory(force = false): Promise<DirectoryUser[]>
       fetchUsersForRole('QAQC Site Engineer'),
       fetchUsersForRole('HSE Site Engineer'),
       fetchUsersForRole('Coordinator'),
+      fetchUsersForRole('PMC Manager'),
     ]);
 
     const byId = new Map<string, DirectoryUser>();

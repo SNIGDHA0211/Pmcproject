@@ -13,8 +13,9 @@ export const STATUS_COLORS: Record<ProjectStatus, string> = {
 
 export const ROLE_LABELS: Record<UserRole, string> = {
   [UserRole.PMC_HEAD]: 'PMC Head',
+  [UserRole.PMC_HEAD_OFFICE]: 'PMC Head Office',
   [UserRole.CEO]: 'CEO',
-  [UserRole.COORDINATOR]: 'Coordinator',
+  [UserRole.COORDINATOR]: 'PMC Manager',
   [UserRole.TEAM_LEAD]: 'Team Leader',
   [UserRole.SITE_ENGINEER]: 'Site Engineer',
   [UserRole.BILLING_SITE_ENGINEER]: 'Billing Site Engineer',

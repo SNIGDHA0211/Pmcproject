@@ -47,6 +47,8 @@ import { EXECUTIVE_QUALITY_FORMULAS } from '../../utils/executiveQualitySnapshot
 import { formatIndianCurrencyCompact } from '../../utils/format';
 import type { PMCExecutiveTab } from './PMCHeadExecutiveShell';
 import PMCExecutiveTimeline from './PMCExecutiveTimeline';
+import PMCExecutiveDecisionDashboard from './PMCExecutiveDecisionDashboard';
+import type { BottleneckItem } from '../../utils/bottleneck';
 
 export type { ExecutiveContractSnapshot, ExecutiveQualitySnapshot };
 
@@ -132,6 +134,9 @@ interface PMCExecutiveOverviewPanelProps {
   contractSnapshot?: ExecutiveContractSnapshot | null;
   /** Real Planned vs Actual monthly series for Monthly Velocity card. */
   pvaVelocity?: ExecutivePvaVelocityData | null;
+  projectTitle?: string;
+  bottleneckItems?: BottleneckItem[];
+  onBriefReady?: (markdown: string) => void;
 }
 
 /** Cohesive executive palette — navy base, teal progress, indigo plan, amber warn, rose critical */
@@ -379,6 +384,9 @@ const PMCExecutiveOverviewPanel: React.FC<PMCExecutiveOverviewPanelProps> = ({
   correspondenceStats = null,
   contractSnapshot = null,
   pvaVelocity = null,
+  projectTitle = 'Project',
+  bottleneckItems = [],
+  onBriefReady,
 }) => {
   const ex = usePmcExecutiveTheme();
   const track = ex.isDark ? PALETTE.track.dark : PALETTE.track.light;
@@ -564,75 +572,6 @@ const PMCExecutiveOverviewPanel: React.FC<PMCExecutiveOverviewPanelProps> = ({
     ];
   }, [metrics.cpiPct, track, cpiAccent]);
 
-  const kpiStrip = [
-    {
-      label: 'Status',
-      shortLabel: 'Status',
-      value: metrics.projectHealth.label,
-      color: healthToneColor(metrics.projectHealth.tone),
-      surface: metrics.projectHealth.tone === 'bad'
-        ? ex.isDark ? 'border-rose-500/25 bg-rose-500/10' : 'border-rose-200 bg-rose-50/90'
-        : metrics.projectHealth.tone === 'warn'
-          ? ex.isDark ? 'border-amber-500/25 bg-amber-500/10' : 'border-amber-200 bg-amber-50/90'
-          : ex.isDark ? 'border-emerald-500/25 bg-emerald-500/10' : 'border-emerald-200 bg-emerald-50/90',
-      onClick: () => onNavigate('risk', 'risk'),
-    },
-    {
-      label: 'Progress',
-      shortLabel: 'Progress',
-      value: `${Math.round(metrics.overallProgressPct)}%`,
-      color: PALETTE.teal,
-      surface: ex.isDark ? 'border-teal-500/20 bg-teal-500/10' : 'border-teal-100 bg-teal-50/80',
-      onClick: () => onNavigate('schedule', 'progress'),
-    },
-    {
-      label: 'Contractor delay',
-      shortLabel: 'Contr. delay',
-      value: `${metrics.contractorDelayDays}d`,
-      color: metrics.contractorDelayDays > 60 ? PALETTE.rose : PALETTE.violet,
-      surface: ex.isDark ? 'border-violet-500/20 bg-violet-500/10' : 'border-violet-100 bg-violet-50/70',
-      onClick: () => onNavigate('schedule', 'schedule'),
-    },
-    {
-      label: 'SCL delay',
-      shortLabel: 'SCL delay',
-      value: `${metrics.sclDelayDays}d`,
-      color: metrics.sclDelayDays > 60 ? PALETTE.rose : PALETTE.sky,
-      surface: ex.isDark ? 'border-sky-500/20 bg-sky-500/10' : 'border-sky-100 bg-sky-50/80',
-      onClick: () => onNavigate('schedule', 'schedule'),
-    },
-    {
-      label: 'Risks',
-      shortLabel: 'Risks',
-      value: String(metrics.criticalRisks),
-      color: metrics.criticalRisks > 0 ? PALETTE.rose : PALETTE.slate,
-      surface:
-        metrics.criticalRisks > 0
-          ? ex.isDark
-            ? 'border-rose-500/25 bg-rose-500/10'
-            : 'border-rose-200 bg-rose-50/90'
-          : ex.isDark
-            ? 'border-white/10 bg-white/[0.04]'
-            : 'border-slate-200 bg-white',
-      onClick: () => onNavigate('risk', 'risk'),
-    },
-    {
-      label: 'Drawings',
-      shortLabel: 'Drawings',
-      value: `${Math.round(metrics.drawingApprovalPct)}%`,
-      color: metrics.drawingApprovalPct >= 75 ? PALETTE.emerald : PALETTE.amber,
-      surface:
-        metrics.drawingApprovalPct >= 75
-          ? ex.isDark
-            ? 'border-emerald-500/20 bg-emerald-500/10'
-            : 'border-emerald-100 bg-emerald-50/80'
-          : ex.isDark
-            ? 'border-amber-500/20 bg-amber-500/10'
-            : 'border-amber-100 bg-amber-50/80',
-      onClick: () => onNavigate('compliance', 'drawings'),
-    },
-  ];
-
   const cardBase = ex.isDark
     ? 'rounded-2xl border border-white/10 bg-gradient-to-br from-[#0b1d36]/98 to-[#071428]/90 shadow-[0_8px_32px_rgba(0,0,0,0.22)]'
     : 'rounded-2xl border border-slate-200/80 bg-gradient-to-br from-white to-slate-50/90 shadow-[0_8px_32px_rgba(15,39,68,0.06)]';
@@ -648,41 +587,28 @@ const PMCExecutiveOverviewPanel: React.FC<PMCExecutiveOverviewPanelProps> = ({
       }`}
       aria-label="Executive overview dashboard"
     >
-      {/* KPI ribbon — 6 tiles, equal width */}
-      <div className="mb-3 grid grid-cols-2 gap-2 min-[520px]:grid-cols-3 xl:grid-cols-6">
-        {kpiStrip.map((kpi) => (
-          <button
-            key={kpi.label}
-            type="button"
-            onClick={kpi.onClick}
-            className={`group relative min-w-0 rounded-xl border px-2 py-2 text-left transition hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 ${kpi.surface}`}
-          >
-            <span
-              className={`block truncate text-[8px] font-bold uppercase tracking-wide sm:text-[9px] ${ex.label}`}
-              title={kpi.label}
-            >
-              <span className="hidden min-[900px]:inline">{kpi.label}</span>
-              <span className="min-[900px]:hidden">{kpi.shortLabel}</span>
-            </span>
-            <p
-              className={`mt-1 truncate font-black tabular-nums leading-none ${
-                kpi.value.length > 5 ? 'text-sm sm:text-base' : 'text-base sm:text-lg'
-              }`}
-              style={{ color: kpi.color }}
-              title={kpi.value}
-            >
-              {kpi.value}
-            </p>
-            <span
-              className={`pointer-events-none absolute right-1.5 top-1.5 opacity-0 transition group-hover:opacity-100 ${
-                ex.isDark ? 'text-slate-500' : 'text-slate-400'
-              }`}
-              aria-hidden
-            >
-              <ArrowRight size={10} />
-            </span>
-          </button>
-        ))}
+      <PMCExecutiveDecisionDashboard
+        projectTitle={projectTitle}
+        metrics={metrics}
+        openIssuesCount={openIssuesCount}
+        sclDates={sclDates}
+        contractorDates={contractorDates}
+        bottleneckItems={bottleneckItems}
+        qualityPct={qualityPct}
+        decisionQueueTitles={decisionQueue.map((d) => d.title)}
+        onNavigate={onNavigate}
+        onBriefReady={onBriefReady}
+      />
+
+      <div className="mb-2 mt-3 flex flex-wrap items-end justify-between gap-2 px-0.5">
+        <div>
+          <h3 className={`text-sm font-black tracking-tight ${ex.isDark ? 'text-white' : 'text-slate-900'}`}>
+            Analytics deep-dive
+          </h3>
+          <p className={`text-[11px] font-medium ${ex.muted}`}>
+            Charts with thresholds · trends · drill-downs
+          </p>
+        </div>
       </div>
 
       {/* Row 1 — hero progress + side metrics */}
@@ -691,7 +617,7 @@ const PMCExecutiveOverviewPanel: React.FC<PMCExecutiveOverviewPanelProps> = ({
           <SectionHeader
             icon={<TrendingUp size={15} />}
             title="Progress curve"
-            subtitle="Cumulative plan vs actual S-curve"
+            subtitle="Cumulative plan vs actual S-curve · 100% delivery threshold"
             accent={PALETTE.teal}
             action={{ label: 'Schedule', onClick: () => onNavigate('schedule', 'progress') }}
             isDark={ex.isDark}
@@ -725,7 +651,11 @@ const PMCExecutiveOverviewPanel: React.FC<PMCExecutiveOverviewPanelProps> = ({
                   domain={[0, 100]}
                   tickFormatter={(v) => `${v}%`}
                 />
-                <Tooltip contentStyle={chartTooltipStyle(ex.isDark)} formatter={(v: number, n: string) => [`${v}%`, n]} />
+                <Tooltip
+                  contentStyle={chartTooltipStyle(ex.isDark)}
+                  formatter={(v: number, n: string) => [`${Number(v).toFixed(1)}%`, n]}
+                  labelFormatter={(label) => `Period: ${label}`}
+                />
                 <Area
                   type="monotone"
                   dataKey="planned"
@@ -753,7 +683,7 @@ const PMCExecutiveOverviewPanel: React.FC<PMCExecutiveOverviewPanelProps> = ({
           />
           {metrics.progressDeltaLabel && (
             <p className={`mt-2 inline-flex rounded-full px-2.5 py-0.5 text-[10px] font-bold ${ex.isDark ? 'bg-teal-500/15 text-teal-300' : 'bg-teal-50 text-teal-700'}`}>
-              {metrics.progressDeltaLabel}
+              Trend: {metrics.progressDeltaLabel}
             </p>
           )}
         </article>
@@ -1328,10 +1258,10 @@ const PMCExecutiveOverviewPanel: React.FC<PMCExecutiveOverviewPanelProps> = ({
         </article>
       </div>
 
-      {/* Row 4 — contract, schedule, decisions */}
-      <div className="grid grid-cols-1 items-stretch gap-3 xl:grid-cols-12">
+      {/* Row 4 — contract + decisions */}
+      <div className="mb-3 grid grid-cols-1 items-stretch gap-3 xl:grid-cols-12">
         <article
-          className={`flex flex-col xl:col-span-5 p-3.5 sm:p-4 ${cardBase} ${
+          className={`flex flex-col xl:col-span-7 p-3.5 sm:p-4 ${cardBase} ${
             ex.isDark
               ? 'bg-gradient-to-br from-indigo-950/50 via-[#0b1d36]/95 to-[#071428]/90'
               : 'bg-gradient-to-br from-indigo-50/90 via-white to-slate-50'
@@ -1606,23 +1536,7 @@ const PMCExecutiveOverviewPanel: React.FC<PMCExecutiveOverviewPanelProps> = ({
           )}
         </article>
 
-        <article className={`flex flex-col xl:col-span-4 p-3.5 sm:p-4 ${cardBase}`}>
-          <SectionHeader
-            icon={<Calendar size={15} />}
-            title="Schedule timeline"
-            subtitle="SCL & contractor milestones"
-            accent={PALETTE.sky}
-            action={{ label: 'Open', onClick: () => onNavigate('schedule', 'schedule') }}
-            isDark={ex.isDark}
-          />
-          <PMCExecutiveTimeline
-            scl={sclDates}
-            contractor={contractorDates}
-            className="min-h-0 flex-1 !rounded-xl !shadow-none !border-0 [&>div:first-child]:hidden [&>div:last-child]:flex [&>div:last-child]:min-h-0 [&>div:last-child]:flex-1 [&>div:last-child]:flex-col [&>div:last-child]:justify-center [&>div:last-child]:p-2 sm:[&>div:last-child]:p-2.5 [&>div:last-child]:space-y-3"
-          />
-        </article>
-
-        <article className={`flex flex-col xl:col-span-3 p-3.5 sm:p-4 ${cardBase}`}>
+        <article className={`flex flex-col xl:col-span-5 p-3.5 sm:p-4 ${cardBase}`}>
           <SectionHeader
             icon={<AlertTriangle size={15} />}
             title="Bottleneck"
@@ -1676,6 +1590,25 @@ const PMCExecutiveOverviewPanel: React.FC<PMCExecutiveOverviewPanelProps> = ({
           </ul>
         </article>
       </div>
+
+      {/* Full-width schedule timeline — room for SCL + Contractor tracks */}
+      <article className={`p-3.5 sm:p-4 ${cardBase}`}>
+        <SectionHeader
+          icon={<Calendar size={15} />}
+          title="Schedule timeline"
+          subtitle="SCL & contractor milestones"
+          accent={PALETTE.sky}
+          action={{ label: 'Open', onClick: () => onNavigate('schedule', 'schedule') }}
+          isDark={ex.isDark}
+        />
+        <PMCExecutiveTimeline
+          embedded
+          compact
+          scl={sclDates}
+          contractor={contractorDates}
+          className="mt-1"
+        />
+      </article>
     </section>
   );
 };

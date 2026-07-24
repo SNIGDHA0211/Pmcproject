@@ -72,6 +72,8 @@ import {
 } from "./utils/pmcHeadPendingUpdates";
 import { userMatchesAssignee, extractAssigneeId, projectAssignedToUser } from "./utils/roleProjectAssignments";
 import { normalizeBackendProjectRow, buildPmcHeadDropdownProjects, buildPmcHeadExecutiveProjectOptions, getKnownExecutiveProjectStubs, getHseExecutiveProjectStubs, seedProjectRowCache } from "./utils/pmcHeadExecutiveProjects";
+import { isPmcHeadEquivalent } from "./utils/pmcRoleAccess";
+import { ensureProjectCoverAssigned } from "./utils/projectCoverPhotos";
 import {
   clearAppRouteOnLogout,
   getDefaultTabForRole,
@@ -156,7 +158,7 @@ const App: React.FC = () => {
   const fetchData = async () => {
     setIsLoading(true);
     try {
-      const isPmcHead = currentUser?.role === UserRole.PMC_HEAD;
+      const isPmcHead = isPmcHeadEquivalent(currentUser);
       const [projectsRes, dprsRes] = await Promise.all([
         projectApi.getProjects(isPmcHead ? { page_size: 1000 } : undefined),
         dprApi.getDPRs(),
@@ -438,7 +440,7 @@ const App: React.FC = () => {
     setProjects((prev) =>
       prev.map((p) => {
         if (p.id === projectId) {
-          if (currentUser?.role === UserRole.PMC_HEAD && p.teamLeadId) {
+          if (isPmcHeadEquivalent(currentUser) && p.teamLeadId) {
             addNotification(
               p.teamLeadId,
               "Status Change Alert",
@@ -564,7 +566,7 @@ const App: React.FC = () => {
       );
 
       let merged = sortNotificationsDesc(mapped);
-      if (currentUser.role === UserRole.PMC_HEAD) {
+      if (isPmcHeadEquivalent(currentUser)) {
         try {
           const [directory, assigneeProjects] = await Promise.all([
             loadUserDirectory(),
@@ -627,7 +629,7 @@ const App: React.FC = () => {
       setSelectedProjectId(projectId);
     }
 
-    if (currentUser?.role === UserRole.PMC_HEAD) {
+    if (isPmcHeadEquivalent(currentUser)) {
       const moduleKey = (notification.moduleName || "").trim().toLowerCase();
       if (moduleKey === "site photos") {
         setActiveTab("site_photos");
@@ -639,7 +641,7 @@ const App: React.FC = () => {
       }
 
       const nav = resolveAlertNavigation(notification);
-      if (nav?.tab && isTabAllowedForRole(nav.tab, UserRole.PMC_HEAD, currentUser.username)) {
+      if (nav?.tab && isTabAllowedForRole(nav.tab, currentUser!.role, currentUser!.username)) {
         setActiveTab(nav.tab);
         const navPath = TAB_PATHS[nav.tab];
         if (navPath && getAppRoutePath() !== navPath) {
@@ -783,6 +785,9 @@ const App: React.FC = () => {
         ...projectData // Keep other frontend-only fields
       } as Project;
 
+      // Auto-assign a unique professional cover (no upload prompt)
+      ensureProjectCoverAssigned(newProject.id, newProject.title, newProject.location);
+
       // Add to local state for immediate UI update
       setProjects(prev => [newProject, ...prev]);
       setIsCreateModalOpen(false);
@@ -824,9 +829,8 @@ const App: React.FC = () => {
       if (activeTab === "dpr_records") {
         if (currentUser?.role === UserRole.TEAM_LEAD) {
           await dprApi.approveTeamLead(id);
-        } else if (currentUser?.role === UserRole.COORDINATOR) {
-          await dprApi.approveCoordinator(id);
-        } else if (currentUser?.role === UserRole.PMC_HEAD) {
+        } else if (isPmcHeadEquivalent(currentUser)) {
+          // PMC Manager has Head access — finalize like PMC Head
           await dprApi.approvePMCHead(id);
         } else {
           // Default fallback for Site Engineer or other roles if they can somehow trigger this
@@ -852,8 +856,7 @@ const App: React.FC = () => {
             let nextStatus: DPR['status'] = "APPROVED";
             if (activeTab === "dpr_records") {
               if (currentUser?.role === UserRole.TEAM_LEAD) nextStatus = "PENDING_COORDINATOR";
-              else if (currentUser?.role === UserRole.COORDINATOR) nextStatus = "PENDING_PMC_HEAD";
-              else if (currentUser?.role === UserRole.PMC_HEAD) nextStatus = "APPROVED";
+              else if (isPmcHeadEquivalent(currentUser)) nextStatus = "APPROVED";
             }
 
             return {
@@ -1469,7 +1472,7 @@ const App: React.FC = () => {
             onRefresh={() => fetchData()}
           />
         ) : activeTab === "dashboard" ? (
-          currentUser.role === UserRole.PMC_HEAD ? (
+          isPmcHeadEquivalent(currentUser) ? (
             <PMCHead360Dashboard
               user={currentUser}
               projects={projects}
@@ -1612,7 +1615,7 @@ const App: React.FC = () => {
                 </p>
               </div>
               <div className="flex shrink-0 gap-3">
-                {currentUser.role === UserRole.PMC_HEAD && (
+                {isPmcHeadEquivalent(currentUser) && (
                   <button
                     onClick={() => setIsCreateModalOpen(true)}
                     className={`flex items-center gap-2 rounded-2xl border px-4 py-2 text-xs font-black uppercase tracking-widest transition-all sm:px-6 sm:py-2.5 ${themeClasses.buttonSecondary} ${themeClasses.border}`}
@@ -1738,9 +1741,9 @@ const App: React.FC = () => {
             notifications={notifications.filter((n) => n.userId === currentUser.id)}
             loading={alertsLoading}
             refreshing={alertsRefreshing}
-            variant={currentUser.role === UserRole.PMC_HEAD ? 'executive' : 'default'}
-            pendingUpdates={currentUser.role === UserRole.PMC_HEAD ? pendingUpdates : null}
-            pendingLoading={currentUser.role === UserRole.PMC_HEAD ? pendingLoading : false}
+            variant={isPmcHeadEquivalent(currentUser) ? 'executive' : 'default'}
+            pendingUpdates={isPmcHeadEquivalent(currentUser) ? pendingUpdates : null}
+            pendingLoading={isPmcHeadEquivalent(currentUser) ? pendingLoading : false}
             onRefresh={() => void fetchAlerts({ silent: true })}
             onMarkRead={handleMarkRead}
             onNavigate={handleAlertNavigation}

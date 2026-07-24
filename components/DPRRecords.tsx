@@ -422,7 +422,7 @@ const DPRRecords: React.FC<DPRRecordsProps> = ({
 
               <div className={`p-8 border-t space-y-3 ${themeClasses.border} ${isDarkTheme ? 'bg-white/5' : 'bg-gray-50'}`}>
                 {/* Approve/Reject buttons for Team Lead, Coordinator, PMC Head */}
-                {(user.role === UserRole.TEAM_LEAD || user.role === UserRole.COORDINATOR || user.role === UserRole.PMC_HEAD) &&
+                {(user.role === UserRole.TEAM_LEAD || user.role === UserRole.COORDINATOR || user.role === UserRole.PMC_HEAD || user.role === UserRole.PMC_HEAD_OFFICE) &&
                   selectedDPR.status !== 'APPROVED' &&
                   selectedDPR.status !== 'REJECTED' && (
                     <div className="flex gap-3">

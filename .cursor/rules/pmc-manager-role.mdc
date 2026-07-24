@@ -1,0 +1,12 @@
+---
+description: PMC Manager has the same frontend access as PMC Head
+globs: utils/pmcRoleAccess.ts,utils/roleRouting.ts,utils/mapBackendUser.ts,App.tsx,components/Layout.tsx
+alwaysApply: false
+---
+
+# PMC Manager role
+
+- UI label for `UserRole.COORDINATOR` is **PMC Manager** (replaces Coordinator / `pmc_coordinator`).
+- Use `isPmcHeadEquivalent()` from `utils/pmcRoleAccess.ts` for dashboard, nav, portfolio, and module access shared with PMC Head.
+- Keep backend group/API role as `Coordinator` when the API still expects that name.
+- Do not invent a separate PMC Manager dashboard — reuse PMC Head screens (`PMCHead360Dashboard`, executive projects builder, etc.).

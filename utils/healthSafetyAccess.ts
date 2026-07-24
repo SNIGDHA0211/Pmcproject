@@ -1,6 +1,7 @@
 import type { Project, User } from '../types';
 import { UserRole } from '../types';
 import { projectAssignedToUser, userMatchesAssignee } from './roleProjectAssignments';
+import { isPmcHeadEquivalent } from './pmcRoleAccess';
 
 type HealthSafetyProjectRef = Pick<
   Project,
@@ -16,6 +17,8 @@ export function canViewHealthSafety(role: UserRole): boolean {
     case UserRole.HSE_SITE_ENGINEER:
     case UserRole.TEAM_LEAD:
     case UserRole.PMC_HEAD:
+    case UserRole.PMC_HEAD_OFFICE:
+    case UserRole.COORDINATOR:
       return true;
     default:
       return false;
@@ -36,7 +39,7 @@ function resolveProjectTitle(
 
 /**
  * Project-scoped HSE access:
- * - PMC Head: all projects
+ * - PMC Head / PMC Manager: all projects
  * - Team Leader: only projects where they are team lead
  * - HSE Site Engineer: only their assigned HSE project(s)
  */
@@ -46,7 +49,7 @@ export function canViewHealthSafetyForProject(
   options?: { projectTitle?: string | null },
 ): boolean {
   if (!canViewHealthSafety(user.role)) return false;
-  if (user.role === UserRole.PMC_HEAD) return true;
+  if (isPmcHeadEquivalent(user.role)) return true;
 
   const title = resolveProjectTitle(project, options?.projectTitle);
   if (!title) return false;

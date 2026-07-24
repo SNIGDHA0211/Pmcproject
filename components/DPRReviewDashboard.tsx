@@ -6,6 +6,7 @@ import DPRSubmissionForm from "./DPRSubmissionForm";
 import { useTheme, getThemeClasses } from "../utils/theme";
 import { monthlyScopeApi } from "../services/api";
 import DprReviewKpiCards from "./dprReview/DprReviewKpiCards";
+import { isPmcHeadEquivalent } from "../utils/pmcRoleAccess";
 import {
     countActivityStats,
     formatDprDateTime,
@@ -498,8 +499,7 @@ const DPRReviewDashboard: React.FC<DPRReviewDashboardProps> = ({
 
     const getNextApprovalStatus = useCallback((): string => {
         if (user?.role === UserRole.TEAM_LEAD) return 'pending_coordinator';
-        if (user?.role === UserRole.COORDINATOR) return 'pending_pmc_head';
-        if (user?.role === UserRole.PMC_HEAD) return 'approved';
+        if (isPmcHeadEquivalent(user)) return 'approved';
         return 'approved';
     }, [user?.role]);
 
@@ -518,8 +518,8 @@ const DPRReviewDashboard: React.FC<DPRReviewDashboardProps> = ({
 
         // Check if it's the current user's turn to review
         if (user.role === UserRole.TEAM_LEAD && (status === 'pending_team_lead' || status === 'pending' || status === 'submitted')) return true;
-        if (user.role === UserRole.COORDINATOR && (status === 'pending_coordinator')) return true;
-        if (user.role === UserRole.PMC_HEAD && (status === 'pending_pmc_head')) return true;
+        // PMC Manager has Head-level access — can clear coordinator + head queues
+        if (isPmcHeadEquivalent(user) && (status === 'pending_coordinator' || status === 'pending_pmc_head')) return true;
 
         return false;
     };
@@ -532,7 +532,7 @@ const DPRReviewDashboard: React.FC<DPRReviewDashboardProps> = ({
         if (s === 'rejected') return 'DPR Rejected - Re-submission Required';
         if (s === 'draft') return 'Draft - Not Submitted by Site Engineer';
         if (s === 'pending_team_lead' || s === 'pending' || s === 'submitted') return 'Awaiting Team Leader Approval';
-        if (s === 'pending_coordinator') return 'Awaiting Coordinator Approval';
+        if (s === 'pending_coordinator') return 'Awaiting PMC Manager Approval';
         if (s === 'pending_pmc_head') return 'Awaiting PMC Head Approval';
         
         // Dynamic fallback

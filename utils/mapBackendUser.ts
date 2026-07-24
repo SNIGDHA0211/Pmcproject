@@ -1,5 +1,6 @@
 import { User, UserRole } from '../types';
 import { getApiBaseUrl } from '../config/apiConfig';
+import { isPmcHeadOfficeBackendRole, isPmcManagerBackendRole } from './pmcRoleAccess';
 
 export type BackendUserProfile = {
   id?: string | number;
@@ -52,12 +53,14 @@ export function mapBackendUserToUser(userData: BackendUserProfile | null | undef
   const primaryRole = userData.primary_role || userData.role || '';
 
   let role = UserRole.SITE_ENGINEER;
-  if (userGroups.includes('PMC Head') || userGroups.includes('CEO') || primaryRole === 'PMC Head') {
+  if (isPmcHeadOfficeBackendRole(userGroups, primaryRole, userData.username)) {
+    role = UserRole.PMC_HEAD_OFFICE;
+  } else if (userGroups.includes('PMC Head') || userGroups.includes('CEO') || primaryRole === 'PMC Head') {
     role = UserRole.PMC_HEAD;
   } else if (userGroups.includes('Team Leader') || primaryRole === 'Team Leader') {
     role = UserRole.TEAM_LEAD;
-  } else if (userGroups.includes('Coordinator') || primaryRole === 'Coordinator') {
-    role = UserRole.COORDINATOR;
+  } else if (isPmcManagerBackendRole(userGroups, primaryRole, userData.username)) {
+    role = UserRole.COORDINATOR; // displayed as PMC Manager; same access as PMC Head
   } else if (
     userGroups.includes('Billing Site Engineer') ||
     primaryRole === 'Billing Site Engineer'

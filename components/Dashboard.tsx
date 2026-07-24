@@ -6,7 +6,8 @@ import { STATUS_COLORS } from '../constants';
 import { formatINR } from '../utils/format';
 import DPRSubmissionForm from './DPRSubmissionForm';
 import { useTheme, getThemeClasses } from '../utils/theme';
-import { contractValuesApi, costPerformanceApi, contractPerformanceApi, projectProgressApi, manpowerApi, cashflowApi, normalizeContractPerformanceRecord, normalizeContractValueRecord, unwrapList, toNum } from '../services/api';
+import { contractValuesApi, costPerformanceApi, contractPerformanceApi, projectProgressApi, manpowerApi, cashflowApi, normalizeContractPerformanceRecord, normalizeContractValueRecord, normalizeManpowerRecord, unwrapList, toNum } from '../services/api';
+import { isPmcHeadEquivalent } from '../utils/pmcRoleAccess';
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, BarChart, Bar, Cell, PieChart, Pie,
@@ -107,12 +108,12 @@ const Dashboard: React.FC<DashboardProps> = ({ user, projects, dprs, projectDocu
   const [cashflowData, setCashflowData] = useState<any[]>([]);
   const [isLoadingCashflow, setIsLoadingCashflow] = useState(false);
 
-  // For PMC Head, use selected project; for Team Lead, use first project
-  const leadProject = user.role === UserRole.PMC_HEAD
+  // For PMC Head / Manager, use selected project; for Team Lead, use first project
+  const leadProject = isPmcHeadEquivalent(user)
     ? projects.find(p => p.id === selectedProjectId) || projects[0]
     : projects[0];
 
-  if ((user.role === UserRole.TEAM_LEAD || user.role === UserRole.PMC_HEAD) && !leadProject) {
+  if ((user.role === UserRole.TEAM_LEAD || isPmcHeadEquivalent(user)) && !leadProject) {
     return (
       <div className={`flex flex-col items-center justify-center min-h-[400px] text-center p-8 rounded-[3rem] border ${themeClasses.glassCard} ${themeClasses.border}`}>
         <div className={`p-6 rounded-full mb-6 ${themeClasses.bgSecondary}`}>
@@ -120,7 +121,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, projects, dprs, projectDocu
         </div>
         <h3 className={`text-xl font-black uppercase tracking-tighter mb-2 ${themeClasses.textPrimary}`}>No Projects Found</h3>
         <p className={`text-sm font-bold uppercase tracking-widest max-w-md ${themeClasses.textSecondary}`}>
-          {user.role === UserRole.PMC_HEAD
+          {isPmcHeadEquivalent(user)
             ? "You haven't created any projects yet. Go to Portfolio to create your first project."
             : "You are currently logged in as Team Lead, but no active projects were found in your portfolio."
           }
@@ -129,9 +130,9 @@ const Dashboard: React.FC<DashboardProps> = ({ user, projects, dprs, projectDocu
     );
   }
 
-  // Check if user is PMC Head or Team Lead
-  const isPmcHeadOrTeamLead = user.role === UserRole.PMC_HEAD || user.role === UserRole.TEAM_LEAD;
-  const isPMCHead = user.role === UserRole.PMC_HEAD;
+  // Check if user is PMC Head/Manager or Team Lead
+  const isPmcHeadOrTeamLead = isPmcHeadEquivalent(user) || user.role === UserRole.TEAM_LEAD;
+  const isPMCHead = isPmcHeadEquivalent(user);
 
   // Set default selected project for PMC Head on first load
   useEffect(() => {
@@ -210,7 +211,10 @@ const Dashboard: React.FC<DashboardProps> = ({ user, projects, dprs, projectDocu
       setIsLoadingContractPerformance(true);
       try {
         const role =
-          user.role === UserRole.PMC_HEAD ? 'PMC Head' :
+          user.role === UserRole.PMC_HEAD ||
+          user.role === UserRole.PMC_HEAD_OFFICE ||
+          user.role === UserRole.COORDINATOR
+            ? 'PMC Head' :
           user.role === UserRole.CEO ? 'CEO' :
           user.role === UserRole.BILLING_SITE_ENGINEER ? 'Billing Site Engineer' :
           undefined;
@@ -274,11 +278,11 @@ const Dashboard: React.FC<DashboardProps> = ({ user, projects, dprs, projectDocu
       setIsLoadingManpower(true);
       try {
         const response = await manpowerApi.getManpower({ project_name: leadProject.title });
-        const rows = unwrapList<any>(response.data);
+        const rows = unwrapList<any>(response.data).map(normalizeManpowerRecord);
         if (rows.length > 0) {
-          const sortedRows = [...rows].sort((a: any, b: any) => {
-             const dateA = new Date('1-' + a.month_year);
-             const dateB = new Date('1-' + b.month_year);
+          const sortedRows = [...rows].sort((a, b) => {
+             const dateA = new Date(`1-${a.month_year}`);
+             const dateB = new Date(`1-${b.month_year}`);
              return dateA.getTime() - dateB.getTime();
           });
           setManpowerData(sortedRows);
@@ -820,6 +824,8 @@ const Dashboard: React.FC<DashboardProps> = ({ user, projects, dprs, projectDocu
 
     switch (user.role) {
       case UserRole.PMC_HEAD:
+      case UserRole.PMC_HEAD_OFFICE:
+      case UserRole.COORDINATOR:
         return [
           { id: 'portfolio', label: 'Portfolio Value', value: formatINR(totalBudget + 180000000), icon: Icons.Project, color: 'text-blue-600', bg: 'bg-blue-50' },
           { id: 'dprs', label: 'Active DPRs', value: '48', subtext: '+12 today', icon: Icons.Task, color: 'text-indigo-600', bg: 'bg-indigo-50' },
@@ -839,13 +845,6 @@ const Dashboard: React.FC<DashboardProps> = ({ user, projects, dprs, projectDocu
           { id: 'dprs', label: 'Submitted Logs', value: myDprsCount.toString(), icon: Icons.History, color: 'text-emerald-600', bg: 'bg-emerald-50' },
           { id: 'docs', label: 'Vault Health', value: '100%', icon: Icons.Approve, color: 'text-blue-600', bg: 'bg-blue-50' },
           { id: 'attention', label: 'Unresolved Issues', value: '1', icon: Icons.Issue, color: 'text-amber-600', bg: 'bg-amber-50' },
-        ];
-      case UserRole.COORDINATOR:
-        return [
-          { id: 'dprs', label: 'Active DPRs', value: '32', subtext: '+8 today', icon: Icons.Task, color: 'text-blue-600', bg: 'bg-blue-50' },
-          { id: 'docs', label: 'Processed Docs', value: '124', icon: Icons.Document, color: 'text-indigo-600', bg: 'bg-indigo-50' },
-          { id: 'attention', label: 'Verification Queue', value: '8', icon: Icons.Pending, color: 'text-amber-600', bg: 'bg-amber-50' },
-          { id: 'execution', label: 'Site Execution', value: '4', icon: Icons.Execution, color: 'text-emerald-600', bg: 'bg-emerald-50' },
         ];
       default:
         return [];

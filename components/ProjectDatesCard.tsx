@@ -52,19 +52,47 @@ const DATE_MILESTONES = [
 const DelayStatusCard: React.FC<{
   delay: number;
   isDarkTheme: boolean;
-}> = ({ delay, isDarkTheme }) => {
+  /** Wider layout when stacked under timeline on narrow columns */
+  layout?: 'compact' | 'wide';
+}> = ({ delay, isDarkTheme, layout = 'compact' }) => {
   const tone = getDelayTone(delay, isDarkTheme);
-  const displayValue = delay < 0 ? String(delay) : String(Math.abs(Math.round(delay)));
+  const roundedDelay = Math.round(delay);
+  const hasIssue = roundedDelay > 0;
+  const displayValue =
+    roundedDelay < 0 ? String(roundedDelay) : String(Math.abs(roundedDelay));
+  const blinkClass = hasIssue
+    ? isDarkTheme
+      ? 'pmc-delay-alert-blink-dark'
+      : 'pmc-delay-alert-blink'
+    : '';
+  const sizeClass =
+    layout === 'wide'
+      ? 'w-full max-w-none flex-row gap-3 px-3 py-2.5 sm:max-w-xs sm:flex-col sm:gap-0 sm:px-2 sm:py-2.5'
+      : 'w-full max-w-[11rem] sm:w-[5.25rem] sm:max-w-none md:w-[5.75rem]';
 
   return (
     <div
-      className={`flex w-full max-w-[9rem] shrink-0 flex-col items-center justify-center rounded-md border px-2 py-2.5 text-center sm:w-[4.5rem] sm:max-w-none sm:px-1.5 sm:py-2 md:w-[5rem] ${tone.bg} ${tone.border}`}
+      role={hasIssue ? 'status' : undefined}
+      aria-live={hasIssue ? 'polite' : undefined}
+      aria-label={
+        hasIssue
+          ? `Schedule delay alert: ${displayValue} days late`
+          : `Delay up to date: ${displayValue} days`
+      }
+      title={
+        hasIssue
+          ? `Attention: ${displayValue} days delay — check schedule milestones`
+          : undefined
+      }
+      className={`flex shrink-0 flex-col items-center justify-center rounded-lg border text-center ${sizeClass} ${tone.bg} ${tone.border} ${blinkClass} ${
+        hasIssue ? 'ring-2 ring-rose-400/40' : ''
+      }`}
     >
-      <Timer size={14} strokeWidth={2} className={`mb-0.5 ${tone.icon}`} aria-hidden />
+      <Timer size={14} strokeWidth={2.2} className={`mb-0.5 ${tone.icon}`} aria-hidden />
       <p className={`text-[8px] font-bold uppercase leading-tight tracking-wide sm:text-[9px] ${tone.label}`}>
-        Delay Up To Date
+        {hasIssue ? 'Delay — Check' : 'Delay Up To Date'}
       </p>
-      <p className={`mt-1 text-2xl font-bold leading-none tabular-nums sm:text-3xl ${tone.value}`}>
+      <p className={`mt-1 text-2xl font-black leading-none tabular-nums sm:text-3xl ${tone.value}`}>
         {displayValue}
       </p>
       <p className={`mt-0.5 text-[10px] font-semibold sm:text-xs ${tone.label}`}>Days</p>
@@ -218,8 +246,8 @@ export const ProjectDatesPartyColumn: React.FC<{
       )}
 
       <div className={`flex flex-col ${isCompact ? 'gap-2' : showBgStrip ? 'gap-3 sm:gap-2' : 'gap-2 sm:gap-1'} sm:pr-0.5`}>
-        {/* Mobile: stacked milestones + full-width delay */}
-        <div className="flex flex-col gap-2 sm:hidden">
+        {/* Mobile: stacked milestones + delay alert */}
+        <div className="flex flex-col gap-2 lg:hidden">
           {DATE_MILESTONES.map(({ key, label, field, Icon }) => (
             <div
               key={key}
@@ -240,14 +268,14 @@ export const ProjectDatesPartyColumn: React.FC<{
             </div>
           ))}
           <div className="flex justify-center pt-1">
-            <DelayStatusCard delay={delayNum} isDarkTheme={isDarkTheme} />
+            <DelayStatusCard delay={delayNum} isDarkTheme={isDarkTheme} layout="wide" />
           </div>
         </div>
 
-        {/* Tablet+: horizontal timeline with optional scroll on narrow widths */}
-        <div className="hidden sm:flex sm:items-center sm:gap-1">
-          <div className="min-w-0 flex-1 overflow-x-auto">
-            <div className="min-w-[28rem]">
+        {/* Desktop: horizontal timeline; delay stacks under on tight columns, beside on xl+ */}
+        <div className="hidden lg:flex lg:flex-col lg:gap-2 xl:flex-row xl:items-center xl:gap-2">
+          <div className="min-w-0 flex-1 overflow-x-auto overscroll-x-contain [-webkit-overflow-scrolling:touch]">
+            <div className="min-w-[22rem] xl:min-w-[24rem]">
               <div className="grid grid-cols-4 gap-1">
                 {DATE_MILESTONES.map(({ key, label }) => (
                   <p key={`${key}-label`} className={milestoneLabelClass}>
@@ -278,7 +306,7 @@ export const ProjectDatesPartyColumn: React.FC<{
                 {DATE_MILESTONES.map(({ key, field }) => (
                   <p
                     key={`${key}-date`}
-                    className={`text-center text-xs font-bold leading-tight tabular-nums md:text-sm lg:text-base ${primaryText}`}
+                    className={`text-center text-xs font-bold leading-tight tabular-nums md:text-sm xl:text-base ${primaryText}`}
                   >
                     {formatDisplayDate(data[field])}
                   </p>
@@ -287,7 +315,7 @@ export const ProjectDatesPartyColumn: React.FC<{
             </div>
           </div>
 
-          <div className="-ml-2 shrink-0 md:-ml-3">
+          <div className="flex shrink-0 justify-center xl:justify-end">
             <DelayStatusCard delay={delayNum} isDarkTheme={isDarkTheme} />
           </div>
         </div>
@@ -454,7 +482,7 @@ export const ProjectDatesGroupCard: React.FC<ProjectDatesGroupCardProps> = ({
       )}
 
       <div
-        className={`grid min-h-0 grid-cols-1 divide-y divide-dashed lg:grid-cols-2 lg:divide-x lg:divide-y-0 ${
+        className={`grid min-h-0 grid-cols-1 divide-y divide-dashed xl:grid-cols-2 xl:divide-x xl:divide-y-0 ${
           isDarkTheme ? 'divide-white/10' : 'divide-slate-200'
         }`}
       >
@@ -569,7 +597,7 @@ export const ProjectDatesGroupCard: React.FC<ProjectDatesGroupCardProps> = ({
               </button>
             )}
           </div>
-          <div className="grid grid-cols-1 gap-3 lg:grid-cols-2 lg:gap-4">
+          <div className="grid grid-cols-1 gap-3 xl:grid-cols-2 xl:gap-4">
             <ScheduleBgStrip
               entries={sclBgEntries}
               isDarkTheme={isDarkTheme}

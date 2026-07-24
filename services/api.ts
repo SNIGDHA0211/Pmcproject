@@ -5259,9 +5259,24 @@ export function normalizeProjectDatesRecord(
     project_name: row?.project_name ?? row?.projectName ?? "",
     date_type: row?.date_type ?? row?.dateType,
     contractor_name: String(row?.contractor_name ?? row?.contractorName ?? "").trim() || undefined,
-    project_start: row?.project_start ?? row?.projectStart ?? null,
-    contract_finish: row?.contract_finish ?? row?.contractFinish ?? null,
-    forecast_finish: row?.forecast_finish ?? row?.forecastFinish ?? null,
+    project_start:
+      row?.project_start ??
+      row?.projectStart ??
+      row?.start_date ??
+      row?.startDate ??
+      null,
+    contract_finish:
+      row?.contract_finish ??
+      row?.contractFinish ??
+      row?.contract_end ??
+      row?.contractEnd ??
+      null,
+    forecast_finish:
+      row?.forecast_finish ??
+      row?.forecastFinish ??
+      row?.forecast_end ??
+      row?.forecastEnd ??
+      null,
     eot_date: row?.eot_date ?? row?.eotDate ?? null,
     elapsed_duration: toNum(row?.elapsed_duration ?? row?.elapsedDuration),
     remaining_duration: toNum(
@@ -5276,6 +5291,19 @@ export function normalizeProjectDatesRecord(
     current_delay: toNum(row?.current_delay ?? row?.currentDelay),
     ...(bg_status ? { bg_status } : {}),
   };
+}
+
+/** True when at least one milestone date exists from backend. */
+export function hasProjectDatesMilestones(
+  record: ProjectDatesRecord | null | undefined,
+): boolean {
+  if (!record) return false;
+  return Boolean(
+    record.project_start ||
+      record.contract_finish ||
+      record.forecast_finish ||
+      record.eot_date,
+  );
 }
 
 export function normalizeProjectDatesByProject(
@@ -5307,26 +5335,38 @@ export function normalizeProjectDatesByProject(
     contractors.push(legacyContractor);
   }
 
-  // Some APIs return a flat list of schedule rows instead of contractors[]
+  // Some APIs return a flat list of schedule rows instead of contractors[] / scl
   const flatRows = Array.isArray(payload?.project_dates)
     ? payload.project_dates
     : Array.isArray(payload?.results)
       ? payload.results
-      : [];
+      : Array.isArray(payload)
+        ? payload
+        : [];
+
+  let sclFromFlat: ProjectDatesRecord | null = null;
   for (const row of flatRows) {
     const record = normalizeProjectDatesRecord(row);
+    if (!record) continue;
+    const type = String(record.date_type ?? '').toUpperCase();
+    if (type === 'SCL' || type === 'PMC' || type === 'CONSULTANT') {
+      if (!sclFromFlat) sclFromFlat = record;
+      continue;
+    }
     if (
-      record &&
-      String(record.date_type ?? '').toUpperCase() === 'CONTRACTOR' &&
+      type === 'CONTRACTOR' &&
       !contractors.some((c: ProjectDatesRecord) => c.id && record.id && c.id === record.id)
     ) {
       contractors.push(record);
     }
   }
 
+  const sclNormalized =
+    normalizeProjectDatesRecord(payload?.scl) ?? sclFromFlat;
+
   const bundle: ProjectDatesByProject = {
     project_name: payload?.project_name ?? payload?.projectName ?? projectName,
-    scl: normalizeProjectDatesRecord(payload?.scl),
+    scl: sclNormalized,
     contractor: contractors[0] ?? legacyContractor,
     contractors,
     ...(bundleBg ? { bg_status: bundleBg } : {}),

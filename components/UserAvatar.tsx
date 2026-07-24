@@ -44,8 +44,8 @@ const UserAvatar: React.FC<UserAvatarProps> = ({
     <div
       className={`${className} flex shrink-0 items-center justify-center transition-transform duration-200 group-hover:scale-105 ${
         isDarkTheme
-          ? 'bg-indigo-500/15 text-indigo-300'
-          : 'bg-indigo-50 text-indigo-600'
+          ? 'bg-cyan-500/15 text-cyan-300'
+          : 'bg-cyan-50 text-cyan-700'
       }`}
       aria-label={name}
       role="img"

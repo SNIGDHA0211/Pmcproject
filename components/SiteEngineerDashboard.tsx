@@ -30,7 +30,7 @@ const SiteEngineerDashboard: React.FC<SiteEngineerDashboardProps> = ({
   );
 
   const [projectName, setProjectName] = useState('');
-  const [loading, setLoading] = useState(false);
+    const [loading, setLoading] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [snapshot, setSnapshot] = useState<SiteEngineerDashboardSnapshot | null>(null);
 
@@ -41,21 +41,21 @@ const SiteEngineerDashboard: React.FC<SiteEngineerDashboardProps> = ({
   }, [projectName, projectOptions]);
 
   const loadDashboard = useCallback(async (background = false) => {
-    if (!projectName.trim()) {
+        if (!projectName.trim()) {
       setSnapshot(null);
-      return;
-    }
+            return;
+        }
     if (background) setIsRefreshing(true);
     else setLoading(true);
 
     try {
       const [ppRes, mpDashRes, eqRes] = await Promise.all([
-        projectProgressApi.getProjectProgress({ project_name: projectName }),
-        manpowerApi.getManpowerDashboard(projectName),
-        equipmentApi.getEquipment({ project_name: projectName }),
-      ]);
+                projectProgressApi.getProjectProgress({ project_name: projectName }),
+                manpowerApi.getManpowerDashboard(projectName),
+                equipmentApi.getEquipment({ project_name: projectName }),
+            ]);
 
-      const ppData = ppRes.data.results || ppRes.data;
+            const ppData = ppRes.data.results || ppRes.data;
       const progressRows = Array.isArray(ppData) ? ppData : [];
       const progressChart = progressRows.map((pp: Record<string, unknown>) => ({
         month: pp.progress_month
@@ -71,11 +71,17 @@ const SiteEngineerDashboard: React.FC<SiteEngineerDashboardProps> = ({
           : 0;
 
       const mpDash = mpDashRes.data;
+      const plannedSeries =
+        mpDash?.planned_manpower ??
+        mpDash?.monthly_planned_manpower ??
+        mpDash?.planned ??
+        [];
+      const actualSeries = mpDash?.actual_manpower ?? mpDash?.actual ?? [];
       const manpowerChart =
         mpDash?.months?.map((month: string, index: number) => ({
           month,
-          planned: Number(mpDash.planned_manpower?.[index]) || 0,
-          actual: Number(mpDash.actual_manpower?.[index]) || 0,
+          planned: Number(plannedSeries?.[index]) || 0,
+          actual: Number(actualSeries?.[index]) || 0,
         })) ?? [];
 
       const manpowerTotal =
@@ -83,7 +89,7 @@ const SiteEngineerDashboard: React.FC<SiteEngineerDashboardProps> = ({
           ? Number(mpDash.actual_manpower[mpDash.actual_manpower.length - 1]) || 0
           : 0;
 
-      const eqData = eqRes.data.results || eqRes.data;
+            const eqData = eqRes.data.results || eqRes.data;
       const eqRows = Array.isArray(eqData) ? eqData : [];
       const equipmentChart = eqRows.map((eq: Record<string, unknown>) => ({
         month: String(eq.month_display ?? 'N/A'),
@@ -107,8 +113,8 @@ const SiteEngineerDashboard: React.FC<SiteEngineerDashboardProps> = ({
         manpowerChart,
         equipmentChart,
         healthSafety: null,
-      });
-    } catch (err) {
+            });
+        } catch (err) {
       console.error('Site engineer dashboard load failed:', err);
       setSnapshot(null);
     } finally {
@@ -121,7 +127,7 @@ const SiteEngineerDashboard: React.FC<SiteEngineerDashboardProps> = ({
     void loadDashboard();
   }, [loadDashboard]);
 
-  return (
+    return (
     <SiteEngineerOverviewPanel
       projectName={projectName}
       projectOptions={projectOptions}
@@ -132,7 +138,7 @@ const SiteEngineerDashboard: React.FC<SiteEngineerDashboardProps> = ({
       onRefresh={() => void loadDashboard(true)}
       isRefreshing={isRefreshing}
     />
-  );
+    );
 };
 
 export default SiteEngineerDashboard;

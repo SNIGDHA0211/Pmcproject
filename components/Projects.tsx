@@ -30,7 +30,7 @@ import {
 import axios from 'axios';
 import { fetchProjectProgressChart } from '../services/financialDataService';
 import { computeProjectDashboardMetrics } from '../utils/projectDashboardMetrics';
-import { projectApi, costPerformanceApi, budgetPerformanceApi, manpowerApi, cashflowApi, healthSafetyApi, invoicingApi, contractValuesApi, contractPerformanceApi, projectLogsApi, drawingRegisterApi, projectQualityApi, projectEquipmentApi, correspondenceApi, correspondenceDocumentsApi, getApiErrorMessage, normalizeContractPerformanceRecord, normalizeContractValueRecord, normalizeInvoicingRecord, normalizeProjectEquipmentRecord, normalizeProjectQualityStatusRecord, unwrapList, toNum, plannedEarnedValueApi, normalizePlannedEarnedByPeriod, type PlannedEarnedByPeriodResponse, normalizeHSERecord, type HSERecord, normalizeHealthSafetyDashboard, normalizeHealthSafetyYtdSummary, saveHealthSafetyRecord, fetchHealthSafetyYearRecords, fetchHealthSafetyDashboardFallback, type HealthSafetyDashboardData, projectDatesApi, normalizeProjectDatesByProject, mergeBgBundleIntoProjectDatesBundle, type ProjectDatesByProject, type ProjectDateType, type ProjectDatesRecord, mergeQualityRecordsByPeriod, fetchQualityYearRecords, saveProjectQualityRecord, saveDrawingRecord, normalizeCorrespondenceMonthlyPeriod, collectCorrespondenceDocuments, mergeCorrespondenceDocumentLists, mergeCorrespondencePeriods, fetchCorrespondenceYearPeriods, saveCorrespondenceDocument, deleteCorrespondenceDocument, type CorrespondenceDashboardResponse } from '../services/api';
+import { projectApi, costPerformanceApi, budgetPerformanceApi, manpowerApi, cashflowApi, healthSafetyApi, invoicingApi, contractValuesApi, contractPerformanceApi, projectLogsApi, drawingRegisterApi, projectQualityApi, projectEquipmentApi, correspondenceApi, correspondenceDocumentsApi, getApiErrorMessage, normalizeContractPerformanceRecord, normalizeContractValueRecord, normalizeInvoicingRecord, normalizeProjectEquipmentRecord, normalizeProjectQualityStatusRecord, normalizeManpowerRecord, unwrapList, toNum, plannedEarnedValueApi, normalizePlannedEarnedByPeriod, type PlannedEarnedByPeriodResponse, normalizeHSERecord, type HSERecord, normalizeHealthSafetyDashboard, normalizeHealthSafetyYtdSummary, saveHealthSafetyRecord, fetchHealthSafetyYearRecords, fetchHealthSafetyDashboardFallback, type HealthSafetyDashboardData, projectDatesApi, normalizeProjectDatesByProject, mergeBgBundleIntoProjectDatesBundle, type ProjectDatesByProject, type ProjectDateType, type ProjectDatesRecord, mergeQualityRecordsByPeriod, fetchQualityYearRecords, saveProjectQualityRecord, saveDrawingRecord, normalizeCorrespondenceMonthlyPeriod, collectCorrespondenceDocuments, mergeCorrespondenceDocumentLists, mergeCorrespondencePeriods, fetchCorrespondenceYearPeriods, saveCorrespondenceDocument, deleteCorrespondenceDocument, type CorrespondenceDashboardResponse } from '../services/api';
 import type { BgStatusBundle } from '../types/bgStatus';
 import type { QualityFormValues } from './QualityMonthlyForm';
 import type { DrawingFormValues } from './DrawingMonthlyForm';
@@ -101,6 +101,7 @@ import {
   getKnownExecutiveProjectStubs,
   getHseExecutiveProjectStubs,
 } from '../utils/pmcHeadExecutiveProjects';
+import { isPmcHeadEquivalent } from '../utils/pmcRoleAccess';
 import {
   resolveExecutiveCorrespondenceStats,
   scrollToOverviewSection,
@@ -450,7 +451,7 @@ const Projects: React.FC<ProjectsProps> = ({
   const themeClasses = getThemeClasses(isDarkTheme);
   const typo = useProjectsDashboardTypo();
   const isPmcTeamLead = currentUser.role === UserRole.TEAM_LEAD;
-  const isPMCHead = currentUser.role === UserRole.PMC_HEAD;
+  const isPMCHead = isPmcHeadEquivalent(currentUser);
   const allProjects = useMemo(() => {
     if (!isPMCHead) return projects;
     return buildPmcHeadDropdownProjects(
@@ -465,9 +466,12 @@ const Projects: React.FC<ProjectsProps> = ({
 
   const getBackendRole = (role: UserRole): string | undefined => {
     if (role === UserRole.PMC_HEAD) return 'PMC Head';
+    // Head Office uses same API role filter as PMC Head for identical data
+    if (role === UserRole.PMC_HEAD_OFFICE) return 'PMC Head';
     if (role === UserRole.CEO) return 'CEO';
     if (role === UserRole.TEAM_LEAD) return 'Team Leader';
     if (role === UserRole.BILLING_SITE_ENGINEER) return 'Billing Site Engineer';
+    // Backend group may still be Coordinator; UI label is PMC Manager
     if (role === UserRole.COORDINATOR) return 'Coordinator';
     return undefined;
   };
@@ -1757,18 +1761,23 @@ const Projects: React.FC<ProjectsProps> = ({
       setIsLoadingManpower(true);
       try {
         const response = await manpowerApi.getManpower({ project_name: selectedProject.title });
-        const rows = unwrapList<any>(response.data);
+        const rows = unwrapList<any>(response.data).map(normalizeManpowerRecord);
         if (rows.length > 0) {
-          // Transform API data to match chart format
-          const transformedData = rows.map((item: any) => ({
-            month: item.month_year,
-            planned: item.planned_manpower,
-            actual: item.actual_manpower
-          })).sort((a: any, b: any) => {
-            const dateA = new Date('1-' + a.month);
-            const dateB = new Date('1-' + b.month);
-            return dateA.getTime() - dateB.getTime();
-          });
+          // planned_manpower aliases monthly_planned_manpower from backend via normalizeManpowerRecord
+          const transformedData = rows
+            .map((item) => ({
+              month: item.month_year,
+              month_year: item.month_year,
+              planned: item.planned_manpower,
+              actual: item.actual_manpower,
+              planned_manpower: item.planned_manpower,
+              actual_manpower: item.actual_manpower,
+            }))
+            .sort((a, b) => {
+              const dateA = new Date(`1-${a.month}`);
+              const dateB = new Date(`1-${b.month}`);
+              return dateA.getTime() - dateB.getTime();
+            });
           setManpowerDataState(transformedData);
         } else {
           setManpowerDataState([]);
@@ -2926,6 +2935,8 @@ const Projects: React.FC<ProjectsProps> = ({
             {isPMCHead && tabVisible('schedule') && (
               <div id="exec-section-schedule">
               <PMCHeadScheduleSection
+                role={currentUser.role}
+                projectName={selectedProject?.title}
                 scl={projectDatesBundle?.scl ?? null}
                 contractors={projectContractors}
                 selectedContractorId={selectedContractorId}
@@ -2935,6 +2946,11 @@ const Projects: React.FC<ProjectsProps> = ({
                 bgSummary={projectDatesBundle?.bg_summary ?? null}
                 isLoading={isLoadingProjectDates && !projectDatesSectionCache}
                 error={projectDatesError}
+                onEditScl={openEditSclModal}
+                onEditContractor={openEditContractorModal}
+                onAddContractor={openAddContractorModal}
+                onDeleteContractor={handleDeleteContractor}
+                onManageBg={openBgStatusModal}
               >
                 <PMCExecutivePanel title="Site Photos" subtitle="Latest on-site construction imagery">
                   <SitePhotosCard
@@ -2973,6 +2989,7 @@ const Projects: React.FC<ProjectsProps> = ({
               <ContractorManagementDashboard
                 project={selectedProject}
                 userId={currentUser.id}
+                userRole={currentUser.role}
                 dataRevision={contractorDashboardRevision}
                 showProjectDates
                 showFinancial
@@ -3623,52 +3640,63 @@ const Projects: React.FC<ProjectsProps> = ({
                           </div>
                         </div>
 
-                        {/* PROJECT EQUIPMENT TABLE */}
+                        {/* PROJECT EQUIPMENT SUMMARY — backend /project-equipment/ only */}
                         <div className={`relative overflow-hidden rounded-2xl border p-0 ${themeClasses.glassCard} ${themeClasses.border}`}>
                           <DashboardCardTopAccent />
-                          <table className={`w-full ${typo.tableCell} border-collapse`}>
-                            <thead>
-                              <tr className={isDarkTheme ? "bg-blue-900" : "bg-blue-600"}>
-                                <th className={`px-3 py-2.5 text-left font-black text-white uppercase border ${isDarkTheme ? 'border-white/20' : 'border-blue-400'}`}></th>
-                                <th className={`px-3 py-2.5 text-center font-black text-white uppercase border ${isDarkTheme ? 'border-white/20' : 'border-blue-400'}`}>Planned</th>
-                                <th className={`px-3 py-2.5 text-center font-black text-white uppercase border ${isDarkTheme ? 'border-white/20' : 'border-blue-400'}`}>Actual</th>
-                                <th className={`px-3 py-2.5 text-center font-black text-white uppercase border ${isDarkTheme ? 'border-white/20' : 'border-blue-400'}`}>Variance</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              <tr>
-                                <td className={`px-3 py-2.5 font-black border ${themeClasses.textPrimary} ${themeClasses.bgSecondary} ${themeClasses.border}`}>Thabat</td>
-                                <td className={`px-3 py-2.5 text-center border ${themeClasses.bgSecondary} ${themeClasses.border}`}></td>
-                                <td className={`px-3 py-2.5 text-center border ${themeClasses.bgSecondary} ${themeClasses.border}`}></td>
-                                <td className={`px-3 py-2.5 text-center border ${themeClasses.bgSecondary} ${themeClasses.border}`}></td>
-                              </tr>
-                              <tr>
-                                <td className={`px-3 py-2.5 font-black border ${themeClasses.textPrimary} ${themeClasses.bgSecondary} ${themeClasses.border}`}>Supplier</td>
-                                <td className={`px-3 py-2.5 text-center border ${themeClasses.bgSecondary} ${themeClasses.border}`}></td>
-                                <td className={`px-3 py-2.5 text-center border ${themeClasses.bgSecondary} ${themeClasses.border}`}></td>
-                                <td className={`px-3 py-2.5 text-center border ${themeClasses.bgSecondary} ${themeClasses.border}`}></td>
-                              </tr>
-                              <tr>
-                                <td className={`px-3 py-2.5 font-black border ${themeClasses.textPrimary} ${themeClasses.bgSecondary} ${themeClasses.border}`}>Subcon</td>
-                                <td className={`px-3 py-2.5 text-center border ${themeClasses.bgSecondary} ${themeClasses.border}`}></td>
-                                <td className={`px-3 py-2.5 text-center border ${themeClasses.bgSecondary} ${themeClasses.border}`}></td>
-                                <td className={`px-3 py-2.5 text-center border ${themeClasses.bgSecondary} ${themeClasses.border}`}></td>
-                              </tr>
-                              <tr>
-                                <td className={`px-3 py-2.5 font-black border ${themeClasses.textPrimary} ${themeClasses.bgSecondary} ${themeClasses.border}`}>Total</td>
-                                <td className={`px-3 py-2.5 text-center border ${themeClasses.bgSecondary} ${themeClasses.border}`}></td>
-                                <td className={`px-3 py-2.5 text-center border ${themeClasses.bgSecondary} ${themeClasses.border}`}></td>
-                                <td className={`px-3 py-2.5 text-center border ${themeClasses.bgSecondary} ${themeClasses.border}`}></td>
-                              </tr>
-                            </tbody>
-                            <tfoot>
-                              <tr>
-                                <td colSpan={4} className={`px-3 py-3 text-center ${isDarkTheme ? "bg-blue-900" : "bg-blue-600"}`}>
-                                  <span className="text-sm font-black uppercase text-white tracking-wide">PROJECT EQUIPMENT</span>
-                                </td>
-                              </tr>
-                            </tfoot>
-                          </table>
+                          {isLoadingEquipment ? (
+                            <p className={`px-4 py-6 text-center text-xs font-semibold ${themeClasses.textMuted}`}>
+                              Loading equipment…
+                            </p>
+                          ) : equipmentDataState.length === 0 ? (
+                            <p className={`px-4 py-6 text-center text-xs font-semibold ${themeClasses.textMuted}`}>
+                              No equipment records from backend for this project.
+                            </p>
+                          ) : (
+                            <table className={`w-full ${typo.tableCell} border-collapse`}>
+                              <thead>
+                                <tr className={isDarkTheme ? "bg-blue-900" : "bg-blue-600"}>
+                                  <th className={`px-3 py-2.5 text-left font-black text-white uppercase border ${isDarkTheme ? 'border-white/20' : 'border-blue-400'}`}>Month</th>
+                                  <th className={`px-3 py-2.5 text-center font-black text-white uppercase border ${isDarkTheme ? 'border-white/20' : 'border-blue-400'}`}>Planned</th>
+                                  <th className={`px-3 py-2.5 text-center font-black text-white uppercase border ${isDarkTheme ? 'border-white/20' : 'border-blue-400'}`}>Actual</th>
+                                  <th className={`px-3 py-2.5 text-center font-black text-white uppercase border ${isDarkTheme ? 'border-white/20' : 'border-blue-400'}`}>Variance</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {[...equipmentDataState]
+                                  .sort((a, b) => String(a.equipmentMonth).localeCompare(String(b.equipmentMonth)))
+                                  .map((row) => {
+                                    const planned = Number(row.plannedEquipment) || 0;
+                                    const actual = Number(row.actualEquipment) || 0;
+                                    const variance = Number.isFinite(row.variance)
+                                      ? row.variance
+                                      : actual - planned;
+                                    return (
+                                      <tr key={String(row.id ?? row.equipmentMonth)}>
+                                        <td className={`px-3 py-2.5 font-black border ${themeClasses.textPrimary} ${themeClasses.bgSecondary} ${themeClasses.border}`}>
+                                          {row.equipmentMonth}
+                                        </td>
+                                        <td className={`px-3 py-2.5 text-center tabular-nums border ${themeClasses.bgSecondary} ${themeClasses.border}`}>
+                                          {planned}
+                                        </td>
+                                        <td className={`px-3 py-2.5 text-center tabular-nums border ${themeClasses.bgSecondary} ${themeClasses.border}`}>
+                                          {actual}
+                                        </td>
+                                        <td className={`px-3 py-2.5 text-center font-bold tabular-nums border ${themeClasses.bgSecondary} ${themeClasses.border}`}>
+                                          {variance > 0 ? `+${variance}` : variance}
+                                        </td>
+                                      </tr>
+                                    );
+                                  })}
+                              </tbody>
+                              <tfoot>
+                                <tr>
+                                  <td colSpan={4} className={`px-3 py-3 text-center ${isDarkTheme ? "bg-blue-900" : "bg-blue-600"}`}>
+                                    <span className="text-sm font-black uppercase text-white tracking-wide">PROJECT EQUIPMENT</span>
+                                  </td>
+                                </tr>
+                              </tfoot>
+                            </table>
+                          )}
                         </div>
                       </>
                     )}

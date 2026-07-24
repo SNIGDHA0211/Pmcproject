@@ -470,7 +470,7 @@ const FinancialManagement: React.FC<FinancialManagementProps> = ({
   const roleForSubmission =
     userRole === 'TEAM_LEAD' ? 'Team Leader' :
       userRole === 'BILLING_SITE_ENGINEER' ? 'Billing Site Engineer' :
-        userRole === 'PMC_HEAD' ? 'PMC Head' :
+        userRole === 'PMC_HEAD' || userRole === 'PMC_HEAD_OFFICE' ? 'PMC Head' :
           userRole; // fallback
 
   // Auto-generate created_by from logged-in user (required by backend)

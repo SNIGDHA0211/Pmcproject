@@ -1,6 +1,8 @@
 
 export enum UserRole {
   PMC_HEAD = 'PMC_HEAD',
+  /** Head Office — same frontend access as PMC Head */
+  PMC_HEAD_OFFICE = 'PMC_HEAD_OFFICE',
   CEO = 'CEO',
   COORDINATOR = 'COORDINATOR',
   TEAM_LEAD = 'TEAM_LEAD',
