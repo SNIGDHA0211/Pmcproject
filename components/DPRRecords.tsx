@@ -3,6 +3,8 @@ import { DPR, User, UserRole, Project } from "../types";
 import { Icons } from "./Icons";
 import DPRSubmissionForm from "./DPRSubmissionForm";
 import { useTheme, getThemeClasses } from "../utils/theme";
+import { getSiteEngineerProjects } from "../utils/siteEngineerProjects";
+import { projectAssignedToUser } from "../utils/roleProjectAssignments";
 
 interface DPRRecordsProps {
   dprs: DPR[];
@@ -49,9 +51,10 @@ const DPRRecords: React.FC<DPRRecordsProps> = ({
     }
   };
 
-  const assignedProjects = user.role === UserRole.SITE_ENGINEER
-    ? projects
-    : projects.filter((p) => p.siteEngineerIds.includes(user.id));
+  const assignedProjects =
+    user.role === UserRole.SITE_ENGINEER
+      ? getSiteEngineerProjects(projects, user)
+      : projects.filter((p) => projectAssignedToUser(p, user, 'site'));
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500">

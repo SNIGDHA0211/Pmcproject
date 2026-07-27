@@ -178,6 +178,8 @@ export interface ContractPerformanceRecord {
   projectName?: string;
   billedValue: number;
   actualReceiptValue: number;
+  /** Backend DB column cosExtraItem — required (NOT NULL). */
+  cosExtraItem: number;
   variance: number;
   performancePercentage: number;
   variancePercentage: number;

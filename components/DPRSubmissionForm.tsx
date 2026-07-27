@@ -28,6 +28,16 @@ interface DPRSubmissionFormProps {
   existingDPR?: any; // Add prop for pre-filling data
 }
 
+/** Safe id from API fields that may be number, nested object, or null. */
+function nestedEntityId(value: unknown): string {
+  if (value == null) return '';
+  if (typeof value === 'object') {
+    const id = (value as { id?: unknown }).id;
+    return id == null ? '' : String(id);
+  }
+  return String(value);
+}
+
 function DPRSubmissionForm({ onClose, onSubmit, assignedProjects, existingDPR }: DPRSubmissionFormProps) {
   const { isDarkTheme } = useTheme();
   const themeClasses = getThemeClasses(isDarkTheme);
@@ -113,7 +123,7 @@ function DPRSubmissionForm({ onClose, onSubmit, assignedProjects, existingDPR }:
     }
   }, [existingDPR, assignedProjects]);
 
-  const selectedProject = assignedProjects.find(p => p.id === selectedProjectId);
+  const selectedProject = assignedProjects.find(p => p && p.id === selectedProjectId);
 
   useEffect(() => {
     if (issuedBy.trim() && designation.trim()) return;
@@ -135,6 +145,18 @@ function DPRSubmissionForm({ onClose, onSubmit, assignedProjects, existingDPR }:
 
     prefillUser();
   }, []);
+
+  // Keep project selection valid when assigned list changes / loads.
+  useEffect(() => {
+    if (!assignedProjects.length) {
+      setSelectedProjectId('');
+      return;
+    }
+    const stillValid = assignedProjects.some((p) => p?.id === selectedProjectId);
+    if (!stillValid) {
+      setSelectedProjectId(assignedProjects[0]?.id || '');
+    }
+  }, [assignedProjects, selectedProjectId]);
 
   // Update activity dates when main date changes
   useEffect(() => {
@@ -172,7 +194,9 @@ function DPRSubmissionForm({ onClose, onSubmit, assignedProjects, existingDPR }:
 
         // If scopeId changed, fetch and populate scope data
         if (field === 'scopeId' && value) {
-          const selectedScope = availableScopes.find(s => s.id.toString() === value);
+          const selectedScope = availableScopes.find(
+            (s) => s && String(s.id) === String(value),
+          );
           if (selectedScope) {
             updatedAct.scope = selectedScope;
             updatedAct.plannedQuantity = selectedScope.planned_quantity;
@@ -206,7 +230,7 @@ function DPRSubmissionForm({ onClose, onSubmit, assignedProjects, existingDPR }:
     try {
       const response = await monthlyScopeApi.getCategories();
       const categoriesData = Array.isArray(response.data) ? response.data : (response.data.results || []);
-      setCategories(categoriesData);
+      setCategories((categoriesData || []).filter(Boolean));
     } catch (error) {
       console.error('Failed to fetch categories:', error);
       setCategories([]);
@@ -216,7 +240,10 @@ function DPRSubmissionForm({ onClose, onSubmit, assignedProjects, existingDPR }:
   };
 
   const fetchAvailableScopes = async () => {
-    if (!selectedProjectId) return;
+    if (!selectedProjectId) {
+      setAvailableScopes([]);
+      return;
+    }
 
     setLoadingScopes(true);
     try {
@@ -224,7 +251,7 @@ function DPRSubmissionForm({ onClose, onSubmit, assignedProjects, existingDPR }:
         project: selectedProjectId
       });
       const scopesData = Array.isArray(response.data) ? response.data : (response.data.results || []);
-      setAvailableScopes(scopesData);
+      setAvailableScopes((scopesData || []).filter(Boolean));
     } catch (error) {
       console.error('Failed to fetch available scopes:', error);
       setAvailableScopes([]);
@@ -235,7 +262,7 @@ function DPRSubmissionForm({ onClose, onSubmit, assignedProjects, existingDPR }:
 
   // Get subcategories for a specific category
   const getSubcategoriesForCategory = (categoryId: string) => {
-    const category = categories.find(c => c.id.toString() === categoryId);
+    const category = categories.find(c => c && String(c.id) === String(categoryId));
     return category?.subcategories || [];
   };
 
@@ -244,19 +271,21 @@ function DPRSubmissionForm({ onClose, onSubmit, assignedProjects, existingDPR }:
     if (availableScopes.length === 0) return categories;
     
     // We want to show categories that have at least one scope in availableScopes
-    const projectCategoryIds = new Set(availableScopes.map(s => 
-      typeof s.category === 'object' ? (s.category as any).id?.toString() : s.category?.toString()
-    ));
+    const projectCategoryIds = new Set(
+      availableScopes.map((s) => nestedEntityId(s?.category)).filter(Boolean),
+    );
 
-    const projectCategories = categories.filter(cat => projectCategoryIds.has(cat.id.toString()));
+    const projectCategories = categories.filter(
+      (cat) => cat && projectCategoryIds.has(String(cat.id)),
+    );
     
     // If we have scopes but their categories aren't in the master list, synthesize them
     if (projectCategories.length === 0 && availableScopes.length > 0) {
       const synthesized: MonthlyScopeCategory[] = [];
       availableScopes.forEach(s => {
-        const id = typeof s.category === 'object' ? (s.category as any).id : s.category;
+        const id = nestedEntityId(s?.category);
         const name = s.category_name || `Category ${id}`;
-        if (id && !synthesized.some(c => c.id === id)) {
+        if (id && !synthesized.some(c => String(c.id) === id)) {
           synthesized.push({ id: Number(id), name, subcategories: [] });
         }
       });
@@ -272,23 +301,23 @@ function DPRSubmissionForm({ onClose, onSubmit, assignedProjects, existingDPR }:
     if (availableScopes.length === 0) return allSubcats;
 
     const projectSubcatIds = new Set(availableScopes
-      .filter(s => {
-        const sCatId = typeof s.category === 'object' ? (s.category as any).id : s.category;
-        return String(sCatId) === String(categoryId);
-      })
-      .map(s => typeof s.subcategory === 'object' ? (s.subcategory as any).id?.toString() : s.subcategory?.toString())
+      .filter(s => nestedEntityId(s?.category) === String(categoryId))
+      .map(s => nestedEntityId(s?.subcategory))
+      .filter(Boolean)
     );
 
-    const projectSubcats = allSubcats.filter(sub => projectSubcatIds.has(sub.id.toString()));
+    const projectSubcats = allSubcats.filter(
+      (sub) => sub && projectSubcatIds.has(String(sub.id)),
+    );
 
     // Synthesize if missing from master list
     if (projectSubcats.length === 0) {
       const synthesized: MonthlyScopeSubcategory[] = [];
       availableScopes.forEach(s => {
-        const sCatId = typeof s.category === 'object' ? (s.category as any).id : s.category;
-        const id = typeof s.subcategory === 'object' ? (s.subcategory as any).id : s.subcategory;
+        const sCatId = nestedEntityId(s?.category);
+        const id = nestedEntityId(s?.subcategory);
         const name = s.subcategory_name || `Subcategory ${id}`;
-        if (String(sCatId) === String(categoryId) && id && !synthesized.some(sub => sub.id === id)) {
+        if (sCatId === String(categoryId) && id && !synthesized.some(sub => String(sub.id) === id)) {
           synthesized.push({ id: Number(id), name, category_id: Number(categoryId) });
         }
       });
@@ -301,12 +330,13 @@ function DPRSubmissionForm({ onClose, onSubmit, assignedProjects, existingDPR }:
   // Get scopes filtered by category and subcategory
   const getScopesForFilters = (categoryId?: string, subcategoryId?: string) => {
     return availableScopes.filter(scope => {
+      if (!scope) return false;
       // Handle both ID (number) and full object if returned by API
-      const sCatId = typeof scope.category === 'object' ? (scope.category as any).id : scope.category;
-      const sSubId = typeof scope.subcategory === 'object' ? (scope.subcategory as any).id : scope.subcategory;
+      const sCatId = nestedEntityId(scope.category);
+      const sSubId = nestedEntityId(scope.subcategory);
 
-      if (categoryId && String(sCatId) !== String(categoryId)) return false;
-      if (subcategoryId && String(sSubId) !== String(subcategoryId)) return false;
+      if (categoryId && sCatId !== String(categoryId)) return false;
+      if (subcategoryId && sSubId !== String(subcategoryId)) return false;
       return true;
     });
   };
@@ -533,7 +563,7 @@ function DPRSubmissionForm({ onClose, onSubmit, assignedProjects, existingDPR }:
                     required
                     className={`w-full px-5 py-4 ${themeClasses.input} rounded-2xl font-bold text-sm ${themeClasses.textPrimary} outline-none focus:ring-4 focus:ring-indigo-500/10`}
                   >
-                    {assignedProjects.map(p => (
+                    {assignedProjects.filter(Boolean).map(p => (
                       <option key={p.id} value={p.id} className={isDarkTheme ? "bg-slate-900" : "bg-white"}>{p.title}</option>
                     ))}
                   </select>

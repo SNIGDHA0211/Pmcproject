@@ -8,6 +8,8 @@ import DPRSubmissionForm from './DPRSubmissionForm';
 import { useTheme, getThemeClasses } from '../utils/theme';
 import { contractValuesApi, costPerformanceApi, contractPerformanceApi, projectProgressApi, manpowerApi, cashflowApi, normalizeContractPerformanceRecord, normalizeContractValueRecord, normalizeManpowerRecord, unwrapList, toNum } from '../services/api';
 import { isPmcHeadEquivalent } from '../utils/pmcRoleAccess';
+import { getSiteEngineerProjects } from '../utils/siteEngineerProjects';
+import { projectAssignedToUser } from '../utils/roleProjectAssignments';
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, BarChart, Bar, Cell, PieChart, Pie,
@@ -951,7 +953,11 @@ const Dashboard: React.FC<DashboardProps> = ({ user, projects, dprs, projectDocu
 
       {isDPRModalOpen && (
         <DPRSubmissionForm
-          assignedProjects={user.role === UserRole.SITE_ENGINEER ? projects : projects.filter(p => (p.siteEngineerIds ?? []).includes(user.id))}
+          assignedProjects={
+            user.role === UserRole.SITE_ENGINEER
+              ? getSiteEngineerProjects(projects, user)
+              : projects.filter((p) => projectAssignedToUser(p, user, 'site'))
+          }
           onClose={() => setIsDPRModalOpen(false)}
           onSubmit={(data) => {
             onSubmitDPR(data);

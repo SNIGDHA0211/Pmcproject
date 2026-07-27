@@ -3262,7 +3262,7 @@ export const costPerformanceApi = {
 
 export type ContractPerformancePayload = Pick<
   ContractPerformanceRecord,
-  "billedValue" | "actualReceiptValue"
+  "billedValue" | "actualReceiptValue" | "cosExtraItem"
 > & {
   project_name: string;
   role?: string;
@@ -3292,31 +3292,73 @@ export function normalizeContractPerformanceRecord(
   const actualReceiptValue = toNum(
     row?.actualReceiptValue ?? row?.actual_receipt_value,
   );
+  const cosExtraItem = toNum(
+    row?.cosExtraItem ?? row?.cos_extra_item ?? row?.cosExtraItems,
+  );
   return {
     id: row?.id,
     projectName: row?.projectName ?? row?.project_name,
     billedValue,
     actualReceiptValue,
+    cosExtraItem,
     ...calculateContractPerformance(billedValue, actualReceiptValue),
   };
 }
 
-// Contract Performance API (no auth)
+/** Write payload using API field names (camelCase + snake_case aliases). */
+export function toContractPerformanceApiBody(
+  data: ContractPerformancePayload | Partial<ContractPerformancePayload>,
+): Record<string, unknown> {
+  const billedValue = toNum(data.billedValue);
+  const actualReceiptValue = toNum(data.actualReceiptValue);
+  // Backend column "cosExtraItem" is NOT NULL — always send a numeric value.
+  const cosExtraItem = toNum(data.cosExtraItem);
+
+  const body: Record<string, unknown> = {
+    project_name: data.project_name,
+    billedValue,
+    actualReceiptValue,
+    cosExtraItem,
+    billed_value: billedValue,
+    actual_receipt_value: actualReceiptValue,
+    cos_extra_item: cosExtraItem,
+  };
+
+  if (data.role?.trim()) body.role = data.role.trim();
+  if (data.created_by != null && String(data.created_by).trim()) {
+    body.created_by = data.created_by;
+  }
+
+  return body;
+}
+
+// Contract Performance API
 export const contractPerformanceApi = {
   getContractPerformance: (params?: { project_name?: string; role?: string }) =>
     api.get(API_ENDPOINTS.CONTRACT_PERFORMANCE.LIST, { params }),
   getContractPerformanceDetail: (id: string | number) =>
     api.get(API_ENDPOINTS.CONTRACT_PERFORMANCE.DETAIL(id)),
   createContractPerformance: (data: ContractPerformancePayload) =>
-    api.post(API_ENDPOINTS.CONTRACT_PERFORMANCE.LIST, data),
+    api.post(
+      API_ENDPOINTS.CONTRACT_PERFORMANCE.LIST,
+      toContractPerformanceApiBody(data),
+    ),
   updateContractPerformance: (
     id: string | number,
     data: ContractPerformancePayload,
-  ) => api.put(API_ENDPOINTS.CONTRACT_PERFORMANCE.DETAIL(id), data),
+  ) =>
+    api.put(
+      API_ENDPOINTS.CONTRACT_PERFORMANCE.DETAIL(id),
+      toContractPerformanceApiBody(data),
+    ),
   patchContractPerformance: (
     id: string | number,
     data: Partial<ContractPerformancePayload>,
-  ) => api.patch(API_ENDPOINTS.CONTRACT_PERFORMANCE.PATCH(id), data),
+  ) =>
+    api.patch(
+      API_ENDPOINTS.CONTRACT_PERFORMANCE.PATCH(id),
+      toContractPerformanceApiBody(data),
+    ),
   deleteContractPerformance: (id: string | number) =>
     api.delete(API_ENDPOINTS.CONTRACT_PERFORMANCE.DETAIL(id)),
 };
@@ -4864,37 +4906,63 @@ export async function saveContractPerformanceRecord(
   payload: ContractPerformancePayload,
   existingId?: string | number | null,
 ): Promise<{ data: unknown }> {
+  const normalizedPayload: ContractPerformancePayload = {
+    ...payload,
+    billedValue: toNum(payload.billedValue),
+    actualReceiptValue: toNum(payload.actualReceiptValue),
+    cosExtraItem: toNum(payload.cosExtraItem),
+  };
+
   const id =
     existingId ??
-    (await resolveContractPerformanceId(payload.project_name, payload.role));
+    (await resolveContractPerformanceId(
+      normalizedPayload.project_name,
+      normalizedPayload.role,
+    ));
 
+  // Update existing → PUT, then PATCH fallback
   if (id) {
     return updateExistingFinancialRecord(
       id,
-      payload as unknown as Record<string, unknown>,
+      toContractPerformanceApiBody(normalizedPayload),
       (recordId) =>
-        contractPerformanceApi.updateContractPerformance(recordId, payload),
+        contractPerformanceApi.updateContractPerformance(
+          recordId,
+          normalizedPayload,
+        ),
       (recordId) =>
-        contractPerformanceApi.patchContractPerformance(recordId, payload),
+        contractPerformanceApi.patchContractPerformance(
+          recordId,
+          normalizedPayload,
+        ),
     );
   }
 
+  // No existing record → POST insert
   try {
-    return await contractPerformanceApi.createContractPerformance(payload);
+    return await contractPerformanceApi.createContractPerformance(
+      normalizedPayload,
+    );
   } catch (error) {
     if (!isDuplicateFinancialError(error)) throw error;
     const resolvedId = await resolveContractPerformanceId(
-      payload.project_name,
-      payload.role,
+      normalizedPayload.project_name,
+      normalizedPayload.role,
     );
     if (!resolvedId) throw error;
     return updateExistingFinancialRecord(
       resolvedId,
-      payload as unknown as Record<string, unknown>,
+      toContractPerformanceApiBody(normalizedPayload),
       (recordId) =>
-        contractPerformanceApi.updateContractPerformance(recordId, payload),
+        contractPerformanceApi.updateContractPerformance(
+          recordId,
+          normalizedPayload,
+        ),
       (recordId) =>
-        contractPerformanceApi.patchContractPerformance(recordId, payload),
+        contractPerformanceApi.patchContractPerformance(
+          recordId,
+          normalizedPayload,
+        ),
     );
   }
 }
