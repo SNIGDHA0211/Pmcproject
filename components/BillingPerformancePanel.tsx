@@ -74,7 +74,6 @@ const BillingPerformancePanel: React.FC<BillingPerformancePanelProps> = ({
   const [contractForm, setContractForm] = useState({
     billedValue: 0,
     actualReceiptValue: 0,
-    cosExtraItem: 0,
   });
   const [formError, setFormError] = useState<string | null>(null);
 
@@ -197,7 +196,6 @@ const BillingPerformancePanel: React.FC<BillingPerformancePanelProps> = ({
     setContractForm({
       billedValue: contractPerformance?.billedValue ?? 0,
       actualReceiptValue: contractPerformance?.actualReceiptValue ?? 0,
-      cosExtraItem: contractPerformance?.cosExtraItem ?? 0,
     });
     setFormError(null);
     setContractModalOpen(true);
@@ -213,7 +211,8 @@ const BillingPerformancePanel: React.FC<BillingPerformancePanelProps> = ({
           project_name: projectName,
           billedValue: contractForm.billedValue,
           actualReceiptValue: contractForm.actualReceiptValue,
-          cosExtraItem: contractForm.cosExtraItem,
+          // COS is edited under Contract Values; keep backend NOT NULL happy.
+          cosExtraItem: contractPerformance?.cosExtraItem ?? 0,
         },
         contractPerformance?.id,
       );
@@ -408,20 +407,6 @@ const BillingPerformancePanel: React.FC<BillingPerformancePanelProps> = ({
                     value={contractForm.actualReceiptValue}
                     onChange={(e) =>
                       setContractForm((p) => ({ ...p, actualReceiptValue: Number(e.target.value) || 0 }))
-                    }
-                    className={`w-full rounded-xl border px-3 py-2 text-sm ${themeClasses.input} ${themeClasses.border} ${themeClasses.textPrimary}`}
-                  />
-                </div>
-                <div>
-                  <label className={`mb-1 block text-[10px] font-black uppercase ${themeClasses.textSecondary}`}>
-                    COS Extra Item
-                  </label>
-                  <input
-                    type="number"
-                    min={0}
-                    value={contractForm.cosExtraItem}
-                    onChange={(e) =>
-                      setContractForm((p) => ({ ...p, cosExtraItem: Number(e.target.value) || 0 }))
                     }
                     className={`w-full rounded-xl border px-3 py-2 text-sm ${themeClasses.input} ${themeClasses.border} ${themeClasses.textPrimary}`}
                   />

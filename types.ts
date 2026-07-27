@@ -142,6 +142,8 @@ export interface ContractValueRecord {
   revisedContractValue: number;
   /** API: saving */
   potentialPendingVO: number;
+  /** API: cos / Cos (backend contract-values field) */
+  cosExtraItem: number;
   /** API: growth_percentage */
   growthPercentage?: number;
   approvedVOPercentage?: number;
@@ -178,8 +180,11 @@ export interface ContractPerformanceRecord {
   projectName?: string;
   billedValue: number;
   actualReceiptValue: number;
-  /** Backend DB column cosExtraItem — required (NOT NULL). */
-  cosExtraItem: number;
+  /**
+   * Backend column may still be NOT NULL on contract-performance.
+   * COS is edited under Contract Values; this is preserved on save only.
+   */
+  cosExtraItem?: number;
   variance: number;
   performancePercentage: number;
   variancePercentage: number;

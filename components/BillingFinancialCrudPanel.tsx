@@ -40,6 +40,7 @@ const emptyContractValue = (projectName: string, contractType: ContractValueType
   approvedVO: 0,
   revisedContractValue: 0,
   potentialPendingVO: 0,
+  cosExtraItem: 0,
 });
 
 interface BillingFinancialCrudPanelProps {
@@ -159,6 +160,7 @@ const BillingFinancialCrudPanel: React.FC<BillingFinancialCrudPanelProps> = ({ p
         originalContractValue: contractValueForm.originalContractValue,
         approvedVO: contractValueForm.approvedVO,
         potentialPendingVO: contractValueForm.potentialPendingVO,
+        cosExtraItem: contractValueForm.cosExtraItem ?? 0,
       });
       onToast('Contract value saved.');
       setModalKind(null);
@@ -309,8 +311,9 @@ const BillingFinancialCrudPanel: React.FC<BillingFinancialCrudPanelProps> = ({ p
                   <form onSubmit={saveContractValue} className="space-y-3">
                     {([
                       ['originalContractValue', 'Original Contract Value'],
-                      ['approvedVO', 'Approved VO'],
-                      ['potentialPendingVO', 'Potential Pending VO'],
+                      ['approvedVO', 'Excess Value'],
+                      ['cosExtraItem', 'COS Extra Item'],
+                      ['potentialPendingVO', 'Saving'],
                     ] as const).map(([key, label]) => (
                       <div key={key}>
                         <label className={`mb-1 block text-[10px] font-black uppercase ${themeClasses.textSecondary}`}>{label}</label>

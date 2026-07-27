@@ -857,6 +857,12 @@ const Projects: React.FC<ProjectsProps> = ({
     setContractorDashboardRevision((n) => n + 1);
   }, []);
 
+  // Keep contractor Full Overview financial cards in sync after Financial Management saves.
+  useEffect(() => {
+    if (!financialDataVersion) return;
+    setContractorDashboardRevision((n) => n + 1);
+  }, [financialDataVersion]);
+
   useEffect(() => {
     if (!selectedProject?.title) {
       setContractorMasters([]);
@@ -2211,6 +2217,13 @@ const Projects: React.FC<ProjectsProps> = ({
     approvedVO: toNum(dashboardData?.excess_value ?? dashboardData?.approved_vo),
     revisedContractValue: toNum(dashboardData?.revised_value ?? dashboardData?.revised_contract_value),
     potentialPendingVO: toNum(dashboardData?.saving ?? dashboardData?.pending_vo),
+    cosExtraItem: toNum(
+      (dashboardData as { cos?: unknown; Cos?: unknown; cosExtraItem?: unknown; cos_extra_item?: unknown } | null | undefined)
+        ?.cos ??
+        (dashboardData as { Cos?: unknown } | null | undefined)?.Cos ??
+        (dashboardData as { cosExtraItem?: unknown } | null | undefined)?.cosExtraItem ??
+        (dashboardData as { cos_extra_item?: unknown } | null | undefined)?.cos_extra_item,
+    ),
     growthPercentage: toNum(dashboardData?.growth_percentage),
   } : null;
   const sclContractValue = contractValuesData.SCL || importedSclContractValue;

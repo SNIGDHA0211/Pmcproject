@@ -84,6 +84,7 @@ export function mapContractValueApiRecord(
     approvedVO: parseApiAmount(api.excess_value),
     revisedContractValue: parseApiAmount(api.revised_value),
     potentialPendingVO: parseApiAmount(api.saving),
+    cosExtraItem: parseApiAmount(api.cos),
     growthPercentage: parseApiAmount(api.increase_percentage),
     approvedVOPercentage: parseApiAmount(api.increase_percentage),
   };
@@ -100,6 +101,7 @@ export function mapContractValueSummary(
     approvedVO: parseApiAmount(summary.excess_value),
     revisedContractValue: parseApiAmount(summary.revised_value),
     potentialPendingVO: parseApiAmount(summary.saving),
+    cosExtraItem: parseApiAmount(summary.cos),
     growthPercentage: parseApiAmount(summary.increase_percentage),
     approvedVOPercentage: parseApiAmount(summary.increase_percentage),
   };
@@ -149,6 +151,7 @@ function emptyContractorContractValue(
     approvedVO: 0,
     revisedContractValue: 0,
     potentialPendingVO: 0,
+    cosExtraItem: 0,
     growthPercentage: 0,
     approvedVOPercentage: 0,
   };

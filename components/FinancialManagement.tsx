@@ -174,6 +174,7 @@ const emptyContractValue = (projectName: string, contractType: ContractValueType
   approvedVO: 0,
   revisedContractValue: 0,
   potentialPendingVO: 0,
+  cosExtraItem: 0,
 });
 
 const emptyInvoicingRecord = (projectName: string, invoiceType: InvoiceType): InvoicingRecord => ({
@@ -189,7 +190,6 @@ const emptyInvoicingRecord = (projectName: string, invoiceType: InvoiceType): In
 const emptyContractPerformance: ContractPerformanceRecord = {
   billedValue: 0,
   actualReceiptValue: 0,
-  cosExtraItem: 0,
   variance: 0,
   performancePercentage: 0,
   variancePercentage: 0,
@@ -893,6 +893,7 @@ const FinancialManagement: React.FC<FinancialManagementProps> = ({
       originalContractValue: parseNumericValue(form.originalContractValue),
       approvedVO: parseNumericValue(form.approvedVO),
       potentialPendingVO: parseNumericValue(form.potentialPendingVO),
+      cosExtraItem: parseNumericValue(form.cosExtraItem),
       ...(contractorScope ?? {}),
     };
 
@@ -932,7 +933,7 @@ const FinancialManagement: React.FC<FinancialManagementProps> = ({
   };
 
   const updateContractPerformanceField = (
-    key: 'billedValue' | 'actualReceiptValue' | 'cosExtraItem',
+    key: 'billedValue' | 'actualReceiptValue',
     value: string
   ) => {
     setContractForm(prev => {
@@ -961,7 +962,8 @@ const FinancialManagement: React.FC<FinancialManagementProps> = ({
       created_by: createdBy,
       billedValue: parseNumericValue(form.billedValue),
       actualReceiptValue: parseNumericValue(form.actualReceiptValue),
-      cosExtraItem: parseNumericValue(form.cosExtraItem),
+      // COS is edited under Contract Values; keep backend NOT NULL happy.
+      cosExtraItem: parseNumericValue(form.cosExtraItem ?? 0),
     };
 
     setIsSavingContractPerformance(true);
@@ -973,7 +975,6 @@ const FinancialManagement: React.FC<FinancialManagementProps> = ({
         : {
           ...form,
           ...calculateContractPerformance(payload.billedValue, payload.actualReceiptValue),
-          cosExtraItem: payload.cosExtraItem,
           id: extractRecordId(row) ?? form.id,
         };
       setContractForm(savedRecord);
@@ -1310,7 +1311,6 @@ const FinancialManagement: React.FC<FinancialManagementProps> = ({
                     {[
                       { key: 'billedValue' as const, label: 'Billed Value', cls: 'billed-value-field' },
                       { key: 'actualReceiptValue' as const, label: 'Actual Receipt Value', cls: 'actual-receipt-value-field' },
-                      { key: 'cosExtraItem' as const, label: 'COS Extra Item', cls: 'cos-extra-item-field' },
                     ].map((field) => (
                       <div key={field.key} className={`financial-contract-${field.key} ${field.cls}`}>
                         <label className={fieldLabel}>{field.label}</label>
@@ -1650,6 +1650,11 @@ const FinancialManagement: React.FC<FinancialManagementProps> = ({
                             cls: contractType === 'SCL' ? 'original-contract-field' : '',
                           },
                           { key: 'approvedVO', label: 'Excess Value', cls: contractType === 'SCL' ? 'approved-vo-field' : '' },
+                          {
+                            key: 'cosExtraItem',
+                            label: 'COS Extra Item',
+                            cls: contractType === 'SCL' ? 'cos-extra-item-field' : '',
+                          },
                         ].map((field) => (
                           <div key={field.key} className={field.cls}>
                             <label className={fieldLabel}>{field.label}</label>

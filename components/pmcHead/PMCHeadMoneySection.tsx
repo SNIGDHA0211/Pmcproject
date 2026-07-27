@@ -180,7 +180,7 @@ const PartyFinanceCard: React.FC<{
           </div>
           {contract ? (
             <>
-              <div className="grid grid-cols-2 gap-2.5 sm:gap-3 lg:grid-cols-4">
+              <div className="grid grid-cols-2 gap-2.5 sm:gap-3 lg:grid-cols-5">
                 <MetricCell
                   label="Original"
                   value={formatIndianCurrencyCompact(contract.originalContractValue)}
@@ -191,6 +191,11 @@ const PartyFinanceCard: React.FC<{
                   value={formatIndianCurrencyCompact(contract.approvedVO)}
                   tone="positive"
                   fullValue={formatIndianCurrencyFull(contract.approvedVO)}
+                />
+                <MetricCell
+                  label="COS Extra Item"
+                  value={formatIndianCurrencyCompact(contract.cosExtraItem ?? 0)}
+                  fullValue={formatIndianCurrencyFull(contract.cosExtraItem ?? 0)}
                 />
                 <MetricCell
                   label="Saving"

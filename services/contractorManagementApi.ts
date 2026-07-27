@@ -41,9 +41,10 @@ function sumContractValuesSummary(
       original: acc.original + parseApiAmount(row.original_contract_value),
       excess: acc.excess + parseApiAmount(row.excess_value),
       saving: acc.saving + parseApiAmount(row.saving),
+      cos: acc.cos + parseApiAmount(row.cos),
       revised: acc.revised + parseApiAmount(row.revised_value),
     }),
-    { original: 0, excess: 0, saving: 0, revised: 0 },
+    { original: 0, excess: 0, saving: 0, cos: 0, revised: 0 },
   );
   const increase =
     totals.original > 0 ? ((totals.revised - totals.original) / totals.original) * 100 : 0;
@@ -51,6 +52,7 @@ function sumContractValuesSummary(
     original_contract_value: String(totals.original),
     excess_value: String(totals.excess),
     saving: String(totals.saving),
+    cos: String(totals.cos),
     revised_value: String(totals.revised),
     increase_percentage: increase.toFixed(2),
   };
@@ -295,6 +297,7 @@ export function normalizeContractValueRecord(raw: unknown): ContractValueApiReco
     original_contract_value: strVal(r.original_contract_value ?? r.originalContractValue),
     excess_value: strVal(r.excess_value ?? r.excessValue ?? r.approvedVO),
     saving: strVal(r.saving ?? r.potentialPendingVO),
+    cos: strVal(r.cos ?? r.Cos ?? r.cosExtraItem ?? r.cos_extra_item),
     revised_value: strVal(r.revised_value ?? r.revisedValue ?? r.revisedContractValue),
     increase_percentage: strVal(
       r.increase_percentage ?? r.increasePercentage ?? r.growth_percentage,
@@ -340,6 +343,7 @@ export function normalizeContractValuesDashboard(raw: unknown): ContractValuesDa
       original_contract_value: strVal(summaryRaw.original_contract_value),
       excess_value: strVal(summaryRaw.excess_value),
       saving: strVal(summaryRaw.saving),
+      cos: strVal(summaryRaw.cos ?? summaryRaw.Cos ?? summaryRaw.cosExtraItem),
       revised_value: strVal(summaryRaw.revised_value),
       increase_percentage: strVal(summaryRaw.increase_percentage, '0.00'),
     },
@@ -600,13 +604,27 @@ export const contractValuesDashboardApi = {
     original_contract_value?: string | number;
     excess_value?: string | number;
     saving?: string | number;
+    cos?: string | number;
   }) => {
-    const res = await api.post(API_ENDPOINTS.CONTRACT_VALUES.LIST, body);
+    const cos = body.cos ?? 0;
+    const res = await api.post(API_ENDPOINTS.CONTRACT_VALUES.LIST, {
+      ...body,
+      cos,
+      Cos: cos,
+    });
     return normalizeContractValueRecord(unwrapData(res.data));
   },
 
   patch: async (id: number, body: Record<string, unknown>) => {
-    const res = await api.patch(API_ENDPOINTS.CONTRACT_VALUES.DETAIL(id), body);
+    const nextBody =
+      body.cos != null || body.Cos != null
+        ? {
+            ...body,
+            cos: body.cos ?? body.Cos,
+            Cos: body.Cos ?? body.cos,
+          }
+        : body;
+    const res = await api.patch(API_ENDPOINTS.CONTRACT_VALUES.DETAIL(id), nextBody);
     return normalizeContractValueRecord(unwrapData(res.data));
   },
 };

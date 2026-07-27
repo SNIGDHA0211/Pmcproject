@@ -85,6 +85,14 @@ const ContractValueSectionBody: React.FC<{
       valueClass: positiveValue,
     },
     {
+      label: 'COS Extra Item',
+      value: data.cosExtraItem ?? 0,
+      icon: Layers,
+      border: semanticBorderAccentClass('neutral'),
+      iconBg: semanticIconWrapClass('neutral', isDarkTheme),
+      valueClass: neutralValue,
+    },
+    {
       label: 'Saving',
       value: data.potentialPendingVO,
       icon: Clock,
@@ -105,7 +113,7 @@ const ContractValueSectionBody: React.FC<{
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="grid grid-cols-1 gap-3 min-[380px]:grid-cols-2 2xl:grid-cols-4">
+      <div className="grid grid-cols-1 gap-3 min-[380px]:grid-cols-2 2xl:grid-cols-3">
         {metrics.map(({ label, value, icon: Icon, border, iconBg, valueClass }) => (
           <div
             key={label}

@@ -74,11 +74,40 @@ export function unwrapList<T = unknown>(data: unknown): T[] {
       const inner = obj.data as Record<string, unknown>;
       if (Array.isArray(inner.results)) return inner.results as T[];
       if (Array.isArray(inner)) return inner as T[];
+      // Single financial/list record under data (avoid treating dashboard payloads as rows)
+      if (isLikelySingleListRecord(inner)) {
+        return [inner as T];
+      }
     }
     // Handle flat { count, results: [...] }
     if (Array.isArray(obj.results)) return obj.results as T[];
+    if (isLikelySingleListRecord(obj)) {
+      return [obj as T];
+    }
   }
   return [];
+}
+
+function isLikelySingleListRecord(row: Record<string, unknown>): boolean {
+  if (row.id == null) return false;
+  return (
+    row.contract_type != null ||
+    row.contractType != null ||
+    row.original_contract_value != null ||
+    row.originalContractValue != null ||
+    row.invoice_type != null ||
+    row.invoiceType != null ||
+    row.gross_billed != null ||
+    row.grossBilled != null ||
+    row.billed_value != null ||
+    row.billedValue != null ||
+    row.month_year != null ||
+    row.monthYear != null ||
+    row.progress_month != null ||
+    row.bcws != null ||
+    row.planned_value != null ||
+    row.plannedValue != null
+  );
 }
 
 export function toNum(v: unknown): number {
@@ -2970,6 +2999,7 @@ export type ContractValuePayload = Pick<
   | "originalContractValue"
   | "approvedVO"
   | "potentialPendingVO"
+  | "cosExtraItem"
   | "contractorName"
   | "contractorId"
 >;
@@ -2991,6 +3021,13 @@ export function normalizeContractValueRecord(
   const potentialPendingVO = toNum(
     row?.saving ?? row?.potentialPendingVO ?? row?.pending_vo,
   );
+  const cosExtraItem = toNum(
+    row?.cos ??
+      row?.Cos ??
+      row?.cosExtraItem ??
+      row?.cos_extra_item ??
+      row?.cosExtraItems,
+  );
   const revisedContractValue = toNum(
     row?.revised_value ??
     row?.revisedValue ??
@@ -3000,6 +3037,8 @@ export function normalizeContractValueRecord(
   const growthPercentage = toNum(
     row?.growth_percentage ??
     row?.growthPercentage ??
+    row?.increase_percentage ??
+    row?.increasePercentage ??
     row?.approved_vo_percentage ??
     row?.approvedVOPercentage,
   );
@@ -3016,6 +3055,7 @@ export function normalizeContractValueRecord(
     approvedVO,
     revisedContractValue,
     potentialPendingVO,
+    cosExtraItem,
     growthPercentage,
     approvedVOPercentage: growthPercentage,
     status: row?.status,
@@ -3026,12 +3066,16 @@ export function normalizeContractValueRecord(
 export function toContractValueApiBody(
   data: ContractValuePayload,
 ): Record<string, unknown> {
+  const cos = toNum(data.cosExtraItem);
   const body: Record<string, unknown> = {
     project_name: data.projectName,
     contract_type: data.contractType,
     original_contract_value: data.originalContractValue,
     excess_value: data.approvedVO,
     saving: data.potentialPendingVO,
+    // Backend contract-values field is `cos` / `Cos` (not cosExtraItem).
+    cos,
+    Cos: cos,
     // Legacy aliases for backends still accepting camelCase
     projectName: data.projectName,
     contractType: data.contractType,

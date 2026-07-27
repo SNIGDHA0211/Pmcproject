@@ -32,6 +32,8 @@ export interface ContractValueApiRecord {
   original_contract_value: string;
   excess_value: string;
   saving: string;
+  /** Backend field: cos / Cos */
+  cos: string;
   revised_value: string;
   increase_percentage: string;
   created_at?: string;
@@ -42,6 +44,8 @@ export interface ContractValuesContractorSummary {
   original_contract_value: string;
   excess_value: string;
   saving: string;
+  /** Backend field: cos / Cos */
+  cos: string;
   revised_value: string;
   increase_percentage: string;
 }
