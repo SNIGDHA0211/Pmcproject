@@ -17,6 +17,8 @@ export type BackendUserProfile = {
   profile_image?: string;
   profile_picture?: string;
   photo?: string;
+  is_superuser?: boolean;
+  isSuperuser?: boolean;
 };
 
 function resolveAvatarUrl(raw?: string | null): string | undefined {
@@ -55,7 +57,8 @@ export function mapBackendUserToUser(userData: BackendUserProfile | null | undef
   let role = UserRole.SITE_ENGINEER;
   if (isPmcHeadOfficeBackendRole(userGroups, primaryRole, userData.username)) {
     role = UserRole.PMC_HEAD_OFFICE;
-  } else if (userGroups.includes('PMC Head') || userGroups.includes('CEO') || primaryRole === 'PMC Head') {
+  } else if (userGroups.includes('PMC Head') || userGroups.includes('CEO') || primaryRole === 'PMC Head' || primaryRole === 'CEO') {
+    // CEO shares PMC Head frontend access historically; User Management also allows CEO.
     role = UserRole.PMC_HEAD;
   } else if (userGroups.includes('Team Leader') || primaryRole === 'Team Leader') {
     role = UserRole.TEAM_LEAD;
@@ -94,6 +97,7 @@ export function mapBackendUserToUser(userData: BackendUserProfile | null | undef
     email: userData.email || '',
     role,
     username: userData.username,
+    isSuperuser: Boolean(userData.is_superuser ?? userData.isSuperuser),
     avatar: resolveAvatarUrl(
       userData.avatar ??
         userData.profile_image ??
@@ -102,3 +106,4 @@ export function mapBackendUserToUser(userData: BackendUserProfile | null | undef
     ),
   };
 }
+

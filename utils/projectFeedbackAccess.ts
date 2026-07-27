@@ -2,6 +2,11 @@ import type { Project, User } from '../types';
 import { UserRole } from '../types';
 import { projectAssignedToUser, userMatchesAssignee } from './roleProjectAssignments';
 import { isPmcHeadEquivalent } from './pmcRoleAccess';
+import {
+  buildPmcHeadDropdownProjects,
+  getHseExecutiveProjectStubs,
+  getKnownExecutiveProjectStubs,
+} from './pmcHeadExecutiveProjects';
 
 /**
  * Project Feedback RBAC:
@@ -50,7 +55,13 @@ export function feedbackProjectsForUser(
   user: User,
 ): Project[] {
   if (!canViewProjectFeedback(user.role)) return [];
-  if (isPmcHeadEquivalent(user.role)) return projects;
+  if (isPmcHeadEquivalent(user.role)) {
+    return buildPmcHeadDropdownProjects(
+      projects,
+      getKnownExecutiveProjectStubs(projects),
+      getHseExecutiveProjectStubs(projects),
+    );
+  }
 
   if (user.role === UserRole.TEAM_LEAD) {
     return projects.filter(

@@ -392,6 +392,16 @@ export const API_ENDPOINTS = {
     STATUS: (id: string | number) => `/project-feedback/${id}/status/`,
   },
 
+  // HO User Management (Head Office / CEO / PMC Head / superuser)
+  USERS: {
+    LIST: '/users/',
+    DETAIL: (id: string | number) => `/users/${id}/`,
+    CHANGE_PASSWORD: (id: string | number) => `/users/${id}/change-password/`,
+    RESET_PASSWORD: (id: string | number) => `/users/${id}/reset-password/`,
+    ASSIGN_PROJECTS: (id: string | number) => `/users/${id}/assign-projects/`,
+    STATUS: (id: string | number) => `/users/${id}/status/`,
+  },
+
   MEETING_DOCUMENTS: {
     LIST: '/meeting-documents/',
     DASHBOARD: '/meeting-documents/dashboard/',

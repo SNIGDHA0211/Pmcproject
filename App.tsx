@@ -22,6 +22,7 @@ import ManpowerManagement from "./components/ManpowerManagement";
 import SitePhotosManagement from "./components/sitePhotos/SitePhotosManagement";
 import TestingPhotosPage from "./components/testingPhotos/TestingPhotosPage";
 import ProjectFeedbackPage from "./components/projectFeedback/ProjectFeedbackPage";
+import UserManagementPage from "./components/userManagement/UserManagementPage";
 import FinancialManagement, {
   SubTab,
   normalizeBillingFinancialSubTab,
@@ -314,12 +315,12 @@ const App: React.FC = () => {
 
   useEffect(() => {
     if (!currentUser || authLoading) return;
-    if (!isTabAllowedForRole(activeTab, currentUser.role, currentUser.username)) {
+    if (!isTabAllowedForRole(activeTab, currentUser.role, currentUser.username, currentUser)) {
       const tab = getDefaultTabForRole(currentUser.role);
       setActiveTab(tab);
       navigateToTab(tab, "replace");
     }
-  }, [activeTab, currentUser?.role, currentUser?.username, authLoading]);
+  }, [activeTab, currentUser?.role, currentUser?.username, currentUser?.isSuperuser, authLoading]);
 
   // Team Lead: auto-select their assigned project (no project switcher in header)
   useEffect(() => {
@@ -641,7 +642,7 @@ const App: React.FC = () => {
       }
 
       const nav = resolveAlertNavigation(notification);
-      if (nav?.tab && isTabAllowedForRole(nav.tab, currentUser!.role, currentUser!.username)) {
+      if (nav?.tab && isTabAllowedForRole(nav.tab, currentUser!.role, currentUser!.username, currentUser)) {
         setActiveTab(nav.tab);
         const navPath = TAB_PATHS[nav.tab];
         if (navPath && getAppRoutePath() !== navPath) {
@@ -1420,7 +1421,7 @@ const App: React.FC = () => {
           setTeamLeaderScrollSection(null);
         }}
         setActiveTab={(tab) => {
-          const nextTab = isTabAllowedForRole(tab, currentUser.role, currentUser.username)
+          const nextTab = isTabAllowedForRole(tab, currentUser.role, currentUser.username, currentUser)
             ? tab
             : getDefaultTabForRole(currentUser.role);
           if (nextTab === 'team_projects' && activeTab === 'team_projects') {
@@ -1707,6 +1708,8 @@ const App: React.FC = () => {
           />
         ) : activeTab === "project_feedback" ? (
           <ProjectFeedbackPage projects={projects} currentUser={currentUser} />
+        ) : activeTab === "user_management" ? (
+          <UserManagementPage projects={projects} currentUser={currentUser} />
         ) : activeTab === "financial_management" ? (
           <FinancialManagement
             projects={

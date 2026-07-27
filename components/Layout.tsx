@@ -15,6 +15,7 @@ import UserAvatar from './UserAvatar';
 import AlertNotificationItem from './alerts/AlertNotificationItem';
 import { isTabAllowedForRole } from '../utils/roleRouting';
 import { isPmcHeadEquivalent } from '../utils/pmcRoleAccess';
+import { canAccessUserManagement } from '../utils/userManagementAccess';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -120,7 +121,7 @@ const Layout: React.FC<LayoutProps> = ({
 
   const unreadCount = userNotifications.filter((n) => !n.isRead).length;
   const isPMCHead = isPmcHeadEquivalent(user);
-  const canViewAlertsPage = isTabAllowedForRole('alerts', user.role, user.username);
+  const canViewAlertsPage = isTabAllowedForRole('alerts', user.role, user.username, user);
 
   const getTourClassName = (id: string): string => {
     const classMap: Record<string, string> = {
@@ -133,6 +134,7 @@ const Layout: React.FC<LayoutProps> = ({
       site_photos: "site-photos-menu",
       testing_photos: "testing-photos-menu",
       project_feedback: "project-feedback-menu",
+      user_management: "user-management-menu",
       machinery_list: "plant-menu",
       hse: "hse-menu",
       projects: "portfolio-menu",
@@ -232,6 +234,13 @@ const Layout: React.FC<LayoutProps> = ({
       icon: Icons.Comment,
       section: "Field",
       roles: [UserRole.PMC_HEAD, UserRole.PMC_HEAD_OFFICE, UserRole.COORDINATOR, UserRole.TEAM_LEAD, UserRole.SITE_ENGINEER],
+    },
+    {
+      id: "user_management",
+      label: "User Management",
+      icon: Icons.User,
+      section: "Command",
+      roles: [UserRole.PMC_HEAD, UserRole.PMC_HEAD_OFFICE, UserRole.CEO],
     },
     {
       id: "machinery_list",
@@ -377,6 +386,9 @@ const Layout: React.FC<LayoutProps> = ({
 
     return source.filter((item) => {
       if (user.role === UserRole.SITE_ENGINEER) return true;
+      if (item.id === 'user_management') {
+        return canAccessUserManagement(user);
+      }
       if (item.id === 'financial_management') {
         const isTeamLead = user.role === UserRole.TEAM_LEAD;
         const isBillingEngineer = user.role === UserRole.BILLING_SITE_ENGINEER;
@@ -385,7 +397,7 @@ const Layout: React.FC<LayoutProps> = ({
       }
       return item.roles.includes(user.role);
     });
-  }, [user.role, user.username]);
+  }, [user.role, user.username, user.isSuperuser]);
 
   const isDesktopRailCollapsed = !sidebarExpanded;
   const sidebarWidthCss = sidebarExpanded ? '17rem' : '4.5rem';

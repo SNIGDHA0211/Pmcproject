@@ -14,7 +14,9 @@ import {
 export const PMC_TL_USERNAME = 'pmc_tl';
 
 /** Team-lead projects that must appear in the PMC Head executive dropdown. */
-export const PMC_TL_KNOWN_PROJECT_TITLES = [] as const;
+export const PMC_TL_KNOWN_PROJECT_TITLES = [
+  'B3482 RGSL: Rajeev Gandhi Sea Link',
+] as const;
 
 /** Projects explicitly excluded from the PMC Head executive dropdown. */
 export const PMC_TL_DROPDOWN_EXCLUDE_TITLES = [
@@ -22,6 +24,7 @@ export const PMC_TL_DROPDOWN_EXCLUDE_TITLES = [
   'White bliss',
   'Democracy',
   'Multi-Modal Transit Hub – Thane',
+  'SHIVALIKA',
 ] as const;
 
 export function isExactPmcTlLogin(value?: string | null): boolean {
@@ -55,7 +58,7 @@ export function isSyntheticExecutiveProjectId(id?: string | null): boolean {
   return value.startsWith('executive-known-') || value.startsWith('executive-hse-');
 }
 
-/** Canonical HSE portfolio titles (pmc_hse1–pmc_hse25 assignments). */
+/** Canonical portfolio titles for Head / HO / Manager project overview. */
 export const PMC_HEAD_HSE_PROJECT_TITLES = HSE_SITE_ENGINEER_ACCOUNTS.map(
   (row) => row.projectTitle,
 );
@@ -74,7 +77,7 @@ export function getHseExecutiveProjectStubs(existingProjects: Project[]): Projec
   ).map(({ projectTitle, index }) => buildHseExecutiveProjectStub(projectTitle, index));
 }
 
-/** True when title matches one of the 25 client PDF portfolio projects. */
+/** True when title matches the Head / HO / Manager portfolio allowlist. */
 export function isClientPortfolioProjectTitle(title?: string | null): boolean {
   if (!String(title ?? '').trim()) return false;
   return HSE_SITE_ENGINEER_ACCOUNTS.some((row) =>
@@ -144,7 +147,7 @@ function withCanonicalClientTitle(project: Project): Project {
 }
 
 /**
- * Build exactly the client PDF portfolio (25 projects).
+ * Build the Head / HO / Manager portfolio allowlist.
  * Wrong / extra backend projects are dropped; missing ones use stubs.
  */
 export function ensureHsePortfolioProjects(projects: Project[]): Project[] {
@@ -163,7 +166,7 @@ export function ensureHsePortfolioProjects(projects: Project[]): Project[] {
   return dedupePmcHeadDropdownProjects(picked);
 }
 
-/** PMC Head dropdown: only the 25 client PDF projects (no wrong / extra titles). */
+/** PMC Head / HO / Manager dropdown: portfolio allowlist only (no wrong / extra titles). */
 export function buildPmcHeadDropdownProjects(...lists: Project[][]): Project[] {
   const merged = buildExecutiveProjectDropdownList(...lists).filter(
     (project) =>
@@ -171,6 +174,68 @@ export function buildPmcHeadDropdownProjects(...lists: Project[][]): Project[] {
       isClientPortfolioProjectTitle(project.title),
   );
   return ensureHsePortfolioProjects(merged);
+}
+
+export type ExecutiveProjectSelectOption = {
+  id: number;
+  name: string;
+};
+
+/**
+ * Full Head / HO / Manager project list for select dropdowns
+ * (User Management filter, assign-projects, create/edit, etc.).
+ * Resolves stubs to real backend IDs when the project-row cache has them.
+ */
+export function buildExecutiveProjectSelectOptions(
+  projects: Project[],
+): ExecutiveProjectSelectOption[] {
+  const portfolio = buildPmcHeadDropdownProjects(
+    projects,
+    getKnownExecutiveProjectStubs(projects),
+    getHseExecutiveProjectStubs(projects),
+  );
+
+  const byKey = new Map<string, ExecutiveProjectSelectOption>();
+
+  const absorb = (project: Project) => {
+    if (!project?.title?.trim()) return;
+    if (isExcludedPmcTlProjectTitle(project.title)) return;
+
+    const resolved = resolveExecutiveProjectForApi(project);
+    const name = String(resolved.title || project.title).trim();
+    if (!name) return;
+
+    const rawId = String(resolved.id ?? '');
+    const numericId = Number(rawId);
+    const id =
+      !isSyntheticExecutiveProjectId(rawId) &&
+      Number.isFinite(numericId) &&
+      numericId > 0
+        ? numericId
+        : 0;
+
+    const key = normalizeProjectTitleKey(name);
+    const existing = byKey.get(key);
+    if (!existing) {
+      byKey.set(key, { id, name });
+      return;
+    }
+    if (id && !existing.id) {
+      byKey.set(key, {
+        id,
+        name:
+          existing.name.length >= name.length ? existing.name : name,
+      });
+    }
+  };
+
+  portfolio.forEach(absorb);
+  // Include any other live projects already loaded (except excluded titles).
+  projects.forEach(absorb);
+
+  return [...byKey.values()].sort((a, b) =>
+    a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }),
+  );
 }
 
 function buildKnownExecutiveProjectStub(title: string): Project {

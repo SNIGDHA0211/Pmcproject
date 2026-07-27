@@ -7,8 +7,12 @@ import {
   tabFromRoutePath,
   TAB_PATHS,
 } from './appRouting';
+import { canAccessUserManagement } from './userManagementAccess';
 
 export { LOGIN_ROUTE };
+
+/** Tabs shared by PMC Head / Head Office (includes User Management). */
+const PMC_HEAD_USER_MGMT_TAB = 'user_management' as const;
 
 const PMC_HEAD_TABS = [
   'dashboard',
@@ -23,6 +27,7 @@ const PMC_HEAD_TABS = [
   'meeting_documents',
   'project_feedback',
   'alerts',
+  PMC_HEAD_USER_MGMT_TAB,
 ] as const;
 
 const ROLE_DEFAULT_TAB: Record<UserRole, string> = {
@@ -57,7 +62,11 @@ function teamLeadTabs(): string[] {
 }
 
 /** Tabs each role may open (mirrors Layout navigation). */
-export function getAllowedTabsForRole(role: UserRole, username?: string): ReadonlySet<string> {
+export function getAllowedTabsForRole(
+  role: UserRole,
+  username?: string,
+  user?: Pick<User, 'role' | 'isSuperuser' | 'username'> | null,
+): ReadonlySet<string> {
   const map: Record<UserRole, readonly string[]> = {
     [UserRole.PMC_HEAD]: [...PMC_HEAD_TABS],
     [UserRole.PMC_HEAD_OFFICE]: [...PMC_HEAD_TABS],
@@ -71,9 +80,10 @@ export function getAllowedTabsForRole(role: UserRole, username?: string): Readon
       'dpr_records',
       'wpr_records',
       'meeting_documents',
+      PMC_HEAD_USER_MGMT_TAB,
     ],
-    // PMC Manager — identical navigation to PMC Head
-    [UserRole.COORDINATOR]: [...PMC_HEAD_TABS],
+    // PMC Manager — identical navigation to PMC Head except User Management
+    [UserRole.COORDINATOR]: PMC_HEAD_TABS.filter((t) => t !== PMC_HEAD_USER_MGMT_TAB),
     [UserRole.TEAM_LEAD]: teamLeadTabs(),
     [UserRole.SITE_ENGINEER]: [...SITE_ENGINEER_NAV_IDS],
     [UserRole.BILLING_SITE_ENGINEER]: ['my_scopes', 'financial_management'],
@@ -81,9 +91,21 @@ export function getAllowedTabsForRole(role: UserRole, username?: string): Readon
     [UserRole.HSE_SITE_ENGINEER]: ['my_scopes'],
   };
 
-  const allowed = new Set(map[role] ?? ['dashboard']);
+  const allowed = new Set<string>(map[role] ?? ['dashboard']);
   if (username === 'pmc_bse') {
     allowed.add('financial_management');
+  }
+  // Superusers may open User Management even if mapped to another role.
+  if (
+    user
+      ? canAccessUserManagement(user)
+      : role === UserRole.PMC_HEAD ||
+        role === UserRole.PMC_HEAD_OFFICE ||
+        role === UserRole.CEO
+  ) {
+    allowed.add(PMC_HEAD_USER_MGMT_TAB);
+  } else {
+    allowed.delete(PMC_HEAD_USER_MGMT_TAB);
   }
   return allowed;
 }
@@ -96,9 +118,10 @@ export function isTabAllowedForRole(
   tab: string | undefined,
   role: UserRole,
   username?: string,
+  user?: Pick<User, 'role' | 'isSuperuser' | 'username'> | null,
 ): boolean {
   if (!tab) return false;
-  return getAllowedTabsForRole(role, username).has(tab);
+  return getAllowedTabsForRole(role, username, user ?? { role, username }).has(tab);
 }
 
 /** Pick URL tab if allowed, otherwise role home tab. */
@@ -106,8 +129,9 @@ export function resolveTabForRole(
   tab: string | undefined,
   role: UserRole,
   username?: string,
+  user?: Pick<User, 'role' | 'isSuperuser' | 'username'> | null,
 ): string {
-  if (tab && isTabAllowedForRole(tab, role, username)) {
+  if (tab && isTabAllowedForRole(tab, role, username, user)) {
     return tab;
   }
   return getDefaultTabForRole(role);
@@ -146,7 +170,7 @@ export function syncAuthenticatedNavigation(
   }
 
   const urlTab = honorCurrentUrl ? tabFromRoutePath(currentPath) : undefined;
-  const tab = resolveTabForRole(urlTab, user.role, user.username);
+  const tab = resolveTabForRole(urlTab, user.role, user.username, user);
   const targetPath = TAB_PATHS[tab];
 
   if (targetPath && currentPath !== targetPath) {
@@ -163,5 +187,5 @@ export function tabFromRouteForUser(user: User): string {
     return getDefaultTabForRole(user.role);
   }
   const urlTab = tabFromRoutePath(currentPath);
-  return resolveTabForRole(urlTab, user.role, user.username);
+  return resolveTabForRole(urlTab, user.role, user.username, user);
 }

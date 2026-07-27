@@ -29,6 +29,34 @@ export interface User {
   email: string;
   username?: string;
   avatar?: string;
+  /** Django is_superuser — used for HO User Management access */
+  isSuperuser?: boolean;
+}
+
+/** Roles HO may create/edit via User Management APIs (backend display labels). */
+export type ManageableUserRole =
+  | 'Team Leader'
+  | 'Site Engineer'
+  | 'Billing Site Engineer'
+  | 'QAQC Site Engineer'
+  | 'HSE Site Engineer';
+
+export interface ManagedUserProject {
+  id: number;
+  name: string;
+}
+
+/** Normalized row from GET /api/users/ */
+export interface ManagedUser {
+  id: number;
+  fullName: string;
+  username: string;
+  role: string;
+  email: string;
+  isActive: boolean;
+  projects: ManagedUserProject[];
+  createdAt?: string | null;
+  lastLogin?: string | null;
 }
 
 export interface AppNotification {

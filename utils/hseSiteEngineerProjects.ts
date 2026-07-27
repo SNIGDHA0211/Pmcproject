@@ -1,8 +1,9 @@
 import type { Project } from '../types';
 
 /**
- * Official client portfolio (pmc_hse1–25) — titles from PMC Client Login Credentials PDF.
- * Same 25 projects for Team Leader / SE / BSE / QAQC / HSE assignments.
+ * Official client portfolio — titles from PMC Client Login Credentials PDF,
+ * plus later projects (e.g. B3482 RGSL / pmc_*27).
+ * Same list drives Head / HO / Manager overview dropdowns and site-role assignment titles.
  */
 export const HSE_SITE_ENGINEER_ACCOUNTS: ReadonlyArray<{
   index: number;
@@ -33,7 +34,11 @@ export const HSE_SITE_ENGINEER_ACCOUNTS: ReadonlyArray<{
   { index: 22, username: 'pmc_hse22', projectTitle: 'Avissa G+40, Mahim' },
   { index: 23, username: 'pmc_hse23', projectTitle: 'Shivalik Building Santacruz' },
   { index: 24, username: 'pmc_hse24', projectTitle: 'AVISSA' },
-  { index: 25, username: 'pmc_hse25', projectTitle: 'SHIVALIKA' },
+  {
+    index: 27,
+    username: 'pmc_hse27',
+    projectTitle: 'B3482 RGSL: Rajeev Gandhi Sea Link',
+  },
 ] as const;
 
 const HSE_USERNAME_PATTERN = /^pmc_hse(\d+)$/i;
