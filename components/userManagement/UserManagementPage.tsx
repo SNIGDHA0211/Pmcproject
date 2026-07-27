@@ -25,7 +25,11 @@ import {
   updateUserStatus,
 } from '../../services/userManagementApi';
 import { canAccessUserManagement } from '../../utils/userManagementAccess';
-import { buildExecutiveProjectSelectOptions, buildPmcHeadExecutiveProjectOptions } from '../../utils/pmcHeadExecutiveProjects';
+import {
+  buildExecutiveProjectSelectOptions,
+  buildExecutiveProjectSelectOptionsAsync,
+  buildPmcHeadExecutiveProjectOptions,
+} from '../../utils/pmcHeadExecutiveProjects';
 import { ModalPortal } from '../ModalPortal';
 import DashboardToastStack, { type DashboardToastItem } from '../DashboardToastStack';
 import { getThemeClasses, useTheme } from '../../utils/theme';
@@ -109,9 +113,8 @@ const UserManagementPage: React.FC<UserManagementPageProps> = ({
 
   /** Same full portfolio list as Head / HO / Manager Project Overview. */
   const [portfolioProjects, setPortfolioProjects] = useState<Project[]>(projects);
-  const projectOptions = useMemo(
-    () => buildExecutiveProjectSelectOptions(portfolioProjects),
-    [portfolioProjects],
+  const [projectOptions, setProjectOptions] = useState(() =>
+    buildExecutiveProjectSelectOptions(projects),
   );
 
   /** Assignable projects need a real backend id. */
@@ -120,9 +123,30 @@ const UserManagementPage: React.FC<UserManagementPageProps> = ({
     [projectOptions],
   );
 
+  const filterProjectOptions = assignableProjectOptions;
+
   useEffect(() => {
     setPortfolioProjects(projects);
   }, [projects]);
+
+  useEffect(() => {
+    let cancelled = false;
+    setProjectOptions(buildExecutiveProjectSelectOptions(portfolioProjects));
+
+    void buildExecutiveProjectSelectOptionsAsync(portfolioProjects)
+      .then((next) => {
+        if (!cancelled && next.length > 0) {
+          setProjectOptions(next);
+        }
+      })
+      .catch(() => {
+        // keep sync options as fallback
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [portfolioProjects]);
 
   useEffect(() => {
     if (!allowed) return;
@@ -630,11 +654,10 @@ const UserManagementPage: React.FC<UserManagementPageProps> = ({
               className={inputCls}
             >
               <option value="">All</option>
-              {projectOptions.map((p) => (
+              {filterProjectOptions.map((p) => (
                 <option
                   key={`${p.id}-${p.name}`}
-                  value={p.id > 0 ? p.id : ''}
-                  disabled={p.id <= 0}
+                  value={p.id}
                 >
                   {p.name}
                 </option>

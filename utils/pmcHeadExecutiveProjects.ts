@@ -238,6 +238,32 @@ export function buildExecutiveProjectSelectOptions(
   );
 }
 
+/**
+ * Async variant that resolves portfolio titles to real backend project IDs
+ * before building select options, so dropdown items remain clickable.
+ */
+export async function buildExecutiveProjectSelectOptionsAsync(
+  projects: Project[],
+): Promise<ExecutiveProjectSelectOption[]> {
+  const portfolio = buildPmcHeadDropdownProjects(
+    projects,
+    getKnownExecutiveProjectStubs(projects),
+    getHseExecutiveProjectStubs(projects),
+  );
+
+  const resolvedProjects = await Promise.all(
+    portfolio.map(async (project) => {
+      if (!isSyntheticExecutiveProjectId(project.id)) return project;
+      const resolved = await fetchProjectsByTitle(project.title, projects);
+      return resolved ?? project;
+    }),
+  );
+
+  return buildExecutiveProjectSelectOptions(
+    mergeProjectListsById(projects, resolvedProjects),
+  );
+}
+
 function buildKnownExecutiveProjectStub(title: string): Project {
   const slug = normalizeTitleKey(title).replace(/[^a-z0-9]+/g, '-');
   const now = new Date().toISOString();

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import { User, Project, MonthlyScope, MonthlyScopeCategory, MonthlyScopeSubcategory, MonthlyScopeFilters } from '../types';
+import { User, UserRole, Project, MonthlyScope, MonthlyScopeCategory, MonthlyScopeSubcategory, MonthlyScopeFilters } from '../types';
 import { monthlyScopeApi, unwrapList } from '../services/api';
 import { useTheme, getThemeClasses } from '../utils/theme';
 import { Icons } from './Icons';
@@ -15,10 +15,22 @@ import {
   buildMonthlyScopeQueryParams,
   normalizeScopeStatus,
 } from '../utils/monthlyScopeFilters';
+import { userMatchesAssignee } from '../utils/roleProjectAssignments';
 
 interface MonthlyScopePageProps {
   user: User;
   projects: Project[];
+}
+
+/** Projects this user may manage on Monthly Scope (assigned only). */
+function projectsAssignedToMonthlyScopeUser(projects: Project[], user: User): Project[] {
+  if (user.role === UserRole.TEAM_LEAD) {
+    return projects.filter(
+      (project) =>
+        Boolean(project.teamLeadId) && userMatchesAssignee(user, project.teamLeadId),
+    );
+  }
+  return projects;
 }
 
 // Tour step type updated to support nullable refs (for both page elements and form controls)
@@ -33,6 +45,20 @@ interface TourStep {
 const MonthlyScopePage: React.FC<MonthlyScopePageProps> = ({ user, projects }) => {
   const { isDarkTheme } = useTheme();
   const themeClasses = getThemeClasses(isDarkTheme);
+
+  const accessibleProjects = useMemo(
+    () => projectsAssignedToMonthlyScopeUser(projects, user),
+    [projects, user],
+  );
+
+  const defaultProjectId = useMemo(() => {
+    const first = accessibleProjects[0];
+    if (!first?.id) return undefined;
+    const id = Number(first.id);
+    return Number.isFinite(id) ? id : undefined;
+  }, [accessibleProjects]);
+
+  const lockToAssignedProject = user.role === UserRole.TEAM_LEAD;
 
   const [scopes, setScopes] = useState<MonthlyScope[]>([]);
   const [loading, setLoading] = useState(false);
@@ -267,6 +293,33 @@ const MonthlyScopePage: React.FC<MonthlyScopePageProps> = ({ user, projects }) =
     setPopupPosition({ top, left });
     setArrowSide(side);
   }, [currentStep, showTour]);
+
+  // Default / lock to the Team Lead's assigned project only.
+  useEffect(() => {
+    if (!lockToAssignedProject || defaultProjectId == null) return;
+    const current = filters.project != null ? Number(filters.project) : null;
+    const stillValid =
+      current != null &&
+      accessibleProjects.some((p) => Number(p.id) === current);
+    if (stillValid) return;
+    setFilters((prev) => ({ ...prev, project: defaultProjectId }));
+  }, [
+    lockToAssignedProject,
+    defaultProjectId,
+    accessibleProjects,
+    filters.project,
+  ]);
+
+  const handleFiltersChange = useCallback(
+    (next: MonthlyScopeFilters) => {
+      if (lockToAssignedProject && defaultProjectId != null) {
+        setFilters({ ...next, project: defaultProjectId });
+        return;
+      }
+      setFilters(next);
+    },
+    [lockToAssignedProject, defaultProjectId],
+  );
 
   const serverFilters = useMemo(
     () => ({
@@ -608,11 +661,12 @@ const MonthlyScopePage: React.FC<MonthlyScopePageProps> = ({ user, projects }) =
         <div ref={filtersRef}>
           <ScopeFilters
             filters={filters}
-            onFiltersChange={setFilters}
-            projects={projects}
+            onFiltersChange={handleFiltersChange}
+            projects={accessibleProjects}
             themeClasses={themeClasses}
             isDarkTheme={isDarkTheme}
             onExportExcel={exportScopesToExcel}
+            lockProject={lockToAssignedProject}
           />
         </div>
 
@@ -632,7 +686,7 @@ const MonthlyScopePage: React.FC<MonthlyScopePageProps> = ({ user, projects }) =
         {showForm && (
           <ScopeForm
             scope={editingScope}
-            projects={projects}
+            projects={accessibleProjects}
             categories={categories}
             onSubmit={handleSubmitScope}
             onClose={() => {

@@ -46,7 +46,7 @@ const ScopeForm: React.FC<ScopeFormProps> = ({
   saveRef
 }) => {
   const [formData, setFormData] = useState({
-    project: scope?.project || '',
+    project: scope?.project || (projects.length === 1 ? projects[0].id : ''),
     month: scope?.month ? scope.month.substring(0, 7) : new Date().toISOString().substring(0, 7),
     category: scope?.category || '',
     subcategory: scope?.subcategory || '',
@@ -62,15 +62,15 @@ const ScopeForm: React.FC<ScopeFormProps> = ({
     custom_subcategory_name: scope?.custom_subcategory_name || ''
   });
 
-  // Initialize subcategories when editing
+  // When only one assigned project is available, default it for create.
   useEffect(() => {
-    if (scope && categories.length > 0) {
-      console.log('Initializing form for edit mode with scope:', scope);
-      const subs = getSubcategoriesForCategory(Number(scope.category));
-      console.log('Setting initial subcategories for edit:', subs);
-      setSubcategories(subs);
-    }
-  }, [scope, categories]);
+    if (scope) return;
+    if (projects.length !== 1) return;
+    const onlyId = String(projects[0].id);
+    setFormData((prev) =>
+      String(prev.project) === onlyId ? prev : { ...prev, project: onlyId },
+    );
+  }, [projects, scope]);
 
   const [subcategories, setSubcategories] = useState<MonthlyScopeSubcategory[]>([]);
   const [loadingSubcategories, setLoadingSubcategories] = useState(false);
@@ -80,6 +80,14 @@ const ScopeForm: React.FC<ScopeFormProps> = ({
     const category = categories.find(c => c.id === categoryId);
     return category?.subcategories || [];
   };
+
+  // Initialize subcategories when editing
+  useEffect(() => {
+    if (scope && categories.length > 0) {
+      const subs = getSubcategoriesForCategory(Number(scope.category));
+      setSubcategories(subs);
+    }
+  }, [scope, categories]);
 
   // Debug: Log when categories prop changes
   useEffect(() => {
@@ -218,9 +226,10 @@ const ScopeForm: React.FC<ScopeFormProps> = ({
                  data-tour="form-project"
                  value={formData.project}
                  onChange={(e) => handleInputChange('project', e.target.value)}
+                 disabled={!scope && projects.length === 1}
                  className={`w-full px-3 py-2 border rounded-xl text-sm outline-none transition-all ${themeClasses.input} ${themeClasses.border} ${themeClasses.textPrimary} ${errors.project ? 'border-rose-500' : ''}`}
                >
-                <option value="">Select Project</option>
+                {projects.length !== 1 && <option value="">Select Project</option>}
                 {projects.map((project) => (
                   <option key={project.id} value={project.id}>
                     {project.title}

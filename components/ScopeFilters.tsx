@@ -9,6 +9,8 @@ interface ScopeFiltersProps {
   themeClasses: Record<string, string>;
   isDarkTheme?: boolean;
   onExportExcel?: () => void;
+  /** When true, only assigned projects are shown and project cannot be cleared. */
+  lockProject?: boolean;
 }
 
 const filterLabelClass = (isDarkTheme: boolean, themeClasses: Record<string, string>) =>
@@ -28,8 +30,10 @@ const ScopeFilters: React.FC<ScopeFiltersProps> = ({
   themeClasses,
   isDarkTheme = false,
   onExportExcel,
+  lockProject = false,
 }) => {
   const handleFilterChange = (key: keyof MonthlyScopeFilters, value: unknown) => {
+    if (lockProject && key === 'project') return;
     const newFilters = { ...filters };
     if (value === '' || value === null || value === undefined) {
       delete newFilters[key];
@@ -40,10 +44,17 @@ const ScopeFilters: React.FC<ScopeFiltersProps> = ({
   };
 
   const clearFilters = () => {
+    if (lockProject && filters.project != null) {
+      onFiltersChange({ project: filters.project });
+      return;
+    }
     onFiltersChange({});
   };
 
-  const hasActiveFilters = Object.keys(filters).length > 0;
+  const hasActiveFilters = Object.keys(filters).some((key) => {
+    if (lockProject && key === 'project') return false;
+    return true;
+  });
 
   const actionBtnClass = `inline-flex h-11 items-center justify-center gap-2 rounded-xl border px-4 text-sm font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#2563EB]/30 ${
     isDarkTheme
@@ -68,9 +79,10 @@ const ScopeFilters: React.FC<ScopeFiltersProps> = ({
             onChange={(e) =>
               handleFilterChange('project', e.target.value ? Number(e.target.value) : undefined)
             }
+            disabled={lockProject && projects.length <= 1}
             className={filterInputClass(isDarkTheme, themeClasses)}
           >
-            <option value="">All Projects</option>
+            {!lockProject && <option value="">All Projects</option>}
             {projects.map((project) => (
               <option key={project.id} value={project.id}>
                 {project.title}
@@ -145,7 +157,7 @@ const ScopeFilters: React.FC<ScopeFiltersProps> = ({
 
       {hasActiveFilters && (
         <div className="mt-3 flex flex-wrap gap-2 border-t pt-3 border-[#E2E8F0]/80">
-          {filters.project && (
+          {filters.project && !lockProject && (
             <span
               className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-medium ${
                 isDarkTheme
