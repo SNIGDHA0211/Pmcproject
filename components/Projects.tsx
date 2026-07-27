@@ -29,6 +29,7 @@ import {
 } from 'recharts';
 import axios from 'axios';
 import { fetchProjectProgressChart } from '../services/financialDataService';
+import { buildExecutiveProgressCurveData } from '../utils/projectProgress';
 import { computeProjectDashboardMetrics } from '../utils/projectDashboardMetrics';
 import { projectApi, costPerformanceApi, budgetPerformanceApi, manpowerApi, cashflowApi, healthSafetyApi, invoicingApi, contractValuesApi, contractPerformanceApi, projectLogsApi, drawingRegisterApi, projectQualityApi, projectEquipmentApi, correspondenceApi, correspondenceDocumentsApi, getApiErrorMessage, normalizeContractPerformanceRecord, normalizeContractValueRecord, normalizeInvoicingRecord, normalizeProjectEquipmentRecord, normalizeProjectQualityStatusRecord, normalizeManpowerRecord, unwrapList, toNum, plannedEarnedValueApi, normalizePlannedEarnedByPeriod, type PlannedEarnedByPeriodResponse, normalizeHSERecord, type HSERecord, normalizeHealthSafetyDashboard, normalizeHealthSafetyYtdSummary, saveHealthSafetyRecord, fetchHealthSafetyYearRecords, fetchHealthSafetyDashboardFallback, type HealthSafetyDashboardData, projectDatesApi, normalizeProjectDatesByProject, mergeBgBundleIntoProjectDatesBundle, type ProjectDatesByProject, type ProjectDateType, type ProjectDatesRecord, mergeQualityRecordsByPeriod, fetchQualityYearRecords, saveProjectQualityRecord, saveDrawingRecord, normalizeCorrespondenceMonthlyPeriod, collectCorrespondenceDocuments, mergeCorrespondenceDocumentLists, mergeCorrespondencePeriods, fetchCorrespondenceYearPeriods, saveCorrespondenceDocument, deleteCorrespondenceDocument, type CorrespondenceDashboardResponse } from '../services/api';
 import type { BgStatusBundle } from '../types/bgStatus';
@@ -2345,14 +2346,7 @@ const Projects: React.FC<ProjectsProps> = ({
     );
 
   const executiveProgressTrend = useMemo(
-    () =>
-      progressSCurveData.slice(-6).map((p: { month?: string; planned?: number; actual?: number; monthlyPlanned?: number; monthlyActual?: number }) => ({
-        month: String(p.month ?? ''),
-        planned: Number(p.planned ?? 0),
-        actual: Number(p.actual ?? 0),
-        monthlyPlanned: Number(p.monthlyPlanned ?? 0),
-        monthlyActual: Number(p.monthlyActual ?? 0),
-      })),
+    () => buildExecutiveProgressCurveData(progressSCurveData, 10),
     [progressSCurveData],
   );
 
@@ -3469,14 +3463,16 @@ const Projects: React.FC<ProjectsProps> = ({
                                 tick={chartAxisTick(isDarkTheme, 12)}
                                 tickFormatter={(v) => `${v}%`}
                                 domain={[0, 100]}
+                                ticks={[0, 25, 50, 75, 100]}
+                                allowDataOverflow
                                 axisLine={{ stroke: chartAxisStroke(isDarkTheme) }}
                                 tickLine={{ stroke: chartAxisStroke(isDarkTheme) }}
                               />
                               <Tooltip contentStyle={chartTooltipStyle(isDarkTheme)} />
-                              <Line type="monotone" dataKey="monthlyPlanned" stroke="#3B82F6" strokeWidth={2} name="Monthly Planned" dot={false} activeDot={chartActiveDot} />
-                              <Line type="monotone" dataKey="monthlyActual" stroke="#10B981" strokeWidth={2} name="Monthly Actual" dot={false} activeDot={chartActiveDot} />
-                              <Line type="monotone" dataKey="planned" stroke="#F59E0B" strokeWidth={2.5} strokeDasharray="6 4" name="Cumulative Planned" dot={false} activeDot={chartActiveDot} />
-                              <Line type="monotone" dataKey="actual" stroke="#EF4444" strokeWidth={2.5} name="Cumulative Actual" dot={false} activeDot={chartActiveDot} />
+                              <Line type="monotone" dataKey="monthlyPlanned" stroke="#3B82F6" strokeWidth={2} name="Monthly Planned" dot={false} activeDot={chartActiveDot} isAnimationActive={false} />
+                              <Line type="monotone" dataKey="monthlyActual" stroke="#10B981" strokeWidth={2} name="Monthly Actual" dot={false} activeDot={chartActiveDot} isAnimationActive={false} />
+                              <Line type="monotone" dataKey="planned" stroke="#F59E0B" strokeWidth={2.5} strokeDasharray="6 4" name="Cumulative Planned" dot={false} activeDot={chartActiveDot} isAnimationActive={false} />
+                              <Line type="monotone" dataKey="actual" stroke="#EF4444" strokeWidth={2.5} name="Cumulative Actual" dot={false} activeDot={chartActiveDot} isAnimationActive={false} />
                             </LineChart>
                           </ResponsiveContainer>
                         </ExecutiveChartWithLegend>
@@ -3524,15 +3520,17 @@ const Projects: React.FC<ProjectsProps> = ({
                                 tick={chartAxisTick(isDarkTheme, 12)}
                                 tickFormatter={(v) => `${v}%`}
                                 domain={[0, 100]}
+                                ticks={[0, 25, 50, 75, 100]}
+                                allowDataOverflow
                                 axisLine={{ stroke: chartAxisStroke(isDarkTheme) }}
                                 tickLine={{ stroke: chartAxisStroke(isDarkTheme) }}
                               />
                               <Tooltip contentStyle={chartTooltipStyle(isDarkTheme)} />
                               <Legend {...chartLegendProps(11, isDarkTheme)} />
-                              <Line type="monotone" dataKey="monthlyPlanned" stroke="#3B82F6" strokeWidth={2} name="Monthly Planned" dot={false} activeDot={chartActiveDot} />
-                              <Line type="monotone" dataKey="monthlyActual" stroke="#10B981" strokeWidth={2} name="Monthly Actual" dot={false} activeDot={chartActiveDot} />
-                              <Line type="monotone" dataKey="planned" stroke="#F59E0B" strokeWidth={2.5} strokeDasharray="6 4" name="Cumulative Planned" dot={false} activeDot={chartActiveDot} />
-                              <Line type="monotone" dataKey="actual" stroke="#EF4444" strokeWidth={2.5} name="Cumulative Actual" dot={false} activeDot={chartActiveDot} />
+                              <Line type="monotone" dataKey="monthlyPlanned" stroke="#3B82F6" strokeWidth={2} name="Monthly Planned" dot={false} activeDot={chartActiveDot} isAnimationActive={false} />
+                              <Line type="monotone" dataKey="monthlyActual" stroke="#10B981" strokeWidth={2} name="Monthly Actual" dot={false} activeDot={chartActiveDot} isAnimationActive={false} />
+                              <Line type="monotone" dataKey="planned" stroke="#F59E0B" strokeWidth={2.5} strokeDasharray="6 4" name="Cumulative Planned" dot={false} activeDot={chartActiveDot} isAnimationActive={false} />
+                              <Line type="monotone" dataKey="actual" stroke="#EF4444" strokeWidth={2.5} name="Cumulative Actual" dot={false} activeDot={chartActiveDot} isAnimationActive={false} />
                             </LineChart>
                           </ResponsiveContainer>
                         </div>

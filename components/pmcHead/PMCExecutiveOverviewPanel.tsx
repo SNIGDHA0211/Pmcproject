@@ -624,7 +624,7 @@ const PMCExecutiveOverviewPanel: React.FC<PMCExecutiveOverviewPanelProps> = ({
           />
           <div style={{ height: CHART_H }}>
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={progressChartData} margin={{ top: 8, right: 12, left: -12, bottom: 0 }}>
+              <AreaChart data={progressChartData} margin={{ top: 8, right: 12, left: 4, bottom: 0 }}>
                 <defs>
                   <linearGradient id="execPlanFill" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="0%" stopColor={PALETTE.indigo} stopOpacity={0.4} />
@@ -642,18 +642,24 @@ const PMCExecutiveOverviewPanel: React.FC<PMCExecutiveOverviewPanelProps> = ({
                   axisLine={{ stroke: chartAxisStroke(ex.isDark) }}
                   tickLine={false}
                   interval="preserveStartEnd"
+                  minTickGap={12}
                 />
                 <YAxis
                   tick={chartAxisTick(ex.isDark, 10)}
                   axisLine={false}
                   tickLine={false}
-                  width={36}
+                  width={40}
                   domain={[0, 100]}
+                  ticks={[0, 25, 50, 75, 100]}
+                  allowDataOverflow
                   tickFormatter={(v) => `${v}%`}
                 />
                 <Tooltip
                   contentStyle={chartTooltipStyle(ex.isDark)}
-                  formatter={(v: number, n: string) => [`${Number(v).toFixed(1)}%`, n]}
+                  formatter={(v: number, n: string) => [
+                    `${Number(v).toFixed(1)}%`,
+                    n === 'planned' ? 'Cumulative planned' : n === 'actual' ? 'Cumulative actual' : n,
+                  ]}
                   labelFormatter={(label) => `Period: ${label}`}
                 />
                 <Area
@@ -662,7 +668,9 @@ const PMCExecutiveOverviewPanel: React.FC<PMCExecutiveOverviewPanelProps> = ({
                   stroke={PALETTE.indigo}
                   strokeWidth={2}
                   fill="url(#execPlanFill)"
-                  name="Plan"
+                  name="Cumulative planned"
+                  isAnimationActive={false}
+                  connectNulls
                 />
                 <Area
                   type="monotone"
@@ -670,14 +678,16 @@ const PMCExecutiveOverviewPanel: React.FC<PMCExecutiveOverviewPanelProps> = ({
                   stroke={PALETTE.teal}
                   strokeWidth={2.5}
                   fill="url(#execActualFill)"
-                  name="Actual"
+                  name="Cumulative actual"
+                  isAnimationActive={false}
+                  connectNulls
                 />
               </AreaChart>
             </ResponsiveContainer>
           </div>
           <ChartLegend
             items={[
-              { label: 'Cumulative plan', color: PALETTE.indigo },
+              { label: 'Cumulative planned', color: PALETTE.indigo },
               { label: 'Cumulative actual', color: PALETTE.teal },
             ]}
           />

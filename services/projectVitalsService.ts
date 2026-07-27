@@ -108,10 +108,11 @@ function extrasFromDashboard(dashboardData: Record<string, unknown>): VitalsExtr
             month: 'Latest',
             monthlyPlanned: 0,
             monthlyActual: 0,
-            planned: 0,
+            planned: progressHint,
             actual: progressHint,
-            cumulativePlanned: 0,
+            cumulativePlanned: progressHint,
             cumulativeActual: progressHint,
+            sortKey: Date.now(),
           },
         ]
       : [];
