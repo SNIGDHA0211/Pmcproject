@@ -72,7 +72,7 @@ import {
   type PendingUpdatesSummary,
 } from "./utils/pmcHeadPendingUpdates";
 import { userMatchesAssignee, extractAssigneeId, projectAssignedToUser } from "./utils/roleProjectAssignments";
-import { normalizeBackendProjectRow, buildPmcHeadDropdownProjects, buildPmcHeadExecutiveProjectOptions, getKnownExecutiveProjectStubs, getHseExecutiveProjectStubs, seedProjectRowCache } from "./utils/pmcHeadExecutiveProjects";
+import { normalizeBackendProjectRow, buildPmcHeadDropdownProjects, buildPmcHeadExecutiveProjectOptions, getKnownExecutiveProjectStubs, getHseExecutiveProjectStubs, seedProjectRowCache, clearProjectRowCache } from "./utils/pmcHeadExecutiveProjects";
 import { isPmcHeadEquivalent } from "./utils/pmcRoleAccess";
 import { ensureProjectCoverAssigned } from "./utils/projectCoverPhotos";
 import {
@@ -794,6 +794,7 @@ const App: React.FC = () => {
       setIsCreateModalOpen(false);
 
       // Refresh data from backend to ensure consistency and make it available to other dashboards
+      clearProjectRowCache();
       await fetchData();
 
       addNotification(
@@ -1763,6 +1764,7 @@ const App: React.FC = () => {
           <ProjectInit
             user={currentUser}
             onProjectCreated={() => {
+              clearProjectRowCache();
               fetchData();
             }}
           />

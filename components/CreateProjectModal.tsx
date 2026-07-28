@@ -39,10 +39,12 @@ const CreateProjectModal: React.FC<CreateProjectModalProps> = ({ onClose, onSubm
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    
+    if (!formData.title.trim()) return;
+
     onSubmit({
       ...formData,
-      budget: Number(formData.budget)
+      title: formData.title.trim(),
+      budget: Number(formData.budget) || 0,
     }, [], documentationFile || undefined);
   };
 
@@ -123,7 +125,7 @@ const CreateProjectModal: React.FC<CreateProjectModalProps> = ({ onClose, onSubm
           <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-10">
             <div className="space-y-8">
               <div className="space-y-2">
-                <label className={`text-[10px] font-black uppercase tracking-widest ml-1 ${themeClasses.textSecondary}`}>Project Name</label>
+                <label className={`text-[10px] font-black uppercase tracking-widest ml-1 ${themeClasses.textSecondary}`}>Project Name *</label>
                 <input
                   type="text"
                   required
@@ -142,7 +144,6 @@ const CreateProjectModal: React.FC<CreateProjectModalProps> = ({ onClose, onSubm
                 <label className={`text-[10px] font-black uppercase tracking-widest ml-1 ${themeClasses.textSecondary}`}>Client Organization</label>
                 <input
                   type="text"
-                  required
                   value={formData.client}
                   onChange={(e) => setFormData({ ...formData, client: e.target.value })}
                   className={`w-full rounded-2xl px-5 py-4 text-sm font-bold outline-none focus:ring-4 transition-all ${
@@ -159,7 +160,6 @@ const CreateProjectModal: React.FC<CreateProjectModalProps> = ({ onClose, onSubm
                   <label className={`text-[10px] font-black uppercase tracking-widest ml-1 ${themeClasses.textSecondary}`}>Location</label>
                   <input
                     type="text"
-                    required
                     value={formData.location}
                     onChange={(e) => setFormData({ ...formData, location: e.target.value })}
                     className={`w-full rounded-2xl px-5 py-4 text-sm font-bold outline-none focus:ring-4 transition-all ${
@@ -174,7 +174,6 @@ const CreateProjectModal: React.FC<CreateProjectModalProps> = ({ onClose, onSubm
                   <label className={`text-[10px] font-black uppercase tracking-widest ml-1 ${themeClasses.textSecondary}`}>Budget (INR)</label>
                   <input
                     type="number"
-                    required
                     value={formData.budget}
                     onChange={(e) => setFormData({ ...formData, budget: e.target.value })}
                     className={`w-full rounded-2xl px-5 py-4 text-sm font-bold outline-none focus:ring-4 transition-all ${
@@ -190,7 +189,6 @@ const CreateProjectModal: React.FC<CreateProjectModalProps> = ({ onClose, onSubm
               <div className="space-y-2">
                 <label className={`text-[10px] font-black uppercase tracking-widest ml-1 ${themeClasses.textSecondary}`}>Project Scope</label>
                 <textarea
-                  required
                   value={formData.description}
                   onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                   className={`w-full rounded-2xl px-5 py-4 text-sm font-bold outline-none focus:ring-4 transition-all h-32 resize-none ${

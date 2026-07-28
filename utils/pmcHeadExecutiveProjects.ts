@@ -8,6 +8,7 @@ import {
   areDuplicateProjectTitles,
   normalizeProjectTitleKey,
   pickProjectByHseTitle,
+  sanitizeProjectDisplayName,
 } from './hseSiteEngineerProjects';
 
 /** Exact login id — not pmc_tl1, pmc_tl19, etc. */
@@ -239,6 +240,44 @@ export function buildExecutiveProjectSelectOptions(
 }
 
 /**
+ * All backend projects assignable in User Management (create / assign).
+ * Includes newly initialized projects — not limited to the executive allowlist.
+ */
+export function buildAssignableProjectSelectOptions(
+  projects: Project[],
+): ExecutiveProjectSelectOption[] {
+  const byKey = new Map<string, ExecutiveProjectSelectOption>();
+
+  for (const project of projects) {
+    if (!project?.title?.trim()) continue;
+    if (isExcludedPmcTlProjectTitle(project.title)) continue;
+
+    const rawId = String(project.id ?? '');
+    if (isSyntheticExecutiveProjectId(rawId)) continue;
+
+    const numericId = Number(rawId);
+    if (!Number.isFinite(numericId) || numericId <= 0) continue;
+
+    const name = String(project.title).trim();
+    const key = normalizeProjectTitleKey(name);
+    const existing = byKey.get(key);
+    if (!existing) {
+      byKey.set(key, { id: numericId, name });
+      continue;
+    }
+    if (name.length > existing.name.length) {
+      byKey.set(key, { id: existing.id || numericId, name });
+    } else if (!existing.id && numericId) {
+      byKey.set(key, { id: numericId, name: existing.name });
+    }
+  }
+
+  return [...byKey.values()].sort((a, b) =>
+    a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }),
+  );
+}
+
+/**
  * Async variant that resolves portfolio titles to real backend project IDs
  * before building select options, so dropdown items remain clickable.
  */
@@ -462,9 +501,10 @@ export function normalizeBackendProjectRow(row: Record<string, unknown>): Projec
 
   return {
     id: String(row.id ?? ''),
-    title:
+    title: sanitizeProjectDisplayName(
       String(row.name ?? row.title ?? row.project_name ?? '').trim() ||
-      `Project ${String(row.id ?? '')}`,
+        `Project ${String(row.id ?? '')}`,
+    ),
     client: String(row.client_name ?? ''),
     location: String(row.location ?? ''),
     budget: Number(row.budget) || 0,

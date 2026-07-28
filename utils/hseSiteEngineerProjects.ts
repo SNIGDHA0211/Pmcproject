@@ -47,8 +47,33 @@ export function normalizeProjectTitleKey(title?: string | null): string {
   return String(title ?? '')
     .trim()
     .toLowerCase()
-    .replace(/[–—−]/g, '-')
+    // Corrupted en/em dash often becomes ??? in Latin-1/UTF-8 mismatches
+    .replace(/\?{2,3}/g, '-')
+    .replace(/[–—−-]+/g, '-')
     .replace(/\s+/g, ' ');
+}
+
+/**
+ * Fix display of project names where en/em dashes were corrupted to ???
+ * (or UTF-8 mojibake). Prefer the official portfolio spelling when matched.
+ */
+export function sanitizeProjectDisplayName(title?: string | null): string {
+  const raw = String(title ?? '').trim();
+  if (!raw) return '';
+
+  const cleaned = raw
+    .replace(/\uFFFD+/g, '–')
+    .replace(/â€“|â€”/g, '–')
+    .replace(/\s*\?{2,3}\s*/g, ' – ')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+
+  const match = HSE_SITE_ENGINEER_ACCOUNTS.find(
+    (row) =>
+      areDuplicateProjectTitles(row.projectTitle, cleaned) ||
+      areDuplicateProjectTitles(row.projectTitle, raw),
+  );
+  return match?.projectTitle ?? cleaned;
 }
 
 /** Strip location suffixes / parentheses so "X, Goa (GSIDC)" matches "X". */

@@ -3,6 +3,7 @@ import { Icons } from './Icons';
 import { projectApi, notificationApi } from '../services/api';
 import { User } from '../types';
 import { useTheme, getThemeClasses } from '../utils/theme';
+import { sanitizeProjectDisplayName } from '../utils/hseSiteEngineerProjects';
 
 interface ProjectInitProps {
     user: User;
@@ -73,24 +74,30 @@ const ProjectInit: React.FC<ProjectInitProps> = ({ user, onProjectCreated }) => 
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+        const projectName = formData.name.trim();
+        if (!projectName) {
+            setError('Project name is required.');
+            return;
+        }
+
         setIsSubmitting(true);
         setError('');
         setSuccess('');
 
         try {
-            // Prepare the data
+            // Only project name is required; other fields are optional.
             const projectData = {
-                name: formData.name,
-                location: formData.location,
-                project_start: formData.project_start,
-                contract_finish: formData.contract_finish,
+                name: projectName,
+                location: formData.location.trim() || '',
+                project_start: formData.project_start || null,
+                contract_finish: formData.contract_finish || null,
                 forecast_finish: formData.forecast_finish || null,
                 original_contract_value: parseFloat(formData.original_contract_value) || 0,
                 approved_vo: parseFloat(formData.approved_vo) || 0,
                 pending_vo: parseFloat(formData.pending_vo) || 0,
                 bac: parseFloat(formData.bac) || 0,
                 working_hours_per_day: parseFloat(formData.working_hours_per_day) || 8,
-                working_days_per_month: parseInt(formData.working_days_per_month) || 26,
+                working_days_per_month: parseInt(formData.working_days_per_month, 10) || 26,
                 assigned_users: formData.assigned_users,
             };
 
@@ -176,7 +183,9 @@ const ProjectInit: React.FC<ProjectInitProps> = ({ user, onProjectCreated }) => 
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                         {projects.slice(0, 6).map((project) => (
                             <div key={project.id} className={`${themeClasses.bgSecondary} border ${themeClasses.border} rounded-xl p-4`}>
-                                <p className={`text-sm font-black ${themeClasses.textPrimary}`}>{project.name}</p>
+                                <p className={`text-sm font-black ${themeClasses.textPrimary}`}>
+                                  {sanitizeProjectDisplayName(project.name)}
+                                </p>
                                 <p className={`text-[10px] font-bold uppercase mt-1 ${themeClasses.textSecondary}`}>{project.location}</p>
                                 <div className={`mt-3 pt-3 border-t ${themeClasses.border}`}>
                                     <div className="flex justify-between text-[10px]">
@@ -228,13 +237,12 @@ const ProjectInit: React.FC<ProjectInitProps> = ({ user, onProjectCreated }) => 
                                 />
                             </div>
                             <div className="space-y-2">
-                                <label className={`text-[10px] font-black uppercase tracking-widest ${themeClasses.textSecondary}`}>Location *</label>
+                                <label className={`text-[10px] font-black uppercase tracking-widest ${themeClasses.textSecondary}`}>Location</label>
                                 <input
                                     type="text"
                                     name="location"
                                     value={formData.location}
                                     onChange={handleChange}
-                                    required
                                     className={`w-full px-4 py-3 rounded-xl text-sm font-bold border outline-none focus:ring-2 ${themeClasses.input} ${themeClasses.border} ${themeClasses.textPrimary} ${themeClasses.placeholder}`}
                                     placeholder="Enter location"
                                 />
@@ -247,24 +255,22 @@ const ProjectInit: React.FC<ProjectInitProps> = ({ user, onProjectCreated }) => 
                         <h3 className={`text-xs font-black uppercase tracking-widest mb-4 ${themeClasses.textSecondary}`}>Project Dates</h3>
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                             <div className="space-y-2">
-                                <label className={`text-[10px] font-black uppercase tracking-widest ${themeClasses.textSecondary}`}>Project Start *</label>
+                                <label className={`text-[10px] font-black uppercase tracking-widest ${themeClasses.textSecondary}`}>Project Start</label>
                                 <input
                                     type="date"
                                     name="project_start"
                                     value={formData.project_start}
                                     onChange={handleChange}
-                                    required
                                     className={`w-full px-4 py-3 rounded-xl text-sm font-bold border outline-none focus:ring-2 ${themeClasses.input} ${themeClasses.border} ${themeClasses.textPrimary}`}
                                 />
                             </div>
                             <div className="space-y-2">
-                                <label className={`text-[10px] font-black uppercase tracking-widest ${themeClasses.textSecondary}`}>Contract Finish *</label>
+                                <label className={`text-[10px] font-black uppercase tracking-widest ${themeClasses.textSecondary}`}>Contract Finish</label>
                                 <input
                                     type="date"
                                     name="contract_finish"
                                     value={formData.contract_finish}
                                     onChange={handleChange}
-                                    required
                                     className={`w-full px-4 py-3 rounded-xl text-sm font-bold border outline-none focus:ring-2 ${themeClasses.input} ${themeClasses.border} ${themeClasses.textPrimary}`}
                                 />
                             </div>
@@ -294,39 +300,36 @@ const ProjectInit: React.FC<ProjectInitProps> = ({ user, onProjectCreated }) => 
                     <h3 className={`text-xs font-black uppercase tracking-widest mb-4 ${themeClasses.textSecondary}`}>Contract Values (₹)</h3>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                         <div className="space-y-2">
-                            <label className={`text-[10px] font-black uppercase tracking-widest ${themeClasses.textSecondary}`}>Original Contract Value *</label>
+                            <label className={`text-[10px] font-black uppercase tracking-widest ${themeClasses.textSecondary}`}>Original Contract Value</label>
                             <input
                                 type="number"
                                 name="original_contract_value"
                                 value={formData.original_contract_value}
                                 onChange={handleChange}
-                                required
                                 min="0"
                                 className={`w-full px-4 py-3 rounded-xl text-sm font-bold border outline-none focus:ring-2 ${themeClasses.input} ${themeClasses.border} ${themeClasses.textPrimary} ${themeClasses.placeholder}`}
                                 placeholder="Enter original contract value"
                             />
                         </div>
                         <div className="space-y-2">
-                            <label className={`text-[10px] font-black uppercase tracking-widest ${themeClasses.textSecondary}`}>Approved VO *</label>
+                            <label className={`text-[10px] font-black uppercase tracking-widest ${themeClasses.textSecondary}`}>Approved VO</label>
                             <input
                                 type="number"
                                 name="approved_vo"
                                 value={formData.approved_vo}
                                 onChange={handleChange}
-                                required
                                 min="0"
                                 className={`w-full px-4 py-3 rounded-xl text-sm font-bold border outline-none focus:ring-2 ${themeClasses.input} ${themeClasses.border} ${themeClasses.textPrimary} ${themeClasses.placeholder}`}
                                 placeholder="Enter approved VO"
                             />
                         </div>
                         <div className="space-y-2">
-                            <label className={`text-[10px] font-black uppercase tracking-widest ${themeClasses.textSecondary}`}>Pending VO *</label>
+                            <label className={`text-[10px] font-black uppercase tracking-widest ${themeClasses.textSecondary}`}>Pending VO</label>
                             <input
                                 type="number"
                                 name="pending_vo"
                                 value={formData.pending_vo}
                                 onChange={handleChange}
-                                required
                                 min="0"
                                 className={`w-full px-4 py-3 rounded-xl text-sm font-bold border outline-none focus:ring-2 ${themeClasses.input} ${themeClasses.border} ${themeClasses.textPrimary} ${themeClasses.placeholder}`}
                                 placeholder="Enter pending VO"
@@ -347,13 +350,12 @@ const ProjectInit: React.FC<ProjectInitProps> = ({ user, onProjectCreated }) => 
                 <div>
                     <h3 className={`text-xs font-black uppercase tracking-widest mb-4 ${themeClasses.textSecondary}`}>Budget</h3>
                     <div className="space-y-2">
-                        <label className={`text-[10px] font-black uppercase tracking-widest ${themeClasses.textSecondary}`}>Budget at Completion (BAC) *</label>
+                        <label className={`text-[10px] font-black uppercase tracking-widest ${themeClasses.textSecondary}`}>Budget at Completion (BAC)</label>
                         <input
                             type="number"
                             name="bac"
                             value={formData.bac}
                             onChange={handleChange}
-                            required
                             min="0"
                             className={`w-full px-4 py-3 rounded-xl text-sm font-bold border outline-none focus:ring-2 ${themeClasses.input} ${themeClasses.border} ${themeClasses.textPrimary} ${themeClasses.placeholder}`}
                             placeholder="Enter BAC"
@@ -366,13 +368,12 @@ const ProjectInit: React.FC<ProjectInitProps> = ({ user, onProjectCreated }) => 
                     <h3 className={`text-xs font-black uppercase tracking-widest mb-4 ${themeClasses.textSecondary}`}>Work Configuration</h3>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div className="space-y-2">
-                            <label className={`text-[10px] font-black uppercase tracking-widest ${themeClasses.textSecondary}`}>Working Hours/Day *</label>
+                            <label className={`text-[10px] font-black uppercase tracking-widest ${themeClasses.textSecondary}`}>Working Hours/Day</label>
                             <input
                                 type="number"
                                 name="working_hours_per_day"
                                 value={formData.working_hours_per_day}
                                 onChange={handleChange}
-                                required
                                 min="0"
                                 step="0.5"
                                 className={`w-full px-4 py-3 rounded-xl text-sm font-bold border outline-none focus:ring-2 ${themeClasses.input} ${themeClasses.border} ${themeClasses.textPrimary} ${themeClasses.placeholder}`}
@@ -380,13 +381,12 @@ const ProjectInit: React.FC<ProjectInitProps> = ({ user, onProjectCreated }) => 
                             />
                         </div>
                         <div className="space-y-2">
-                            <label className={`text-[10px] font-black uppercase tracking-widest ${themeClasses.textSecondary}`}>Working Days/Month *</label>
+                            <label className={`text-[10px] font-black uppercase tracking-widest ${themeClasses.textSecondary}`}>Working Days/Month</label>
                             <input
                                 type="number"
                                 name="working_days_per_month"
                                 value={formData.working_days_per_month}
                                 onChange={handleChange}
-                                required
                                 min="1"
                                 max="31"
                                 className={`w-full px-4 py-3 rounded-xl text-sm font-bold border outline-none focus:ring-2 ${themeClasses.input} ${themeClasses.border} ${themeClasses.textPrimary} ${themeClasses.placeholder}`}
@@ -400,8 +400,8 @@ const ProjectInit: React.FC<ProjectInitProps> = ({ user, onProjectCreated }) => 
                     <div className="pt-4">
                         <button
                             type="submit"
-                            disabled={isSubmitting}
-                            className={`w-full py-4 bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 text-white font-bold rounded-2xl shadow-xl transition-all ${isSubmitting ? 'opacity-50 cursor-not-allowed' : ''
+                            disabled={isSubmitting || !formData.name.trim()}
+                            className={`w-full py-4 bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 text-white font-bold rounded-2xl shadow-xl transition-all ${isSubmitting || !formData.name.trim() ? 'opacity-50 cursor-not-allowed' : ''
                                 }`}
                         >
                             {isSubmitting ? 'Initializing...' : 'Initialize Project'}

@@ -26,10 +26,13 @@ import {
 } from '../../services/userManagementApi';
 import { canAccessUserManagement } from '../../utils/userManagementAccess';
 import {
-  buildExecutiveProjectSelectOptions,
-  buildExecutiveProjectSelectOptionsAsync,
-  buildPmcHeadExecutiveProjectOptions,
+  buildAssignableProjectSelectOptions,
+  clearProjectRowCache,
+  mergeProjectListsById,
+  normalizeBackendProjectRow,
+  seedProjectRowCache,
 } from '../../utils/pmcHeadExecutiveProjects';
+import { projectApi, unwrapList } from '../../services/api';
 import { ModalPortal } from '../ModalPortal';
 import DashboardToastStack, { type DashboardToastItem } from '../DashboardToastStack';
 import { getThemeClasses, useTheme } from '../../utils/theme';
@@ -111,10 +114,10 @@ const UserManagementPage: React.FC<UserManagementPageProps> = ({
   const themeClasses = getThemeClasses(isDarkTheme);
   const allowed = canAccessUserManagement(currentUser);
 
-  /** Same full portfolio list as Head / HO / Manager Project Overview. */
+  /** All live backend projects for assign / filter (includes newly initialized). */
   const [portfolioProjects, setPortfolioProjects] = useState<Project[]>(projects);
   const [projectOptions, setProjectOptions] = useState(() =>
-    buildExecutiveProjectSelectOptions(projects),
+    buildAssignableProjectSelectOptions(projects),
   );
 
   /** Assignable projects need a real backend id. */
@@ -126,40 +129,49 @@ const UserManagementPage: React.FC<UserManagementPageProps> = ({
   const filterProjectOptions = assignableProjectOptions;
 
   useEffect(() => {
-    setPortfolioProjects(projects);
+    setPortfolioProjects((prev) => mergeProjectListsById(prev, projects));
   }, [projects]);
 
   useEffect(() => {
-    let cancelled = false;
-    setProjectOptions(buildExecutiveProjectSelectOptions(portfolioProjects));
-
-    void buildExecutiveProjectSelectOptionsAsync(portfolioProjects)
-      .then((next) => {
-        if (!cancelled && next.length > 0) {
-          setProjectOptions(next);
-        }
-      })
-      .catch(() => {
-        // keep sync options as fallback
-      });
-
-    return () => {
-      cancelled = true;
-    };
+    setProjectOptions(buildAssignableProjectSelectOptions(portfolioProjects));
   }, [portfolioProjects]);
+
+  const refreshAssignableProjects = useCallback(async () => {
+    try {
+      clearProjectRowCache();
+      const response = await projectApi.getProjects({ page_size: 1000 });
+      const rows = unwrapList<Record<string, unknown>>(response.data);
+      seedProjectRowCache(rows);
+      const mapped = rows
+        .map((row) => normalizeBackendProjectRow(row))
+        .filter((p) => Boolean(p?.title?.trim()));
+      setPortfolioProjects((prev) => mergeProjectListsById(projects, prev, mapped));
+    } catch {
+      setPortfolioProjects((prev) => mergeProjectListsById(prev, projects));
+    }
+  }, [projects]);
 
   useEffect(() => {
     if (!allowed) return;
     let cancelled = false;
-    void buildPmcHeadExecutiveProjectOptions(projects)
-      .then(({ projects: next }) => {
-        if (!cancelled && next.length > 0) {
-          setPortfolioProjects(next);
+
+    void (async () => {
+      try {
+        clearProjectRowCache();
+        const response = await projectApi.getProjects({ page_size: 1000 });
+        const rows = unwrapList<Record<string, unknown>>(response.data);
+        seedProjectRowCache(rows);
+        const mapped = rows
+          .map((row) => normalizeBackendProjectRow(row))
+          .filter((p) => Boolean(p?.title?.trim()));
+        if (!cancelled) {
+          setPortfolioProjects((prev) => mergeProjectListsById(projects, prev, mapped));
         }
-      })
-      .catch(() => {
-        // keep current list
-      });
+      } catch {
+        // keep projects from props
+      }
+    })();
+
     return () => {
       cancelled = true;
     };
@@ -281,6 +293,7 @@ const UserManagementPage: React.FC<UserManagementPageProps> = ({
     setFormError(null);
     setFieldErrors({});
     setFormOpen(true);
+    void refreshAssignableProjects();
   };
 
   const openEdit = (user: ManagedUser) => {
@@ -299,6 +312,7 @@ const UserManagementPage: React.FC<UserManagementPageProps> = ({
     setFormError(null);
     setFieldErrors({});
     setFormOpen(true);
+    void refreshAssignableProjects();
   };
 
   const closeForm = () => {
@@ -424,6 +438,7 @@ const UserManagementPage: React.FC<UserManagementPageProps> = ({
     setAssignUser(user);
     setAssignIds(user.projects.map((p) => p.id));
     setAssignError(null);
+    void refreshAssignableProjects();
   };
 
   const handleAssign = async () => {
