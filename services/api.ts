@@ -6391,6 +6391,9 @@ type FrequencyChartCreatePayload = {
   fieldLabThisBill?: number;
   thirdPartyPreviousBill?: number;
   thirdPartyThisBill?: number;
+  requiredTests?: number;
+  conductedTests?: number;
+  passedTests?: number;
   remarks?: string;
   activityName?: string;
   contractorName?: string;
@@ -6400,6 +6403,9 @@ type FrequencyChartUpdatePayload = {
   qtyThisBill?: number;
   fieldLabThisBill?: number;
   thirdPartyThisBill?: number;
+  requiredTests?: number;
+  conductedTests?: number;
+  passedTests?: number;
   remarks?: string;
   activityName?: string;
   contractorName?: string;
@@ -6409,6 +6415,8 @@ function toFrequencyChartCreateBody(
   data: FrequencyChartCreatePayload,
 ): Record<string, unknown> {
   return {
+    // Contract uses projectName; keep project_name for older backends.
+    projectName: data.projectName,
     project_name: data.projectName,
     month: data.month,
     year: data.year,
@@ -6421,6 +6429,10 @@ function toFrequencyChartCreateBody(
     field_lab_this_bill: data.fieldLabThisBill ?? 0,
     third_party_previous_bill: data.thirdPartyPreviousBill ?? 0,
     third_party_this_bill: data.thirdPartyThisBill ?? 0,
+    required_tests: data.requiredTests ?? 0,
+    conducted_tests: data.conductedTests ?? 0,
+    passed_tests: data.passedTests ?? 0,
+    // Never send failed_tests / shortfall / status / sr_no — backend computes them.
     ...(data.remarks ? { remarks: data.remarks } : {}),
     ...(data.activityName ? { activity_name: data.activityName } : {}),
     ...(data.contractorName ? { contractor_name: data.contractorName } : {}),
@@ -6436,6 +6448,10 @@ function toFrequencyChartUpdateBody(
     body.field_lab_this_bill = data.fieldLabThisBill;
   if (data.thirdPartyThisBill !== undefined)
     body.third_party_this_bill = data.thirdPartyThisBill;
+  if (data.requiredTests !== undefined) body.required_tests = data.requiredTests;
+  if (data.conductedTests !== undefined)
+    body.conducted_tests = data.conductedTests;
+  if (data.passedTests !== undefined) body.passed_tests = data.passedTests;
   if (data.remarks !== undefined) body.remarks = data.remarks;
   if (data.activityName !== undefined) body.activity_name = data.activityName;
   if (data.contractorName !== undefined)
@@ -6477,6 +6493,12 @@ export const frequencyChartApi = {
       params: frequencyChartReportParams(params),
     }),
 
+  /** Alias for getClientReport — GET /frequency-chart/?format=client&... */
+  getFrequencyChart: (params: FrequencyChartClientReportParams) =>
+    api.get(API_ENDPOINTS.FREQUENCY_CHART.CLIENT_REPORT, {
+      params: frequencyChartReportParams(params),
+    }),
+
   /** Excel export — GET /frequency-chart/?format=client&export=excel&... */
   exportExcel: async (params: FrequencyChartClientReportParams) => {
     const res = await api.get(API_ENDPOINTS.FREQUENCY_CHART.CLIENT_REPORT, {
@@ -6493,7 +6515,21 @@ export const frequencyChartApi = {
       toFrequencyChartCreateBody(data),
     ),
 
+  /** Alias for createRegisterRow */
+  createRecord: (data: FrequencyChartCreatePayload) =>
+    api.post(
+      API_ENDPOINTS.FREQUENCY_CHART.REGISTER_CREATE,
+      toFrequencyChartCreateBody(data),
+    ),
+
   updateRegisterRow: (id: string | number, data: FrequencyChartUpdatePayload) =>
+    api.patch(
+      API_ENDPOINTS.FREQUENCY_CHART.REGISTER_UPDATE(id),
+      toFrequencyChartUpdateBody(data),
+    ),
+
+  /** Alias for updateRegisterRow */
+  updateRecord: (id: string | number, data: FrequencyChartUpdatePayload) =>
     api.patch(
       API_ENDPOINTS.FREQUENCY_CHART.REGISTER_UPDATE(id),
       toFrequencyChartUpdateBody(data),

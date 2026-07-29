@@ -339,11 +339,21 @@ export interface DrawingClientReportData {
 
 export type FrequencyChartView = 'monthly' | 'cumulative';
 
+/** Backend testing status for a register row / preview. */
+export type FrequencyChartTestStatus =
+  | 'Completed'
+  | 'Completed With Failures'
+  | 'Shortfall';
+
 export interface FrequencyChartSummary {
+  /** Prefer backend `summary.required` */
   testsRequired: number;
+  /** Prefer backend `summary.conducted` */
   testsConducted: number;
   shortfall: number;
+  /** Prefer backend `summary.passed` */
   testsPassed: number;
+  /** Prefer backend `summary.failed` */
   testsFailed: number;
   qualityPerformance: number;
   passRate: number;
@@ -368,6 +378,13 @@ export interface FrequencyChartRegisterRow {
   thirdPartyPreviousBill: number;
   thirdPartyThisBill: number;
   totalTestsConducted?: number;
+  /** New testing summary metrics (backend source of truth after save). */
+  requiredTests?: number;
+  conductedTests?: number;
+  passedTests?: number;
+  failedTests?: number;
+  shortfall?: number;
+  status?: FrequencyChartTestStatus | string;
   remarks?: string;
   month: number;
   year: number;

@@ -43,43 +43,97 @@ function safeN(v: unknown): number {
 function normaliseSummary(raw: unknown): FrequencyChartSummary {
   const s = (raw ?? {}) as Record<string, unknown>;
   return {
-    testsRequired:      safeN(s.testsRequired      ?? s.tests_required),
-    testsConducted:     safeN(s.testsConducted      ?? s.tests_conducted),
-    shortfall:          safeN(s.shortfall),
-    testsPassed:        safeN(s.testsPassed         ?? s.tests_passed),
-    testsFailed:        safeN(s.testsFailed         ?? s.tests_failed),
-    qualityPerformance: safeN(s.qualityPerformance  ?? s.quality_performance),
-    passRate:           safeN(s.passRate            ?? s.pass_rate),
-    failRate:           safeN(s.failRate            ?? s.fail_rate),
+    testsRequired: safeN(
+      s.required ?? s.testsRequired ?? s.tests_required,
+    ),
+    testsConducted: safeN(
+      s.conducted ?? s.testsConducted ?? s.tests_conducted,
+    ),
+    shortfall: safeN(s.shortfall),
+    testsPassed: safeN(s.passed ?? s.testsPassed ?? s.tests_passed),
+    testsFailed: safeN(s.failed ?? s.testsFailed ?? s.tests_failed),
+    qualityPerformance: safeN(s.qualityPerformance ?? s.quality_performance),
+    passRate: safeN(s.passRate ?? s.pass_rate),
+    failRate: safeN(s.failRate ?? s.fail_rate),
   };
 }
 
-function normaliseRow(row: unknown): any {
+function normaliseRow(row: unknown): FrequencyChartRegisterRow {
   const r = (row ?? {}) as Record<string, unknown>;
+  const requiredTests = safeN(
+    r.required_tests ??
+      r.requiredTests ??
+      r.required_tests_upto_date ??
+      r.requiredTestsUptoDate,
+  );
+  const conductedTests = safeN(
+    r.conducted_tests ??
+      r.conductedTests ??
+      r.total_tests_conducted ??
+      r.totalTestsConducted,
+  );
+  const passedTests = safeN(r.passed_tests ?? r.passedTests);
+  const failedTests = safeN(
+    r.failed_tests ?? r.failedTests ?? Math.max(conductedTests - passedTests, 0),
+  );
+  const shortfall = safeN(
+    r.shortfall ?? Math.max(requiredTests - conductedTests, 0),
+  );
+  const statusRaw = r.status != null ? String(r.status).trim() : "";
+  const status =
+    statusRaw ||
+    (shortfall > 0
+      ? "Shortfall"
+      : failedTests > 0
+        ? "Completed With Failures"
+        : "Completed");
+
   return {
-    id:                       r.id,
-    srNo:                     safeN(r.sr_no              ?? r.srNo),
-    itemDescription:          String(r.item_description  ?? r.itemDescription  ?? ""),
-    typeOfTest:               String(r.type_of_test      ?? r.typeOfTest       ?? ""),
-    frequencyOfTest:          String(r.frequency_of_test ?? r.frequencyOfTest  ?? ""),
-    unit:                     String(r.unit ?? ""),
-    qtyPreviousBill:          safeN(r.qty_previous_bill         ?? r.qtyPreviousBill),
-    qtyThisBill:              safeN(r.qty_this_bill             ?? r.qtyThisBill),
-    totalQty:                 safeN(r.total_qty                 ?? r.totalQty),
-    requiredTestsPreviousBill:safeN(r.required_tests_previous_bill ?? r.requiredTestsPreviousBill),
-    requiredTestsThisBill:    safeN(r.required_tests_this_bill  ?? r.requiredTestsThisBill),
-    requiredTestsUptoDate:    safeN(r.required_tests_upto_date  ?? r.requiredTestsUptoDate),
-    fieldLabPreviousBill:     safeN(r.field_lab_previous_bill   ?? r.fieldLabPreviousBill),
-    fieldLabThisBill:         safeN(r.field_lab_this_bill       ?? r.fieldLabThisBill),
-    thirdPartyPreviousBill:   safeN(r.third_party_previous_bill ?? r.thirdPartyPreviousBill),
-    thirdPartyThisBill:       safeN(r.third_party_this_bill     ?? r.thirdPartyThisBill),
-    totalTestsConducted:      safeN(r.total_tests_conducted     ?? r.totalTestsConducted),
-    remarks:                  String(r.remarks ?? ""),
-    month:                    safeN(r.month),
-    year:                     safeN(r.year),
-    projectName:              String(r.project_name ?? r.projectName ?? ""),
-    activityName:             (r.activity_name  ?? r.activityName  ?? null) as string | null,
-    contractorName:           (r.contractor_name ?? r.contractorName ?? null) as string | null,
+    id: r.id as number | undefined,
+    srNo: safeN(r.sr_no ?? r.srNo),
+    itemDescription: String(r.item_description ?? r.itemDescription ?? ""),
+    typeOfTest: String(r.type_of_test ?? r.typeOfTest ?? ""),
+    frequencyOfTest: String(r.frequency_of_test ?? r.frequencyOfTest ?? ""),
+    unit: String(r.unit ?? ""),
+    qtyPreviousBill: safeN(r.qty_previous_bill ?? r.qtyPreviousBill),
+    qtyThisBill: safeN(r.qty_this_bill ?? r.qtyThisBill),
+    totalQty: safeN(r.total_qty ?? r.totalQty),
+    requiredTestsPreviousBill: safeN(
+      r.required_tests_previous_bill ?? r.requiredTestsPreviousBill,
+    ),
+    requiredTestsThisBill: safeN(
+      r.required_tests_this_bill ?? r.requiredTestsThisBill,
+    ),
+    requiredTestsUptoDate: safeN(
+      r.required_tests_upto_date ?? r.requiredTestsUptoDate,
+    ),
+    fieldLabPreviousBill: safeN(
+      r.field_lab_previous_bill ?? r.fieldLabPreviousBill,
+    ),
+    fieldLabThisBill: safeN(r.field_lab_this_bill ?? r.fieldLabThisBill),
+    thirdPartyPreviousBill: safeN(
+      r.third_party_previous_bill ?? r.thirdPartyPreviousBill,
+    ),
+    thirdPartyThisBill: safeN(
+      r.third_party_this_bill ?? r.thirdPartyThisBill,
+    ),
+    totalTestsConducted: safeN(
+      r.total_tests_conducted ?? r.totalTestsConducted,
+    ),
+    requiredTests,
+    conductedTests,
+    passedTests,
+    failedTests,
+    shortfall,
+    status,
+    remarks: String(r.remarks ?? ""),
+    month: safeN(r.month),
+    year: safeN(r.year),
+    projectName: String(r.project_name ?? r.projectName ?? ""),
+    activityName: (r.activity_name ?? r.activityName ?? null) as string | null,
+    contractorName: (r.contractor_name ?? r.contractorName ?? null) as
+      | string
+      | null,
   };
 }
 
@@ -135,6 +189,12 @@ export default function FrequencyChartDashboard({
   const [deleteConfirm, setDeleteConfirm] = useState<{ id: number; label: string } | null>(null);
   const [deleting,    setDeleting]    = useState(false);
   const [showTestTable, setShowTestTable] = useState(defaultShowTable);
+  const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
+
+  const showToast = useCallback((message: string, type: "success" | "error" = "success") => {
+    setToast({ message, type });
+    window.setTimeout(() => setToast(null), 3500);
+  }, []);
 
   const loadData = useCallback(async () => {
     if (!project?.title) return;
@@ -154,11 +214,13 @@ export default function FrequencyChartDashboard({
       const env = res.data as Record<string, unknown>;
       if (env.success === false) {
         setError(String(env.message ?? "Failed to load data"));
+        setReportData(null);
         return;
       }
       setReportData(normaliseReport(env.data ?? env));
     } catch (err) {
       setError(getApiErrorMessage(err, "Unable to load frequency chart data"));
+      setReportData(null);
     } finally {
       setLoading(false);
     }
@@ -432,8 +494,25 @@ export default function FrequencyChartDashboard({
             year={selectedYear}
             editRow={editRow}
             onClose={() => { setModalOpen(false); setEditRow(null); }}
-            onSaved={() => { setModalOpen(false); setEditRow(null); loadData(); }}
+            onSaved={(message) => {
+              setModalOpen(false);
+              setEditRow(null);
+              showToast(message, "success");
+              void loadData();
+            }}
           />
+        )}
+
+        {toast && (
+          <div
+            className={`pointer-events-none fixed bottom-6 left-1/2 z-[260] -translate-x-1/2 rounded-xl px-4 py-2.5 text-xs font-bold shadow-lg ${
+              toast.type === "success"
+                ? "bg-emerald-600 text-white"
+                : "bg-rose-600 text-white"
+            }`}
+          >
+            {toast.message}
+          </div>
         )}
 
         {/* ── Delete Confirm ──────────────────────────────────────── */}
