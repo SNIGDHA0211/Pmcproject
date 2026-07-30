@@ -13,6 +13,7 @@ import {
   Landmark,
   MapPin,
   Plus,
+  RefreshCw,
   Search,
   TrainFront,
   Trees,
@@ -40,6 +41,9 @@ import {
   buildDprsFingerprint,
   buildPMCHead360CachePayload,
   buildProjectsFingerprint,
+  clearPMCHead360Cache,
+  getPMCHead360CacheAgeMs,
+  isPMCHead360CacheFresh,
   readPMCHead360Cache,
   writePMCHead360Cache,
 } from '../utils/pmcHead360Cache';
@@ -66,6 +70,16 @@ function healthTone(label: HealthLabel): string {
 
 function vitalPct(card: ProjectVitalsCard, key: ProjectVitalsCard['vitals'][number]['key']): number | null {
   return card.vitals.find((v) => v.key === key)?.percent ?? null;
+}
+
+function formatCacheAge(ageMs: number): string {
+  if (!Number.isFinite(ageMs) || ageMs < 0) return 'just now';
+  const mins = Math.floor(ageMs / 60_000);
+  if (mins < 1) return 'just now';
+  if (mins === 1) return '1 min ago';
+  if (mins < 60) return `${mins} min ago`;
+  const hours = Math.floor(mins / 60);
+  return hours === 1 ? '1 hr ago' : `${hours} hr ago`;
 }
 
 /** Theme-safe filter dropdown — avoids native &lt;select&gt; white flash on dark Windows UI. */
@@ -584,28 +598,65 @@ const PMCHead360Dashboard: React.FC<PMCHead360DashboardProps> = ({
   });
   const [isLoadingVitals, setIsLoadingVitals] = useState(() => {
     if (projects.length === 0) return false;
-    return !readPMCHead360Cache(user.id, projects, dprs);
+    const cached = readPMCHead360Cache(user.id, projects, dprs);
+    return !(cached && isPMCHead360CacheFresh(cached));
   });
   const [vitalsRefreshProgress, setVitalsRefreshProgress] = useState<{
     completed: number;
     total: number;
   } | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
+  /** Bumps when user clicks Refresh — forces one network revalidation. */
+  const [refreshNonce, setRefreshNonce] = useState(0);
+  const forceRefreshRef = useRef(false);
+  const [servingFromCache, setServingFromCache] = useState(() => {
+    const cached = readPMCHead360Cache(user.id, projects, dprs);
+    return Boolean(cached && isPMCHead360CacheFresh(cached));
+  });
+  const [cacheAgeLabel, setCacheAgeLabel] = useState<string | null>(() => {
+    const cached = readPMCHead360Cache(user.id, projects, dprs);
+    if (!cached || !isPMCHead360CacheFresh(cached)) return null;
+    return formatCacheAge(getPMCHead360CacheAgeMs(cached));
+  });
 
   const projectFingerprint = useMemo(() => buildProjectsFingerprint(projects), [projects]);
   const dprsFingerprint = useMemo(() => buildDprsFingerprint(projects, dprs), [projects, dprs]);
+  const projectsRef = useRef(projects);
+  const dprsRef = useRef(dprs);
+  projectsRef.current = projects;
+  dprsRef.current = dprs;
 
   useEffect(() => {
     let cancelled = false;
 
     const load = async () => {
+      const projects = projectsRef.current;
+      const dprs = dprsRef.current;
+
       if (projects.length === 0) {
         setAllCards([]);
         setIsLoadingVitals(false);
+        setServingFromCache(false);
+        setCacheAgeLabel(null);
         return;
       }
 
+      const forceRefresh = forceRefreshRef.current;
+      forceRefreshRef.current = false;
+
       const cached = readPMCHead360Cache(user.id, projects, dprs);
+
+      // Fresh cache + not a manual refresh → skip all vitals APIs (avoids rate limits).
+      if (!forceRefresh && cached && isPMCHead360CacheFresh(cached)) {
+        setAllCards(cached.cards);
+        setLoadError(null);
+        setIsLoadingVitals(false);
+        setVitalsRefreshProgress(null);
+        setServingFromCache(true);
+        setCacheAgeLabel(formatCacheAge(getPMCHead360CacheAgeMs(cached)));
+        return;
+      }
+
       if (cached) {
         setAllCards(cached.cards);
         setLoadError(null);
@@ -615,6 +666,7 @@ const PMCHead360Dashboard: React.FC<PMCHead360DashboardProps> = ({
         (p) => !String(p.id).startsWith('executive-known-') && !String(p.id).startsWith('executive-hse-'),
       ).length;
       setIsLoadingVitals(true);
+      setServingFromCache(Boolean(cached));
       setVitalsRefreshProgress(
         realProjectCount > 0 ? { completed: 0, total: realProjectCount } : null,
       );
@@ -639,11 +691,17 @@ const PMCHead360Dashboard: React.FC<PMCHead360DashboardProps> = ({
             user.id,
             buildPMCHead360CachePayload(user.id, projects, dprs, cards),
           );
+          setServingFromCache(false);
+          setCacheAgeLabel(null);
         }
       } catch (error) {
         console.error('Failed to load project vitals:', error);
         if (!cancelled) {
           setLoadError('Some live metrics may be unavailable. Showing available project data.');
+          if (cached) {
+            setServingFromCache(true);
+            setCacheAgeLabel(formatCacheAge(getPMCHead360CacheAgeMs(cached)));
+          }
         }
       } finally {
         if (!cancelled) {
@@ -657,7 +715,16 @@ const PMCHead360Dashboard: React.FC<PMCHead360DashboardProps> = ({
     return () => {
       cancelled = true;
     };
-  }, [user.id, projectFingerprint, dprsFingerprint, projects, dprs]);
+  }, [user.id, projectFingerprint, dprsFingerprint, refreshNonce]);
+
+  const handleForceRefresh = () => {
+    if (isLoadingVitals) return;
+    clearPMCHead360Cache(user.id);
+    forceRefreshRef.current = true;
+    setServingFromCache(false);
+    setCacheAgeLabel(null);
+    setRefreshNonce((n) => n + 1);
+  };
 
   const regions = useMemo(
     () => ['all', ...Array.from(new Set(projects.map((p) => p.location).filter(Boolean)))],
@@ -768,7 +835,9 @@ const PMCHead360Dashboard: React.FC<PMCHead360DashboardProps> = ({
       ? `Loading live backend data… ${vitalsRefreshProgress.completed} / ${vitalsRefreshProgress.total}`
       : isLoadingVitals
         ? 'Syncing live backend data…'
-        : `Live · ${portfolio.projectsWithScore}/${portfolio.projectsTotal} scored`;
+        : servingFromCache
+          ? `Cached${cacheAgeLabel ? ` · ${cacheAgeLabel}` : ''} · ${portfolio.projectsWithScore}/${portfolio.projectsTotal} scored`
+          : `Live · ${portfolio.projectsWithScore}/${portfolio.projectsTotal} scored`;
 
   return (
     <div className="animate-in fade-in space-y-4 pb-36 duration-500 sm:pb-40">
@@ -788,18 +857,41 @@ const PMCHead360Dashboard: React.FC<PMCHead360DashboardProps> = ({
                   ? isDarkTheme
                     ? 'border-amber-500/30 bg-amber-500/10 text-amber-300'
                     : 'border-amber-200 bg-amber-50 text-amber-700'
-                  : isDarkTheme
-                    ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300'
-                    : 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                  : servingFromCache
+                    ? isDarkTheme
+                      ? 'border-sky-500/30 bg-sky-500/10 text-sky-300'
+                      : 'border-sky-200 bg-sky-50 text-sky-700'
+                    : isDarkTheme
+                      ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300'
+                      : 'border-emerald-200 bg-emerald-50 text-emerald-700'
               }`}
             >
               <span
                 className={`h-1.5 w-1.5 rounded-full ${
-                  isLoadingVitals ? 'animate-pulse bg-amber-500' : 'animate-pulse bg-emerald-500'
+                  isLoadingVitals
+                    ? 'animate-pulse bg-amber-500'
+                    : servingFromCache
+                      ? 'bg-sky-500'
+                      : 'animate-pulse bg-emerald-500'
                 }`}
               />
               {liveBadgeLabel}
             </span>
+            <button
+              type="button"
+              onClick={handleForceRefresh}
+              disabled={isLoadingVitals}
+              title="Refresh live data from server"
+              aria-label="Refresh live data from server"
+              className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-bold transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
+                isDarkTheme
+                  ? 'border-white/15 bg-white/5 text-slate-200 hover:bg-white/10'
+                  : 'border-slate-200 bg-white text-slate-600 shadow-sm hover:bg-slate-50'
+              }`}
+            >
+              <RefreshCw size={12} className={isLoadingVitals ? 'animate-spin' : ''} />
+              Refresh
+            </button>
           </div>
         </div>
 
