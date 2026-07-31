@@ -20,6 +20,8 @@ export default defineConfig({
     sourcemap: true,
     chunkSizeWarningLimit: 1600,
     // Stable entry filename — cached index.html keeps working after redeploys.
+    // Do NOT split react into a separate manual chunk: that creates
+    // vendor <-> react-vendor cycles and a blank production page.
     rollupOptions: {
       output: {
         entryFileNames: 'assets/index.js',
@@ -27,13 +29,9 @@ export default defineConfig({
         assetFileNames: 'assets/[name]-[hash][extname]',
         manualChunks(id) {
           if (!id.includes('node_modules')) return;
-          if (id.includes('recharts') || id.includes('/d3-')) return 'charts';
+          // Heavy, leaf libraries only — safe to isolate.
           if (id.includes('exceljs')) return 'excel';
-          if (id.includes('lucide-react')) return 'icons';
-          if (id.includes('react-joyride')) return 'joyride';
-          if (id.includes('axios')) return 'http';
-          if (id.includes('react-dom') || id.includes('/react/')) return 'react-vendor';
-          return 'vendor';
+          if (id.includes('recharts') || id.includes('/d3-')) return 'charts';
         },
       },
     },

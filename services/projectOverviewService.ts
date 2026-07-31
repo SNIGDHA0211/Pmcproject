@@ -1,6 +1,7 @@
 import api, { getApiErrorMessage } from './api';
 import { API_ENDPOINTS } from '../config/apiConfig';
 import type { HealthLabel, ProjectVital, ProjectVitalsCard, VitalStatus } from '../utils/projectVitals';
+import { isExcludedPmcTlProjectTitle } from '../utils/pmcHeadExecutiveProjects';
 
 /** KPI chip from lightweight Project Overview API */
 export interface ProjectOverviewKpi {
@@ -213,10 +214,15 @@ export async function getProjectOverview(
   }
 
   const raw = Array.isArray(body.data) ? body.data : [];
+  const visible = raw.filter(
+    (item) =>
+      !isExcludedPmcTlProjectTitle(item.project_name) &&
+      !isExcludedPmcTlProjectTitle(item.client),
+  );
   return {
-    count: typeof body.count === 'number' ? body.count : raw.length,
-    cards: raw.map(mapOverviewItemToVitalsCard),
-    raw,
+    count: visible.length,
+    cards: visible.map(mapOverviewItemToVitalsCard),
+    raw: visible,
   };
 }
 

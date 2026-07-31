@@ -65,7 +65,7 @@ import {
 } from "./utils/pmcHeadPendingUpdates";
 import { userMatchesAssignee, extractAssigneeId, projectAssignedToUser } from "./utils/roleProjectAssignments";
 import { clearAppDataCaches } from "./utils/authStorage";
-import { normalizeBackendProjectRow, buildPmcHeadDropdownProjects, buildPmcHeadExecutiveProjectOptions, getKnownExecutiveProjectStubs, getHseExecutiveProjectStubs, seedProjectRowCache, clearProjectRowCache } from "./utils/pmcHeadExecutiveProjects";
+import { normalizeBackendProjectRow, buildPmcHeadDropdownProjects, buildPmcHeadExecutiveProjectOptions, getKnownExecutiveProjectStubs, getHseExecutiveProjectStubs, seedProjectRowCache, clearProjectRowCache, isExcludedPmcTlProjectTitle } from "./utils/pmcHeadExecutiveProjects";
 import { sanitizeProjectDisplayName } from "./utils/hseSiteEngineerProjects";
 import { isPmcHeadEquivalent } from "./utils/pmcRoleAccess";
 import { ensureProjectCoverAssigned } from "./utils/projectCoverPhotos";
@@ -262,7 +262,9 @@ const App: React.FC = () => {
         };
       });
 
-      let projectsForState = backendProjects;
+      let projectsForState = backendProjects.filter(
+        (p) => !isExcludedPmcTlProjectTitle(p.title),
+      );
       if (isPmcHead) {
         projectsForState = buildPmcHeadDropdownProjects(
           backendProjects,

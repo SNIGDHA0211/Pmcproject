@@ -20,10 +20,12 @@ export const PMC_TL_KNOWN_PROJECT_TITLES = [
   'B3482 RGSL: Rajeev Gandhi Sea Link',
 ] as const;
 
-/** Projects explicitly excluded from the PMC Head executive dropdown. */
+/** Projects explicitly excluded from Head / HO portfolio UI (dropdowns, overview cards, lists). */
 export const PMC_TL_DROPDOWN_EXCLUDE_TITLES = [
   'Thane Project',
+  'White Bliss',
   'White bliss',
+  'WHITE BLISS CORPORATION',
   'Democracy',
   'Multi-Modal Transit Hub – Thane',
   'SHIVALIKA',
@@ -49,10 +51,14 @@ export function isExcludedPmcTlProjectTitle(title?: string | null): boolean {
   if (!key) return false;
   return PMC_TL_DROPDOWN_EXCLUDE_TITLES.some((t) => {
     const excluded = normalizeProjectTitleKey(t);
+    if (!excluded) return false;
     return (
       key === excluded ||
       key.startsWith(`${excluded} (`) ||
-      key.startsWith(`${excluded}(`)
+      key.startsWith(`${excluded}(`) ||
+      // e.g. "White Bliss" also hides "WHITE BLISS CORPORATION"
+      (excluded.length >= 8 && key.startsWith(`${excluded} `)) ||
+      areDuplicateProjectTitles(title, t)
     );
   });
 }
@@ -792,7 +798,7 @@ function ensureKnownExecutiveStubs(projects: Project[]): Project[] {
   return [...merged.values()].sort(sortProjectsByTitle);
 }
 
-/** Load pmc_tl assignments (Thane Project, White bliss, Democracy, etc.). */
+/** Load pmc_tl assignments for the Head executive portfolio (excludes stub titles). */
 export async function fetchPmcTlPortfolioProjects(
   existingProjects: Project[],
   assigneeTokens?: ReadonlySet<string>,
