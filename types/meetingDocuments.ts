@@ -31,6 +31,8 @@ export interface MeetingDocumentsListParams {
   meeting_type?: MeetingDocumentType | '';
   month?: number | '';
   year?: number | '';
+  /** Abort in-flight list fetch when filters/search change. */
+  signal?: AbortSignal;
 }
 
 export interface PaginatedMeetingDocuments {

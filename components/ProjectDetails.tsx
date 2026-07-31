@@ -9,9 +9,20 @@ import AssignmentModal from './AssignmentModal';
 import MilestoneModal from './MilestoneModal';
 import ReportGenerator from './ReportGenerator';
 import { MOCK_USERS } from '../services/mockData';
-import { projectApi } from '../services/api';
+import { projectApi, getApiErrorMessage } from '../services/api';
 import { useTheme, getThemeClasses } from '../utils/theme';
 import { isPmcHeadEquivalent } from '../utils/pmcRoleAccess';
+import { canCompleteProject } from '../utils/userManagementAccess';
+import {
+  extractCompletionFields,
+  formatCompletionDate,
+  getProjectStatusLabel,
+  isProjectCompleted,
+} from '../utils/projectCompletion';
+import ProjectSiteList from './ProjectSiteList';
+import CompleteProjectDialog from './CompleteProjectDialog';
+import DashboardToastStack, { type DashboardToastItem } from './DashboardToastStack';
+import axios from 'axios';
 
 interface ProjectDetailsProps {
   project: Project;
@@ -35,6 +46,10 @@ const ProjectDetails: React.FC<ProjectDetailsProps> = ({ project, currentUser, o
   const [showAssignmentModal, setShowAssignmentModal] = useState(false);
   const [isMilestoneModalOpen, setIsMilestoneModalOpen] = useState(false);
   const [isReportGeneratorOpen, setIsReportGeneratorOpen] = useState(false);
+  const [completeDialogOpen, setCompleteDialogOpen] = useState(false);
+  const [isCompleting, setIsCompleting] = useState(false);
+  const [completeError, setCompleteError] = useState<string | null>(null);
+  const [toasts, setToasts] = useState<DashboardToastItem[]>([]);
 
   // State for Coordinator assigning Team Lead
   const [availableTeamLeads, setAvailableTeamLeads] = useState<User[]>([]);
@@ -60,12 +75,91 @@ const ProjectDetails: React.FC<ProjectDetailsProps> = ({ project, currentUser, o
   const isCoordinator = currentUser.role === UserRole.COORDINATOR;
   const isTeamLead = currentUser.role === UserRole.TEAM_LEAD;
   const isPMCHead = isPmcHeadEquivalent(currentUser);
+  const isCompleted = isProjectCompleted(project);
+  const canMarkComplete = canCompleteProject(currentUser) && !isCompleted;
   const hasTeamLead = project.teamLeadId && project.teamLeadId !== '';
   const hasSiteEngineers = project.siteEngineerIds && project.siteEngineerIds.length > 0;
   // PMC Manager / Head can assign team lead
-  const canAssignTeamLead = isPMCHead;
+  const canAssignTeamLead = isPMCHead && !isCompleted;
   // Team lead can always add site engineers (they can reassign)
-  const canAddSiteEngineers = isTeamLead;
+  const canAddSiteEngineers = isTeamLead && !isCompleted;
+
+  const showToast = (message: string, type: 'success' | 'error' = 'success') => {
+    const id = Date.now() + Math.random();
+    setToasts((prev) => [...prev, { id, message, type }]);
+    window.setTimeout(() => {
+      setToasts((prev) => prev.filter((t) => t.id !== id));
+    }, 4200);
+  };
+
+  const handleConfirmComplete = async (completionNotes: string) => {
+    if (isCompleting || isCompleted) return;
+    setIsCompleting(true);
+    setCompleteError(null);
+    try {
+      const body =
+        completionNotes.trim().length > 0
+          ? { completion_notes: completionNotes.trim() }
+          : {};
+      const response = await projectApi.completeProject(project.id, body);
+      const data =
+        response.data && typeof response.data === 'object'
+          ? (response.data as Record<string, unknown>)
+          : {};
+      const message =
+        typeof data.message === 'string' && data.message.trim()
+          ? data.message
+          : 'Project marked as completed successfully.';
+
+      const nested =
+        data.project && typeof data.project === 'object'
+          ? (data.project as Record<string, unknown>)
+          : data;
+      const completion = extractCompletionFields(nested);
+
+      onUpdateProject(
+        project.id,
+        {
+          status: ProjectStatus.APPROVED,
+          completedAt: completion.completedAt || new Date().toISOString(),
+          completedBy:
+            completion.completedBy ||
+            currentUser.name ||
+            currentUser.username ||
+            currentUser.id,
+          completionNotes:
+            completion.completionNotes ??
+            (completionNotes.trim() || null),
+        },
+        [],
+      );
+
+      setCompleteDialogOpen(false);
+      showToast(message, 'success');
+      onRefresh?.();
+    } catch (err) {
+      if (axios.isAxiosError(err) && err.response?.status === 403) {
+        const msg = 'You do not have permission to mark this project as completed.';
+        setCompleteError(msg);
+        showToast(msg, 'error');
+        return;
+      }
+      if (axios.isAxiosError(err) && err.response?.status === 400) {
+        const msg = getApiErrorMessage(
+          err,
+          'Project is already marked as completed.',
+        );
+        setCompleteError(msg);
+        showToast(msg, 'error');
+        return;
+      }
+      const msg = getApiErrorMessage(err, 'Failed to mark project as completed.');
+      setCompleteError(msg);
+      showToast(msg, 'error');
+    } finally {
+      setIsCompleting(false);
+    }
+  };
 
   // Fetch available team leads when coordinator views project
   useEffect(() => {
@@ -202,8 +296,6 @@ const ProjectDetails: React.FC<ProjectDetailsProps> = ({ project, currentUser, o
     }
   };
 
-  const isCompleted = project.status === ProjectStatus.APPROVED;
-
   const canApprove = (status: ProjectStatus) => {
     if (isPmcHeadEquivalent(currentUser) && status === ProjectStatus.REVIEWED) return true;
     if (currentUser.role === UserRole.TEAM_LEAD && status === ProjectStatus.SUBMITTED) return true;
@@ -332,6 +424,7 @@ const ProjectDetails: React.FC<ProjectDetailsProps> = ({ project, currentUser, o
 
   return (
     <div className="max-w-6xl mx-auto space-y-4 animate-in slide-in-from-right duration-300 sm:space-y-6">
+      <DashboardToastStack toasts={toasts} />
       {/* Top Bar */}
       <div className="flex flex-wrap items-center justify-between gap-2">
         <button onClick={onBack} className={`flex items-center gap-1.5 text-sm font-semibold transition-colors ${themeClasses.textSecondary} hover:text-indigo-400`}>
@@ -581,14 +674,47 @@ const ProjectDetails: React.FC<ProjectDetailsProps> = ({ project, currentUser, o
               Generate DPR Report
             </button>
           )}
-          <button
-            onClick={() => setIsEditModalOpen(true)}
-            className={`p-2 transition-all rounded-lg ${isDarkTheme ? 'text-white/60 hover:text-white hover:bg-white/5' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'}`}
-          >
-            <Icons.Add size={20} />
-          </button>
+          {canMarkComplete && (
+            <button
+              type="button"
+              onClick={() => {
+                setCompleteError(null);
+                setCompleteDialogOpen(true);
+              }}
+              className={`px-4 py-2 flex items-center gap-2 font-black border rounded-lg transition-all text-[10px] uppercase tracking-widest ${
+                isDarkTheme
+                  ? 'text-emerald-300 border-emerald-500/40 bg-emerald-600/15 hover:bg-emerald-600/30'
+                  : 'text-emerald-700 border-emerald-200 bg-emerald-50 hover:bg-emerald-100'
+              }`}
+            >
+              <Icons.Approve size={14} />
+              Mark as Completed
+            </button>
+          )}
+          {!isCompleted && (
+            <button
+              onClick={() => setIsEditModalOpen(true)}
+              className={`p-2 transition-all rounded-lg ${isDarkTheme ? 'text-white/60 hover:text-white hover:bg-white/5' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'}`}
+              aria-label="Edit project"
+            >
+              <Icons.Add size={20} />
+            </button>
+          )}
         </div>
       </div>
+
+      {isCompleted && (
+        <div
+          className={`rounded-2xl border px-4 py-3 text-sm font-semibold ${
+            isDarkTheme
+              ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300'
+              : 'border-emerald-200 bg-emerald-50 text-emerald-800'
+          }`}
+          role="status"
+        >
+          This project has been completed and is now read-only.
+        </div>
+      )}
 
    {/* Hero Header */}
 <div
@@ -626,7 +752,7 @@ const ProjectDetails: React.FC<ProjectDetailsProps> = ({ project, currentUser, o
               ${STATUS_COLORS[project.status]}
             `}
           >
-            {project.status.replace("_", " ")}
+            {getProjectStatusLabel(project)}
           </span>
 
           <span
@@ -794,6 +920,43 @@ const ProjectDetails: React.FC<ProjectDetailsProps> = ({ project, currentUser, o
         </p>
       </div>
 
+      {isCompleted && (
+        <>
+          <div>
+            <p
+              className={`text-[11px] font-bold uppercase tracking-wide ${themeClasses.textSecondary}`}
+            >
+              Completed At
+            </p>
+            <p className={`mt-1 text-sm font-bold ${themeClasses.textPrimary}`}>
+              {formatCompletionDate(project.completedAt)}
+            </p>
+          </div>
+          <div>
+            <p
+              className={`text-[11px] font-bold uppercase tracking-wide ${themeClasses.textSecondary}`}
+            >
+              Completed By
+            </p>
+            <p className={`mt-1 text-sm font-bold ${themeClasses.textPrimary}`}>
+              {project.completedBy || '—'}
+            </p>
+          </div>
+          {project.completionNotes ? (
+            <div className="sm:col-span-2 lg:col-span-1">
+              <p
+                className={`text-[11px] font-bold uppercase tracking-wide ${themeClasses.textSecondary}`}
+              >
+                Completion Notes
+              </p>
+              <p className={`mt-1 text-sm font-semibold ${themeClasses.textPrimary}`}>
+                {project.completionNotes}
+              </p>
+            </div>
+          ) : null}
+        </>
+      )}
+
       {/* Team */}
       {assignedTeam.length > 0 && (
         <div>
@@ -859,6 +1022,13 @@ const ProjectDetails: React.FC<ProjectDetailsProps> = ({ project, currentUser, o
     />
   )}
 </div>
+
+      {/* Site List — delete uses site_id from sites API (not Init List / Portfolio) */}
+      <ProjectSiteList
+        projectId={project.id}
+        currentUser={currentUser}
+        readOnly={isCompleted}
+      />
 
       {/* Workflow Tabs */}
       <div className={`flex overflow-x-auto border-b ${themeClasses.border}`} style={{ scrollbarWidth: 'none' }}>
@@ -965,10 +1135,12 @@ const ProjectDetails: React.FC<ProjectDetailsProps> = ({ project, currentUser, o
             <div className={`${themeClasses.glassCard} p-6 rounded-2xl border ${themeClasses.border}`}>
               <div className="flex items-center justify-between mb-8">
                 <h3 className={`font-bold ${themeClasses.textPrimary}`}>Document Vault</h3>
-                <button className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-bold hover:bg-indigo-500 transition-all">
-                  <Icons.Upload size={16} />
-                  Upload New
-                </button>
+                {!isCompleted && (
+                  <button className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-bold hover:bg-indigo-500 transition-all disabled:opacity-50">
+                    <Icons.Upload size={16} />
+                    Upload New
+                  </button>
+                )}
               </div>
 
               {/* Show actual uploaded document if available */}
@@ -1039,7 +1211,7 @@ const ProjectDetails: React.FC<ProjectDetailsProps> = ({ project, currentUser, o
                   <Icons.Task size={20} className={isDarkTheme ? 'text-indigo-400' : 'text-indigo-600'} />
                   Execution Milestones
                 </h3>
-                {currentUser.role === UserRole.TEAM_LEAD && (
+                {currentUser.role === UserRole.TEAM_LEAD && !isCompleted && (
                   <button
                     onClick={() => setIsMilestoneModalOpen(true)}
                     className="px-4 py-2 bg-indigo-600 text-white text-xs font-black uppercase rounded-lg hover:bg-indigo-500 transition-all shadow-lg shadow-indigo-500/20"
@@ -1206,6 +1378,19 @@ const ProjectDetails: React.FC<ProjectDetailsProps> = ({ project, currentUser, o
           onSubmit={handleMilestoneSubmit}
         />
       )}
+
+      <CompleteProjectDialog
+        open={completeDialogOpen}
+        projectName={project.title}
+        onCancel={() => {
+          if (isCompleting) return;
+          setCompleteDialogOpen(false);
+          setCompleteError(null);
+        }}
+        onConfirm={(notes) => void handleConfirmComplete(notes)}
+        isSubmitting={isCompleting}
+        errorMessage={completeError}
+      />
     </div>
   );
 };

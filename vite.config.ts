@@ -25,6 +25,16 @@ export default defineConfig({
         entryFileNames: 'assets/index.js',
         chunkFileNames: 'assets/[name]-[hash].js',
         assetFileNames: 'assets/[name]-[hash][extname]',
+        manualChunks(id) {
+          if (!id.includes('node_modules')) return;
+          if (id.includes('recharts') || id.includes('/d3-')) return 'charts';
+          if (id.includes('exceljs')) return 'excel';
+          if (id.includes('lucide-react')) return 'icons';
+          if (id.includes('react-joyride')) return 'joyride';
+          if (id.includes('axios')) return 'http';
+          if (id.includes('react-dom') || id.includes('/react/')) return 'react-vendor';
+          return 'vendor';
+        },
       },
     },
   },

@@ -40,6 +40,10 @@ export interface ProjectVitalsCard {
   lastUpdate: string;
   /** From overview API — when false, compare control is disabled. */
   compareEnabled?: boolean;
+  /** Project completion metadata from overview / portfolio. */
+  isCompleted?: boolean;
+  completedAt?: string | null;
+  completedBy?: string | null;
 }
 
 const statusFromPercent = (percent: number | null, criticalBelow = 50, watchBelow = 75): VitalStatus => {

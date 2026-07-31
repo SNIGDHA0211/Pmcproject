@@ -6,6 +6,7 @@ import { manpowerApi, unwrapList, normalizeManpowerRecord } from '../services/ap
 import { Project, User, UserRole } from '../types';
 import { formatReportPercent, formatReportTodayDate } from '../utils/csvReport';
 import { downloadSectionsExcel } from '../utils/projectReportExcel';
+import { useDebouncedValue } from '../hooks/useDebouncedValue';
 
 interface ManpowerRecord {
   id: number;
@@ -494,17 +495,20 @@ const ManpowerManagement: React.FC<ManpowerManagementProps> = ({ projects = [], 
 
   // Tour highlight/positioning now handled by react-joyride (exact Dashboard architecture) — custom effects removed for 1:1 parity.
 
-  // Filtered + searched records
-  const filteredRecords = records.filter((rec) => {
-    if (!matchesAssignedProject(rec.project_name)) return false;
-    const matchesSearch =
-      !searchTerm ||
-      rec.project_name.toLowerCase().includes(searchTerm.toLowerCase());
-    const [recMonth, recYear] = rec.month_year.split("-");
-    const matchesMonth = filterMonth === "All" || recMonth === filterMonth;
-    const matchesYear = filterYear === "All" || recYear === filterYear;
-    return matchesSearch && matchesMonth && matchesYear;
-  });
+  // Filtered + searched records (search debounced to avoid re-filtering every keystroke)
+  const debouncedSearchTerm = useDebouncedValue(searchTerm.trim().toLowerCase());
+  const filteredRecords = useMemo(() => {
+    return records.filter((rec) => {
+      if (!matchesAssignedProject(rec.project_name)) return false;
+      const matchesSearch =
+        !debouncedSearchTerm ||
+        rec.project_name.toLowerCase().includes(debouncedSearchTerm);
+      const [recMonth, recYear] = rec.month_year.split("-");
+      const matchesMonth = filterMonth === "All" || recMonth === filterMonth;
+      const matchesYear = filterYear === "All" || recYear === filterYear;
+      return matchesSearch && matchesMonth && matchesYear;
+    });
+  }, [records, debouncedSearchTerm, filterMonth, filterYear, matchesAssignedProject]);
 
   // Summary stats (on filtered)
   const totalPlanned = filteredRecords.reduce(

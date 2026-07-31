@@ -181,7 +181,10 @@ export const meetingDocumentsApi = {
   getDashboard: () => client.get(API_ENDPOINTS.MEETING_DOCUMENTS.DASHBOARD),
 
   list: (params: MeetingDocumentsListParams = {}) =>
-    client.get(API_ENDPOINTS.MEETING_DOCUMENTS.LIST, { params: buildListParams(params) }),
+    client.get(API_ENDPOINTS.MEETING_DOCUMENTS.LIST, {
+      params: buildListParams(params),
+      ...(params.signal ? { signal: params.signal } : {}),
+    }),
 
   getById: (id: string | number) => client.get(API_ENDPOINTS.MEETING_DOCUMENTS.DETAIL(id)),
 

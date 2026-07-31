@@ -63,6 +63,8 @@ export const API_ENDPOINTS = {
     AVAILABLE_USERS: '/projects-data/projects/available-users/',
     UPDATE: (id: string) => `/projects-data/projects/${id}/`,
     PATCH: (id: string) => `/projects-data/projects/${id}/`,
+    /** POST mark project completed — `/api/projects/{id}/complete/` */
+    COMPLETE: (id: string | number) => `/projects/${id}/complete/`,
     ASSIGN_TEAM_LEAD: (id: string) => `/projects-data/projects/${id}/assign-team-lead/`,
     ASSIGN_COORDINATOR: (id: string) => `/projects-data/projects/${id}/assign-coordinator/`,
     ADD_SITE_ENGINEERS: (id: string) => `/projects-data/projects/${id}/add-site-engineers/`,
@@ -71,6 +73,8 @@ export const API_ENDPOINTS = {
     // Project Initialization API (PMC Head)
     INIT_PROJECT: '/projects/init/',
     INIT_LIST: '/projects/init-list/',
+    /** DELETE site by site_id — use only from Site List (IDs from sites API). */
+    INIT_LIST_DETAIL: (siteId: string | number) => `/projects/init-list/${siteId}/`,
   },
 
   // Project Logs (Issues & Concerns + Risks & Actions)

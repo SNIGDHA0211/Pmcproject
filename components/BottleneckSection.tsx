@@ -43,6 +43,7 @@ import {
   getThemeClasses,
   useTheme,
 } from "../utils/theme";
+import { useDebouncedValue } from "../hooks/useDebouncedValue";
 
 const PREVIEW_LIMIT = 2;
 
@@ -89,6 +90,7 @@ const BottleneckSection: React.FC<BottleneckSectionProps> = ({
     "ALL" | BottleneckPriority
   >("ALL");
   const [searchQuery, setSearchQuery] = useState("");
+  const debouncedSearchQuery = useDebouncedValue(searchQuery.trim().toLowerCase());
   const [saveFeedback, setSaveFeedback] = useState<SaveFeedback | null>(null);
   const [isViewAllOpen, setIsViewAllOpen] = useState(false);
 
@@ -143,7 +145,7 @@ const BottleneckSection: React.FC<BottleneckSectionProps> = ({
   }, [items]);
 
   const filteredItems = useMemo(() => {
-    const q = searchQuery.trim().toLowerCase();
+    const q = debouncedSearchQuery;
     return items.filter((item) => {
       if (activeTab !== "ALL" && item.type !== activeTab) return false;
       if (statusFilter !== "ALL" && item.status !== statusFilter) return false;
@@ -156,7 +158,7 @@ const BottleneckSection: React.FC<BottleneckSectionProps> = ({
         item.type.toLowerCase().includes(q)
       );
     });
-  }, [items, activeTab, statusFilter, priorityFilter, searchQuery]);
+  }, [items, activeTab, statusFilter, priorityFilter, debouncedSearchQuery]);
 
   const filterContext = useMemo(() => {
     const withText = items.filter((i) => i.description.trim());

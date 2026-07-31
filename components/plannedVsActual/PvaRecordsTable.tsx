@@ -5,6 +5,7 @@ import { formatIndianCurrencyCompact } from '../../utils/format';
 import { getThemeClasses, useTheme } from '../../utils/theme';
 import { MONTH_OPTIONS } from '../../utils/healthSafety';
 import PvaVarianceBadge from './PvaVarianceBadge';
+import { useDebouncedValue } from '../../hooks/useDebouncedValue';
 
 type SortKey =
   | 'month'
@@ -40,12 +41,13 @@ const PvaRecordsTable: React.FC<PvaRecordsTableProps> = ({
   const { isDarkTheme } = useTheme();
   const themeClasses = getThemeClasses(isDarkTheme);
   const [search, setSearch] = useState('');
+  const debouncedSearch = useDebouncedValue(search.trim().toLowerCase());
   const [sortKey, setSortKey] = useState<SortKey>('month');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
   const [page, setPage] = useState(1);
 
   const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
+    const q = debouncedSearch;
     let list = [...rows];
     if (q) {
       list = list.filter((row) =>
@@ -75,7 +77,7 @@ const PvaRecordsTable: React.FC<PvaRecordsTableProps> = ({
         : String(bv).localeCompare(String(av));
     });
     return list;
-  }, [rows, search, sortKey, sortDir]);
+  }, [rows, debouncedSearch, sortKey, sortDir]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const pageRows = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);

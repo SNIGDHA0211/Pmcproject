@@ -18,6 +18,8 @@ export interface UserListParams {
   status?: 'active' | 'inactive' | '';
   page?: number;
   page_size?: number;
+  /** Abort in-flight list fetch when filters/search change. */
+  signal?: AbortSignal;
 }
 
 export interface UserCreatePayload {
@@ -234,7 +236,10 @@ export async function getUsers(params: UserListParams = {}): Promise<UserListRes
   if (params.page) query.page = params.page;
   if (params.page_size) query.page_size = params.page_size;
 
-  const res = await api.get(API_ENDPOINTS.USERS.LIST, { params: query });
+  const res = await api.get(API_ENDPOINTS.USERS.LIST, {
+    params: query,
+    ...(params.signal ? { signal: params.signal } : {}),
+  });
   return parseUserListResponse(res.data);
 }
 

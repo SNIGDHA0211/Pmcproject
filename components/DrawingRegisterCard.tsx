@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { drawingRegisterApi, getApiErrorMessage } from '../services/api';
+import { useDebouncedValue } from '../hooks/useDebouncedValue';
+import { isAbortError } from '../utils/isAbortError';
 import type {
   DrawingClientReportData,
   DrawingClientReportRow,
@@ -583,7 +585,8 @@ export default function DrawingRegisterCard({
   const [contractor, setContractor] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [search, setSearch] = useState('');
-  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const debouncedSearch = useDebouncedValue(search.trim());
+  const debouncedContractor = useDebouncedValue(contractor.trim());
 
   useEffect(() => {
     if (!syncContractorFromDashboard) return;
@@ -602,7 +605,7 @@ export default function DrawingRegisterCard({
   const [showFilters, setShowFilters] = useState(false);
   const [showDrawingTable, setShowDrawingTable] = useState(false);
 
-  const loadData = useCallback(async () => {
+  const loadData = useCallback(async (signal?: AbortSignal) => {
     if (!project?.title) return;
     setLoading(true);
     setError(null);
@@ -612,23 +615,21 @@ export default function DrawingRegisterCard({
         month: selMonth,
         year: selYear,
         view,
-        ...(contractor && { contractor }),
+        ...(debouncedContractor && { contractor: debouncedContractor }),
         ...(statusFilter && { status: statusFilter }),
         ...(debouncedSearch && { search: debouncedSearch }),
+        signal,
       });
+      if (signal?.aborted) return;
       setReportData(res.data);
     } catch (err) {
+      if (isAbortError(err) || signal?.aborted) return;
       setReportData(null);
       setError(getApiErrorMessage(err, 'Unable to load drawing register'));
     } finally {
-      setLoading(false);
+      if (!signal?.aborted) setLoading(false);
     }
-  }, [project?.title, selMonth, selYear, view, contractor, statusFilter, debouncedSearch]);
-
-  useEffect(() => {
-    const timer = window.setTimeout(() => setDebouncedSearch(search.trim()), 350);
-    return () => window.clearTimeout(timer);
-  }, [search]);
+  }, [project?.title, selMonth, selYear, view, debouncedContractor, statusFilter, debouncedSearch]);
 
   useEffect(() => {
     if (!successMsg) return;
@@ -636,7 +637,11 @@ export default function DrawingRegisterCard({
     return () => window.clearTimeout(timer);
   }, [successMsg]);
 
-  useEffect(() => { loadData(); }, [loadData]);
+  useEffect(() => {
+    const controller = new AbortController();
+    void loadData(controller.signal);
+    return () => controller.abort();
+  }, [loadData]);
 
   async function handleExportExcel() {
     const exportParams = {
@@ -644,7 +649,7 @@ export default function DrawingRegisterCard({
       month: selMonth,
       year: selYear,
       view,
-      ...(contractor && { contractor }),
+      ...(debouncedContractor && { contractor: debouncedContractor }),
       ...(statusFilter && { status: statusFilter }),
       ...(debouncedSearch && { search: debouncedSearch }),
     };
@@ -717,7 +722,7 @@ export default function DrawingRegisterCard({
             className={`flex items-center justify-center gap-1.5 rounded-xl border px-3 py-2 text-xs font-bold transition-colors ${tc.border} ${tc.textSecondary} ${isDarkTheme ? 'hover:bg-white/10' : 'hover:bg-slate-100'} ${showFilters ? (isDarkTheme ? 'bg-white/10' : 'bg-slate-100') : ''}`}>
             <Icons.Filter size={14} /><span className="hidden sm:inline">Filters</span>
           </button>
-          <button onClick={loadData} disabled={loading}
+          <button onClick={() => void loadData()} disabled={loading}
             className={`flex items-center justify-center gap-1.5 rounded-xl border px-3 py-2 text-xs font-bold transition-colors disabled:opacity-40 ${tc.border} ${tc.textSecondary} ${isDarkTheme ? 'hover:bg-white/10' : 'hover:bg-slate-100'}`}>
             <Icons.History size={14} className={loading ? 'animate-spin' : ''} />
             <span className="hidden sm:inline">Refresh</span>

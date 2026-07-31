@@ -80,14 +80,60 @@ export async function fetchFinancialDataSnapshot({
 }: FetchFinancialDataParams): Promise<FinancialDataSnapshot> {
   const roleParam = { role: roleForSubmission };
 
-  const progRes = await projectProgressApi.getProjectProgress({ project_name: projectName, ...roleParam });
-  const progressRows = unwrapProjectProgressList(progRes.data);
-  const progressRow = pickProjectProgressRecord(progressRows, month, year);
-  const progressForm = mapProjectProgressToForm(
-    progressRow as Record<string, unknown> | null,
-    month,
-    year
-  );
+  // Independent GETs run in parallel to cut financial-tab waterfall latency.
+  const [
+    progSettled,
+    pevSettled,
+    cpSettled,
+    costSettled,
+    bpSettled,
+    invoicingResults,
+    contractResults,
+  ] = await Promise.all([
+    projectProgressApi
+      .getProjectProgress({ project_name: projectName, ...roleParam })
+      .then((value) => ({ status: 'fulfilled' as const, value }))
+      .catch((reason) => ({ status: 'rejected' as const, reason })),
+    plannedEarnedValueApi
+      .getByProjectMonthYear(projectName, month, year)
+      .then((value) => ({ status: 'fulfilled' as const, value }))
+      .catch((reason) => ({ status: 'rejected' as const, reason })),
+    contractPerformanceApi
+      .getContractPerformance({ project_name: projectName, ...roleParam })
+      .then((value) => ({ status: 'fulfilled' as const, value }))
+      .catch((reason) => ({ status: 'rejected' as const, reason })),
+    costPerformanceApi
+      .getCostPerformance({
+        project_name: projectName,
+        month_year: formatFinancialMonthYear(month, year),
+        ...roleParam,
+      })
+      .then((value) => ({ status: 'fulfilled' as const, value }))
+      .catch((reason) => ({ status: 'rejected' as const, reason })),
+    budgetPerformanceApi
+      .getBudgetPerformance({ project_name: projectName, ...roleParam })
+      .then((value) => ({ status: 'fulfilled' as const, value }))
+      .catch((reason) => ({ status: 'rejected' as const, reason })),
+    Promise.allSettled(
+      INVOICE_TYPES.map((invoiceType) => invoicingApi.getInvoicing({ projectName, invoiceType }))
+    ),
+    Promise.allSettled(
+      CONTRACT_VALUE_TYPES.map((contractType) =>
+        contractValuesApi.getContractValues({ projectName, contractType })
+      )
+    ),
+  ]);
+
+  let progressForm = mapProjectProgressToForm(null, month, year);
+  if (progSettled.status === 'fulfilled') {
+    const progressRows = unwrapProjectProgressList(progSettled.value.data);
+    const progressRow = pickProjectProgressRecord(progressRows, month, year);
+    progressForm = mapProjectProgressToForm(
+      progressRow as Record<string, unknown> | null,
+      month,
+      year
+    );
+  }
 
   let pevForms: FinancialDataSnapshot['pevForms'] = {
     SCL: emptyPevPartyForm(),
@@ -95,9 +141,8 @@ export async function fetchFinancialDataSnapshot({
   };
   let pevErrors: FinancialDataSnapshot['pevErrors'] = { SCL: null, CONTRACTOR: null };
 
-  try {
-    const pevRes = await plannedEarnedValueApi.getByProjectMonthYear(projectName, month, year);
-    const period = normalizePlannedEarnedByPeriod(pevRes.data, projectName);
+  if (pevSettled.status === 'fulfilled') {
+    const period = normalizePlannedEarnedByPeriod(pevSettled.value.data, projectName);
     pevForms = {
       SCL: {
         planned_value: period.scl?.plannedValue ?? '',
@@ -108,45 +153,45 @@ export async function fetchFinancialDataSnapshot({
         earned_value: period.contractor?.earnedValue ?? '',
       },
     };
-  } catch (error) {
-    const status = (error as { response?: { status?: number } })?.response?.status;
+  } else {
+    const status = (pevSettled.reason as { response?: { status?: number } })?.response?.status;
     if (status !== 404) {
-      const message = getErrorMessage(error);
+      const message = getErrorMessage(pevSettled.reason);
       pevErrors = { SCL: message, CONTRACTOR: message };
     }
   }
 
   let contractForm: FinancialDataSnapshot['contractForm'] = null;
   let contractFormError: string | null = null;
-  try {
-    const cpRes = await contractPerformanceApi.getContractPerformance({ project_name: projectName, ...roleParam });
-    const cpRow = unwrapList<Record<string, unknown>>(cpRes.data)[0];
+  if (cpSettled.status === 'fulfilled') {
+    const cpRow = unwrapList<Record<string, unknown>>(cpSettled.value.data)[0];
     contractForm = cpRow ? normalizeContractPerformanceRecord(cpRow) : null;
-  } catch (error) {
-    contractFormError = getErrorMessage(error);
+  } else {
+    contractFormError = getErrorMessage(cpSettled.reason);
   }
 
-  const costRes = await costPerformanceApi.getCostPerformance({
-    project_name: projectName,
-    month_year: formatFinancialMonthYear(month, year),
-    ...roleParam,
-  });
-  let costRows = unwrapList<Record<string, unknown>>(costRes.data);
+  let costRows: Record<string, unknown>[] = [];
+  if (costSettled.status === 'fulfilled') {
+    costRows = unwrapList<Record<string, unknown>>(costSettled.value.data);
+  }
   if (costRows.length === 0) {
-    const fallbackRes = await costPerformanceApi.getCostPerformance({ project_name: projectName });
-    costRows = unwrapList<Record<string, unknown>>(fallbackRes.data);
+    try {
+      const fallbackRes = await costPerformanceApi.getCostPerformance({ project_name: projectName });
+      costRows = unwrapList<Record<string, unknown>>(fallbackRes.data);
+    } catch {
+      // keep empty — form maps to blanks
+    }
   }
   const costRow = pickCostPerformanceRecord(costRows, month, year);
   const costForm = mapCostPerformanceToForm(costRow, month, year);
 
-  const bpRes = await budgetPerformanceApi.getBudgetPerformance({ project_name: projectName, ...roleParam });
-  const budgetRows = unwrapList<Record<string, unknown>>(bpRes.data);
+  const budgetRows =
+    bpSettled.status === 'fulfilled'
+      ? unwrapList<Record<string, unknown>>(bpSettled.value.data)
+      : [];
   const budgetRow = pickBudgetPerformanceRecord(budgetRows, month, year);
   const budgetForm = mapBudgetPerformanceToForm(budgetRow, month, year);
 
-  const invoicingResults = await Promise.allSettled(
-    INVOICE_TYPES.map((invoiceType) => invoicingApi.getInvoicing({ projectName, invoiceType }))
-  );
   const invoicingForms = { PMC: null, Contractor: null } as FinancialDataSnapshot['invoicingForms'];
   const invoicingErrors = { PMC: null, Contractor: null } as FinancialDataSnapshot['invoicingErrors'];
   invoicingResults.forEach((result, index) => {
@@ -161,11 +206,6 @@ export async function fetchFinancialDataSnapshot({
     }
   });
 
-  const contractResults = await Promise.allSettled(
-    CONTRACT_VALUE_TYPES.map((contractType) =>
-      contractValuesApi.getContractValues({ projectName, contractType })
-    )
-  );
   const contractValuesForms = { SCL: null, Contractor: null } as FinancialDataSnapshot['contractValuesForms'];
   const contractValuesErrors = { SCL: null, Contractor: null } as FinancialDataSnapshot['contractValuesErrors'];
   contractResults.forEach((result, index) => {

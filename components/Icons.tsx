@@ -47,7 +47,9 @@ import {
   Moon,
   Edit,
   HelpCircle,
-  Menu
+  Menu,
+  Trash2,
+  Loader2
 } from 'lucide-react';
 
 export const Icons = {
@@ -101,5 +103,7 @@ export const Icons = {
   Check: CheckCircle2,
   Edit: Edit,
   Help: HelpCircle,
-  Menu: Menu
+  Menu: Menu,
+  Trash: Trash2,
+  Loader: Loader2
 };

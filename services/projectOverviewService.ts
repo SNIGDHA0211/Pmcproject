@@ -35,6 +35,11 @@ export interface ProjectOverviewItem {
   last_updated?: string | null;
   compare_enabled?: boolean;
   status?: string;
+  completed_at?: string | null;
+  completed_on?: string | null;
+  completed_by?: string | null;
+  completed_by_name?: string | null;
+  completion_notes?: string | null;
 }
 
 export interface ProjectOverviewResponse {
@@ -119,6 +124,16 @@ export function mapOverviewItemToVitalsCard(item: ProjectOverviewItem): ProjectV
   const overallScore = toPercent(item.health_score);
   const progressPct = toPercent(item.progress?.percentage);
   const quality = kpiToVital('drawings', 'Quality', item.quality);
+  const statusRaw = String(item.status ?? '').trim().toLowerCase();
+  const completedAt =
+    item.completed_at ?? item.completed_on ?? null;
+  const completedBy =
+    item.completed_by_name ??
+    (typeof item.completed_by === 'string' ? item.completed_by : null);
+  const isCompleted =
+    statusRaw === 'completed' ||
+    statusRaw === 'approved' ||
+    Boolean(completedAt);
 
   return {
     projectId: String(item.project_id),
@@ -127,7 +142,7 @@ export function mapOverviewItemToVitalsCard(item: ProjectOverviewItem): ProjectV
     pmName: teamLeaderDisplayName(item.team_leader),
     client: String(item.client ?? '').trim() || '—',
     overallScore,
-    healthLabel: healthLabelFromScore(overallScore),
+    healthLabel: isCompleted ? 'ON TRACK' : healthLabelFromScore(overallScore),
     progressPct,
     openIssues: Math.max(0, Number(item.issues_count) || 0),
     dprCount: Math.max(0, Number(item.dpr_count) || 0),
@@ -141,6 +156,9 @@ export function mapOverviewItemToVitalsCard(item: ProjectOverviewItem): ProjectV
     trend: 'stable',
     lastUpdate: formatRelativeUpdate(item.last_updated),
     compareEnabled: item.compare_enabled !== false,
+    isCompleted,
+    completedAt,
+    completedBy,
   };
 }
 
@@ -179,9 +197,11 @@ function buildOverviewParams(query: ProjectOverviewQuery = {}): Record<string, s
  */
 export async function getProjectOverview(
   query: ProjectOverviewQuery = {},
+  options?: { signal?: AbortSignal },
 ): Promise<{ count: number; cards: ProjectVitalsCard[]; raw: ProjectOverviewItem[] }> {
   const response = await api.get<ProjectOverviewResponse>(API_ENDPOINTS.PROJECTS.OVERVIEW, {
     params: buildOverviewParams(query),
+    ...(options?.signal ? { signal: options.signal } : {}),
   });
 
   const body = response.data;

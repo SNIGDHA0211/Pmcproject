@@ -16,6 +16,8 @@ import {
   normalizeScopeStatus,
 } from '../utils/monthlyScopeFilters';
 import { userMatchesAssignee } from '../utils/roleProjectAssignments';
+import { useDebouncedValue } from '../hooks/useDebouncedValue';
+import { isAbortError } from '../utils/isAbortError';
 
 interface MonthlyScopePageProps {
   user: User;
@@ -330,7 +332,18 @@ const MonthlyScopePage: React.FC<MonthlyScopePageProps> = ({ user, projects }) =
     [filters.project, filters.month, filters.search]
   );
 
-  const fetchScopes = useCallback(async (isBackgroundRefresh = false) => {
+  // Debounce search so typing does not hit the API on every keypress.
+  const debouncedServerSearch = useDebouncedValue(String(serverFilters.search ?? '').trim());
+  const effectiveServerFilters = useMemo(
+    () => ({
+      project: serverFilters.project,
+      month: serverFilters.month,
+      search: debouncedServerSearch,
+    }),
+    [serverFilters.project, serverFilters.month, debouncedServerSearch],
+  );
+
+  const fetchScopes = useCallback(async (isBackgroundRefresh = false, signal?: AbortSignal) => {
     if (isBackgroundRefresh) {
       setIsRefreshing(true);
     } else {
@@ -338,23 +351,29 @@ const MonthlyScopePage: React.FC<MonthlyScopePageProps> = ({ user, projects }) =
     }
 
     try {
-      const response = await monthlyScopeApi.getScopes(buildMonthlyScopeQueryParams(serverFilters));
+      const response = await monthlyScopeApi.getScopes(
+        buildMonthlyScopeQueryParams(effectiveServerFilters),
+        { signal },
+      );
+      if (signal?.aborted) return;
       const list = unwrapList<MonthlyScope>(response.data);
       setScopes(list);
       setLastUpdated(new Date());
     } catch (error) {
+      if (isAbortError(error) || signal?.aborted) return;
       console.error('Failed to fetch scopes:', error);
       if (!isBackgroundRefresh) {
         setScopes([]);
       }
     } finally {
+      if (signal?.aborted) return;
       if (isBackgroundRefresh) {
         setIsRefreshing(false);
       } else {
         setLoading(false);
       }
     }
-  }, [serverFilters]);
+  }, [effectiveServerFilters]);
 
   // WebSocket message handler for real-time scope updates
   const handleWebSocketMessage = useCallback((data: NotificationData) => {
@@ -406,9 +425,15 @@ const MonthlyScopePage: React.FC<MonthlyScopePageProps> = ({ user, projects }) =
   };
 
   useEffect(() => {
-    fetchScopes();
-    fetchCategories();
-  }, [filters, fetchScopes]);
+    const controller = new AbortController();
+    void fetchScopes(false, controller.signal);
+    return () => controller.abort();
+  }, [effectiveServerFilters, fetchScopes]);
+
+  // Categories are static for the page — do not refetch on every filter change.
+  useEffect(() => {
+    void fetchCategories();
+  }, []);
 
   // WebSocket setup for real-time updates
   useEffect(() => {

@@ -28,6 +28,8 @@ import {
   parseMeetingDocumentResponse,
 } from '../../services/meetingDocumentsApi';
 import { getThemeClasses, useTheme } from '../../utils/theme';
+import { useDebouncedValue, SEARCH_DEBOUNCE_MS } from '../../hooks/useDebouncedValue';
+import { isAbortError } from '../../utils/isAbortError';
 
 interface MeetingDocumentsPageProps {
   projects: Project[];
@@ -48,11 +50,25 @@ const MeetingDocumentsPage: React.FC<MeetingDocumentsPageProps> = ({ projects })
   const [hasPrevious, setHasPrevious] = useState(false);
   const [listLoading, setListLoading] = useState(true);
 
-  const [search, setSearch] = useState('');
+  const [searchInput, setSearchInput] = useState('');
+  const search = useDebouncedValue(searchInput.trim());
   const [projectFilter, setProjectFilter] = useState('');
   const [meetingTypeFilter, setMeetingTypeFilter] = useState<'MOM' | 'EDL' | ''>('');
   const [monthFilter, setMonthFilter] = useState<number | ''>('');
   const [yearFilter, setYearFilter] = useState<number | ''>('');
+
+  // Batch discrete filter changes so flipping several dropdowns fires one request.
+  const filterBatchKey = `${projectFilter}|${meetingTypeFilter}|${monthFilter}|${yearFilter}`;
+  const debouncedFilterBatchKey = useDebouncedValue(filterBatchKey, SEARCH_DEBOUNCE_MS);
+  const [batchedProject, batchedMeetingType, batchedMonth, batchedYear] = useMemo(() => {
+    const [p, mt, m, y] = debouncedFilterBatchKey.split('|');
+    return [
+      p ?? '',
+      (mt ?? '') as 'MOM' | 'EDL' | '',
+      m === '' ? '' : (Number(m) as number | ''),
+      y === '' ? '' : (Number(y) as number | ''),
+    ] as const;
+  }, [debouncedFilterBatchKey]);
 
   const [modalMode, setModalMode] = useState<MeetingDocumentModalMode | null>(null);
   const [activeDocument, setActiveDocument] = useState<MeetingDocumentRecord | null>(null);
@@ -97,46 +113,48 @@ const MeetingDocumentsPage: React.FC<MeetingDocumentsPageProps> = ({ projects })
     }
   }, []);
 
-  const loadDocuments = useCallback(async () => {
+  const loadDocuments = useCallback(async (signal?: AbortSignal) => {
     setListLoading(true);
     try {
       const res = await meetingDocumentsApi.list({
         page,
         page_size: PAGE_SIZE,
         search,
-        project: projectFilter,
-        meeting_type: meetingTypeFilter,
-        month: monthFilter,
-        year: yearFilter,
+        project: batchedProject,
+        meeting_type: batchedMeetingType,
+        month: batchedMonth,
+        year: batchedYear,
+        signal,
       });
+      if (signal?.aborted) return;
       const parsed = normalizeMeetingDocumentsList(res.data);
       setDocuments(parsed.results);
       setTotalCount(parsed.count);
       setHasNext(parsed.hasNext);
       setHasPrevious(parsed.hasPrevious);
     } catch (error) {
+      if (isAbortError(error) || signal?.aborted) return;
       console.error('[MeetingDocuments] List load failed:', error);
       setDocuments([]);
       setTotalCount(0);
     } finally {
-      setListLoading(false);
+      if (!signal?.aborted) setListLoading(false);
     }
-  }, [page, search, projectFilter, meetingTypeFilter, monthFilter, yearFilter]);
+  }, [page, search, batchedProject, batchedMeetingType, batchedMonth, batchedYear]);
 
   useEffect(() => {
     void loadDashboard();
   }, [loadDashboard]);
 
   useEffect(() => {
-    const timer = window.setTimeout(() => {
-      void loadDocuments();
-    }, 300);
-    return () => window.clearTimeout(timer);
+    const controller = new AbortController();
+    void loadDocuments(controller.signal);
+    return () => controller.abort();
   }, [loadDocuments]);
 
   useEffect(() => {
-    setPage(1);
-  }, [search, projectFilter, meetingTypeFilter, monthFilter, yearFilter]);
+    setPage((p) => (p === 1 ? p : 1));
+  }, [search, batchedProject, batchedMeetingType, batchedMonth, batchedYear]);
 
   const refreshAll = useCallback(async () => {
     await Promise.all([loadDashboard(), loadDocuments()]);
@@ -327,8 +345,8 @@ const MeetingDocumentsPage: React.FC<MeetingDocumentsPageProps> = ({ projects })
                 <Icons.Search size={14} className={`pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 ${themeClasses.textMuted}`} />
                 <input
                   type="search"
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
+                  value={searchInput}
+                  onChange={(e) => setSearchInput(e.target.value)}
                   placeholder="Search documents…"
                   className={`${inputClass} pl-8`}
                 />

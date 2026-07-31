@@ -428,6 +428,17 @@ export const projectApi = {
   getInitProjects: () => {
     return api.get(API_ENDPOINTS.PROJECTS.INIT_LIST);
   },
+  /** DELETE /api/projects/init-list/{site_id}/ — Site List only (requires site_id). */
+  deleteSite: (siteId: string | number) => {
+    return api.delete(API_ENDPOINTS.PROJECTS.INIT_LIST_DETAIL(siteId));
+  },
+  /** POST /api/projects/{project_id}/complete/ */
+  completeProject: (
+    projectId: string | number,
+    body?: { completion_notes?: string },
+  ) => {
+    return api.post(API_ENDPOINTS.PROJECTS.COMPLETE(projectId), body ?? {});
+  },
 };
 
 export const operationsApi = {
@@ -559,11 +570,11 @@ export const wprApi = {
 };
 
 export const monthlyScopeApi = {
-  getScopes: (params?: any) => {
+  getScopes: (params?: any, config?: { signal?: AbortSignal }) => {
     console.log("Fetching scopes with params:", params);
     const url = "/monthly-scope/";
     console.log("Final scopes URL:", url);
-    return api.get(url, { params });
+    return api.get(url, { params, ...(config?.signal ? { signal: config.signal } : {}) });
   },
   getScope: (id: number) => api.get(`/monthly-scope/${id}/`),
   createScope: (data: any) => api.post("/monthly-scope/", data),
@@ -5939,6 +5950,8 @@ export type DrawingRegisterClientReportParams = {
   contractor?: string;
   status?: string;
   search?: string;
+  /** Abort in-flight report fetch when filters/search change. */
+  signal?: AbortSignal;
 };
 
 function drawingRegisterReportParams(
@@ -5976,6 +5989,7 @@ async function fetchDrawingRegisterClientReport(
   const queryParams = drawingRegisterReportParams(params, options);
   const axiosConfig = {
     params: queryParams,
+    ...(params.signal ? { signal: params.signal } : {}),
     ...(options?.responseType === "blob"
       ? { responseType: "blob" as const }
       : {}),
@@ -6358,6 +6372,8 @@ type FrequencyChartClientReportParams = {
   testType?: string;
   contractor?: string;
   search?: string;
+  /** Abort in-flight report fetch when filters/search change. */
+  signal?: AbortSignal;
 };
 
 function frequencyChartReportParams(
@@ -6491,12 +6507,14 @@ export const frequencyChartApi = {
   getClientReport: (params: FrequencyChartClientReportParams) =>
     api.get(API_ENDPOINTS.FREQUENCY_CHART.CLIENT_REPORT, {
       params: frequencyChartReportParams(params),
+      ...(params.signal ? { signal: params.signal } : {}),
     }),
 
   /** Alias for getClientReport — GET /frequency-chart/?format=client&... */
   getFrequencyChart: (params: FrequencyChartClientReportParams) =>
     api.get(API_ENDPOINTS.FREQUENCY_CHART.CLIENT_REPORT, {
       params: frequencyChartReportParams(params),
+      ...(params.signal ? { signal: params.signal } : {}),
     }),
 
   /** Excel export — GET /frequency-chart/?format=client&export=excel&... */

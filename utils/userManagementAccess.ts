@@ -15,3 +15,22 @@ export function canAccessUserManagement(
     user.role === UserRole.CEO
   );
 }
+
+/**
+ * Site delete is limited to Admin (superuser), Head Office, CEO, and PMC Head.
+ * Team Leader, Site Engineer, Billing, QAQC, HSE, and Coordinator cannot delete.
+ */
+export function canDeleteProjectSite(
+  user?: Pick<User, 'role' | 'isSuperuser'> | null,
+): boolean {
+  return canAccessUserManagement(user);
+}
+
+/**
+ * Mark project completed — same executive roles as User Management / site delete.
+ */
+export function canCompleteProject(
+  user?: Pick<User, 'role' | 'isSuperuser'> | null,
+): boolean {
+  return canAccessUserManagement(user);
+}

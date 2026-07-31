@@ -1,36 +1,17 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, lazy, Suspense } from "react";
 import Layout from "./components/Layout";
 
 import { ThemeContext, getThemeClasses } from "./utils/theme";
-import Dashboard, { StatType } from "./components/Dashboard";
-import PMCHead360Dashboard from "./components/PMCHead360Dashboard";
-import SiteExecution from "./components/SiteExecution";
-import ProjectDetails from "./components/ProjectDetails";
-import DPRRecords from "./components/DPRRecords";
-import DPRReviewDashboard from "./components/DPRReviewDashboard";
-import WPRReviewDashboard from "./components/WPRReviewDashboard";
-import Projects from "./components/Projects";
 import CreateProjectModal from "./components/CreateProjectModal";
 import ProjectModal from "./components/ProjectModal";
 import TermsAndConditions from "./components/TermsAndConditions";
-import SiteEngineerDashboard from "./components/SiteEngineerDashboard";
-import ProjectInit from "./components/ProjectInit";
-import MonthlyScopePage from "./components/MonthlyScopePage";
-import MyScopesPage from "./components/MyScopesPage";
-import MachineryList from "./components/MachineryList";
-import ManpowerManagement from "./components/ManpowerManagement";
-import SitePhotosManagement from "./components/sitePhotos/SitePhotosManagement";
-import TestingPhotosPage from "./components/testingPhotos/TestingPhotosPage";
-import ProjectFeedbackPage from "./components/projectFeedback/ProjectFeedbackPage";
-import UserManagementPage from "./components/userManagement/UserManagementPage";
 import FinancialManagement, {
   SubTab,
   normalizeBillingFinancialSubTab,
   normalizeFinancialSubTab,
 } from "./components/FinancialManagement";
+import type { StatType } from "./components/Dashboard";
 import type { TeamLeaderOverviewSection } from "./components/teamLeader/TeamLeaderOverviewShell";
-import AlertsPage from "./components/AlertsPage";
-import MeetingDocumentsPage from "./components/meetingDocuments/MeetingDocumentsPage";
 import NotificationAlertToastStack, { type AlertToastItem } from "./components/NotificationAlertToastStack";
 import {
   User,
@@ -44,8 +25,19 @@ import {
 } from "./types";
 import { MOCK_USERS, INITIAL_PROJECTS, MOCK_DPRS } from "./services/mockData";
 import { Icons } from "./components/Icons";
+import SiteDeleteDialog, { type SiteDeleteDependency } from "./components/SiteDeleteDialog";
+import CompleteProjectDialog from "./components/CompleteProjectDialog";
+import DashboardToastStack, { type DashboardToastItem } from "./components/DashboardToastStack";
+import { parseSiteDeleteDependencies } from "./components/ProjectSiteList";
 import { STATUS_COLORS } from "./constants";
 import { projectApi, operationsApi, dprApi, notificationApi, getApiErrorMessage, unwrapList } from "./services/api";
+import axios from "axios";
+import { canCompleteProject, canDeleteProjectSite } from "./utils/userManagementAccess";
+import {
+  extractCompletionFields,
+  getProjectStatusLabel,
+  isProjectCompleted,
+} from "./utils/projectCompletion";
 import { getLoginFailureMessage } from "./utils/loginCredentials";
 import { useAuth } from "./contexts/AuthContext";
 import { websocketService, NotificationData } from "./services/websocket";
@@ -94,6 +86,34 @@ import {
   tabFromRoutePath,
 } from "./utils/appRouting";
 
+/** Lazy tab screens — splits the initial JS payload without changing UI/behavior. */
+const Dashboard = lazy(() => import("./components/Dashboard"));
+const PMCHead360Dashboard = lazy(() => import("./components/PMCHead360Dashboard"));
+const SiteExecution = lazy(() => import("./components/SiteExecution"));
+const ProjectDetails = lazy(() => import("./components/ProjectDetails"));
+const DPRRecords = lazy(() => import("./components/DPRRecords"));
+const DPRReviewDashboard = lazy(() => import("./components/DPRReviewDashboard"));
+const WPRReviewDashboard = lazy(() => import("./components/WPRReviewDashboard"));
+const Projects = lazy(() => import("./components/Projects"));
+const SiteEngineerDashboard = lazy(() => import("./components/SiteEngineerDashboard"));
+const ProjectInit = lazy(() => import("./components/ProjectInit"));
+const MonthlyScopePage = lazy(() => import("./components/MonthlyScopePage"));
+const MyScopesPage = lazy(() => import("./components/MyScopesPage"));
+const MachineryList = lazy(() => import("./components/MachineryList"));
+const ManpowerManagement = lazy(() => import("./components/ManpowerManagement"));
+const SitePhotosManagement = lazy(() => import("./components/sitePhotos/SitePhotosManagement"));
+const TestingPhotosPage = lazy(() => import("./components/testingPhotos/TestingPhotosPage"));
+const ProjectFeedbackPage = lazy(() => import("./components/projectFeedback/ProjectFeedbackPage"));
+const UserManagementPage = lazy(() => import("./components/userManagement/UserManagementPage"));
+const AlertsPage = lazy(() => import("./components/AlertsPage"));
+const MeetingDocumentsPage = lazy(() => import("./components/meetingDocuments/MeetingDocumentsPage"));
+
+const TabSuspenseFallback: React.FC = () => (
+  <div className="flex min-h-[40vh] w-full items-center justify-center text-slate-500">
+    <Icons.History className="animate-spin" size={28} />
+  </div>
+);
+
 const App: React.FC = () => {
   const { user: currentUser, loading: authLoading, login, logout: authLogout } = useAuth();
   const [activeTab, setActiveTab] = useState("dashboard");
@@ -129,6 +149,15 @@ const App: React.FC = () => {
   const [teamLeaderScrollSection, setTeamLeaderScrollSection] = useState<TeamLeaderOverviewSection | null>(null);
   const [alertToasts, setAlertToasts] = useState<AlertToastItem[]>([]);
   const alertToastIdRef = React.useRef(0);
+  const [portfolioToasts, setPortfolioToasts] = useState<DashboardToastItem[]>([]);
+  const [portfolioDeleteTarget, setPortfolioDeleteTarget] = useState<Project | null>(null);
+  const [isPortfolioDeleting, setIsPortfolioDeleting] = useState(false);
+  const [portfolioDeleteDeps, setPortfolioDeleteDeps] = useState<SiteDeleteDependency[]>([]);
+  const [portfolioDeleteDepError, setPortfolioDeleteDepError] = useState<string | null>(null);
+  const [portfolioDeleteError, setPortfolioDeleteError] = useState<string | null>(null);
+  const [portfolioCompleteTarget, setPortfolioCompleteTarget] = useState<Project | null>(null);
+  const [isPortfolioCompleting, setIsPortfolioCompleting] = useState(false);
+  const [portfolioCompleteError, setPortfolioCompleteError] = useState<string | null>(null);
 
   // Modal States
   const [showTCModal, setShowTCModal] = useState(false);
@@ -1418,6 +1447,184 @@ const App: React.FC = () => {
 
   const selectedProject = projects.find((p) => p.id === selectedProjectId);
   const themeClasses = getThemeClasses(isDarkTheme);
+  const canDeletePortfolioSite = canDeleteProjectSite(currentUser);
+  const canCompletePortfolioProject = canCompleteProject(currentUser);
+
+  const showPortfolioToast = (message: string, type: "success" | "error" = "success") => {
+    const id = Date.now() + Math.random();
+    setPortfolioToasts((prev) => [...prev, { id, message, type }]);
+    window.setTimeout(() => {
+      setPortfolioToasts((prev) => prev.filter((t) => t.id !== id));
+    }, 4200);
+  };
+
+  const closePortfolioDeleteDialog = () => {
+    if (isPortfolioDeleting) return;
+    setPortfolioDeleteTarget(null);
+    setPortfolioDeleteDeps([]);
+    setPortfolioDeleteDepError(null);
+    setPortfolioDeleteError(null);
+  };
+
+  const handleConfirmPortfolioDelete = async () => {
+    if (!portfolioDeleteTarget || isPortfolioDeleting) return;
+
+    setIsPortfolioDeleting(true);
+    setPortfolioDeleteError(null);
+    setPortfolioDeleteDepError(null);
+    setPortfolioDeleteDeps([]);
+
+    try {
+      const response = await projectApi.deleteSite(portfolioDeleteTarget.id);
+      const message =
+        (response.data &&
+          typeof response.data === "object" &&
+          typeof (response.data as { message?: string }).message === "string" &&
+          (response.data as { message: string }).message) ||
+        "Site deleted successfully.";
+
+      const deletedId = portfolioDeleteTarget.id;
+      setPortfolioDeleteTarget(null);
+      setProjects((prev) => prev.filter((p) => String(p.id) !== String(deletedId)));
+      if (selectedProjectId && String(selectedProjectId) === String(deletedId)) {
+        setSelectedProjectId(null);
+      }
+      showPortfolioToast(message, "success");
+    } catch (err) {
+      if (axios.isAxiosError(err) && err.response) {
+        const status = err.response.status;
+        const data = err.response.data;
+
+        if (status === 400) {
+          setPortfolioDeleteDeps(parseSiteDeleteDependencies(data));
+          setPortfolioDeleteDepError(
+            getApiErrorMessage(
+              err,
+              "This site cannot be deleted because it is referenced by existing records.",
+            ),
+          );
+          return;
+        }
+
+        if (status === 403) {
+          const msg = "You do not have permission to delete this site.";
+          setPortfolioDeleteError(msg);
+          showPortfolioToast(msg, "error");
+          return;
+        }
+
+        if (status === 404) {
+          const msg = "The selected site no longer exists.";
+          setPortfolioDeleteTarget(null);
+          showPortfolioToast(msg, "error");
+          await fetchData();
+          return;
+        }
+
+        const msg = getApiErrorMessage(err, "Failed to delete site.");
+        setPortfolioDeleteError(msg);
+        showPortfolioToast(msg, "error");
+        return;
+      }
+
+      const msg = getApiErrorMessage(err, "Failed to delete site.");
+      setPortfolioDeleteError(msg);
+      showPortfolioToast(msg, "error");
+    } finally {
+      setIsPortfolioDeleting(false);
+    }
+  };
+
+  const closePortfolioCompleteDialog = () => {
+    if (isPortfolioCompleting) return;
+    setPortfolioCompleteTarget(null);
+    setPortfolioCompleteError(null);
+  };
+
+  const handleConfirmPortfolioComplete = async (completionNotes: string) => {
+    if (!portfolioCompleteTarget || isPortfolioCompleting) return;
+    if (isProjectCompleted(portfolioCompleteTarget)) {
+      setPortfolioCompleteError("Project is already marked as completed.");
+      return;
+    }
+
+    setIsPortfolioCompleting(true);
+    setPortfolioCompleteError(null);
+
+    try {
+      const body =
+        completionNotes.trim().length > 0
+          ? { completion_notes: completionNotes.trim() }
+          : {};
+      const response = await projectApi.completeProject(
+        portfolioCompleteTarget.id,
+        body,
+      );
+      const data =
+        response.data && typeof response.data === "object"
+          ? (response.data as Record<string, unknown>)
+          : {};
+      const message =
+        typeof data.message === "string" && data.message.trim()
+          ? data.message
+          : "Project marked as completed successfully.";
+
+      const nested =
+        data.project && typeof data.project === "object"
+          ? (data.project as Record<string, unknown>)
+          : data;
+      const completion = extractCompletionFields(nested);
+      const completedId = portfolioCompleteTarget.id;
+
+      setProjects((prev) =>
+        prev.map((p) =>
+          String(p.id) === String(completedId)
+            ? {
+                ...p,
+                status: ProjectStatus.APPROVED,
+                completedAt: completion.completedAt || new Date().toISOString(),
+                completedBy:
+                  completion.completedBy ||
+                  currentUser?.name ||
+                  currentUser?.username ||
+                  currentUser?.id ||
+                  null,
+                completionNotes:
+                  completion.completionNotes ??
+                  (completionNotes.trim() || null),
+                updatedAt: new Date().toISOString(),
+              }
+            : p,
+        ),
+      );
+
+      setPortfolioCompleteTarget(null);
+      showPortfolioToast(message, "success");
+      void fetchData();
+    } catch (err) {
+      if (axios.isAxiosError(err) && err.response?.status === 403) {
+        const msg =
+          "You do not have permission to mark this project as completed.";
+        setPortfolioCompleteError(msg);
+        showPortfolioToast(msg, "error");
+        return;
+      }
+      if (axios.isAxiosError(err) && err.response?.status === 400) {
+        const msg = getApiErrorMessage(
+          err,
+          "Project is already marked as completed.",
+        );
+        setPortfolioCompleteError(msg);
+        showPortfolioToast(msg, "error");
+        return;
+      }
+      const msg = getApiErrorMessage(err, "Failed to mark project as completed.");
+      setPortfolioCompleteError(msg);
+      showPortfolioToast(msg, "error");
+    } finally {
+      setIsPortfolioCompleting(false);
+    }
+  };
 
   return (
     <ThemeContext.Provider value={{ isDarkTheme, setIsDarkTheme: handleThemeChange }}>
@@ -1471,6 +1678,7 @@ const App: React.FC = () => {
         isAnyTourRunning={isAnyTourRunning}
         onAnyTourStateChange={setIsAnyTourRunning}
       >
+        <Suspense fallback={<TabSuspenseFallback />}>
         {activeTab === "projects" && selectedProject ? (
           <ProjectDetails
             project={selectedProject}
@@ -1615,6 +1823,7 @@ const App: React.FC = () => {
           />
         ) : activeTab === "projects" ? (
           <div className="space-y-6 animate-in fade-in duration-500">
+            <DashboardToastStack toasts={portfolioToasts} />
             {/* Page header */}
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
@@ -1642,7 +1851,7 @@ const App: React.FC = () => {
             {/* Portfolio table — scrollable on small screens */}
             <div className={`overflow-hidden rounded-2xl border sm:rounded-[2rem] ${themeClasses.glassCard} ${themeClasses.border}`}>
               <div className="overflow-x-auto">
-                <table className="w-full min-w-[460px] border-collapse text-left">
+                <table className="w-full min-w-[520px] border-collapse text-left">
                   <thead>
                     <tr className={`border-b ${themeClasses.bgSecondary} ${themeClasses.border}`}>
                       <th className={`px-4 py-4 text-[10px] font-black uppercase tracking-widest sm:px-8 sm:py-5 ${themeClasses.textSecondary}`}>
@@ -1651,14 +1860,20 @@ const App: React.FC = () => {
                       <th className={`px-4 py-4 text-[10px] font-black uppercase tracking-widest sm:px-8 sm:py-5 ${themeClasses.textSecondary}`}>
                         Workflow Status
                       </th>
-                      <th className={`hidden px-4 py-4 text-[10px] font-black uppercase tracking-widest sm:table-cell sm:px-8 sm:py-5 ${themeClasses.textSecondary}`}>
-                        Assigned Lead
+                      {canCompletePortfolioProject && (
+                        <th className={`px-4 py-4 text-[10px] font-black uppercase tracking-widest sm:px-6 sm:py-5 ${themeClasses.textSecondary}`}>
+                          Complete
+                        </th>
+                      )}
+                      <th className={`px-4 py-4 text-right text-[10px] font-black uppercase tracking-widest sm:px-8 sm:py-5 ${themeClasses.textSecondary}`}>
+                        {canDeletePortfolioSite ? "Actions" : ""}
                       </th>
-                      <th className="px-4 py-4 text-right sm:px-8 sm:py-5" />
                     </tr>
                   </thead>
                   <tbody className={`divide-y ${themeClasses.border}`}>
-                    {projects.map((p) => (
+                    {projects.map((p) => {
+                      const completed = isProjectCompleted(p);
+                      return (
                       <tr
                         key={p.id}
                         className={`group cursor-pointer transition-all ${themeClasses.bgHover}`}
@@ -1671,30 +1886,104 @@ const App: React.FC = () => {
                           <p className={`text-[10px] font-black uppercase tracking-tighter ${themeClasses.textSecondary}`}>
                             {p.client}
                           </p>
-                          {/* Show lead inline on mobile */}
-                          <p className={`mt-1 text-[10px] font-bold sm:hidden ${themeClasses.textSecondary}`}>
-                            {(p as any).team_lead_name || "Awaiting Assignment"}
-                          </p>
                         </td>
                         <td className="px-4 py-4 sm:px-8 sm:py-6">
                           <span className={`inline-block rounded-xl border px-2.5 py-1 text-[10px] font-black uppercase sm:px-3 sm:py-1.5 ${STATUS_COLORS[p.status]}`}>
-                            {p.status.replace("_", " ")}
+                            {getProjectStatusLabel(p)}
                           </span>
                         </td>
-                        <td className={`hidden px-4 py-4 text-xs font-black sm:table-cell sm:px-8 sm:py-6 ${themeClasses.textPrimary}`}>
-                          {(p as any).team_lead_name || "Awaiting Assignment"}
-                        </td>
+                        {canCompletePortfolioProject && (
+                          <td className="px-4 py-4 sm:px-6 sm:py-6">
+                            {!completed ? (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setPortfolioCompleteError(null);
+                                  setPortfolioCompleteTarget(p);
+                                }}
+                                className={`inline-flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-[10px] font-black uppercase tracking-widest transition-all ${
+                                  isDarkTheme
+                                    ? "border-emerald-500/40 bg-emerald-600/15 text-emerald-300 hover:bg-emerald-600/30"
+                                    : "border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
+                                }`}
+                                aria-label={`Mark ${p.title} as completed`}
+                              >
+                                <Icons.Approve size={14} aria-hidden />
+                                Mark as Complete
+                              </button>
+                            ) : (
+                              <span className={`text-[10px] font-bold uppercase tracking-widest ${themeClasses.textSecondary}`}>
+                                —
+                              </span>
+                            )}
+                          </td>
+                        )}
                         <td className="px-4 py-4 text-right sm:px-8 sm:py-6">
-                          <div className={`inline-block rounded-xl p-1.5 transition-all sm:p-2 ${themeClasses.bgHover} ${themeClasses.textPrimary}`}>
-                            <Icons.ChevronRight size={16} />
+                          <div className="inline-flex items-center justify-end gap-2">
+                            {canDeletePortfolioSite && !completed && (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setPortfolioDeleteDeps([]);
+                                  setPortfolioDeleteDepError(null);
+                                  setPortfolioDeleteError(null);
+                                  setPortfolioDeleteTarget(p);
+                                }}
+                                className={`inline-flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-[10px] font-black uppercase tracking-widest transition-all ${
+                                  isDarkTheme
+                                    ? "border-rose-500/40 bg-rose-600/15 text-rose-300 hover:bg-rose-600/30"
+                                    : "border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100"
+                                }`}
+                                aria-label={`Delete ${p.title}`}
+                              >
+                                <Icons.Trash size={14} aria-hidden />
+                                Delete
+                              </button>
+                            )}
+                            <div className={`inline-block rounded-xl p-1.5 transition-all sm:p-2 ${themeClasses.bgHover} ${themeClasses.textPrimary}`}>
+                              <Icons.ChevronRight size={16} />
+                            </div>
                           </div>
                         </td>
                       </tr>
-                    ))}
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
             </div>
+
+            <SiteDeleteDialog
+              open={Boolean(portfolioDeleteTarget)}
+              siteName={
+                portfolioDeleteTarget
+                  ? sanitizeProjectDisplayName(portfolioDeleteTarget.title) ||
+                    portfolioDeleteTarget.title
+                  : undefined
+              }
+              onCancel={closePortfolioDeleteDialog}
+              onConfirm={() => void handleConfirmPortfolioDelete()}
+              isDeleting={isPortfolioDeleting}
+              dependencyError={portfolioDeleteDepError}
+              dependencies={portfolioDeleteDeps}
+              errorMessage={portfolioDeleteError}
+            />
+
+            <CompleteProjectDialog
+              open={Boolean(portfolioCompleteTarget)}
+              projectName={
+                portfolioCompleteTarget
+                  ? sanitizeProjectDisplayName(portfolioCompleteTarget.title) ||
+                    portfolioCompleteTarget.title
+                  : undefined
+              }
+              onCancel={closePortfolioCompleteDialog}
+              onConfirm={(notes) => void handleConfirmPortfolioComplete(notes)}
+              isSubmitting={isPortfolioCompleting}
+              errorMessage={portfolioCompleteError}
+            />
           </div>
         ) : activeTab === "dpr_records" ? (
           <DPRReviewDashboard
@@ -1782,6 +2071,7 @@ const App: React.FC = () => {
             Workspace Provisioning...
           </div>
         )}
+        </Suspense>
         <NotificationAlertToastStack toasts={alertToasts} />
         {isCreateModalOpen && (
           <CreateProjectModal

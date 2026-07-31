@@ -20,6 +20,7 @@ import {
   getCorrespondenceAttachmentsErrorMessage,
 } from '../services/correspondenceAttachmentsApi';
 import { getThemeClasses, useTheme } from '../utils/theme';
+import { useDebouncedValue } from '../hooks/useDebouncedValue';
 
 export type CorrespondenceAttachmentsMode = 'view' | 'upload';
 
@@ -45,6 +46,7 @@ const CorrespondenceAttachmentsPanel: React.FC<CorrespondenceAttachmentsPanelPro
   const [canUpload, setCanUpload] = useState(true);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const debouncedSearch = useDebouncedValue(search);
   const [panelView, setPanelView] = useState<PanelView>(
     initialMode === 'upload' ? 'upload' : 'list',
   );
@@ -99,8 +101,8 @@ const CorrespondenceAttachmentsPanel: React.FC<CorrespondenceAttachmentsPanelPro
   }, [loadAttachments]);
 
   const filteredAttachments = useMemo(
-    () => filterCorrespondenceAttachments(attachments, search),
-    [attachments, search],
+    () => filterCorrespondenceAttachments(attachments, debouncedSearch),
+    [attachments, debouncedSearch],
   );
 
   const resetUploadForm = () => {

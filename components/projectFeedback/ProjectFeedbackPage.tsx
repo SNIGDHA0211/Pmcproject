@@ -36,6 +36,8 @@ import { MONTH_OPTIONS } from '../../utils/healthSafety';
 import { ModalPortal } from '../ModalPortal';
 import DashboardToastStack, { type DashboardToastItem } from '../DashboardToastStack';
 import { getThemeClasses, useTheme } from '../../utils/theme';
+import { useDebouncedValue } from '../../hooks/useDebouncedValue';
+import { isAbortError } from '../../utils/isAbortError';
 import { Icons } from '../Icons';
 
 const PRIORITIES: FeedbackPriority[] = ['Low', 'Medium', 'High', 'Critical'];
@@ -151,18 +153,21 @@ const ProjectFeedbackPage: React.FC<ProjectFeedbackPageProps> = ({
   const [monthFilter, setMonthFilter] = useState<number | ''>('');
   const [yearFilter, setYearFilter] = useState<number | ''>('');
   const [searchInput, setSearchInput] = useState('');
-  const [search, setSearch] = useState('');
+  const search = useDebouncedValue(searchInput.trim());
+  const debouncedReportedBy = useDebouncedValue(reportedByFilter.trim());
   const [ordering, setOrdering] = useState<FeedbackOrdering>('newest');
   const [page, setPage] = useState(1);
 
-  // Debounce search
+  // Reset page when debounced search/reported-by settle (not on every keystroke).
+  const prevSearchRef = useRef(search);
+  const prevReportedByRef = useRef(debouncedReportedBy);
   useEffect(() => {
-    const t = window.setTimeout(() => {
-      setSearch(searchInput.trim());
+    if (prevSearchRef.current !== search || prevReportedByRef.current !== debouncedReportedBy) {
+      prevSearchRef.current = search;
+      prevReportedByRef.current = debouncedReportedBy;
       setPage(1);
-    }, 450);
-    return () => window.clearTimeout(t);
-  }, [searchInput]);
+    }
+  }, [search, debouncedReportedBy]);
 
   // ── List state ───────────────────────────────────────────────────────
   const [items, setItems] = useState<ProjectFeedback[]>([]);
@@ -204,7 +209,7 @@ const ProjectFeedbackPage: React.FC<ProjectFeedbackPageProps> = ({
     };
   }, [attachmentPreview]);
 
-  const loadList = useCallback(async () => {
+  const loadList = useCallback(async (signal?: AbortSignal) => {
     setLoading(true);
     setError(null);
     try {
@@ -212,27 +217,32 @@ const ProjectFeedbackPage: React.FC<ProjectFeedbackPageProps> = ({
         project: projectFilter || undefined,
         status: statusFilter || undefined,
         priority: priorityFilter || undefined,
-        reported_by: reportedByFilter.trim() || undefined,
+        reported_by: debouncedReportedBy || undefined,
         month: monthFilter || undefined,
         year: yearFilter || undefined,
         search: search || undefined,
         ordering,
         page,
         page_size: PAGE_SIZE,
+        signal,
       });
+      if (signal?.aborted) return;
       setItems(result.results);
       setCount(result.count);
     } catch (err) {
+      if (isAbortError(err) || signal?.aborted) return;
       setItems([]);
       setCount(0);
       setError(getApiErrorMessage(err, 'Unable to load project feedback.'));
     } finally {
-      setLoading(false);
+      if (!signal?.aborted) setLoading(false);
     }
-  }, [projectFilter, statusFilter, priorityFilter, reportedByFilter, monthFilter, yearFilter, search, ordering, page]);
+  }, [projectFilter, statusFilter, priorityFilter, debouncedReportedBy, monthFilter, yearFilter, search, ordering, page]);
 
   useEffect(() => {
-    void loadList();
+    const controller = new AbortController();
+    void loadList(controller.signal);
+    return () => controller.abort();
   }, [loadList]);
 
   const totalPages = Math.max(1, Math.ceil(count / PAGE_SIZE));

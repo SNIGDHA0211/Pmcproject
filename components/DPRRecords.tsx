@@ -1,10 +1,11 @@
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import { DPR, User, UserRole, Project } from "../types";
 import { Icons } from "./Icons";
 import DPRSubmissionForm from "./DPRSubmissionForm";
 import { useTheme, getThemeClasses } from "../utils/theme";
 import { getSiteEngineerProjects } from "../utils/siteEngineerProjects";
 import { projectAssignedToUser } from "../utils/roleProjectAssignments";
+import { useDebouncedValue } from "../hooks/useDebouncedValue";
 
 interface DPRRecordsProps {
   dprs: DPR[];
@@ -31,16 +32,22 @@ const DPRRecords: React.FC<DPRRecordsProps> = ({
   const { isDarkTheme } = useTheme();
   const themeClasses = getThemeClasses(isDarkTheme);
   const [searchTerm, setSearchTerm] = useState("");
+  const debouncedSearch = useDebouncedValue(searchTerm.trim().toLowerCase());
   const [selectedDPR, setSelectedDPR] = useState<DPR | null>(null);
   const [rejectReason, setRejectReason] = useState("");
   const [showRejectModal, setShowRejectModal] = useState<string | null>(null);
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [isSubmitFormOpen, setIsSubmitFormOpen] = useState(false);
 
-  const filteredDprs = dprs.filter(
-    (d) =>
-      d.projectName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (d.workDescription ?? "").toLowerCase().includes(searchTerm.toLowerCase())
+  const filteredDprs = useMemo(
+    () =>
+      dprs.filter(
+        (d) =>
+          !debouncedSearch ||
+          d.projectName.toLowerCase().includes(debouncedSearch) ||
+          (d.workDescription ?? "").toLowerCase().includes(debouncedSearch)
+      ),
+    [dprs, debouncedSearch],
   );
 
   const handleRejectSubmit = () => {

@@ -23,6 +23,8 @@ import FrequencyChartRegisterModal from "./FrequencyChartRegisterModal";
 import DashboardCardTopAccent from "./DashboardCardTopAccent";
 import { FullScreenCard, FullScreenHeaderToolbar } from "./FullScreenCard";
 import { Icons } from "./Icons";
+import { useDebouncedValue } from "../hooks/useDebouncedValue";
+import { isAbortError } from "../utils/isAbortError";
 
 interface Props {
   project: Project;
@@ -174,6 +176,12 @@ export default function FrequencyChartDashboard({
   const [contractorFilter, setContractorFilter] = useState("");
   const [searchQuery,      setSearchQuery]      = useState("");
 
+  // Debounce text filters so rapid typing does not fire one API call per keystroke.
+  const debouncedActivity = useDebouncedValue(activityFilter.trim());
+  const debouncedTestType = useDebouncedValue(testTypeFilter.trim());
+  const debouncedContractor = useDebouncedValue(contractorFilter.trim());
+  const debouncedSearch = useDebouncedValue(searchQuery.trim());
+
   useEffect(() => {
     if (!syncContractorFromDashboard) return;
     setContractorFilter(selectedContractorName?.trim() ?? "");
@@ -196,7 +204,7 @@ export default function FrequencyChartDashboard({
     window.setTimeout(() => setToast(null), 3500);
   }, []);
 
-  const loadData = useCallback(async () => {
+  const loadData = useCallback(async (signal?: AbortSignal) => {
     if (!project?.title) return;
     setLoading(true);
     setError(null);
@@ -206,11 +214,13 @@ export default function FrequencyChartDashboard({
         month:        selectedMonth,
         year:         selectedYear,
         view,
-        ...(activityFilter   && { activity:   activityFilter }),
-        ...(testTypeFilter   && { testType:   testTypeFilter }),
-        ...(contractorFilter && { contractor: contractorFilter }),
-        ...(searchQuery      && { search:     searchQuery }),
+        ...(debouncedActivity   && { activity:   debouncedActivity }),
+        ...(debouncedTestType   && { testType:   debouncedTestType }),
+        ...(debouncedContractor && { contractor: debouncedContractor }),
+        ...(debouncedSearch      && { search:     debouncedSearch }),
+        signal,
       });
+      if (signal?.aborted) return;
       const env = res.data as Record<string, unknown>;
       if (env.success === false) {
         setError(String(env.message ?? "Failed to load data"));
@@ -219,14 +229,19 @@ export default function FrequencyChartDashboard({
       }
       setReportData(normaliseReport(env.data ?? env));
     } catch (err) {
+      if (isAbortError(err) || signal?.aborted) return;
       setError(getApiErrorMessage(err, "Unable to load frequency chart data"));
       setReportData(null);
     } finally {
-      setLoading(false);
+      if (!signal?.aborted) setLoading(false);
     }
-  }, [project?.title, selectedMonth, selectedYear, view, activityFilter, testTypeFilter, contractorFilter, searchQuery]);
+  }, [project?.title, selectedMonth, selectedYear, view, debouncedActivity, debouncedTestType, debouncedContractor, debouncedSearch]);
 
-  useEffect(() => { loadData(); }, [loadData]);
+  useEffect(() => {
+    const controller = new AbortController();
+    void loadData(controller.signal);
+    return () => controller.abort();
+  }, [loadData]);
 
   async function handleExportExcel() {
     const exportParams = {
@@ -234,10 +249,10 @@ export default function FrequencyChartDashboard({
       month: selectedMonth,
       year: selectedYear,
       view,
-      ...(activityFilter && { activity: activityFilter }),
-      ...(testTypeFilter && { testType: testTypeFilter }),
-      ...(contractorFilter && { contractor: contractorFilter }),
-      ...(searchQuery && { search: searchQuery }),
+      ...(debouncedActivity && { activity: debouncedActivity }),
+      ...(debouncedTestType && { testType: debouncedTestType }),
+      ...(debouncedContractor && { contractor: debouncedContractor }),
+      ...(debouncedSearch && { search: debouncedSearch }),
     };
     const filename = `freq-chart-${project.title}-${selectedYear}-${String(selectedMonth).padStart(2, "0")}.xlsx`;
 
@@ -363,7 +378,7 @@ export default function FrequencyChartDashboard({
 
                 <button
                   type="button"
-                  onClick={loadData}
+                  onClick={() => void loadData()}
                   disabled={loading}
                   title="Refresh"
                   className={`${actionBtnBase} border ${tc.border} ${tc.textSecondary} ${

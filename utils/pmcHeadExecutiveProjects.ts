@@ -10,6 +10,7 @@ import {
   pickProjectByHseTitle,
   sanitizeProjectDisplayName,
 } from './hseSiteEngineerProjects';
+import { extractCompletionFields } from './projectCompletion';
 
 /** Exact login id — not pmc_tl1, pmc_tl19, etc. */
 export const PMC_TL_USERNAME = 'pmc_tl';
@@ -250,8 +251,29 @@ export function buildExecutiveProjectSelectOptions(
 }
 
 /**
- * All backend projects assignable in User Management (create / assign).
- * Includes newly initialized projects — not limited to the executive allowlist.
+ * Active client portfolio (~25) plus newly initialized projects for
+ * User Management assign / create checkboxes.
+ * Hides older inactive / non-portfolio backend rows.
+ */
+export function isAssignableUserManagementProject(project: Project): boolean {
+  if (!project?.title?.trim()) return false;
+  if (isExcludedPmcTlProjectTitle(project.title)) return false;
+
+  if (isClientPortfolioProjectTitle(project.title)) return true;
+
+  // Newly initialized: not on the official active portfolio allowlist
+  if (project.status === ProjectStatus.CREATED) return true;
+
+  const createdMs = Date.parse(String(project.createdAt ?? ''));
+  if (!Number.isFinite(createdMs)) return false;
+
+  const sixMonthsMs = 180 * 24 * 60 * 60 * 1000;
+  return Date.now() - createdMs <= sixMonthsMs;
+}
+
+/**
+ * Assignable projects for User Management (create / assign).
+ * Shows the ~25 active portfolio projects and newly initialized ones only.
  */
 export function buildAssignableProjectSelectOptions(
   projects: Project[],
@@ -259,8 +281,7 @@ export function buildAssignableProjectSelectOptions(
   const byKey = new Map<string, ExecutiveProjectSelectOption>();
 
   for (const project of projects) {
-    if (!project?.title?.trim()) continue;
-    if (isExcludedPmcTlProjectTitle(project.title)) continue;
+    if (!isAssignableUserManagementProject(project)) continue;
 
     const rawId = String(project.id ?? '');
     if (isSyntheticExecutiveProjectId(rawId)) continue;
@@ -519,6 +540,11 @@ export function normalizeBackendProjectRow(row: Record<string, unknown>): Projec
   const backendName =
     String(row.name ?? row.title ?? row.project_name ?? '').trim() ||
     `Project ${String(row.id ?? '')}`;
+  const completion = extractCompletionFields(row);
+  const isCompletedStatus =
+    statusRaw === 'completed' ||
+    statusRaw === 'APPROVED' ||
+    Boolean(completion.completedAt);
 
   return {
     id: String(row.id ?? ''),
@@ -528,14 +554,13 @@ export function normalizeBackendProjectRow(row: Record<string, unknown>): Projec
     location: String(row.location ?? ''),
     budget: Number(row.budget) || 0,
     description: String(row.description ?? ''),
-    status:
-      statusRaw === 'planning' || statusRaw === 'active'
+    status: isCompletedStatus
+      ? ProjectStatus.APPROVED
+      : statusRaw === 'planning' || statusRaw === 'active'
         ? ProjectStatus.IN_PROGRESS
-        : statusRaw === 'completed'
-          ? ProjectStatus.APPROVED
-          : statusRaw === 'on_hold'
-            ? ProjectStatus.REJECTED
-            : ProjectStatus.CREATED,
+        : statusRaw === 'on_hold'
+          ? ProjectStatus.REJECTED
+          : ProjectStatus.CREATED,
     createdAt,
     updatedAt: String(row.updated_at ?? new Date().toISOString()),
     pmcHeadId: row.pmc_head != null ? String(row.pmc_head) : '',
@@ -574,6 +599,9 @@ export function normalizeBackendProjectRow(row: Record<string, unknown>): Projec
     major: Number(row.major) || 0,
     minor: Number(row.minor) || 0,
     nearMiss: Number(row.near_miss) || 0,
+    completedAt: completion.completedAt ?? null,
+    completedBy: completion.completedBy ?? null,
+    completionNotes: completion.completionNotes ?? null,
   };
 }
 

@@ -39,6 +39,8 @@ import {
   getApiErrorMessage,
   getProjectOverview,
 } from '../services/projectOverviewService';
+import { useDebouncedValue } from '../hooks/useDebouncedValue';
+import { isAbortError } from '../utils/isAbortError';
 
 interface PMCHead360DashboardProps {
   user: User;
@@ -375,6 +377,33 @@ const ProjectGridCard: React.FC<{
             <p className={`mt-0.5 truncate text-[10px] font-bold uppercase tracking-wide ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
               {card.client && card.client !== '—' ? card.client : 'Client TBD'}
             </p>
+            {card.isCompleted && (
+              <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                <span
+                  className={`inline-flex rounded-full border px-2 py-0.5 text-[9px] font-black uppercase tracking-wide ${
+                    isDark
+                      ? 'border-emerald-500/40 bg-emerald-500/15 text-emerald-300'
+                      : 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                  }`}
+                >
+                  Completed
+                </span>
+                {card.completedAt && (
+                  <span className={`text-[9px] font-semibold ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                    {new Date(card.completedAt).toLocaleDateString(undefined, {
+                      year: 'numeric',
+                      month: 'short',
+                      day: 'numeric',
+                    })}
+                  </span>
+                )}
+                {card.completedBy && (
+                  <span className={`text-[9px] font-semibold ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                    · {card.completedBy}
+                  </span>
+                )}
+              </div>
+            )}
           </div>
           <div className="relative flex h-12 w-12 shrink-0 items-center justify-center">
             <svg width="48" height="48" viewBox="0 0 48 48" className="-rotate-90" aria-hidden>
@@ -570,7 +599,7 @@ const PMCHead360Dashboard: React.FC<PMCHead360DashboardProps> = ({
   const ex = getPmcExecutiveTheme(isDarkTheme);
 
   const [search, setSearch] = useState('');
-  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const debouncedSearch = useDebouncedValue(search.trim());
   const [regionFilter, setRegionFilter] = useState('all');
   const [pmFilter, setPmFilter] = useState('all');
   const [clientFilter, setClientFilter] = useState('all');
@@ -586,43 +615,40 @@ const PMCHead360Dashboard: React.FC<PMCHead360DashboardProps> = ({
   const [refreshNonce, setRefreshNonce] = useState(0);
 
   useEffect(() => {
-    const t = window.setTimeout(() => setDebouncedSearch(search.trim()), 350);
-    return () => window.clearTimeout(t);
-  }, [search]);
-
-  useEffect(() => {
-    let cancelled = false;
+    const controller = new AbortController();
 
     const load = async () => {
       setIsLoadingVitals(true);
       setLoadError(null);
 
       try {
-        const result = await getProjectOverview({
-          search: debouncedSearch || undefined,
-          ordering: ordering || undefined,
-          client: clientFilter !== 'all' ? clientFilter : undefined,
-        });
+        const result = await getProjectOverview(
+          {
+            search: debouncedSearch || undefined,
+            ordering: ordering || undefined,
+            client: clientFilter !== 'all' ? clientFilter : undefined,
+          },
+          { signal: controller.signal },
+        );
 
-        if (!cancelled) {
+        if (!controller.signal.aborted) {
           setAllCards(result.cards);
         }
       } catch (error) {
+        if (isAbortError(error) || controller.signal.aborted) return;
         console.error('Failed to load project overview:', error);
-        if (!cancelled) {
-          setLoadError(
-            getApiErrorMessage(error, 'Unable to load project overview. Please try again.'),
-          );
-          setAllCards([]);
-        }
+        setLoadError(
+          getApiErrorMessage(error, 'Unable to load project overview. Please try again.'),
+        );
+        setAllCards([]);
       } finally {
-        if (!cancelled) setIsLoadingVitals(false);
+        if (!controller.signal.aborted) setIsLoadingVitals(false);
       }
     };
 
-    load();
+    void load();
     return () => {
-      cancelled = true;
+      controller.abort();
     };
   }, [user.id, debouncedSearch, ordering, clientFilter, refreshNonce]);
 

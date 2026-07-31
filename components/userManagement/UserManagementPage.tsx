@@ -36,6 +36,8 @@ import { projectApi, unwrapList } from '../../services/api';
 import { ModalPortal } from '../ModalPortal';
 import DashboardToastStack, { type DashboardToastItem } from '../DashboardToastStack';
 import { getThemeClasses, useTheme } from '../../utils/theme';
+import { useDebouncedValue } from '../../hooks/useDebouncedValue';
+import { isAbortError } from '../../utils/isAbortError';
 
 const PAGE_SIZE = 10;
 
@@ -120,14 +122,6 @@ const UserManagementPage: React.FC<UserManagementPageProps> = ({
     buildAssignableProjectSelectOptions(projects),
   );
 
-  /** Assignable projects need a real backend id. */
-  const assignableProjectOptions = useMemo(
-    () => projectOptions.filter((p) => p.id > 0),
-    [projectOptions],
-  );
-
-  const filterProjectOptions = assignableProjectOptions;
-
   useEffect(() => {
     setPortfolioProjects((prev) => mergeProjectListsById(prev, projects));
   }, [projects]);
@@ -181,16 +175,16 @@ const UserManagementPage: React.FC<UserManagementPageProps> = ({
   const [projectFilter, setProjectFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState<'active' | 'inactive' | ''>('');
   const [searchInput, setSearchInput] = useState('');
-  const [search, setSearch] = useState('');
+  const search = useDebouncedValue(searchInput.trim());
   const [page, setPage] = useState(1);
 
+  const prevSearchRef = useRef(search);
   useEffect(() => {
-    const t = window.setTimeout(() => {
-      setSearch(searchInput.trim());
+    if (prevSearchRef.current !== search) {
+      prevSearchRef.current = search;
       setPage(1);
-    }, 450);
-    return () => window.clearTimeout(t);
-  }, [searchInput]);
+    }
+  }, [search]);
 
   const [items, setItems] = useState<ManagedUser[]>([]);
   const [count, setCount] = useState(0);
@@ -217,6 +211,36 @@ const UserManagementPage: React.FC<UserManagementPageProps> = ({
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
 
+  /** Assignable projects need a real backend id. Keep current selections visible when editing. */
+  const assignableProjectOptions = useMemo(() => {
+    const byId = new Map(
+      projectOptions.filter((p) => p.id > 0).map((p) => [p.id, p] as const),
+    );
+
+    const ensureOption = (id: number, name?: string) => {
+      if (!id || byId.has(id)) return;
+      byId.set(id, {
+        id,
+        name: String(name ?? '').trim() || `Project ${id}`,
+      });
+    };
+
+    for (const id of form.projectIds) {
+      const fromUser = editing?.projects.find((p) => p.id === id);
+      ensureOption(id, fromUser?.name);
+    }
+
+    if (editing) {
+      for (const p of editing.projects) ensureOption(p.id, p.name);
+    }
+
+    return [...byId.values()].sort((a, b) =>
+      a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }),
+    );
+  }, [projectOptions, form.projectIds, editing]);
+
+  const filterProjectOptions = assignableProjectOptions;
+
   const [viewUser, setViewUser] = useState<ManagedUser | null>(null);
   const [viewLoading, setViewLoading] = useState(false);
 
@@ -238,7 +262,7 @@ const UserManagementPage: React.FC<UserManagementPageProps> = ({
   const [confirmAction, setConfirmAction] = useState<ConfirmAction | null>(null);
   const [confirmBusy, setConfirmBusy] = useState(false);
 
-  const loadList = useCallback(async () => {
+  const loadList = useCallback(async (signal?: AbortSignal) => {
     if (!allowed) return;
     setLoading(true);
     setError(null);
@@ -250,7 +274,9 @@ const UserManagementPage: React.FC<UserManagementPageProps> = ({
         status: statusFilter || undefined,
         page,
         page_size: PAGE_SIZE,
+        signal,
       });
+      if (signal?.aborted) return;
       if (!result.success) {
         setItems([]);
         setCount(0);
@@ -260,16 +286,19 @@ const UserManagementPage: React.FC<UserManagementPageProps> = ({
       setItems(result.results);
       setCount(result.count);
     } catch (err) {
+      if (isAbortError(err) || signal?.aborted) return;
       setItems([]);
       setCount(0);
       setError(getUserManagementErrorMessage(err, 'Unable to load users.'));
     } finally {
-      setLoading(false);
+      if (!signal?.aborted) setLoading(false);
     }
   }, [allowed, search, roleFilter, projectFilter, statusFilter, page]);
 
   useEffect(() => {
-    void loadList();
+    const controller = new AbortController();
+    void loadList(controller.signal);
+    return () => controller.abort();
   }, [loadList]);
 
   const totalPages = Math.max(1, Math.ceil(count / PAGE_SIZE));

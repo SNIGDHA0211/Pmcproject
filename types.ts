@@ -607,6 +607,10 @@ export interface Project {
   major?: number;
   minor?: number;
   nearMiss?: number;
+  /** Set when project is marked completed via complete API */
+  completedAt?: string | null;
+  completedBy?: string | null;
+  completionNotes?: string | null;
 }
 
 export interface LaborLog {

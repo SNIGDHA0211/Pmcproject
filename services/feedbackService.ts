@@ -31,6 +31,8 @@ export interface FeedbackListParams {
   ordering?: FeedbackOrdering;
   page?: number;
   page_size?: number;
+  /** Abort in-flight list fetch when filters/search change. */
+  signal?: AbortSignal;
 }
 
 export interface FeedbackCreatePayload {
@@ -170,6 +172,7 @@ export async function getFeedbackList(params: FeedbackListParams = {}) {
 
   const res = await api.get(API_ENDPOINTS.PROJECT_FEEDBACK.LIST, {
     params: query,
+    ...(params.signal ? { signal: params.signal } : {}),
   });
   return parseFeedbackListResponse(res.data);
 }
