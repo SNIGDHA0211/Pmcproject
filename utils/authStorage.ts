@@ -3,6 +3,7 @@ import { clearAllTeamLeaderOverviewCaches } from './teamLeaderOverviewCache';
 import { clearAllProjectDatesSectionCaches } from './projectDatesSectionCache';
 import { clearAllPMCHead360Caches } from './pmcHead360Cache';
 import { clearProjectRowCache } from './pmcHeadExecutiveProjects';
+import { invalidateFinancialCache } from './financialDataCache';
 
 export const ACCESS_TOKEN_KEY = 'access_token';
 export const REFRESH_TOKEN_KEY = 'refresh_token';
@@ -52,12 +53,13 @@ export function clearAuthStorage(): void {
   clearAppDataCaches();
 }
 
-/** Drop persisted/in-memory project caches (login, logout, create project). */
+/** Drop in-memory + legacy browser API caches (login, logout, create project). */
 export function clearAppDataCaches(): void {
   clearAllTeamLeaderOverviewCaches();
   clearAllProjectDatesSectionCaches();
   clearAllPMCHead360Caches();
   clearProjectRowCache();
+  invalidateFinancialCache();
 }
 
 export function clearLegacyBasicAuth(): void {

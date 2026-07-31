@@ -3,14 +3,9 @@ import type { BottleneckItem } from './bottleneck';
 import type { TeamLeaderOverviewMetrics } from '../components/teamLeader/TeamLeaderOverviewShell';
 import type { ExecutiveDecisionItem, ExecutiveProgressPoint } from '../components/pmcHead/PMCExecutiveOverviewPanel';
 
-const CACHE_VERSION = 1;
-const CACHE_PREFIX = 'pmc.tl.overview';
-/** Display cache TTL — stale entries are discarded */
-const TTL_MS = 30 * 60 * 1000;
+/** In-memory / display helpers only — no localStorage (Redis owns API caching). */
 
 export interface TeamLeaderOverviewCachePayload {
-  v: typeof CACHE_VERSION;
-  cachedAt: string;
   projectId: string;
   projectTitle: string;
   projectLocation?: string;
@@ -99,76 +94,6 @@ export function buildTeamLeaderOverviewDecisionQueue(
   return items;
 }
 
-function cacheKey(userId: string, projectId: string): string {
-  return `${CACHE_PREFIX}.v${CACHE_VERSION}.${userId}.${projectId}`;
-}
-
-export function readTeamLeaderOverviewCache(
-  userId: string,
-  projectId: string,
-): TeamLeaderOverviewCachePayload | null {
-  if (!userId || !projectId || typeof window === 'undefined') return null;
-
-  try {
-    const raw = localStorage.getItem(cacheKey(userId, projectId));
-    if (!raw) return null;
-
-    const parsed = JSON.parse(raw) as TeamLeaderOverviewCachePayload;
-    if (parsed.v !== CACHE_VERSION || parsed.projectId !== projectId) {
-      localStorage.removeItem(cacheKey(userId, projectId));
-      return null;
-    }
-
-    const age = Date.now() - new Date(parsed.cachedAt).getTime();
-    if (!Number.isFinite(age) || age > TTL_MS) {
-      localStorage.removeItem(cacheKey(userId, projectId));
-      return null;
-    }
-
-    return parsed;
-  } catch {
-    return null;
-  }
-}
-
-export function writeTeamLeaderOverviewCache(
-  userId: string,
-  payload: TeamLeaderOverviewCachePayload,
-): void {
-  if (!userId || !payload.projectId || typeof window === 'undefined') return;
-
-  try {
-    localStorage.setItem(cacheKey(userId, payload.projectId), JSON.stringify(payload));
-  } catch (error) {
-    console.warn('[TL Overview cache] Failed to persist:', error);
-  }
-}
-
-export function clearTeamLeaderOverviewCache(userId: string, projectId?: string): void {
-  if (typeof window === 'undefined' || !userId) return;
-
-  if (projectId) {
-    localStorage.removeItem(cacheKey(userId, projectId));
-    return;
-  }
-
-  const prefix = `${CACHE_PREFIX}.v${CACHE_VERSION}.${userId}.`;
-  for (let i = localStorage.length - 1; i >= 0; i -= 1) {
-    const key = localStorage.key(i);
-    if (key?.startsWith(prefix)) localStorage.removeItem(key);
-  }
-}
-
-/** Remove every team-leader overview cache (e.g. on logout) */
-export function clearAllTeamLeaderOverviewCaches(): void {
-  if (typeof window === 'undefined') return;
-
-  for (let i = localStorage.length - 1; i >= 0; i -= 1) {
-    const key = localStorage.key(i);
-    if (key?.startsWith(`${CACHE_PREFIX}.`)) localStorage.removeItem(key);
-  }
-}
-
 export function buildTeamLeaderOverviewCachePayload(input: {
   projectId: string;
   projectTitle: string;
@@ -185,8 +110,6 @@ export function buildTeamLeaderOverviewCachePayload(input: {
   ).length;
 
   return {
-    v: CACHE_VERSION,
-    cachedAt: new Date().toISOString(),
     projectId: input.projectId,
     projectTitle: input.projectTitle,
     projectLocation: input.projectLocation,
@@ -202,4 +125,31 @@ export function buildTeamLeaderOverviewCachePayload(input: {
     ),
     openIssuesCount,
   };
+}
+
+/** @deprecated No-op readers — localStorage API caches removed. */
+export function readTeamLeaderOverviewCache(
+  _userId: string,
+  _projectId: string,
+): TeamLeaderOverviewCachePayload | null {
+  return null;
+}
+
+/** @deprecated No-op writers — localStorage API caches removed. */
+export function writeTeamLeaderOverviewCache(
+  _userId: string,
+  _payload: TeamLeaderOverviewCachePayload,
+): void {}
+
+export function clearTeamLeaderOverviewCache(_userId: string, _projectId?: string): void {
+  clearAllTeamLeaderOverviewCaches();
+}
+
+/** Purge legacy browser caches from older app versions. */
+export function clearAllTeamLeaderOverviewCaches(): void {
+  if (typeof window === 'undefined') return;
+  for (let i = localStorage.length - 1; i >= 0; i -= 1) {
+    const key = localStorage.key(i);
+    if (key?.startsWith('pmc.tl.overview.')) localStorage.removeItem(key);
+  }
 }

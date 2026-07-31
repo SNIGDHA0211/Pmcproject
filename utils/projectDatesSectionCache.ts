@@ -9,7 +9,9 @@ import type {
 
 const CACHE_VERSION = 1;
 const CACHE_PREFIX = 'pmc.projectDates';
+/** @deprecated TTL unused — localStorage persistence removed. */
 const TTL_MS = 30 * 60 * 1000;
+void TTL_MS;
 
 export interface CachedProjectDatesRecord {
   id?: number;
@@ -243,46 +245,19 @@ function cacheKey(userId: string, projectId: string): string {
   return `${CACHE_PREFIX}.v${CACHE_VERSION}.${userId}.${projectId}`;
 }
 
+/** @deprecated No-op — localStorage API caches removed (Redis owns backend cache). */
 export function readProjectDatesSectionCache(
-  userId: string,
-  projectId: string,
+  _userId: string,
+  _projectId: string,
 ): ProjectDatesSectionCachePayload | null {
-  if (!userId || !projectId || typeof window === 'undefined') return null;
-
-  try {
-    const raw = localStorage.getItem(cacheKey(userId, projectId));
-    if (!raw) return null;
-
-    const parsed = JSON.parse(raw) as ProjectDatesSectionCachePayload;
-    if (parsed.v !== CACHE_VERSION || parsed.projectId !== projectId) {
-      localStorage.removeItem(cacheKey(userId, projectId));
-      return null;
-    }
-
-    const age = Date.now() - new Date(parsed.cachedAt).getTime();
-    if (!Number.isFinite(age) || age > TTL_MS) {
-      localStorage.removeItem(cacheKey(userId, projectId));
-      return null;
-    }
-
-    return parsed;
-  } catch {
-    return null;
-  }
+  return null;
 }
 
+/** @deprecated No-op — localStorage API caches removed (Redis owns backend cache). */
 export function writeProjectDatesSectionCache(
-  userId: string,
-  payload: ProjectDatesSectionCachePayload,
-): void {
-  if (!userId || !payload.projectId || typeof window === 'undefined') return;
-
-  try {
-    localStorage.setItem(cacheKey(userId, payload.projectId), JSON.stringify(payload));
-  } catch (error) {
-    console.warn('[Project Dates cache] Failed to persist:', error);
-  }
-}
+  _userId: string,
+  _payload: ProjectDatesSectionCachePayload,
+): void {}
 
 export function clearProjectDatesSectionCache(userId: string, projectId?: string): void {
   if (typeof window === 'undefined' || !userId) return;
@@ -299,6 +274,7 @@ export function clearProjectDatesSectionCache(userId: string, projectId?: string
   }
 }
 
+/** Purge legacy browser caches from older app versions. */
 export function clearAllProjectDatesSectionCaches(): void {
   if (typeof window === 'undefined') return;
 

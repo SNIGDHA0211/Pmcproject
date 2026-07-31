@@ -54,6 +54,7 @@ export const API_ENDPOINTS = {
   // Projects
   PROJECTS: {
     LIST: '/projects-data/projects/',
+    OVERVIEW: '/projects/overview/',
     DETAIL: (id: string) => `/projects-data/projects/${id}/`,
     SITES: '/projects-data/sites/',
     DOCUMENTS: '/projects-data/projects/documents/',

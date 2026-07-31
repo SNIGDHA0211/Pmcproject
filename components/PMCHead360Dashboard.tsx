@@ -25,10 +25,8 @@ import { ROLE_LABELS } from '../constants';
 import { useTheme, getThemeClasses } from '../utils/theme';
 import { getPmcExecutiveTheme } from '../utils/pmcExecutiveTheme';
 import type { HealthLabel, ProjectVital, ProjectVitalsCard, VitalStatus } from '../utils/projectVitals';
-import { buildSeedVitalsSnapshot, loadProjectVitalsProgressively } from '../services/projectVitalsService';
 import {
   buildPortfolioSummary,
-  buildProjectVitalsCardFromSnapshot,
   PORTFOLIO_SCORE_FORMULAS,
   SCORE_COLORS,
   scoreToAccent,
@@ -38,15 +36,9 @@ import {
   pmcHead360CompareFilename,
 } from '../utils/pmcHead360CompareExport';
 import {
-  buildDprsFingerprint,
-  buildPMCHead360CachePayload,
-  buildProjectsFingerprint,
-  clearPMCHead360Cache,
-  getPMCHead360CacheAgeMs,
-  isPMCHead360CacheFresh,
-  readPMCHead360Cache,
-  writePMCHead360Cache,
-} from '../utils/pmcHead360Cache';
+  getApiErrorMessage,
+  getProjectOverview,
+} from '../services/projectOverviewService';
 
 interface PMCHead360DashboardProps {
   user: User;
@@ -70,16 +62,6 @@ function healthTone(label: HealthLabel): string {
 
 function vitalPct(card: ProjectVitalsCard, key: ProjectVitalsCard['vitals'][number]['key']): number | null {
   return card.vitals.find((v) => v.key === key)?.percent ?? null;
-}
-
-function formatCacheAge(ageMs: number): string {
-  if (!Number.isFinite(ageMs) || ageMs < 0) return 'just now';
-  const mins = Math.floor(ageMs / 60_000);
-  if (mins < 1) return 'just now';
-  if (mins === 1) return '1 min ago';
-  if (mins < 60) return `${mins} min ago`;
-  const hours = Math.floor(mins / 60);
-  return hours === 1 ? '1 hr ago' : `${hours} hr ago`;
 }
 
 /** Theme-safe filter dropdown — avoids native &lt;select&gt; white flash on dark Windows UI. */
@@ -313,7 +295,7 @@ const KpiStatusCell: React.FC<{
 }> = ({ label, vital, kind, isDark }) => {
   const status = vital?.status ?? 'unknown';
   const color = statusTone(status);
-  const word = statusWord(status, kind);
+  const word = (vital?.statusLabel && vital.statusLabel.trim()) || statusWord(status, kind);
   return (
     <div className="min-w-0 text-center">
       <p className={`text-[9px] font-bold uppercase tracking-wide ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
@@ -347,7 +329,7 @@ const ProjectGridCard: React.FC<{
   const budget = vitalOf(card, 'budget');
   const safety = vitalOf(card, 'safety');
   const quality =
-    vitalOf(card, 'drawings')?.percent != null
+    vitalOf(card, 'drawings')?.percent != null || vitalOf(card, 'drawings')?.statusLabel
       ? vitalOf(card, 'drawings')
       : vitalOf(card, 'compliance');
   const progress = card.progressPct;
@@ -356,6 +338,7 @@ const ProjectGridCard: React.FC<{
   const circumference = 2 * Math.PI * 18;
   const scoreDash =
     score == null ? 0 : (Math.min(100, Math.max(0, score)) / 100) * circumference;
+  const compareBlocked = card.compareEnabled === false || (compareDisabled && !selected);
 
   return (
     <article
@@ -512,7 +495,12 @@ const ProjectGridCard: React.FC<{
             <button
               type="button"
               onClick={onToggleCompare}
-              disabled={compareDisabled && !selected}
+              disabled={compareBlocked}
+              title={
+                card.compareEnabled === false
+                  ? 'Comparison is not available for this project'
+                  : undefined
+              }
               className={`rounded-lg border px-2 py-1.5 text-[9px] font-black uppercase tracking-wide transition-all disabled:cursor-not-allowed disabled:opacity-40 ${
                 selected
                   ? isDark
@@ -573,141 +561,62 @@ const CompareMiniBar: React.FC<{ label: string; value: number | null; color: str
 const PMCHead360Dashboard: React.FC<PMCHead360DashboardProps> = ({
   user,
   projects,
-  dprs,
+  dprs: _dprs,
   onViewProject,
 }) => {
+  void _dprs;
   const { isDarkTheme } = useTheme();
   const themeClasses = getThemeClasses(isDarkTheme);
   const ex = getPmcExecutiveTheme(isDarkTheme);
 
   const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [regionFilter, setRegionFilter] = useState('all');
   const [pmFilter, setPmFilter] = useState('all');
+  const [clientFilter, setClientFilter] = useState('all');
+  const [ordering, setOrdering] = useState('name');
   const [compareIds, setCompareIds] = useState<string[]>([]);
   const [isExportingCompare, setIsExportingCompare] = useState(false);
   const [showScoreFormulas, setShowScoreFormulas] = useState(false);
   const [showCardGuide, setShowCardGuide] = useState(false);
 
-  const [allCards, setAllCards] = useState<ProjectVitalsCard[]>(() => {
-    const cached = readPMCHead360Cache(user.id, projects, dprs);
-    if (cached?.cards.length) return cached.cards;
-    if (projects.length === 0) return [];
-    return projects.map((project) =>
-      buildProjectVitalsCardFromSnapshot(buildSeedVitalsSnapshot(project, dprs)),
-    );
-  });
-  const [isLoadingVitals, setIsLoadingVitals] = useState(() => {
-    if (projects.length === 0) return false;
-    const cached = readPMCHead360Cache(user.id, projects, dprs);
-    return !(cached && isPMCHead360CacheFresh(cached));
-  });
-  const [vitalsRefreshProgress, setVitalsRefreshProgress] = useState<{
-    completed: number;
-    total: number;
-  } | null>(null);
+  const [allCards, setAllCards] = useState<ProjectVitalsCard[]>([]);
+  const [isLoadingVitals, setIsLoadingVitals] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
-  /** Bumps when user clicks Refresh — forces one network revalidation. */
   const [refreshNonce, setRefreshNonce] = useState(0);
-  const forceRefreshRef = useRef(false);
-  const [servingFromCache, setServingFromCache] = useState(() => {
-    const cached = readPMCHead360Cache(user.id, projects, dprs);
-    return Boolean(cached && isPMCHead360CacheFresh(cached));
-  });
-  const [cacheAgeLabel, setCacheAgeLabel] = useState<string | null>(() => {
-    const cached = readPMCHead360Cache(user.id, projects, dprs);
-    if (!cached || !isPMCHead360CacheFresh(cached)) return null;
-    return formatCacheAge(getPMCHead360CacheAgeMs(cached));
-  });
 
-  const projectFingerprint = useMemo(() => buildProjectsFingerprint(projects), [projects]);
-  const dprsFingerprint = useMemo(() => buildDprsFingerprint(projects, dprs), [projects, dprs]);
-  const projectsRef = useRef(projects);
-  const dprsRef = useRef(dprs);
-  projectsRef.current = projects;
-  dprsRef.current = dprs;
+  useEffect(() => {
+    const t = window.setTimeout(() => setDebouncedSearch(search.trim()), 350);
+    return () => window.clearTimeout(t);
+  }, [search]);
 
   useEffect(() => {
     let cancelled = false;
 
     const load = async () => {
-      const projects = projectsRef.current;
-      const dprs = dprsRef.current;
-
-      if (projects.length === 0) {
-        setAllCards([]);
-        setIsLoadingVitals(false);
-        setServingFromCache(false);
-        setCacheAgeLabel(null);
-        return;
-      }
-
-      const forceRefresh = forceRefreshRef.current;
-      forceRefreshRef.current = false;
-
-      const cached = readPMCHead360Cache(user.id, projects, dprs);
-
-      // Fresh cache + not a manual refresh → skip all vitals APIs (avoids rate limits).
-      if (!forceRefresh && cached && isPMCHead360CacheFresh(cached)) {
-        setAllCards(cached.cards);
-        setLoadError(null);
-        setIsLoadingVitals(false);
-        setVitalsRefreshProgress(null);
-        setServingFromCache(true);
-        setCacheAgeLabel(formatCacheAge(getPMCHead360CacheAgeMs(cached)));
-        return;
-      }
-
-      if (cached) {
-        setAllCards(cached.cards);
-        setLoadError(null);
-      }
-
-      const realProjectCount = projects.filter(
-        (p) => !String(p.id).startsWith('executive-known-') && !String(p.id).startsWith('executive-hse-'),
-      ).length;
       setIsLoadingVitals(true);
-      setServingFromCache(Boolean(cached));
-      setVitalsRefreshProgress(
-        realProjectCount > 0 ? { completed: 0, total: realProjectCount } : null,
-      );
       setLoadError(null);
 
-      const seedCards = projects.map((project) =>
-        buildProjectVitalsCardFromSnapshot(buildSeedVitalsSnapshot(project, dprs)),
-      );
-      if (!cached) setAllCards(seedCards);
-
       try {
-        const snapshots = await loadProjectVitalsProgressively(projects, dprs, (nextSnapshots, meta) => {
-          if (cancelled) return;
-          setAllCards(nextSnapshots.map(buildProjectVitalsCardFromSnapshot));
-          if (meta) setVitalsRefreshProgress(meta);
+        const result = await getProjectOverview({
+          search: debouncedSearch || undefined,
+          ordering: ordering || undefined,
+          client: clientFilter !== 'all' ? clientFilter : undefined,
         });
 
         if (!cancelled) {
-          const cards = snapshots.map(buildProjectVitalsCardFromSnapshot);
-          setAllCards(cards);
-          writePMCHead360Cache(
-            user.id,
-            buildPMCHead360CachePayload(user.id, projects, dprs, cards),
-          );
-          setServingFromCache(false);
-          setCacheAgeLabel(null);
+          setAllCards(result.cards);
         }
       } catch (error) {
-        console.error('Failed to load project vitals:', error);
+        console.error('Failed to load project overview:', error);
         if (!cancelled) {
-          setLoadError('Some live metrics may be unavailable. Showing available project data.');
-          if (cached) {
-            setServingFromCache(true);
-            setCacheAgeLabel(formatCacheAge(getPMCHead360CacheAgeMs(cached)));
-          }
+          setLoadError(
+            getApiErrorMessage(error, 'Unable to load project overview. Please try again.'),
+          );
+          setAllCards([]);
         }
       } finally {
-        if (!cancelled) {
-          setIsLoadingVitals(false);
-          setVitalsRefreshProgress(null);
-        }
+        if (!cancelled) setIsLoadingVitals(false);
       }
     };
 
@@ -715,48 +624,64 @@ const PMCHead360Dashboard: React.FC<PMCHead360DashboardProps> = ({
     return () => {
       cancelled = true;
     };
-  }, [user.id, projectFingerprint, dprsFingerprint, refreshNonce]);
+  }, [user.id, debouncedSearch, ordering, clientFilter, refreshNonce]);
 
   const handleForceRefresh = () => {
     if (isLoadingVitals) return;
-    clearPMCHead360Cache(user.id);
-    forceRefreshRef.current = true;
-    setServingFromCache(false);
-    setCacheAgeLabel(null);
     setRefreshNonce((n) => n + 1);
   };
 
   const regions = useMemo(
-    () => ['all', ...Array.from(new Set(projects.map((p) => p.location).filter(Boolean)))],
-    [projects],
+    () => [
+      'all',
+      ...Array.from(
+        new Set(
+          [
+            ...projects.map((p) => p.location),
+            ...allCards.map((c) => c.location),
+          ].filter((loc) => Boolean(loc) && loc !== '—'),
+        ),
+      ).sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' })),
+    ],
+    [projects, allCards],
+  );
+
+  const clients = useMemo(
+    () => [
+      'all',
+      ...Array.from(
+        new Set(
+          [
+            ...projects.map((p) => p.client),
+            ...allCards.map((c) => c.client),
+          ].filter((c) => Boolean(c) && c !== '—'),
+        ),
+      ).sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' })),
+    ],
+    [projects, allCards],
   );
 
   const pms = useMemo(
     () => [
       'all',
-      ...Array.from(new Set(allCards.map((c) => c.pmName).filter((n) => n && n !== 'Unassigned'))),
+      ...Array.from(
+        new Set(
+          allCards
+            .map((c) => c.pmName)
+            .filter((n) => n && n !== 'Unassigned' && n !== 'Not Assigned'),
+        ),
+      ).sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' })),
     ],
     [allCards],
   );
 
   const filteredCards = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    return allCards
-      .filter((c) => {
-        if (
-          q &&
-          !c.title.toLowerCase().includes(q) &&
-          !c.location.toLowerCase().includes(q) &&
-          !c.pmName.toLowerCase().includes(q)
-        ) {
-          return false;
-        }
-        if (regionFilter !== 'all' && c.location !== regionFilter) return false;
-        if (pmFilter !== 'all' && c.pmName !== pmFilter) return false;
-        return true;
-      })
-      .sort((a, b) => a.title.localeCompare(b.title, undefined, { sensitivity: 'base' }));
-  }, [allCards, search, regionFilter, pmFilter]);
+    return allCards.filter((c) => {
+      if (regionFilter !== 'all' && c.location !== regionFilter) return false;
+      if (pmFilter !== 'all' && c.pmName !== pmFilter) return false;
+      return true;
+    });
+  }, [allCards, regionFilter, pmFilter]);
 
   const portfolio = useMemo(() => buildPortfolioSummary(filteredCards), [filteredCards]);
 
@@ -790,6 +715,8 @@ const PMCHead360Dashboard: React.FC<PMCHead360DashboardProps> = ({
   );
 
   const toggleCompare = (id: string) => {
+    const card = allCards.find((c) => c.projectId === id);
+    if (card && card.compareEnabled === false) return;
     setCompareIds((prev) => {
       if (prev.includes(id)) return prev.filter((x) => x !== id);
       if (prev.length >= 4) return prev;
@@ -814,7 +741,11 @@ const PMCHead360Dashboard: React.FC<PMCHead360DashboardProps> = ({
     }
   };
 
-  if (projects.length === 0) {
+  const liveBadgeLabel = isLoadingVitals
+    ? 'Loading project overview…'
+    : `Live · ${portfolio.projectsWithScore}/${portfolio.projectsTotal} scored`;
+
+  if (!isLoadingVitals && !loadError && allCards.length === 0 && !debouncedSearch && clientFilter === 'all') {
     return (
       <div
         className={`flex min-h-[400px] flex-col items-center justify-center rounded-3xl border p-8 text-center ${themeClasses.glassCard} ${themeClasses.border}`}
@@ -829,15 +760,6 @@ const PMCHead360Dashboard: React.FC<PMCHead360DashboardProps> = ({
       </div>
     );
   }
-
-  const liveBadgeLabel =
-    isLoadingVitals && vitalsRefreshProgress && vitalsRefreshProgress.total > 0
-      ? `Loading live backend data… ${vitalsRefreshProgress.completed} / ${vitalsRefreshProgress.total}`
-      : isLoadingVitals
-        ? 'Syncing live backend data…'
-        : servingFromCache
-          ? `Cached${cacheAgeLabel ? ` · ${cacheAgeLabel}` : ''} · ${portfolio.projectsWithScore}/${portfolio.projectsTotal} scored`
-          : `Live · ${portfolio.projectsWithScore}/${portfolio.projectsTotal} scored`;
 
   return (
     <div className="animate-in fade-in space-y-4 pb-36 duration-500 sm:pb-40">
@@ -857,22 +779,14 @@ const PMCHead360Dashboard: React.FC<PMCHead360DashboardProps> = ({
                   ? isDarkTheme
                     ? 'border-amber-500/30 bg-amber-500/10 text-amber-300'
                     : 'border-amber-200 bg-amber-50 text-amber-700'
-                  : servingFromCache
-                    ? isDarkTheme
-                      ? 'border-sky-500/30 bg-sky-500/10 text-sky-300'
-                      : 'border-sky-200 bg-sky-50 text-sky-700'
-                    : isDarkTheme
-                      ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300'
-                      : 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                  : isDarkTheme
+                    ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300'
+                    : 'border-emerald-200 bg-emerald-50 text-emerald-700'
               }`}
             >
               <span
                 className={`h-1.5 w-1.5 rounded-full ${
-                  isLoadingVitals
-                    ? 'animate-pulse bg-amber-500'
-                    : servingFromCache
-                      ? 'bg-sky-500'
-                      : 'animate-pulse bg-emerald-500'
+                  isLoadingVitals ? 'animate-pulse bg-amber-500' : 'animate-pulse bg-emerald-500'
                 }`}
               />
               {liveBadgeLabel}
@@ -895,14 +809,14 @@ const PMCHead360Dashboard: React.FC<PMCHead360DashboardProps> = ({
           </div>
         </div>
 
-        <div className="grid w-full grid-cols-1 gap-2 sm:grid-cols-2 lg:max-w-3xl lg:grid-cols-[1fr_minmax(8rem,10rem)_minmax(8rem,10rem)_auto]">
+        <div className="grid w-full grid-cols-1 gap-2 sm:grid-cols-2 lg:max-w-4xl lg:grid-cols-[1.2fr_minmax(7rem,9rem)_minmax(7rem,9rem)_minmax(7rem,9rem)_minmax(7rem,9rem)_auto]">
           <div className="relative min-w-0 sm:col-span-2 lg:col-span-1">
             <Search size={14} className={`pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 ${ex.muted}`} />
             <input
               type="search"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search projects, location, PM…"
+              placeholder="Search projects…"
               className={`w-full rounded-xl border py-2.5 pl-8 pr-3 text-xs outline-none transition-shadow focus:ring-2 focus:ring-blue-500/30 sm:text-sm ${
                 isDarkTheme
                   ? 'border-white/15 bg-[#0f2744] text-slate-100 placeholder:text-slate-500'
@@ -910,6 +824,17 @@ const PMCHead360Dashboard: React.FC<PMCHead360DashboardProps> = ({
               }`}
             />
           </div>
+
+          <ThemeFilterSelect
+            ariaLabel="Filter by client"
+            isDark={isDarkTheme}
+            value={clientFilter}
+            onChange={setClientFilter}
+            options={clients.map((c) => ({
+              value: c,
+              label: c === 'all' ? 'All Clients' : c,
+            }))}
+          />
 
           <ThemeFilterSelect
             ariaLabel="Filter by region"
@@ -933,6 +858,20 @@ const PMCHead360Dashboard: React.FC<PMCHead360DashboardProps> = ({
             }))}
           />
 
+          <ThemeFilterSelect
+            ariaLabel="Sort projects"
+            isDark={isDarkTheme}
+            value={ordering}
+            onChange={setOrdering}
+            options={[
+              { value: 'name', label: 'Name A–Z' },
+              { value: '-name', label: 'Name Z–A' },
+              { value: '-health_score', label: 'Score high' },
+              { value: 'health_score', label: 'Score low' },
+              { value: '-updated_at', label: 'Recently updated' },
+            ]}
+          />
+
           <div
             className={`flex items-center justify-center gap-1.5 rounded-xl border px-3 py-2.5 text-[11px] font-bold ${
               isDarkTheme
@@ -946,7 +885,28 @@ const PMCHead360Dashboard: React.FC<PMCHead360DashboardProps> = ({
         </div>
       </div>
 
-      {loadError && <div className={ex.alert}>{loadError}</div>}
+      {loadError && (
+        <div
+          className={`flex flex-wrap items-center justify-between gap-3 rounded-2xl border px-4 py-3 text-sm ${
+            isDarkTheme
+              ? 'border-rose-500/30 bg-rose-500/10 text-rose-200'
+              : 'border-rose-200 bg-rose-50 text-rose-700'
+          }`}
+        >
+          <p className="font-semibold">{loadError}</p>
+          <button
+            type="button"
+            onClick={handleForceRefresh}
+            className={`rounded-xl border px-3 py-1.5 text-[11px] font-black uppercase tracking-wide ${
+              isDarkTheme
+                ? 'border-rose-400/40 bg-rose-500/20 hover:bg-rose-500/30'
+                : 'border-rose-300 bg-white hover:bg-rose-100'
+            }`}
+          >
+            Retry
+          </button>
+        </div>
+      )}
 
       {/* Portfolio summary strip */}
       <section
@@ -1052,7 +1012,9 @@ const PMCHead360Dashboard: React.FC<PMCHead360DashboardProps> = ({
             </p>
           </div>
           <div className="flex items-center gap-2">
-            <p className={`hidden text-[10px] font-semibold sm:inline ${ex.muted}`}>A–Z · live vitals cards</p>
+            <p className={`hidden text-[10px] font-semibold sm:inline ${ex.muted}`}>
+              Overview API · single request
+            </p>
             <button
               type="button"
               onClick={() => setShowCardGuide((v) => !v)}
@@ -1156,7 +1118,18 @@ const PMCHead360Dashboard: React.FC<PMCHead360DashboardProps> = ({
           </div>
         )}
 
-        {filteredCards.length === 0 ? (
+        {isLoadingVitals && filteredCards.length === 0 ? (
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+            {Array.from({ length: 8 }).map((_, i) => (
+              <div
+                key={`skeleton-${i}`}
+                className={`h-56 animate-pulse rounded-2xl border ${
+                  isDarkTheme ? 'border-white/10 bg-white/5' : 'border-slate-200 bg-slate-100'
+                }`}
+              />
+            ))}
+          </div>
+        ) : filteredCards.length === 0 ? (
           <div
             className={`rounded-2xl border border-dashed px-4 py-16 text-center text-xs font-semibold ${
               isDarkTheme ? 'border-white/10 text-slate-500' : 'border-slate-200 text-slate-400'

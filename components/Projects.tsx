@@ -126,15 +126,10 @@ import TeamLeaderOverviewShell, {
 import type { ExecutiveDecisionItem, ExecutivePvaVelocityData } from './pmcHead/PMCExecutiveOverviewPanel';
 import {
   buildTeamLeaderOverviewCachePayload,
-  readTeamLeaderOverviewCache,
-  writeTeamLeaderOverviewCache,
   type TeamLeaderOverviewCachePayload,
 } from '../utils/teamLeaderOverviewCache';
 import {
   buildProjectDatesSectionCacheFromBundle,
-  projectDatesBundleFromCache,
-  readProjectDatesSectionCache,
-  writeProjectDatesSectionCache,
   type ProjectDatesSectionCachePayload,
 } from '../utils/projectDatesSectionCache';
 import ProjectDashboardSummary from './ProjectDashboardSummary';
@@ -988,24 +983,6 @@ const Projects: React.FC<ProjectsProps> = ({
       return;
     }
 
-    if (
-      teamLeaderView === 'overview' &&
-      selectedProject.id &&
-      readTeamLeaderOverviewCache(currentUser.id, selectedProject.id)
-    ) {
-      const datesCached = readProjectDatesSectionCache(currentUser.id, selectedProject.id);
-      if (datesCached) {
-        setProjectDatesBundle(projectDatesBundleFromCache(datesCached));
-        setProjectDatesSectionCache(datesCached);
-        if (datesCached.selectedContractorId) {
-          setSelectedContractorId(datesCached.selectedContractorId);
-        }
-      }
-      setIsLoadingProjectDates(false);
-      setProjectDatesError(null);
-      return;
-    }
-
     setIsLoadingProjectDates(true);
     setProjectDatesError(null);
     try {
@@ -1035,7 +1012,6 @@ const Projects: React.FC<ProjectsProps> = ({
           bundle,
           selectedContractorId,
         });
-        writeProjectDatesSectionCache(currentUser.id, payload);
         setProjectDatesSectionCache(payload);
       }
     } catch (error) {
@@ -1062,15 +1038,7 @@ const Projects: React.FC<ProjectsProps> = ({
       setProjectDatesSectionCache(null);
       return;
     }
-
-    const cached = readProjectDatesSectionCache(currentUser.id, selectedProject.id);
-    setProjectDatesSectionCache(cached);
-    if (cached) {
-      setProjectDatesBundle(projectDatesBundleFromCache(cached));
-      if (cached.selectedContractorId) {
-        setSelectedContractorId(cached.selectedContractorId);
-      }
-    }
+    setProjectDatesSectionCache(null);
   }, [selectedProject?.id, currentUser.id]);
 
   const handleProjectDatesSubmit = async (e: React.FormEvent) => {
@@ -1873,15 +1841,6 @@ const Projects: React.FC<ProjectsProps> = ({
         return;
       }
 
-      if (
-        teamLeaderView === 'overview' &&
-        selectedProject.id &&
-        readTeamLeaderOverviewCache(currentUser.id, selectedProject.id)
-      ) {
-        setIsLoadingProjectProgress(false);
-        return;
-      }
-
       setIsLoadingProjectProgress(true);
       try {
         const role = getBackendRole(currentUser.role);
@@ -2531,7 +2490,7 @@ const Projects: React.FC<ProjectsProps> = ({
   const resolvedOverviewCache = useMemo(() => {
     if (!showTlOverview || !selectedProject?.id || !currentUser.id) return null;
     if (tlOverviewCache?.projectId === selectedProject.id) return tlOverviewCache;
-    return readTeamLeaderOverviewCache(currentUser.id, selectedProject.id);
+    return null;
   }, [showTlOverview, selectedProject?.id, currentUser.id, tlOverviewCache]);
 
   const tlOverviewDisplay = useMemo(() => {
@@ -2597,11 +2556,8 @@ const Projects: React.FC<ProjectsProps> = ({
       setTlOverviewCache(null);
       return;
     }
-    const cached = readTeamLeaderOverviewCache(currentUser.id, selectedProject.id);
-    setTlOverviewCache(cached);
-    if (!cached) {
-      tlOverviewCacheSavedRef.current = null;
-    }
+    setTlOverviewCache(null);
+    tlOverviewCacheSavedRef.current = null;
   }, [isPmcTeamLead, selectedProject?.id, currentUser.id]);
 
   useEffect(() => {
@@ -2623,7 +2579,7 @@ const Projects: React.FC<ProjectsProps> = ({
       bottleneckItems,
     });
 
-    writeTeamLeaderOverviewCache(currentUser.id, payload);
+    // Session React state only — not persisted to localStorage (Redis caches API).
     setTlOverviewCache(payload);
     tlOverviewCacheSavedRef.current = saveKey;
   }, [

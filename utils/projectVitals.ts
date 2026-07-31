@@ -18,6 +18,8 @@ export interface ProjectVital {
   label: string;
   percent: number | null;
   status: VitalStatus;
+  /** Backend KPI label when provided (e.g. Delay / Watch / Excellent) — shown as-is. */
+  statusLabel?: string;
   note: string;
 }
 
@@ -36,6 +38,8 @@ export interface ProjectVitalsCard {
   vitals: ProjectVital[];
   trend: TrendDirection;
   lastUpdate: string;
+  /** From overview API — when false, compare control is disabled. */
+  compareEnabled?: boolean;
 }
 
 const statusFromPercent = (percent: number | null, criticalBelow = 50, watchBelow = 75): VitalStatus => {
