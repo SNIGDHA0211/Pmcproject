@@ -49,6 +49,11 @@ export function clearAuthStorage(): void {
   localStorage.removeItem(REFRESH_TOKEN_KEY);
   localStorage.removeItem(USER_KEY);
   localStorage.removeItem(LEGACY_BASIC_AUTH_KEY);
+  clearAppDataCaches();
+}
+
+/** Drop persisted/in-memory project caches (login, logout, create project). */
+export function clearAppDataCaches(): void {
   clearAllTeamLeaderOverviewCaches();
   clearAllProjectDatesSectionCaches();
   clearAllPMCHead360Caches();

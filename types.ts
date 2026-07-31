@@ -554,6 +554,8 @@ export interface ProgressSnapshots {
 export interface Project {
   id: string;
   title: string;
+  /** Raw backend `name` — may contain corrupted characters; use for `project_name` filters. */
+  apiName?: string;
   client: string;
   description: string;
   status: ProjectStatus;

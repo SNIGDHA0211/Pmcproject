@@ -16,6 +16,8 @@ export const HSE_SITE_ENGINEER_ACCOUNTS: ReadonlyArray<{
   { index: 4, username: 'pmc_hse4', projectTitle: 'SWB Shillong PKG – III' },
   { index: 5, username: 'pmc_hse5', projectTitle: 'G3 Building – Girgaon (MMRCL)' },
   { index: 6, username: 'pmc_hse6', projectTitle: 'K3 Building – Kalbadevi (MMRCL)' },
+  /** Separate backend project (id=65) — do not merge with K3 / pmc_hse6 */
+  { index: 26, username: 'pmc_hse26', projectTitle: 'K2 Building – Kalbadevi (MMRCL)' },
   { index: 7, username: 'pmc_hse7', projectTitle: 'KBR Park -I Flyover – Hyderabad (GHMC)' },
   { index: 8, username: 'pmc_hse8', projectTitle: 'KBR Park -II Flyover – Hyderabad (GHMC)' },
   { index: 9, username: 'pmc_hse9', projectTitle: 'FOX SAGAR – Hyderabad' },
@@ -76,6 +78,14 @@ export function sanitizeProjectDisplayName(title?: string | null): string {
   return match?.projectTitle ?? cleaned;
 }
 
+/**
+ * Name to send in `project_name` API filters. Display titles are cleaned
+ * (e.g. "???" → "–"), so backend lookups must use the stored name.
+ */
+export function projectApiName(project: Pick<Project, 'title' | 'apiName'>): string {
+  return String(project.apiName ?? '').trim() || String(project.title ?? '').trim();
+}
+
 /** Strip location suffixes / parentheses so "X, Goa (GSIDC)" matches "X". */
 export function coreProjectTitleKey(title?: string | null): string {
   let key = normalizeProjectTitleKey(title);
@@ -129,26 +139,30 @@ export function pickProjectByHseTitle(projects: Project[], canonicalTitle: strin
   const targetCore = coreProjectTitleKey(canonicalTitle);
   if (!targetKey) return null;
 
-  const exact = projects.find(
-    (project) => normalizeProjectTitleKey(project.title) === targetKey,
-  );
-  if (exact) return exact;
-
-  const byCore = projects.find(
-    (project) => areDuplicateProjectTitles(project.title, canonicalTitle),
-  );
-  if (byCore) return byCore;
-
-  const loose = projects.find((project) => {
+  const candidates = projects.filter((project) => {
     const key = normalizeProjectTitleKey(project.title);
     const core = coreProjectTitleKey(project.title);
+    if (key === targetKey) return true;
+    if (areDuplicateProjectTitles(project.title, canonicalTitle)) return true;
     if (key.includes(targetKey) || targetKey.includes(key)) return true;
     if (targetCore.length >= 14 && (core.startsWith(targetCore) || targetCore.startsWith(core))) {
       return true;
     }
     return false;
   });
-  return loose ?? null;
+
+  if (candidates.length === 0) return null;
+  if (candidates.length === 1) return candidates[0];
+
+  // Prefer assigned / real rows when duplicates exist (e.g. KHB planning vs active)
+  return candidates.reduce((best, cur) => {
+    const aHasTl = Boolean(String(best.teamLeadName ?? '').trim() || String(best.teamLeadId ?? '').trim());
+    const bHasTl = Boolean(String(cur.teamLeadName ?? '').trim() || String(cur.teamLeadId ?? '').trim());
+    if (aHasTl !== bHasTl) return aHasTl ? best : cur;
+    const aLen = String(best.title ?? '').trim().length;
+    const bLen = String(cur.title ?? '').trim().length;
+    return bLen > aLen ? cur : best;
+  });
 }
 
 export function projectTitleMatchesHseAssignment(

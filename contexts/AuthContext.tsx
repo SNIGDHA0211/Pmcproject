@@ -11,6 +11,7 @@ import axios from 'axios';
 import { authApi, setUnauthorizedHandler } from '../services/api';
 import type { User } from '../types';
 import {
+  clearAppDataCaches,
   clearAuthStorage,
   clearLegacyBasicAuth,
   getAccessToken,
@@ -106,6 +107,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         throw new Error('Login response did not include access and refresh tokens.');
       }
 
+      // Fresh session — drop stale portfolio / 360 / dates caches from prior login
+      clearAppDataCaches();
       setTokens(access, refresh);
 
       const profile = await authApi.getUserProfile();

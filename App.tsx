@@ -72,7 +72,9 @@ import {
   type PendingUpdatesSummary,
 } from "./utils/pmcHeadPendingUpdates";
 import { userMatchesAssignee, extractAssigneeId, projectAssignedToUser } from "./utils/roleProjectAssignments";
+import { clearAppDataCaches } from "./utils/authStorage";
 import { normalizeBackendProjectRow, buildPmcHeadDropdownProjects, buildPmcHeadExecutiveProjectOptions, getKnownExecutiveProjectStubs, getHseExecutiveProjectStubs, seedProjectRowCache, clearProjectRowCache } from "./utils/pmcHeadExecutiveProjects";
+import { sanitizeProjectDisplayName } from "./utils/hseSiteEngineerProjects";
 import { isPmcHeadEquivalent } from "./utils/pmcRoleAccess";
 import { ensureProjectCoverAssigned } from "./utils/projectCoverPhotos";
 import {
@@ -200,13 +202,19 @@ const App: React.FC = () => {
         }
 
         // Find project ID from project name (use backendProjects since projects state isn't updated yet)
-        const project = backendProjects.find((p: Project) => p.title === d.project_name);
+        const dprProjectName = sanitizeProjectDisplayName(d.project_name);
+        const project = backendProjects.find(
+          (p: Project) =>
+            p.title === d.project_name ||
+            p.title === dprProjectName ||
+            p.apiName === d.project_name,
+        );
         const projectId = project?.id || d.project?.toString() || "";
 
         return {
           id: d.id?.toString() || Date.now().toString(),
           projectId: projectId,
-          projectName: d.project_name || "Unknown Project",
+          projectName: dprProjectName || "Unknown Project",
           date: d.report_date ? new Date(d.report_date).toLocaleDateString("en-GB") : new Date().toLocaleDateString("en-GB"),
           workDescription: workDescription || 'No description available',
           manpower: manpower,
@@ -765,7 +773,8 @@ const App: React.FC = () => {
       // Transform backend data back to frontend format
       const newProject: Project = {
         id: savedProject.id.toString(),
-        title: savedProject.name,
+        title: sanitizeProjectDisplayName(savedProject.name),
+        apiName: savedProject.name,
         client: savedProject.client_name,
         location: savedProject.location,
         budget: Number(savedProject.budget),
@@ -794,7 +803,7 @@ const App: React.FC = () => {
       setIsCreateModalOpen(false);
 
       // Refresh data from backend to ensure consistency and make it available to other dashboards
-      clearProjectRowCache();
+      clearAppDataCaches();
       await fetchData();
 
       addNotification(
@@ -1764,7 +1773,7 @@ const App: React.FC = () => {
           <ProjectInit
             user={currentUser}
             onProjectCreated={() => {
-              clearProjectRowCache();
+              clearAppDataCaches();
               fetchData();
             }}
           />

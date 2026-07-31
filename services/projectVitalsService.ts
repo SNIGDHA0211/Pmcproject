@@ -22,6 +22,7 @@ import {
   isSyntheticExecutiveProjectId,
   resolveExecutiveProjectForApi,
 } from '../utils/pmcHeadExecutiveProjects';
+import { projectApiName } from '../utils/hseSiteEngineerProjects';
 
 export interface ProjectVitalsSnapshot {
   projectId: string;
@@ -353,8 +354,8 @@ export async function loadProjectVitalsProgressively(
 
     const [payload, progressChart, drawings] = await Promise.all([
       safeGetDashboardData(project.id),
-      safeGetProgressChart(project.title),
-      safeGetDrawingApproval(project.title),
+      safeGetProgressChart(projectApiName(project)),
+      safeGetDrawingApproval(projectApiName(project)),
     ]);
 
     const merged = payload ? { ...seedDashboard, ...payload } : seedDashboard;
@@ -388,7 +389,7 @@ export async function loadProjectVitalsProgressively(
 
     await mapPool(datesIndices, DATES_CONCURRENCY, async (index) => {
       const project = resolvedProjects[index];
-      datesByIndex.set(index, await safeGetProjectDates(project.title));
+      datesByIndex.set(index, await safeGetProjectDates(projectApiName(project)));
     });
 
     datesIndices.forEach((index) => {

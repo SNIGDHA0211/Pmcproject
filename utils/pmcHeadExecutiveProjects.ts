@@ -94,11 +94,15 @@ function isCanonicalClientTitle(title?: string | null): boolean {
   );
 }
 
-/** Prefer real backend rows over stubs, and PDF-exact titles over variants. */
+/** Prefer real backend rows over stubs, assigned TLs, and PDF-exact titles over variants. */
 function preferProjectForDropdown(a: Project, b: Project): Project {
   const aSynthetic = isSyntheticExecutiveProjectId(a.id);
   const bSynthetic = isSyntheticExecutiveProjectId(b.id);
   if (aSynthetic !== bSynthetic) return aSynthetic ? b : a;
+
+  const aHasTl = Boolean(String(a.teamLeadName ?? '').trim() || String(a.teamLeadId ?? '').trim());
+  const bHasTl = Boolean(String(b.teamLeadName ?? '').trim() || String(b.teamLeadId ?? '').trim());
+  if (aHasTl !== bHasTl) return aHasTl ? a : b;
 
   const aCanonical = isCanonicalClientTitle(a.title);
   const bCanonical = isCanonicalClientTitle(b.title);
@@ -150,14 +154,18 @@ function withCanonicalClientTitle(project: Project): Project {
 /**
  * Build the Head / HO / Manager portfolio allowlist.
  * Wrong / extra backend projects are dropped; missing ones use stubs.
+ * Each backend row is matched at most once (K2 and K3 stay separate).
  */
 export function ensureHsePortfolioProjects(projects: Project[]): Project[] {
   const pool = projects.filter((project) => project?.id && project?.title?.trim());
   const picked: Project[] = [];
+  const usedIds = new Set<string>();
 
   for (const { projectTitle, index } of HSE_SITE_ENGINEER_ACCOUNTS) {
-    const matched = pickProjectByHseTitle(pool, projectTitle);
+    const available = pool.filter((project) => !usedIds.has(project.id));
+    const matched = pickProjectByHseTitle(available, projectTitle);
     if (matched) {
+      usedIds.add(matched.id);
       picked.push(withCanonicalClientTitle(matched));
       continue;
     }
@@ -366,10 +374,17 @@ export function clearProjectRowCache(): void {
 export function getCachedProjectRowByTitle(title: string): Record<string, unknown> | null {
   const titleKey = normalizeTitleKey(title);
   if (!titleKey || !cachedProjectRows?.length) return null;
-  return (
+  const exact =
     cachedProjectRows.find((row) => {
       const name = String(row.name ?? row.title ?? row.project_name ?? '').trim();
       return normalizeTitleKey(name) === titleKey;
+    }) ?? null;
+  if (exact) return exact;
+
+  return (
+    cachedProjectRows.find((row) => {
+      const name = String(row.name ?? row.title ?? row.project_name ?? '').trim();
+      return areDuplicateProjectTitles(name, title);
     }) ?? null
   );
 }
@@ -412,6 +427,7 @@ export function resolveExecutiveProjectForApi(project: Project): Project {
     ...fromRow,
     id: useRowId ? fromRow.id : project.id || fromRow.id,
     title: project.title || fromRow.title,
+    apiName: fromRow.apiName || project.apiName,
     location: project.location || fromRow.location,
     teamLeadId: project.teamLeadId || fromRow.teamLeadId,
     teamLeadName: project.teamLeadName || fromRow.teamLeadName,
@@ -498,13 +514,14 @@ export function normalizeBackendProjectRow(row: Record<string, unknown>): Projec
       ]
     : [];
   const statusRaw = String(row.status ?? '');
+  const backendName =
+    String(row.name ?? row.title ?? row.project_name ?? '').trim() ||
+    `Project ${String(row.id ?? '')}`;
 
   return {
     id: String(row.id ?? ''),
-    title: sanitizeProjectDisplayName(
-      String(row.name ?? row.title ?? row.project_name ?? '').trim() ||
-        `Project ${String(row.id ?? '')}`,
-    ),
+    title: sanitizeProjectDisplayName(backendName),
+    apiName: backendName,
     client: String(row.client_name ?? ''),
     location: String(row.location ?? ''),
     budget: Number(row.budget) || 0,
