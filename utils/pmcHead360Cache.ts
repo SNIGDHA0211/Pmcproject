@@ -1,7 +1,7 @@
 import type { DPR, Project } from '../types';
 import type { ProjectVitalsCard } from './projectVitals';
 
-const CACHE_VERSION = 4;
+const CACHE_VERSION = 5;
 const CACHE_PREFIX = 'pmc.head360';
 /**
  * Fresh TTL — within this window, remount/reload skips network revalidation

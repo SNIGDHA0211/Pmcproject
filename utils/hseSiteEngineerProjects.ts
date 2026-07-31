@@ -35,7 +35,6 @@ export const HSE_SITE_ENGINEER_ACCOUNTS: ReadonlyArray<{
   { index: 21, username: 'pmc_hse21', projectTitle: 'Uppal Hyderabad' },
   { index: 22, username: 'pmc_hse22', projectTitle: 'Avissa G+40, Mahim' },
   { index: 23, username: 'pmc_hse23', projectTitle: 'Shivalik Building Santacruz' },
-  { index: 24, username: 'pmc_hse24', projectTitle: 'AVISSA' },
   {
     index: 27,
     username: 'pmc_hse27',

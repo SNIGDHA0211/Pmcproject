@@ -26,6 +26,8 @@ export const PMC_TL_DROPDOWN_EXCLUDE_TITLES = [
   'Democracy',
   'Multi-Modal Transit Hub – Thane',
   'SHIVALIKA',
+  /** Stub-only name — keep real "Avissa G+40, Mahim" */
+  'AVISSA',
 ] as const;
 
 export function isExactPmcTlLogin(value?: string | null): boolean {
