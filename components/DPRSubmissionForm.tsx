@@ -518,401 +518,499 @@ function DPRSubmissionForm({ onClose, onSubmit, assignedProjects, existingDPR }:
     }
   };
 
+  const labelCls = `block text-[10px] font-black ${themeClasses.textSecondary} uppercase tracking-widest mb-1.5`;
+  const inputCls = `w-full px-3.5 py-2.5 ${themeClasses.input} ${themeClasses.border} rounded-xl text-sm font-semibold ${themeClasses.textPrimary} outline-none focus:ring-2 focus:ring-indigo-500/20 transition-shadow`;
+  const sectionCls = `${themeClasses.border} rounded-2xl p-4 md:p-5 ${
+    isDarkTheme ? 'bg-white/[0.03]' : 'bg-slate-50/80'
+  }`;
+
   return (
-    <div className={`fixed inset-0 z-[200] flex items-center justify-center p-4 ${
-      isDarkTheme
-        ? 'bg-black/60 backdrop-blur-md'
-        : 'bg-white/5 backdrop-blur-sm'
-    }`}>
-      <div className={`w-full max-w-6xl rounded-[3rem] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300 flex flex-col max-h-[95vh] ${themeClasses.glassCard} ${themeClasses.border}`}>
+    <div
+      className={`fixed inset-0 z-[200] flex items-center justify-center p-3 sm:p-4 ${
+        isDarkTheme ? 'bg-black/60 backdrop-blur-md' : 'bg-slate-900/25 backdrop-blur-sm'
+      }`}
+    >
+      <div
+        className={`w-full max-w-5xl rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[94vh] ${themeClasses.glassCard} ${themeClasses.border}`}
+      >
         {/* Header */}
-        <div className={`p-8 ${themeClasses.border} flex items-center justify-between ${themeClasses.bgSecondary} sticky top-0 z-10`}>
-          <div>
-            <h3 className={`text-2xl font-black ${themeClasses.textPrimary} uppercase tracking-tight`}>Daily Progress Report</h3>
-            <p className={`${themeClasses.textSecondary} font-bold text-xs tracking-tight uppercase`}>Site Execution Management System</p>
+        <div
+          className={`shrink-0 px-5 py-4 md:px-6 ${themeClasses.border} flex items-start justify-between gap-4 ${themeClasses.bgSecondary}`}
+        >
+          <div className="min-w-0">
+            <h3 className={`text-lg md:text-xl font-black ${themeClasses.textPrimary} uppercase tracking-tight`}>
+              Daily Progress Report
+            </h3>
+            <p className={`${themeClasses.textSecondary} font-semibold text-[11px] tracking-wide uppercase mt-0.5`}>
+              Site Execution Management System
+            </p>
           </div>
-          <div className="flex items-center gap-3">
-            <button
-              onClick={handleSaveDraft}
-              disabled={isSavingDraft || isSubmitting}
-              className={`px-4 py-2 ${themeClasses.textSecondary} font-black text-xs uppercase tracking-widest ${themeClasses.buttonSecondary} ${themeClasses.border} rounded-2xl hover:opacity-80 transition-all disabled:opacity-50 disabled:cursor-not-allowed`}
-            >
-              {isSavingDraft ? 'Saving...' : 'Save as Draft'}
-            </button>
-            <button
-              onClick={onClose}
-              className={`p-3 ${themeClasses.buttonSecondary} ${themeClasses.textMuted} hover:text-rose-500 rounded-2xl transition-all shadow-sm`}
-            >
-              <Icons.Reject size={20} />
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className={`shrink-0 p-2 ${themeClasses.buttonSecondary} ${themeClasses.textMuted} hover:text-rose-500 rounded-xl transition-all`}
+            aria-label="Close"
+          >
+            <Icons.Reject size={18} />
+          </button>
         </div>
 
         {/* Main Form Content */}
-        <div className="flex-1 overflow-y-auto p-8">
-          <form id="dpr-form" onSubmit={handleSubmit} className="space-y-8">
+        <div className="flex-1 overflow-y-auto px-5 py-4 md:px-6 md:py-5">
+          <form id="dpr-form" onSubmit={handleSubmit} className="space-y-4">
             {/* Section 1: Project Information */}
-            <div className={`${themeClasses.glassCard} p-6 rounded-2xl ${themeClasses.border}`}>
-              <h4 className={`text-sm font-black ${themeClasses.textPrimary} uppercase tracking-widest mb-6`}>Project Information</h4>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div className="space-y-2">
-                  <label className={`text-[10px] font-black ${themeClasses.textSecondary} uppercase tracking-widest`}>Project Name</label>
+            <section className={sectionCls}>
+              <div className="flex items-center gap-2 mb-3">
+                <span
+                  className={`inline-flex h-6 w-6 items-center justify-center rounded-lg text-[11px] font-black ${themeClasses.buttonPrimary}`}
+                >
+                  1
+                </span>
+                <h4 className={`text-xs font-black ${themeClasses.textPrimary} uppercase tracking-widest`}>
+                  Project Information
+                </h4>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                <div>
+                  <label className={labelCls}>
+                    Project Name <span className="text-rose-500">*</span>
+                  </label>
                   <select
                     value={selectedProjectId}
                     onChange={(e) => setSelectedProjectId(e.target.value)}
                     required
-                    className={`w-full px-5 py-4 ${themeClasses.input} rounded-2xl font-bold text-sm ${themeClasses.textPrimary} outline-none focus:ring-4 focus:ring-indigo-500/10`}
+                    className={inputCls}
                   >
-                    {assignedProjects.filter(Boolean).map(p => (
-                      <option key={p.id} value={p.id} className={isDarkTheme ? "bg-slate-900" : "bg-white"}>{p.title}</option>
+                    {assignedProjects.filter(Boolean).map((p) => (
+                      <option
+                        key={p.id}
+                        value={p.id}
+                        className={isDarkTheme ? 'bg-slate-900' : 'bg-white'}
+                      >
+                        {p.title}
+                      </option>
                     ))}
                   </select>
                 </div>
-                <div className="space-y-2">
-                  <label className={`text-[10px] font-black ${themeClasses.textSecondary} uppercase tracking-widest`}>Job No</label>
+                <div>
+                  <label className={labelCls}>Job No</label>
                   <input
                     type="text"
                     value={jobNo}
                     onChange={(e) => setJobNo(e.target.value)}
-                    className={`w-full px-5 py-4 ${themeClasses.input} rounded-2xl font-bold text-sm ${themeClasses.textPrimary} outline-none focus:ring-4 focus:ring-indigo-500/10`}
-                    placeholder="Enter Job Number"
+                    className={inputCls}
+                    placeholder="Enter job number"
                   />
                 </div>
-                <div className="space-y-2">
-                  <label className={`text-[10px] font-black ${themeClasses.textSecondary} uppercase tracking-widest`}>Date</label>
+                <div>
+                  <label className={labelCls}>
+                    Date <span className="text-rose-500">*</span>
+                  </label>
                   <input
                     type="date"
                     value={date}
                     onChange={(e) => setDate(e.target.value)}
                     required
-                    className={`w-full px-5 py-4 ${themeClasses.input} rounded-2xl font-bold text-sm ${themeClasses.textPrimary} outline-none focus:ring-4 focus:ring-indigo-500/10`}
+                    className={inputCls}
                   />
                 </div>
               </div>
-            </div>
+            </section>
 
             {/* Section 2: Scope-Based Activities */}
-            <div className={`${themeClasses.glassCard} p-6 rounded-2xl ${themeClasses.border}`}>
-              <div className="flex items-center justify-between mb-6">
-                <h4 className={`text-sm font-black ${themeClasses.textPrimary} uppercase tracking-widest`}>Scope-Based Activities</h4>
+            <section className={sectionCls}>
+              <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+                <div className="flex items-center gap-2">
+                  <span
+                    className={`inline-flex h-6 w-6 items-center justify-center rounded-lg text-[11px] font-black ${themeClasses.buttonPrimary}`}
+                  >
+                    2
+                  </span>
+                  <h4 className={`text-xs font-black ${themeClasses.textPrimary} uppercase tracking-widest`}>
+                    Scope-Based Activities
+                  </h4>
+                  <span className={`text-[10px] font-bold ${themeClasses.textMuted}`}>
+                    ({activities.length})
+                  </span>
+                </div>
                 <button
                   type="button"
                   onClick={addActivity}
-                  className={`flex items-center gap-2 px-4 py-2 ${themeClasses.buttonPrimary} rounded-2xl text-xs font-black uppercase tracking-widest transition-all`}
+                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 ${themeClasses.buttonPrimary} rounded-xl text-[10px] font-black uppercase tracking-widest transition-all`}
                 >
-                  <Icons.Add size={16} />
+                  <Icons.Add size={14} />
                   Add Activity
                 </button>
               </div>
 
-              <div className="space-y-4">
+              <div className="space-y-3">
                 {activities.map((activity, index) => (
                   <div
                     key={activity.id}
                     id={`activity-${activity.id}`}
-                    className={`p-6 ${themeClasses.bgSecondary} ${themeClasses.border} rounded-2xl relative group hover:border-indigo-500/30 transition-all`}
+                    className={`rounded-xl ${themeClasses.border} ${
+                      isDarkTheme ? 'bg-black/20' : 'bg-white'
+                    } p-3.5 md:p-4`}
                   >
-                    {activities.length > 1 && (
-                      <button
-                        type="button"
-                        onClick={() => removeActivity(activity.id)}
-                        className={`absolute top-4 right-4 p-2 ${themeClasses.buttonSecondary} ${themeClasses.textMuted} hover:text-rose-500 hover:bg-rose-500/10 rounded-xl transition-all opacity-0 group-hover:opacity-100`}
-                      >
-                        <Icons.Reject size={16} />
-                      </button>
-                    )}
-
-                    {/* Activity Header */}
-                    <div className="flex items-center gap-3 mb-4">
-                      <div className={`w-8 h-8 ${themeClasses.buttonPrimary} rounded-xl flex items-center justify-center text-sm font-black`}>
-                        {index + 1}
+                    <div className="flex items-center justify-between gap-2 mb-3">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <div
+                          className={`h-7 w-7 shrink-0 ${themeClasses.buttonPrimary} rounded-lg flex items-center justify-center text-xs font-black`}
+                        >
+                          {index + 1}
+                        </div>
+                        <h5
+                          className={`text-xs font-black ${themeClasses.textPrimary} uppercase tracking-widest truncate`}
+                        >
+                          Activity {index + 1}
+                        </h5>
                       </div>
-                      <h5 className={`text-sm font-black ${themeClasses.textPrimary} uppercase tracking-widest`}>
-                        Activity {index + 1}
-                      </h5>
+                      {activities.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => removeActivity(activity.id)}
+                          className={`inline-flex items-center gap-1 px-2 py-1 text-[10px] font-black uppercase tracking-wider rounded-lg ${themeClasses.textMuted} hover:text-rose-500 hover:bg-rose-500/10 transition-all`}
+                        >
+                          <Icons.Reject size={14} />
+                          Remove
+                        </button>
+                      )}
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                      {/* Category */}
-                      <div className="space-y-2">
-                        <label className={`text-[10px] font-black ${themeClasses.textSecondary} uppercase tracking-widest`}>Category</label>
+                    {/* Row A — select cascade */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                      <div>
+                        <label className={labelCls}>
+                          Category <span className="text-rose-500">*</span>
+                        </label>
                         <select
                           value={activity.category}
                           onChange={(e) => updateActivity(activity.id, 'category', e.target.value)}
-                          className={`w-full px-4 py-3 ${themeClasses.input} rounded-2xl text-sm font-bold ${themeClasses.textPrimary} outline-none focus:ring-4 focus:ring-indigo-500/10`}
+                          className={inputCls}
                         >
                           <option value="">
-                            {loadingCategories ? 'Loading...' : 'Select Category'}
+                            {loadingCategories ? 'Loading...' : 'Select category'}
                           </option>
-                          {getProjectCategories().map(category => (
-                            <option key={category.id} value={category.id} className={isDarkTheme ? "bg-slate-900" : "bg-white"}>
+                          {getProjectCategories().map((category) => (
+                            <option
+                              key={category.id}
+                              value={category.id}
+                              className={isDarkTheme ? 'bg-slate-900' : 'bg-white'}
+                            >
                               {category.name}
                             </option>
                           ))}
                         </select>
                       </div>
 
-                      {/* Subcategory */}
-                      <div className="space-y-2">
-                        <label className={`text-[10px] font-black ${themeClasses.textSecondary} uppercase tracking-widest`}>Subcategory</label>
+                      <div>
+                        <label className={labelCls}>
+                          Subcategory <span className="text-rose-500">*</span>
+                        </label>
                         <select
                           value={activity.subcategory}
-                          onChange={(e) => updateActivity(activity.id, 'subcategory', e.target.value)}
+                          onChange={(e) =>
+                            updateActivity(activity.id, 'subcategory', e.target.value)
+                          }
                           disabled={!activity.category}
-                          className={`w-full px-4 py-3 ${themeClasses.input} rounded-2xl text-sm font-bold ${themeClasses.textPrimary} outline-none focus:ring-4 focus:ring-indigo-500/10 disabled:opacity-50`}
+                          className={`${inputCls} disabled:opacity-50`}
                         >
                           <option value="">
                             {!activity.category
                               ? 'Select category first'
                               : getProjectSubcategories(activity.category).length === 0
                                 ? 'No subcategories available'
-                                : 'Select Subcategory'
-                            }
+                                : 'Select subcategory'}
                           </option>
-                          {getProjectSubcategories(activity.category).map(subcategory => (
-                            <option key={subcategory.id} value={subcategory.id} className={isDarkTheme ? "bg-slate-900" : "bg-white"}>
+                          {getProjectSubcategories(activity.category).map((subcategory) => (
+                            <option
+                              key={subcategory.id}
+                              value={subcategory.id}
+                              className={isDarkTheme ? 'bg-slate-900' : 'bg-white'}
+                            >
                               {subcategory.name}
                             </option>
                           ))}
                         </select>
                       </div>
 
-                      {/* Scope */}
-                      <div className="space-y-2">
-                        <label className={`text-[10px] font-black ${themeClasses.textSecondary} uppercase tracking-widest`}>Scope</label>
+                      <div className="sm:col-span-2 lg:col-span-1">
+                        <label className={labelCls}>
+                          Scope <span className="text-rose-500">*</span>
+                        </label>
                         <select
                           value={activity.scopeId}
                           onChange={(e) => updateActivity(activity.id, 'scopeId', e.target.value)}
                           disabled={!activity.category || !activity.subcategory}
-                          className={`w-full px-4 py-3 ${themeClasses.input} rounded-2xl text-sm font-bold ${themeClasses.textPrimary} outline-none focus:ring-4 focus:ring-indigo-500/10 disabled:opacity-50`}
+                          className={`${inputCls} disabled:opacity-50`}
                         >
                           <option value="">
                             {loadingScopes
-                              ? 'Loading Scopes...'
+                              ? 'Loading scopes...'
                               : !activity.category || !activity.subcategory
-                                ? 'Select category and subcategory first'
-                                : getScopesForFilters(activity.category, activity.subcategory).length === 0
+                                ? 'Select category & subcategory first'
+                                : getScopesForFilters(activity.category, activity.subcategory)
+                                      .length === 0
                                   ? 'No scopes available'
-                                  : 'Select Scope'
-                            }
+                                  : 'Select scope'}
                           </option>
-                          {getScopesForFilters(activity.category, activity.subcategory).map(scope => (
-                            <option key={scope.id} value={scope.id} className={isDarkTheme ? "bg-slate-900" : "bg-white"}>
-                              {scope.description || `Scope ${scope.id}`}
-                            </option>
-                          ))}
+                          {getScopesForFilters(activity.category, activity.subcategory).map(
+                            (scope) => (
+                              <option
+                                key={scope.id}
+                                value={scope.id}
+                                className={isDarkTheme ? 'bg-slate-900' : 'bg-white'}
+                              >
+                                {scope.description || `Scope ${scope.id}`}
+                              </option>
+                            ),
+                          )}
                         </select>
                       </div>
+                    </div>
 
-                      {/* Executed Quantity */}
-                      <div className="space-y-2">
-                        <label className={`text-[10px] font-black ${themeClasses.textSecondary} uppercase tracking-widest`}>Executed Quantity</label>
+                    {/* Row B — quantities */}
+                    <div className="mt-3 grid grid-cols-2 lg:grid-cols-4 gap-3">
+                      <div>
+                        <label className={labelCls}>
+                          Executed Qty <span className="text-rose-500">*</span>
+                        </label>
                         <input
                           type="number"
                           value={activity.executedQuantity}
-                          onChange={(e) => updateActivity(activity.id, 'executedQuantity', Math.max(0, Number(e.target.value)))}
+                          onChange={(e) =>
+                            updateActivity(
+                              activity.id,
+                              'executedQuantity',
+                              Math.max(0, Number(e.target.value)),
+                            )
+                          }
                           min="0"
-                          className={`w-full px-4 py-3 ${themeClasses.input} rounded-2xl text-sm font-bold ${themeClasses.textPrimary} outline-none focus:ring-4 focus:ring-indigo-500/10`}
-                          placeholder="Enter executed quantity"
+                          className={inputCls}
+                          placeholder="0"
                         />
                       </div>
+                      <div>
+                        <label className={labelCls}>Planned Qty</label>
+                        <input
+                          type="text"
+                          value={
+                            activity.scope
+                              ? `${activity.scope.planned_quantity ?? '—'} ${activity.scope.unit || ''}`.trim()
+                              : '—'
+                          }
+                          readOnly
+                          className={`${inputCls} ${themeClasses.textMuted} cursor-default opacity-90`}
+                        />
+                      </div>
+                      <div>
+                        <label className={labelCls}>Cumulative Qty</label>
+                        <input
+                          type="text"
+                          value={activity.scope ? String(activity.cumulativeQuantity ?? 0) : '—'}
+                          readOnly
+                          className={`${inputCls} ${themeClasses.textMuted} cursor-default opacity-90`}
+                        />
+                      </div>
+                      <div>
+                        <label className={labelCls}>Progress %</label>
+                        <input
+                          type="text"
+                          value={
+                            activity.scope
+                              ? `${Math.round((activity.progressPercentage || 0) * 100) / 100}%`
+                              : '—'
+                          }
+                          readOnly
+                          className={`${inputCls} ${themeClasses.textMuted} cursor-default opacity-90`}
+                        />
+                      </div>
+                    </div>
 
-                      {/* Planned Quantity (readonly) */}
-                      {activity.scope && (
-                        <div className="space-y-2">
-                          <label className={`text-[10px] font-black ${themeClasses.textSecondary} uppercase tracking-widest`}>Planned Quantity</label>
-                          <input
-                            type="number"
-                            value={activity.scope.planned_quantity || ''}
-                            readOnly
-                            className={`w-full px-4 py-3 ${themeClasses.input} rounded-2xl text-sm font-bold ${themeClasses.textMuted} cursor-not-allowed`}
-                          />
-                        </div>
-                      )}
-
-                      {/* Progress Info */}
-                      {activity.scope && (
-                        <>
-                          <div className="space-y-2">
-                            <label className={`text-[10px] font-black ${themeClasses.textSecondary} uppercase tracking-widest`}>Cumulative Qty</label>
-                            <input
-                              type="number"
-                              value={activity.cumulativeQuantity || 0}
-                              readOnly
-                              className={`w-full px-4 py-3 ${themeClasses.input} rounded-2xl text-sm font-bold ${themeClasses.textMuted} cursor-not-allowed`}
-                            />
-                          </div>
-
-                          <div className="space-y-2">
-                            <label className={`text-[10px] font-black ${themeClasses.textSecondary} uppercase tracking-widest`}>Progress %</label>
-                            <input
-                              type="number"
-                              value={activity.progressPercentage ? Math.round(activity.progressPercentage * 100) / 100 : 0}
-                              readOnly
-                              className={`w-full px-4 py-3 ${themeClasses.input} rounded-2xl text-sm font-bold ${themeClasses.textMuted} cursor-not-allowed`}
-                            />
-                          </div>
-                        </>
-                      )}
-
-                      {/* Next Day Planned Work */}
-                      <div className="space-y-2 md:col-span-2">
-                        <label className={`text-[10px] font-black ${themeClasses.textSecondary} uppercase tracking-widest`}>Next Day Planned Work</label>
+                    {/* Row C — notes */}
+                    <div className="mt-3 grid grid-cols-1 lg:grid-cols-2 gap-3">
+                      <div>
+                        <label className={labelCls}>Next Day Planned Work</label>
                         <input
                           type="text"
                           value={activity.nextDayPlannedWork}
-                          onChange={(e) => updateActivity(activity.id, 'nextDayPlannedWork', e.target.value)}
-                          className={`w-full px-4 py-3 ${themeClasses.input} rounded-2xl text-sm font-bold ${themeClasses.textPrimary} outline-none focus:ring-4 focus:ring-indigo-500/10`}
-                          placeholder="Next day work plan"
+                          onChange={(e) =>
+                            updateActivity(activity.id, 'nextDayPlannedWork', e.target.value)
+                          }
+                          className={inputCls}
+                          placeholder="Plan for tomorrow"
                         />
                       </div>
-
-                      {/* Remarks */}
-                      <div className="space-y-2 md:col-span-3">
-                        <label className={`text-[10px] font-black ${themeClasses.textSecondary} uppercase tracking-widest`}>Remarks</label>
-                        <textarea
+                      <div>
+                        <label className={labelCls}>Remarks</label>
+                        <input
+                          type="text"
                           value={activity.remarks}
                           onChange={(e) => updateActivity(activity.id, 'remarks', e.target.value)}
-                          rows={2}
-                          className={`w-full px-4 py-3 ${themeClasses.input} rounded-2xl text-sm font-bold ${themeClasses.textPrimary} outline-none focus:ring-4 focus:ring-indigo-500/10 resize-none`}
-                          placeholder="Enter remarks"
+                          className={inputCls}
+                          placeholder="Optional remarks"
                         />
                       </div>
                     </div>
                   </div>
                 ))}
               </div>
-            </div>
+            </section>
 
             {/* Section 3: Additional Details */}
-            <div className={`${themeClasses.glassCard} p-6 rounded-2xl ${themeClasses.border}`}>
-              <h4 className={`text-sm font-black ${themeClasses.textPrimary} uppercase tracking-widest mb-6`}>Additional Details</h4>
+            <section className={sectionCls}>
+              <div className="flex items-center gap-2 mb-3">
+                <span
+                  className={`inline-flex h-6 w-6 items-center justify-center rounded-lg text-[11px] font-black ${themeClasses.buttonPrimary}`}
+                >
+                  3
+                </span>
+                <h4 className={`text-xs font-black ${themeClasses.textPrimary} uppercase tracking-widest`}>
+                  Additional Details
+                </h4>
+              </div>
 
-              <div className="space-y-6">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
                 <div>
-                  <label className={`block text-[10px] font-black ${themeClasses.textSecondary} uppercase tracking-widest mb-2`}>Unresolved Issues</label>
+                  <label className={labelCls}>Unresolved Issues</label>
                   <textarea
                     value={unresolvedIssues}
                     onChange={(e) => setUnresolvedIssues(e.target.value)}
-                    rows={3}
-                    className={`w-full px-5 py-4 ${themeClasses.input} rounded-2xl text-sm font-bold ${themeClasses.textPrimary} outline-none focus:ring-4 focus:ring-indigo-500/10 resize-none`}
-                    placeholder="Describe any unresolved issues..."
+                    rows={2}
+                    className={`${inputCls} resize-none`}
+                    placeholder="Describe unresolved issues..."
                   />
                 </div>
-
                 <div>
-                  <label className={`block text-[10px] font-black ${themeClasses.textSecondary} uppercase tracking-widest mb-2`}>
+                  <label className={labelCls}>
                     Pending Letters
-                    <span className={`text-[9px] font-normal ${themeClasses.textMuted} ml-2 normal-case`}>
-                      (Any letters remaining unanswered - client/contractor with reference)
+                    <span className={`ml-1 font-normal normal-case ${themeClasses.textMuted}`}>
+                      (client/contractor refs)
                     </span>
                   </label>
                   <textarea
                     value={pendingLetters}
                     onChange={(e) => setPendingLetters(e.target.value)}
-                    rows={3}
-                    className={`w-full px-5 py-4 ${themeClasses.input} rounded-2xl text-sm font-bold ${themeClasses.textPrimary} outline-none focus:ring-4 focus:ring-indigo-500/10 resize-none`}
-                    placeholder="List pending letters with references..."
+                    rows={2}
+                    className={`${inputCls} resize-none`}
+                    placeholder="Pending letters with references..."
                   />
                 </div>
-
                 <div>
-                  <label className={`block text-[10px] font-black ${themeClasses.textSecondary} uppercase tracking-widest mb-2`}>Quality Status</label>
+                  <label className={labelCls}>Quality Status</label>
                   <textarea
                     value={qualityStatus}
                     onChange={(e) => setQualityStatus(e.target.value)}
-                    rows={3}
-                    className={`w-full px-5 py-4 ${themeClasses.input} rounded-2xl text-sm font-bold ${themeClasses.textPrimary} outline-none focus:ring-4 focus:ring-indigo-500/10 resize-none`}
-                    placeholder="Describe quality status (e.g. All quality checks passed. Material samples tested and approved.)"
+                    rows={2}
+                    className={`${inputCls} resize-none`}
+                    placeholder="Quality checks / material status..."
                   />
                 </div>
-
                 <div>
-                  <label className={`block text-[10px] font-black ${themeClasses.textSecondary} uppercase tracking-widest mb-2`}>Important Incidents (Next Day)</label>
+                  <label className={labelCls}>Important Incidents (Next Day)</label>
                   <textarea
                     value={importantIncidents}
                     onChange={(e) => setImportantIncidents(e.target.value)}
-                    rows={3}
-                    className={`w-full px-5 py-4 ${themeClasses.input} rounded-2xl text-sm font-bold ${themeClasses.textPrimary} outline-none focus:ring-4 focus:ring-indigo-500/10 resize-none`}
-                    placeholder="Describe important incidents for next day..."
+                    rows={2}
+                    className={`${inputCls} resize-none`}
+                    placeholder="Incidents planned / expected tomorrow..."
                   />
                 </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div>
-                    <label className={`block text-[10px] font-black ${themeClasses.textSecondary} uppercase tracking-widest mb-2`}>Billing Status</label>
-                    <input
-                      type="text"
-                      value={billingStatus}
-                      onChange={(e) => setBillingStatus(e.target.value)}
-                      className={`w-full px-5 py-4 ${themeClasses.input} rounded-2xl text-sm font-bold ${themeClasses.textPrimary} outline-none focus:ring-4 focus:ring-indigo-500/10`}
-                      placeholder="Enter billing status"
-                    />
-                  </div>
-                  <div>
-                    <label className={`block text-[10px] font-black ${themeClasses.textSecondary} uppercase tracking-widest mb-2`}>GFC Drawings Status</label>
-                    <input
-                      type="text"
-                      value={gfcStatus}
-                      onChange={(e) => setGfcStatus(e.target.value)}
-                      className={`w-full px-5 py-4 ${themeClasses.input} rounded-2xl text-sm font-bold ${themeClasses.textPrimary} outline-none focus:ring-4 focus:ring-indigo-500/10`}
-                      placeholder="Enter GFC drawings status"
-                    />
-                  </div>
+                <div>
+                  <label className={labelCls}>Billing Status</label>
+                  <input
+                    type="text"
+                    value={billingStatus}
+                    onChange={(e) => setBillingStatus(e.target.value)}
+                    className={inputCls}
+                    placeholder="Enter billing status"
+                  />
+                </div>
+                <div>
+                  <label className={labelCls}>GFC Drawings Status</label>
+                  <input
+                    type="text"
+                    value={gfcStatus}
+                    onChange={(e) => setGfcStatus(e.target.value)}
+                    className={inputCls}
+                    placeholder="Enter GFC drawings status"
+                  />
                 </div>
               </div>
-            </div>
+            </section>
 
-            {/* Section 4: Footer */}
-            <div className={`${themeClasses.glassCard} p-6 rounded-2xl ${themeClasses.border}`}>
-              <h4 className={`text-sm font-black ${themeClasses.textPrimary} uppercase tracking-widest mb-6`}>Signature & Authorization</h4>
-
-              <div className="space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div>
-                    <label className={`block text-[10px] font-black ${themeClasses.textSecondary} uppercase tracking-widest mb-2`}>Issued By</label>
-                    <input
-                      type="text"
-                      value={issuedBy}
-                      onChange={(e) => setIssuedBy(e.target.value)}
-                      className={`w-full px-5 py-4 ${themeClasses.input} rounded-2xl text-sm font-bold ${themeClasses.textPrimary} outline-none focus:ring-4 focus:ring-indigo-500/10`}
-                      placeholder="Enter name"
-                    />
-                  </div>
-                  <div>
-                    <label className={`block text-[10px] font-black ${themeClasses.textSecondary} uppercase tracking-widest mb-2`}>Designation</label>
-                    <input
-                      type="text"
-                      value={designation}
-                      onChange={(e) => setDesignation(e.target.value)}
-                      className={`w-full px-5 py-4 ${themeClasses.input} rounded-2xl text-sm font-bold ${themeClasses.textPrimary} outline-none focus:ring-4 focus:ring-indigo-500/10`}
-                      placeholder="Enter designation"
-                    />
-                  </div>
+            {/* Section 4: Signature */}
+            <section className={sectionCls}>
+              <div className="flex items-center gap-2 mb-3">
+                <span
+                  className={`inline-flex h-6 w-6 items-center justify-center rounded-lg text-[11px] font-black ${themeClasses.buttonPrimary}`}
+                >
+                  4
+                </span>
+                <h4 className={`text-xs font-black ${themeClasses.textPrimary} uppercase tracking-widest`}>
+                  Signature & Authorization
+                </h4>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className={labelCls}>
+                    Issued By <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={issuedBy}
+                    onChange={(e) => setIssuedBy(e.target.value)}
+                    className={inputCls}
+                    placeholder="Enter name"
+                  />
+                </div>
+                <div>
+                  <label className={labelCls}>
+                    Designation <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={designation}
+                    onChange={(e) => setDesignation(e.target.value)}
+                    className={inputCls}
+                    placeholder="Enter designation"
+                  />
                 </div>
               </div>
-            </div>
+            </section>
           </form>
         </div>
 
-        {/* Footer Actions */}
-        <div className={`p-8 ${themeClasses.border} ${themeClasses.bgSecondary} flex items-center justify-between`}>
+        {/* Footer Actions — all primary actions together */}
+        <div
+          className={`shrink-0 px-5 py-3.5 md:px-6 ${themeClasses.border} ${themeClasses.bgSecondary} flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-between gap-2`}
+        >
           <button
             type="button"
             onClick={onClose}
-            disabled={isSubmitting}
-            className={`px-8 py-4 ${themeClasses.textSecondary} font-black text-xs uppercase tracking-widest rounded-2xl ${themeClasses.buttonSecondary} transition-all disabled:opacity-50 disabled:cursor-not-allowed`}
+            disabled={isSubmitting || isSavingDraft}
+            className={`px-5 py-2.5 ${themeClasses.textSecondary} font-black text-[11px] uppercase tracking-widest rounded-xl ${themeClasses.buttonSecondary} transition-all disabled:opacity-50`}
           >
             Cancel
           </button>
-          <button
-            type="submit"
-            form="dpr-form"
-            disabled={isSubmitting}
-            className={`px-12 py-4 ${themeClasses.buttonPrimary} font-black text-xs uppercase tracking-widest rounded-2xl shadow-xl shadow-indigo-500/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed`}
-          >
-            {isSubmitting ? 'Submitting...' : 'Submit DPR'}
-          </button>
+          <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
+            <button
+              type="button"
+              onClick={handleSaveDraft}
+              disabled={isSavingDraft || isSubmitting}
+              className={`px-5 py-2.5 font-black text-[11px] uppercase tracking-widest rounded-xl ${themeClasses.buttonSecondary} ${themeClasses.border} ${themeClasses.textSecondary} transition-all disabled:opacity-50`}
+            >
+              {isSavingDraft ? 'Saving...' : 'Save as Draft'}
+            </button>
+            <button
+              type="submit"
+              form="dpr-form"
+              disabled={isSubmitting || isSavingDraft}
+              className={`px-6 py-2.5 ${themeClasses.buttonPrimary} font-black text-[11px] uppercase tracking-widest rounded-xl shadow-lg shadow-indigo-500/15 transition-all disabled:opacity-50`}
+            >
+              {isSubmitting ? 'Submitting...' : 'Submit DPR'}
+            </button>
+          </div>
         </div>
       </div>
     </div>

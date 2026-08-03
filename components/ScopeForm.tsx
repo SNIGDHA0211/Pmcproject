@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { Project, MonthlyScope, MonthlyScopeCategory, MonthlyScopeSubcategory } from '../types';
-import { monthlyScopeApi } from '../services/api';
 import { Icons } from './Icons';
 
 interface ScopeFormProps {
@@ -25,12 +24,87 @@ interface ScopeFormProps {
   saveRef?: React.RefObject<HTMLButtonElement | null>;
 }
 
-const ScopeForm: React.FC<ScopeFormProps> = ({ 
-  scope, 
-  projects, 
-  categories, 
-  onSubmit, 
-  onClose, 
+const FIELD_LABELS: Record<string, string> = {
+  project: 'Project',
+  month: 'Month',
+  category: 'Category',
+  subcategory: 'Subcategory',
+  description: 'Description',
+  unit: 'Unit',
+  planned_quantity: 'Planned Quantity',
+  section: 'Section',
+  location: 'Location',
+  start_date: 'Start Date',
+  end_date: 'End Date',
+  status: 'Status',
+  custom_category_name: 'Custom Category Name',
+  custom_subcategory_name: 'Custom Subcategory Name',
+  general: 'Form',
+};
+
+/** Map API / axios validation payloads into field -> message for the form UI. */
+function parseScopeApiErrors(error: unknown): Record<string, string> {
+  const mapped: Record<string, string> = {};
+  const data = (error as { response?: { data?: unknown } })?.response?.data;
+
+  if (!data || typeof data !== 'object') {
+    mapped.general = 'Unable to save. Please check the form and try again.';
+    return mapped;
+  }
+
+  const body = data as Record<string, unknown>;
+
+  if (typeof body.message === 'string' && body.message.trim()) {
+    mapped.general = body.message.trim();
+  } else if (typeof body.detail === 'string' && body.detail.trim()) {
+    mapped.general = body.detail.trim();
+  }
+
+  const errorsList = body.errors;
+  if (Array.isArray(errorsList)) {
+    for (const item of errorsList) {
+      if (!item || typeof item !== 'object') continue;
+      const row = item as { field?: unknown; message?: unknown };
+      const field = String(row.field ?? '').trim();
+      const message = String(row.message ?? '').trim();
+      if (field && message) mapped[field] = message;
+    }
+  }
+
+  // Django-style { field: ["msg"] } or { field: "msg" }
+  for (const [key, value] of Object.entries(body)) {
+    if (key === 'success' || key === 'message' || key === 'detail' || key === 'errors') continue;
+    if (mapped[key]) continue;
+    if (typeof value === 'string' && value.trim()) {
+      mapped[key] = value.trim();
+    } else if (Array.isArray(value) && value.length > 0) {
+      mapped[key] = String(value[0] ?? '').trim() || 'Please provide a value.';
+    }
+  }
+
+  if (!mapped.general && Object.keys(mapped).length > 0) {
+    const missing = Object.keys(mapped)
+      .filter((k) => k !== 'general')
+      .map((k) => FIELD_LABELS[k] || k)
+      .join(', ');
+    mapped.general = missing
+      ? `Please fill the required fields: ${missing}.`
+      : 'Please correct the highlighted fields.';
+  }
+
+  if (Object.keys(mapped).length === 0) {
+    mapped.general = 'Unable to save. Please check the form and try again.';
+  }
+
+  return mapped;
+}
+
+const ScopeForm: React.FC<ScopeFormProps> = ({
+  scope,
+  projects,
+  categories,
+  onSubmit,
+  onClose,
   themeClasses,
   projectRef,
   monthRef,
@@ -43,7 +117,7 @@ const ScopeForm: React.FC<ScopeFormProps> = ({
   locationRef,
   startDateRef,
   endDateRef,
-  saveRef
+  saveRef,
 }) => {
   const [formData, setFormData] = useState({
     project: scope?.project || (projects.length === 1 ? projects[0].id : ''),
@@ -59,7 +133,7 @@ const ScopeForm: React.FC<ScopeFormProps> = ({
     end_date: scope?.end_date ? scope.end_date.substring(0, 10) : '',
     status: scope?.status || 'pending',
     custom_category_name: scope?.custom_category_name || '',
-    custom_subcategory_name: scope?.custom_subcategory_name || ''
+    custom_subcategory_name: scope?.custom_subcategory_name || '',
   });
 
   // When only one assigned project is available, default it for create.
@@ -73,15 +147,12 @@ const ScopeForm: React.FC<ScopeFormProps> = ({
   }, [projects, scope]);
 
   const [subcategories, setSubcategories] = useState<MonthlyScopeSubcategory[]>([]);
-  const [loadingSubcategories, setLoadingSubcategories] = useState(false);
 
-  // Get subcategories from nested categories data instead of separate API call
   const getSubcategoriesForCategory = (categoryId: number) => {
-    const category = categories.find(c => c.id === categoryId);
+    const category = categories.find((c) => c.id === categoryId);
     return category?.subcategories || [];
   };
 
-  // Initialize subcategories when editing
   useEffect(() => {
     if (scope && categories.length > 0) {
       const subs = getSubcategoriesForCategory(Number(scope.category));
@@ -89,26 +160,18 @@ const ScopeForm: React.FC<ScopeFormProps> = ({
     }
   }, [scope, categories]);
 
-  // Debug: Log when categories prop changes
-  useEffect(() => {
-    console.log('ScopeForm received categories:', categories);
-  }, [categories]);
   const [submitting, setSubmitting] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   useEffect(() => {
     if (formData.category) {
       const categoryId = Number(formData.category);
-      console.log('Category changed to:', categoryId);
       const subs = getSubcategoriesForCategory(categoryId);
-      console.log('Subcategories for category:', subs);
       setSubcategories(subs);
     } else {
       setSubcategories([]);
     }
   }, [formData.category, categories]);
-
-  // Removed fetchSubcategories as we're using nested data
 
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
@@ -117,24 +180,48 @@ const ScopeForm: React.FC<ScopeFormProps> = ({
       newErrors.general = 'Categories are still loading. Please wait.';
     }
 
-    // Only validate date logic - all other fields are optional
+    if (!formData.project) {
+      newErrors.project = 'Please select a project.';
+    }
+    if (!formData.month) {
+      newErrors.month = 'Please select a month.';
+    }
+    if (!formData.category) {
+      newErrors.category = 'Please select a category.';
+    }
+    if (!formData.subcategory) {
+      newErrors.subcategory = 'Please select a subcategory.';
+    }
+    if (!formData.start_date) {
+      newErrors.start_date = 'Please enter the start date.';
+    }
+    if (!formData.end_date) {
+      newErrors.end_date = 'Please enter the end date.';
+    }
+
     if (formData.start_date && formData.end_date) {
       const start = new Date(formData.start_date);
       const end = new Date(formData.end_date);
       if (end < start) {
-        newErrors.end_date = 'End date cannot be before start date';
+        newErrors.end_date = 'End date cannot be before start date.';
       }
     }
 
-    // Only require custom names when "Other" is selected
-    const selectedCategory = categories.find(c => c.id === Number(formData.category));
-    if (selectedCategory?.name === 'Other' && !formData.custom_category_name) {
-      newErrors.custom_category_name = 'Custom category name is required';
+    const selectedCategory = categories.find((c) => c.id === Number(formData.category));
+    if (selectedCategory?.name === 'Other' && !String(formData.custom_category_name).trim()) {
+      newErrors.custom_category_name = 'Please enter a custom category name.';
     }
 
-    const selectedSubcategory = subcategories.find(s => s.id === Number(formData.subcategory));
-    if (selectedSubcategory?.name === 'Other' && !formData.custom_subcategory_name) {
-      newErrors.custom_subcategory_name = 'Custom subcategory name is required';
+    const selectedSubcategory = subcategories.find((s) => s.id === Number(formData.subcategory));
+    if (selectedSubcategory?.name === 'Other' && !String(formData.custom_subcategory_name).trim()) {
+      newErrors.custom_subcategory_name = 'Please enter a custom subcategory name.';
+    }
+
+    if (Object.keys(newErrors).length > 0 && !newErrors.general) {
+      const missing = Object.keys(newErrors)
+        .map((k) => FIELD_LABELS[k] || k)
+        .join(', ');
+      newErrors.general = `Please fill the required fields: ${missing}.`;
     }
 
     setErrors(newErrors);
@@ -142,22 +229,25 @@ const ScopeForm: React.FC<ScopeFormProps> = ({
   };
 
   const handleInputChange = (field: string, value: any) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
+    setFormData((prev) => {
+      const next = { ...prev, [field]: value };
+      if (field === 'category') {
+        next.subcategory = '';
+        next.custom_subcategory_name = '';
+      }
+      if (field === 'subcategory') {
+        next.custom_subcategory_name = '';
+      }
+      return next;
+    });
 
-    // Clear subcategory when category changes
-    if (field === 'category') {
-      setFormData(prev => ({ ...prev, subcategory: '', custom_subcategory_name: '' }));
-    }
-
-    // Clear custom names when selection changes
-    if (field === 'subcategory') {
-      setFormData(prev => ({ ...prev, custom_subcategory_name: '' }));
-    }
-
-    // Clear errors for the field
-    if (errors[field]) {
-      setErrors(prev => ({ ...prev, [field]: '' }));
-    }
+    setErrors((prev) => {
+      if (!prev[field] && !prev.general) return prev;
+      const next = { ...prev, [field]: '' };
+      if (field === 'category') next.subcategory = '';
+      if (next.general) next.general = '';
+      return next;
+    });
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -168,6 +258,7 @@ const ScopeForm: React.FC<ScopeFormProps> = ({
     }
 
     setSubmitting(true);
+    setErrors({});
     try {
       const payload = {
         ...formData,
@@ -175,27 +266,31 @@ const ScopeForm: React.FC<ScopeFormProps> = ({
         category: formData.category ? Number(formData.category) : null,
         subcategory: formData.subcategory ? Number(formData.subcategory) : null,
         planned_quantity: formData.planned_quantity ? Number(formData.planned_quantity) : null,
-        month: formData.month ? formData.month + '-01' : null // Convert to full date
+        month: formData.month ? formData.month + '-01' : null,
       };
 
       await onSubmit(payload);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Form submission failed:', error);
-      if (error.response?.data) {
-        setErrors(error.response.data);
-      }
+      setErrors(parseScopeApiErrors(error));
     } finally {
       setSubmitting(false);
     }
   };
 
-  const selectedCategory = categories.find(c => c.id === Number(formData.category));
-  const selectedSubcategory = subcategories.find(s => s.id === Number(formData.subcategory));
+  const selectedCategory = categories.find((c) => c.id === Number(formData.category));
+  const selectedSubcategory = subcategories.find((s) => s.id === Number(formData.subcategory));
+
+  const fieldErrorList = Object.entries(errors).filter(
+    ([key, msg]) => key !== 'general' && Boolean(msg),
+  );
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/50" onClick={onClose} />
-      <div className={`relative w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-2xl shadow-2xl ${themeClasses.glassCard} ${themeClasses.border} p-6`}>
+      <div
+        className={`relative w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-2xl shadow-2xl ${themeClasses.glassCard} ${themeClasses.border} p-6`}
+      >
         <div className="flex items-center justify-between mb-6">
           <h3 className={`text-lg font-black uppercase tracking-tight ${themeClasses.textPrimary}`}>
             {scope ? 'Edit Monthly Scope' : 'Create Monthly Scope'}
@@ -208,27 +303,37 @@ const ScopeForm: React.FC<ScopeFormProps> = ({
           </button>
         </div>
 
-        {errors.general && (
-          <div className="mb-6 p-4 bg-amber-500/10 text-amber-400 text-sm rounded-xl border border-amber-500/30">
-            {errors.general}
+        {(errors.general || fieldErrorList.length > 0) && (
+          <div className="mb-6 rounded-xl border border-rose-500/40 bg-rose-500/10 px-4 py-3 text-sm text-rose-600 dark:text-rose-300">
+            <p className="font-bold">
+              {errors.general || 'Please correct the highlighted fields.'}
+            </p>
+            {fieldErrorList.length > 0 && (
+              <ul className="mt-2 list-disc space-y-1 pl-5 text-xs font-semibold">
+                {fieldErrorList.map(([field, message]) => (
+                  <li key={field}>
+                    <span className="font-black">{FIELD_LABELS[field] || field}:</span> {message}
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="space-y-6">
+        <form onSubmit={handleSubmit} className="space-y-6" noValidate>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Project */}
             <div className="space-y-2">
               <label className={`text-xs font-black uppercase tracking-widest ${themeClasses.textSecondary}`}>
-                Project
+                Project <span className="text-rose-500">*</span>
               </label>
-               <select
-                 ref={projectRef}
-                 data-tour="form-project"
-                 value={formData.project}
-                 onChange={(e) => handleInputChange('project', e.target.value)}
-                 disabled={!scope && projects.length === 1}
-                 className={`w-full px-3 py-2 border rounded-xl text-sm outline-none transition-all ${themeClasses.input} ${themeClasses.border} ${themeClasses.textPrimary} ${errors.project ? 'border-rose-500' : ''}`}
-               >
+              <select
+                ref={projectRef}
+                data-tour="form-project"
+                value={formData.project}
+                onChange={(e) => handleInputChange('project', e.target.value)}
+                disabled={!scope && projects.length === 1}
+                className={`w-full px-3 py-2 border rounded-xl text-sm outline-none transition-all ${themeClasses.input} ${themeClasses.border} ${themeClasses.textPrimary} ${errors.project ? 'border-rose-500' : ''}`}
+              >
                 {projects.length !== 1 && <option value="">Select Project</option>}
                 {projects.map((project) => (
                   <option key={project.id} value={project.id}>
@@ -236,36 +341,35 @@ const ScopeForm: React.FC<ScopeFormProps> = ({
                   </option>
                 ))}
               </select>
-              {errors.project && <p className="text-xs text-rose-500">{errors.project}</p>}
+              {errors.project && (
+                <p className="text-xs font-semibold text-rose-500">{errors.project}</p>
+              )}
             </div>
 
-            {/* Month */}
             <div className="space-y-2">
               <label className={`text-xs font-black uppercase tracking-widest ${themeClasses.textSecondary}`}>
-                Month
+                Month <span className="text-rose-500">*</span>
               </label>
-               <input
-                 ref={monthRef}
-                 data-tour="form-month"
-                 type="month"
-                 value={formData.month}
-                 onChange={(e) => handleInputChange('month', e.target.value)}
-                 className={`w-full px-3 py-2 border rounded-xl text-sm outline-none transition-all ${themeClasses.input} ${themeClasses.border} ${themeClasses.textPrimary} ${errors.month ? 'border-rose-500' : ''}`}
-               />
-              {errors.month && <p className="text-xs text-rose-500">{errors.month}</p>}
+              <input
+                ref={monthRef}
+                data-tour="form-month"
+                type="month"
+                value={formData.month}
+                onChange={(e) => handleInputChange('month', e.target.value)}
+                className={`w-full px-3 py-2 border rounded-xl text-sm outline-none transition-all ${themeClasses.input} ${themeClasses.border} ${themeClasses.textPrimary} ${errors.month ? 'border-rose-500' : ''}`}
+              />
+              {errors.month && (
+                <p className="text-xs font-semibold text-rose-500">{errors.month}</p>
+              )}
             </div>
 
-            {/* Category */}
             <div ref={categoryRef} className="space-y-2">
               <label className={`text-xs font-black uppercase tracking-widest ${themeClasses.textSecondary}`}>
-                Category
+                Category <span className="text-rose-500">*</span>
               </label>
               <select
                 value={formData.category}
-                onChange={(e) => {
-                  console.log('Category selected:', e.target.value);
-                  handleInputChange('category', e.target.value);
-                }}
+                onChange={(e) => handleInputChange('category', e.target.value)}
                 className={`w-full px-3 py-2 border rounded-xl text-sm outline-none transition-all ${themeClasses.input} ${themeClasses.border} ${themeClasses.textPrimary} ${errors.category ? 'border-rose-500' : ''}`}
               >
                 <option value="">
@@ -280,14 +384,15 @@ const ScopeForm: React.FC<ScopeFormProps> = ({
               {categories.length === 0 && (
                 <p className={`text-xs ${themeClasses.textSecondary}`}>No categories found</p>
               )}
-              {errors.category && <p className="text-xs text-rose-500">{errors.category}</p>}
+              {errors.category && (
+                <p className="text-xs font-semibold text-rose-500">{errors.category}</p>
+              )}
             </div>
 
-            {/* Custom Category Name */}
             {selectedCategory?.name === 'Other' && (
               <div className="space-y-2">
                 <label className={`text-xs font-black uppercase tracking-widest ${themeClasses.textSecondary}`}>
-                  Custom Category Name
+                  Custom Category Name <span className="text-rose-500">*</span>
                 </label>
                 <input
                   type="text"
@@ -296,27 +401,27 @@ const ScopeForm: React.FC<ScopeFormProps> = ({
                   placeholder="Enter custom category name"
                   className={`w-full px-3 py-2 border rounded-xl text-sm outline-none transition-all ${themeClasses.input} ${themeClasses.border} ${themeClasses.textPrimary} ${errors.custom_category_name ? 'border-rose-500' : ''}`}
                 />
-                {errors.custom_category_name && <p className="text-xs text-rose-500">{errors.custom_category_name}</p>}
+                {errors.custom_category_name && (
+                  <p className="text-xs font-semibold text-rose-500">{errors.custom_category_name}</p>
+                )}
               </div>
             )}
 
-            {/* Subcategory */}
             <div ref={subcategoryRef} className="space-y-2">
               <label className={`text-xs font-black uppercase tracking-widest ${themeClasses.textSecondary}`}>
-                Subcategory
+                Subcategory <span className="text-rose-500">*</span>
               </label>
-               <select
-                 value={formData.subcategory}
-                 onChange={(e) => handleInputChange('subcategory', e.target.value)}
-                 className={`w-full px-3 py-2 border rounded-xl text-sm outline-none transition-all ${themeClasses.input} ${themeClasses.border} ${themeClasses.textPrimary} ${errors.subcategory ? 'border-rose-500' : ''}`}
-               >
+              <select
+                value={formData.subcategory}
+                onChange={(e) => handleInputChange('subcategory', e.target.value)}
+                className={`w-full px-3 py-2 border rounded-xl text-sm outline-none transition-all ${themeClasses.input} ${themeClasses.border} ${themeClasses.textPrimary} ${errors.subcategory ? 'border-rose-500' : ''}`}
+              >
                 <option value="">
                   {!formData.category
                     ? 'Select category first'
                     : subcategories.length === 0
                       ? 'No subcategories available'
-                      : 'Select Subcategory'
-                  }
+                      : 'Select Subcategory'}
                 </option>
                 {subcategories.map((subcategory) => (
                   <option key={subcategory.id} value={subcategory.id}>
@@ -324,14 +429,15 @@ const ScopeForm: React.FC<ScopeFormProps> = ({
                   </option>
                 ))}
               </select>
-              {errors.subcategory && <p className="text-xs text-rose-500">{errors.subcategory}</p>}
+              {errors.subcategory && (
+                <p className="text-xs font-semibold text-rose-500">{errors.subcategory}</p>
+              )}
             </div>
 
-            {/* Custom Subcategory Name */}
             {selectedSubcategory?.name === 'Other' && (
               <div className="space-y-2">
                 <label className={`text-xs font-black uppercase tracking-widest ${themeClasses.textSecondary}`}>
-                  Custom Subcategory Name
+                  Custom Subcategory Name <span className="text-rose-500">*</span>
                 </label>
                 <input
                   type="text"
@@ -340,25 +446,27 @@ const ScopeForm: React.FC<ScopeFormProps> = ({
                   placeholder="Enter custom subcategory name"
                   className={`w-full px-3 py-2 border rounded-xl text-sm outline-none transition-all ${themeClasses.input} ${themeClasses.border} ${themeClasses.textPrimary} ${errors.custom_subcategory_name ? 'border-rose-500' : ''}`}
                 />
-                {errors.custom_subcategory_name && <p className="text-xs text-rose-500">{errors.custom_subcategory_name}</p>}
+                {errors.custom_subcategory_name && (
+                  <p className="text-xs font-semibold text-rose-500">{errors.custom_subcategory_name}</p>
+                )}
               </div>
             )}
 
-            {/* Description */}
             <div className="space-y-2 md:col-span-2">
               <label className={`text-xs font-black uppercase tracking-widest ${themeClasses.textSecondary}`}>
                 Description
               </label>
-               <textarea
-                 ref={descriptionRef}
-                 value={formData.description}
-                 onChange={(e) => handleInputChange('description', e.target.value)}
-                 className={`w-full px-3 py-2 border rounded-xl text-sm outline-none transition-all ${themeClasses.input} ${themeClasses.border} ${themeClasses.textPrimary} ${errors.description ? 'border-rose-500' : ''}`}
-               />
-              {errors.description && <p className="text-xs text-rose-500">{errors.description}</p>}
+              <textarea
+                ref={descriptionRef}
+                value={formData.description}
+                onChange={(e) => handleInputChange('description', e.target.value)}
+                className={`w-full px-3 py-2 border rounded-xl text-sm outline-none transition-all ${themeClasses.input} ${themeClasses.border} ${themeClasses.textPrimary} ${errors.description ? 'border-rose-500' : ''}`}
+              />
+              {errors.description && (
+                <p className="text-xs font-semibold text-rose-500">{errors.description}</p>
+              )}
             </div>
 
-            {/* Unit */}
             <div ref={unitRef} className="space-y-2">
               <label className={`text-xs font-black uppercase tracking-widest ${themeClasses.textSecondary}`}>
                 Unit
@@ -370,26 +478,27 @@ const ScopeForm: React.FC<ScopeFormProps> = ({
                 placeholder="e.g., Nos, Sq.m, Cu.m"
                 className={`w-full px-3 py-2 border rounded-xl text-sm outline-none transition-all ${themeClasses.input} ${themeClasses.border} ${themeClasses.textPrimary} ${errors.unit ? 'border-rose-500' : ''}`}
               />
-              {errors.unit && <p className="text-xs text-rose-500">{errors.unit}</p>}
+              {errors.unit && <p className="text-xs font-semibold text-rose-500">{errors.unit}</p>}
             </div>
 
-            {/* Planned Quantity */}
             <div ref={quantityRef} className="space-y-2">
               <label className={`text-xs font-black uppercase tracking-widest ${themeClasses.textSecondary}`}>
                 Planned Quantity
               </label>
               <input
                 type="number"
+                data-tour="form-planned-quantity"
                 value={formData.planned_quantity}
                 onChange={(e) => handleInputChange('planned_quantity', e.target.value)}
                 min="0"
                 step="0.01"
                 className={`w-full px-3 py-2 border rounded-xl text-sm outline-none transition-all ${themeClasses.input} ${themeClasses.border} ${themeClasses.textPrimary} ${errors.planned_quantity ? 'border-rose-500' : ''}`}
               />
-              {errors.planned_quantity && <p className="text-xs text-rose-500">{errors.planned_quantity}</p>}
+              {errors.planned_quantity && (
+                <p className="text-xs font-semibold text-rose-500">{errors.planned_quantity}</p>
+              )}
             </div>
 
-            {/* Section */}
             <div ref={sectionRef} className="space-y-2">
               <label className={`text-xs font-black uppercase tracking-widest ${themeClasses.textSecondary}`}>
                 Section
@@ -401,10 +510,11 @@ const ScopeForm: React.FC<ScopeFormProps> = ({
                 placeholder="e.g., Block A, Phase 2"
                 className={`w-full px-3 py-2 border rounded-xl text-sm outline-none transition-all ${themeClasses.input} ${themeClasses.border} ${themeClasses.textPrimary} ${errors.section ? 'border-rose-500' : ''}`}
               />
-              {errors.section && <p className="text-xs text-rose-500">{errors.section}</p>}
+              {errors.section && (
+                <p className="text-xs font-semibold text-rose-500">{errors.section}</p>
+              )}
             </div>
 
-            {/* Location */}
             <div ref={locationRef} className="space-y-2">
               <label className={`text-xs font-black uppercase tracking-widest ${themeClasses.textSecondary}`}>
                 Location
@@ -416,28 +526,14 @@ const ScopeForm: React.FC<ScopeFormProps> = ({
                 placeholder="e.g., North Zone, Tower 3"
                 className={`w-full px-3 py-2 border rounded-xl text-sm outline-none transition-all ${themeClasses.input} ${themeClasses.border} ${themeClasses.textPrimary} ${errors.location ? 'border-rose-500' : ''}`}
               />
-              {errors.location && <p className="text-xs text-rose-500">{errors.location}</p>}
+              {errors.location && (
+                <p className="text-xs font-semibold text-rose-500">{errors.location}</p>
+              )}
             </div>
 
-            {/* Location */}
-            <div className="space-y-2">
-              <label className={`text-xs font-black uppercase tracking-widest ${themeClasses.textSecondary}`}>
-                Location
-              </label>
-              <input
-                type="text"
-                value={formData.location}
-                onChange={(e) => handleInputChange('location', e.target.value)}
-                placeholder="e.g., P42 to A2 Ramp"
-                className={`w-full px-3 py-2 border rounded-xl text-sm outline-none transition-all ${themeClasses.input} ${themeClasses.border} ${themeClasses.textPrimary} ${errors.location ? 'border-rose-500' : ''}`}
-              />
-              {errors.location && <p className="text-xs text-rose-500">{errors.location}</p>}
-            </div>
-
-            {/* Start Date */}
             <div ref={startDateRef} className="space-y-2">
               <label className={`text-xs font-black uppercase tracking-widest ${themeClasses.textSecondary}`}>
-                Start Date
+                Start Date <span className="text-rose-500">*</span>
               </label>
               <input
                 type="date"
@@ -445,13 +541,14 @@ const ScopeForm: React.FC<ScopeFormProps> = ({
                 onChange={(e) => handleInputChange('start_date', e.target.value)}
                 className={`w-full px-3 py-2 border rounded-xl text-sm outline-none transition-all ${themeClasses.input} ${themeClasses.border} ${themeClasses.textPrimary} ${errors.start_date ? 'border-rose-500' : ''}`}
               />
-              {errors.start_date && <p className="text-xs text-rose-500">{errors.start_date}</p>}
+              {errors.start_date && (
+                <p className="text-xs font-semibold text-rose-500">{errors.start_date}</p>
+              )}
             </div>
 
-            {/* End Date */}
             <div ref={endDateRef} className="space-y-2">
               <label className={`text-xs font-black uppercase tracking-widest ${themeClasses.textSecondary}`}>
-                End Date
+                End Date <span className="text-rose-500">*</span>
               </label>
               <input
                 type="date"
@@ -459,41 +556,27 @@ const ScopeForm: React.FC<ScopeFormProps> = ({
                 onChange={(e) => handleInputChange('end_date', e.target.value)}
                 className={`w-full px-3 py-2 border rounded-xl text-sm outline-none transition-all ${themeClasses.input} ${themeClasses.border} ${themeClasses.textPrimary} ${errors.end_date ? 'border-rose-500' : ''}`}
               />
-              {errors.end_date && <p className="text-xs text-rose-500">{errors.end_date}</p>}
+              {errors.end_date && (
+                <p className="text-xs font-semibold text-rose-500">{errors.end_date}</p>
+              )}
             </div>
 
-            {/* End Date */}
-            <div className="space-y-2">
-              <label className={`text-xs font-black uppercase tracking-widest ${themeClasses.textSecondary}`}>
-                End Date
-              </label>
-               <input
-                 ref={quantityRef}
-                 data-tour="form-planned-quantity"
-                 type="number"
-                 value={formData.planned_quantity}
-                 onChange={(e) => handleInputChange('planned_quantity', e.target.value)}
-                 className={`w-full px-3 py-2 border rounded-xl text-sm outline-none transition-all ${themeClasses.input} ${themeClasses.border} ${themeClasses.textPrimary} ${errors.planned_quantity ? 'border-rose-500' : ''}`}
-               />
-              {errors.end_date && <p className="text-xs text-rose-500">{errors.end_date}</p>}
-            </div>
-
-            {/* Status */}
             <div className="space-y-2">
               <label className={`text-xs font-black uppercase tracking-widest ${themeClasses.textSecondary}`}>
                 Status
               </label>
-               <select
-                 ref={categoryRef}
-                 data-tour="form-category"
-                 value={formData.category}
-                 onChange={(e) => handleInputChange('category', e.target.value)}
-                 className={`w-full px-3 py-2 border rounded-xl text-sm outline-none transition-all ${themeClasses.input} ${themeClasses.border} ${themeClasses.textPrimary} ${errors.category ? 'border-rose-500' : ''}`}
-               >
+              <select
+                value={formData.status}
+                onChange={(e) => handleInputChange('status', e.target.value)}
+                className={`w-full px-3 py-2 border rounded-xl text-sm outline-none transition-all ${themeClasses.input} ${themeClasses.border} ${themeClasses.textPrimary} ${errors.status ? 'border-rose-500' : ''}`}
+              >
                 <option value="pending">Pending</option>
                 <option value="in_progress">In Progress</option>
                 <option value="completed">Completed</option>
               </select>
+              {errors.status && (
+                <p className="text-xs font-semibold text-rose-500">{errors.status}</p>
+              )}
             </div>
           </div>
 
@@ -505,14 +588,20 @@ const ScopeForm: React.FC<ScopeFormProps> = ({
             >
               Cancel
             </button>
-              <button
-                ref={saveRef}
-                data-tour="form-submit"
-                type="submit"
-                disabled={submitting}
-                className={`w-full py-3 rounded-xl font-black uppercase tracking-widest text-sm transition-all ${themeClasses.buttonPrimary}`}
-              >
-              {submitting ? 'Saving...' : categories.length === 0 ? 'Loading...' : scope ? 'Update Scope' : 'Create Scope'}
+            <button
+              ref={saveRef}
+              data-tour="form-submit"
+              type="submit"
+              disabled={submitting || categories.length === 0}
+              className={`w-full py-3 rounded-xl font-black uppercase tracking-widest text-sm transition-all ${themeClasses.buttonPrimary}`}
+            >
+              {submitting
+                ? 'Saving...'
+                : categories.length === 0
+                  ? 'Loading...'
+                  : scope
+                    ? 'Update Scope'
+                    : 'Create Scope'}
             </button>
           </div>
         </form>
