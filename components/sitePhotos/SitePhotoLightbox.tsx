@@ -3,7 +3,12 @@ import { createPortal } from 'react-dom';
 import { ChevronLeft, ChevronRight, Download, Trash2, ZoomIn, ZoomOut } from 'lucide-react';
 import type { SiteImageRecord } from '../../types';
 import { Icons } from '../Icons';
-import { downloadSiteImage, formatSiteImageUploadDate } from '../../utils/siteImages';
+import {
+  downloadSiteImage,
+  formatSiteImageUploadDate,
+  getSiteImageDisplayTitle,
+  getSiteImageUploaderLabel,
+} from '../../utils/siteImages';
 import { getThemeClasses, useTheme } from '../../utils/theme';
 
 interface SitePhotoLightboxProps {
@@ -66,11 +71,13 @@ const SitePhotoLightbox: React.FC<SitePhotoLightboxProps> = ({
         className={`flex shrink-0 items-center justify-between border-b px-4 py-3 ${themeClasses.border} bg-black/40`}
         onClick={(e) => e.stopPropagation()}
       >
-        <div>
-          <p className="text-sm font-black uppercase tracking-widest text-white">Site Photos</p>
+        <div className="min-w-0 pr-2">
+          <p className="truncate text-sm font-black uppercase tracking-widest text-white">
+            {getSiteImageDisplayTitle(current.title)}
+          </p>
           <p className="text-[10px] font-medium text-white/70">
             {index + 1} / {images.length} · {formatSiteImageUploadDate(current.uploadedAt)}
-            {current.uploadedBy ? ` · ${current.uploadedBy}` : ''}
+            {` · ${getSiteImageUploaderLabel(current)}`}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -139,7 +146,7 @@ const SitePhotoLightbox: React.FC<SitePhotoLightboxProps> = ({
         <img
           key={current.id}
           src={current.imageUrl}
-          alt={`Site photo ${index + 1}`}
+          alt={getSiteImageDisplayTitle(current.title)}
           className="max-h-full max-w-full rounded-lg object-contain transition-transform duration-200"
           style={{ transform: `scale(${scale})` }}
         />

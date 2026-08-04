@@ -33,6 +33,10 @@ interface DPRActivity {
     planned_quantity?: number | string;
     executed_quantity?: number | string;
     remaining_quantity?: number | string;
+    cumulative_quantity?: number | string;
+    previous_cumulative?: number | string;
+    /** Backend progress percent (preferred) */
+    progress?: number | string;
     progress_percentage?: number | string;
     section?: string;
     location?: string;
@@ -190,14 +194,37 @@ const DPRReviewDashboard: React.FC<DPRReviewDashboardProps> = ({
 
     const normalizeReport = (report: any): DailyProgressReport => {
         const normalizedActivities = Array.isArray(report?.activities)
-            ? report.activities.map((activity: any) => ({
-                ...activity,
-                executed_quantity: toSafeNumber(activity?.executed_quantity),
-                planned_quantity: toSafeNumber(activity?.planned_quantity || activity?.scope?.planned_quantity),
-                remaining_quantity: toSafeNumber(activity?.remaining_quantity || activity?.scope?.remaining_quantity),
-                progress_percentage: toSafeNumber(activity?.progress_percentage || activity?.scope?.progress_percentage),
-                target_achieved: toSafeNumber(activity?.target_achieved),
-            }))
+            ? report.activities.map((activity: any) => {
+                const scope = activity?.scope && typeof activity.scope === 'object' ? activity.scope : null;
+                const progressRaw =
+                    activity?.progress ??
+                    activity?.progress_percentage ??
+                    scope?.progress ??
+                    scope?.progress_percentage;
+                return {
+                    ...activity,
+                    executed_quantity: toSafeNumber(activity?.executed_quantity),
+                    planned_quantity: toSafeNumber(
+                        activity?.planned_quantity ?? scope?.planned_quantity,
+                    ),
+                    remaining_quantity: toSafeNumber(
+                        activity?.remaining_quantity ?? scope?.remaining_quantity,
+                    ),
+                    cumulative_quantity: toSafeNumber(
+                        activity?.cumulative_quantity ??
+                            activity?.previous_cumulative ??
+                            scope?.cumulative_quantity ??
+                            scope?.previous_cumulative,
+                    ),
+                    // Keep raw backend progress; do not derive from executed/planned
+                    progress: progressRaw == null || progressRaw === '' ? undefined : toSafeNumber(progressRaw),
+                    progress_percentage:
+                        progressRaw == null || progressRaw === ''
+                            ? undefined
+                            : toSafeNumber(progressRaw),
+                    target_achieved: toSafeNumber(activity?.target_achieved),
+                };
+            })
             : [];
 
         const projectId = report.project || report.projectId || report.project_id;
@@ -228,9 +255,22 @@ const DPRReviewDashboard: React.FC<DPRReviewDashboardProps> = ({
 
         const plannedVal = toSafeNumber(activity.planned_quantity || scopeDetail?.planned_quantity);
         const executedVal = toSafeNumber(activity.executed_quantity);
+        // Backend owns progress — never recompute as (executed/planned)*100
+        const progressFromApi =
+            (activity as any).progress ??
+            activity.progress_percentage ??
+            scopeDetail?.progress ??
+            scopeDetail?.progress_percentage;
         const progressVal =
-            toSafeNumber(activity.progress_percentage || scopeDetail?.progress_percentage) ||
-            (plannedVal > 0 ? (executedVal / plannedVal) * 100 : 0);
+            progressFromApi == null || progressFromApi === ''
+                ? 0
+                : toSafeNumber(progressFromApi);
+        const cumulativeVal = toSafeNumber(
+            (activity as any).cumulative_quantity ??
+                (activity as any).previous_cumulative ??
+                scopeDetail?.cumulative_quantity ??
+                scopeDetail?.previous_cumulative,
+        );
         const progressTone = getProgressTone(progressVal, isDarkTheme);
 
         const data = {
@@ -244,6 +284,7 @@ const DPRReviewDashboard: React.FC<DPRReviewDashboardProps> = ({
             unit: activity.unit || scopeDetail?.unit || "N/A",
             executed: executedVal,
             planned: plannedVal,
+            cumulative: cumulativeVal,
             progress: progressVal,
             status: activity.status || scopeDetail?.status || "Pending",
             remarks: activity.remarks || "—",
@@ -330,6 +371,8 @@ const DPRReviewDashboard: React.FC<DPRReviewDashboardProps> = ({
                                 {[
                                     { label: "Actual Quantity", value: `${data.executed} ${data.unit}` },
                                     { label: "Planned Quantity", value: `${data.planned} ${data.unit}` },
+                                    { label: "Cumulative Quantity", value: `${data.cumulative} ${data.unit}` },
+                                    { label: "Progress %", value: `${Number(data.progress).toFixed(2)}%` },
                                     { label: "Remarks", value: data.remarks },
                                     { label: "Site Notes", value: data.siteNotes },
                                     { label: "Engineer Comments", value: data.engineerComments },

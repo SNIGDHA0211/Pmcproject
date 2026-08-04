@@ -2907,19 +2907,37 @@ export function normalizeSiteImageRecord(
     (typeof r.created_at === "string" && r.created_at) ||
     (typeof r.createdAt === "string" && r.createdAt) ||
     (typeof r.upload_date === "string" && r.upload_date) ||
+    (typeof r.updated_at === "string" && r.updated_at) ||
     "";
-
-  const uploadedBy =
-    (typeof r.uploaded_by_name === "string" && r.uploaded_by_name) ||
-    (typeof r.uploaded_by === "string" && r.uploaded_by) ||
-    (typeof r.uploadedBy === "string" && r.uploadedBy) ||
-    (typeof r.user_name === "string" && r.user_name) ||
-    undefined;
 
   const uploadedByUsername =
     (typeof r.uploaded_by_username === "string" && r.uploaded_by_username) ||
     (typeof r.username === "string" && r.username) ||
     (typeof r.user_username === "string" && r.user_username) ||
+    undefined;
+
+  const uploadedBy =
+    (typeof r.uploaded_by_name === "string" && r.uploaded_by_name) ||
+    (typeof r.uploadedBy === "string" && r.uploadedBy) ||
+    (typeof r.user_name === "string" && r.user_name) ||
+    (typeof r.uploaded_by === "string" && r.uploaded_by) ||
+    uploadedByUsername ||
+    undefined;
+
+  const title =
+    typeof r.title === "string"
+      ? r.title.slice(0, 255)
+      : "";
+
+  const publicId =
+    (typeof r.public_id === "string" && r.public_id) ||
+    (typeof r.cloudinary_public_id === "string" && r.cloudinary_public_id) ||
+    (typeof r.publicId === "string" && r.publicId) ||
+    undefined;
+
+  const storageBackend =
+    (typeof r.storage_backend === "string" && r.storage_backend) ||
+    (typeof r.storageBackend === "string" && r.storageBackend) ||
     undefined;
 
   return {
@@ -2930,11 +2948,14 @@ export function normalizeSiteImageRecord(
       fallbackProject,
     month: toNum(r.month) || 1,
     year: toNum(r.year) || new Date().getFullYear(),
+    title,
     imageUrl,
     thumbnailUrl: thumbnail,
     uploadedAt,
     uploadedBy,
     uploadedByUsername,
+    storageBackend,
+    publicId,
   };
 }
 
@@ -2947,16 +2968,34 @@ export function normalizeSiteImageList(
     .filter((row): row is SiteImageRecord => Boolean(row));
 }
 
+export type SiteImageListParams = {
+  project_name?: string;
+  month?: number;
+  year?: number;
+  title?: string;
+  search?: string;
+  ordering?: string;
+  page?: number;
+  page_size?: number;
+};
+
 export type SiteImageUploadPayload = {
   project_name: string;
   month: number;
   year: number;
   images: File[];
+  /** Same title applied to every image (ignored when titles is provided). */
+  title?: string;
+  /** Per-image titles by index; takes precedence over title. */
+  titles?: string[];
 };
 
 export const siteImagesApi = {
-  list: (params?: { project_name?: string }) =>
+  list: (params?: SiteImageListParams) =>
     api.get(API_ENDPOINTS.SITE_IMAGES.LIST, { params }),
+
+  get: (id: string | number) =>
+    api.get(API_ENDPOINTS.SITE_IMAGES.DETAIL(id)),
 
   getByProjectMonthYear: (projectName: string, month: number, year: number) =>
     api.get(
@@ -2972,8 +3011,17 @@ export const siteImagesApi = {
     formData.append("month", String(payload.month));
     formData.append("year", String(payload.year));
     payload.images.forEach((file) => {
-      formData.append("images[]", file);
+      formData.append("images", file);
     });
+
+    const titles = payload.titles?.map((t) => (t ?? "").slice(0, 255));
+    if (titles && titles.some((t) => t.length > 0)) {
+      titles.forEach((t) => {
+        formData.append("titles", t);
+      });
+    } else if (payload.title != null && payload.title.trim()) {
+      formData.append("title", payload.title.trim().slice(0, 255));
+    }
 
     return api.post(API_ENDPOINTS.SITE_IMAGES.CREATE, formData, {
       headers: { "Content-Type": "multipart/form-data" },
@@ -2983,6 +3031,12 @@ export const siteImagesApi = {
       },
     });
   },
+
+  /** Update title only — image file / URL is not changed. */
+  updateTitle: (id: string | number, title: string) =>
+    api.patch(API_ENDPOINTS.SITE_IMAGES.DETAIL(id), {
+      title: title.slice(0, 255),
+    }),
 
   delete: (id: string | number) =>
     api.delete(API_ENDPOINTS.SITE_IMAGES.DELETE(id)),

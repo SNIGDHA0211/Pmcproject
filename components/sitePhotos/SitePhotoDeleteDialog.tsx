@@ -30,7 +30,7 @@ const SitePhotoDeleteDialog: React.FC<SitePhotoDeleteDialogProps> = ({
             Delete photo?
           </h3>
           <p className={`mt-2 text-sm ${themeClasses.textSecondary}`}>
-            This will permanently remove the image from Cloudinary and the project gallery. This action cannot be undone.
+            This will permanently remove the image from storage and the project gallery. This action cannot be undone.
           </p>
           <div className="mt-6 flex flex-col gap-2 sm:flex-row">
             <button

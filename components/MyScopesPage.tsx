@@ -588,11 +588,17 @@ const MyScopesPage: React.FC<MyScopesPageProps> = ({
 
     document.addEventListener('visibilitychange', handleVisibilityChange);
 
+    const handleDprSaved = () => {
+      fetchMyScopes(true);
+    };
+    window.addEventListener('pmc:dpr-saved', handleDprSaved);
+
     // Cleanup on unmount
     return () => {
       console.log('Removing WebSocket listener for My Scopes page');
       websocketService.removeMessageListener(handleWebSocketMessage);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('pmc:dpr-saved', handleDprSaved);
     };
   }, [handleWebSocketMessage, fetchMyScopes]);
 
@@ -889,10 +895,10 @@ const MyScopesPage: React.FC<MyScopesPageProps> = ({
                   <div className={`h-1.5 overflow-hidden rounded-full ${isDarkTheme ? 'bg-white/10' : 'bg-slate-100'}`}>
                     <div
                       className="h-full rounded-full bg-emerald-500"
-                      style={{ width: `${Math.min(100, scope.progress_percentage || 0)}%` }}
+                      style={{ width: `${Math.min(100, Number(scope.progress ?? scope.progress_percentage ?? 0))}%` }}
                     />
                   </div>
-                  <p className="mt-1 text-[11px] font-bold text-emerald-500">{scope.progress_percentage || 0}% complete</p>
+                  <p className="mt-1 text-[11px] font-bold text-emerald-500">{Number(scope.progress ?? scope.progress_percentage ?? 0)}% complete</p>
                 </div>
                 {isQaqcEngineer && (
                   <button
@@ -1045,11 +1051,11 @@ const MyScopesPage: React.FC<MyScopesPageProps> = ({
                       <div className={`h-1.5 overflow-hidden rounded-full ${isDarkTheme ? 'bg-white/10' : 'bg-slate-100'}`}>
                         <div
                           className="h-full rounded-full bg-emerald-500"
-                          style={{ width: `${Math.min(100, scope.progress_percentage || 0)}%` }}
+                          style={{ width: `${Math.min(100, Number(scope.progress ?? scope.progress_percentage ?? 0))}%` }}
                         />
                       </div>
                       <div className="text-xs font-bold text-emerald-500">
-                        {scope.progress_percentage || 0}%
+                        {Number(scope.progress ?? scope.progress_percentage ?? 0)}%
                       </div>
                     </div>
                   </td>

@@ -352,12 +352,15 @@ export const API_ENDPOINTS = {
 
 
 
-  // Site Images (Cloudinary-backed)
+  // Site Images (S3 / Cloudinary-backed)
   SITE_IMAGES: {
     LIST: '/site-images/',
     CREATE: '/site-images/',
     DETAIL: (id: string | number) => `/site-images/${id}/`,
+    UPDATE: (id: string | number) => `/site-images/${id}/`,
     DELETE: (id: string | number) => `/site-images/${id}/`,
+    BY_PROJECT: (projectName: string) =>
+      `/site-images/project/${encodeURIComponent(projectName)}/`,
     BY_PROJECT_MONTH_YEAR: (projectName: string, month: number, year: number) =>
       `/site-images/project/${encodeURIComponent(projectName)}/month/${month}/year/${year}/`,
   },

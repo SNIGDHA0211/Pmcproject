@@ -3,7 +3,11 @@ import { ImageIcon, Plus } from 'lucide-react';
 import type { Project, User } from '../../types';
 import type { SiteImageRecord } from '../../types';
 import { useSiteImages } from '../../hooks/useSiteImages';
-import { getApiErrorMessage, siteImagesApi } from '../../services/api';
+import {
+  getApiErrorMessage,
+  normalizeSiteImageRecord,
+  siteImagesApi,
+} from '../../services/api';
 import DashboardCardTopAccent from '../DashboardCardTopAccent';
 import { Icons } from '../Icons';
 import SitePhotoDeleteDialog from './SitePhotoDeleteDialog';
@@ -12,7 +16,7 @@ import SitePhotoGalleryGrid from './SitePhotoGalleryGrid';
 import SitePhotoGallerySkeleton from './SitePhotoGallerySkeleton';
 import SitePhotoGallerySummary from './SitePhotoGallerySummary';
 import SitePhotoLightbox from './SitePhotoLightbox';
-import SitePhotoUploadPanel from './SitePhotoUploadPanel';
+import SitePhotoUploadPanel, { type SitePhotoUploadRequest } from './SitePhotoUploadPanel';
 import { getLatestSiteImageUploadDate, MONTH_OPTIONS } from '../../utils/siteImages';
 import { notifySitePhotoDelete, notifySitePhotoUpload } from '../../utils/teamActivityAlerts';
 import { getThemeClasses, useTheme } from '../../utils/theme';
@@ -41,7 +45,7 @@ const SitePhotosManagement: React.FC<SitePhotosManagementProps> = ({ projects = 
   const [deleteTarget, setDeleteTarget] = useState<SiteImageRecord | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
-  const { images, isLoading, error, refresh } = useSiteImages(projectName, month, year);
+  const { images, isLoading, error, refresh, setImages } = useSiteImages(projectName, month, year);
 
   const monthLabel = `${MONTH_OPTIONS.find((m) => m.value === month)?.label ?? 'Month'} ${year}`;
   const hasPhotos = images.length > 0;
@@ -57,7 +61,7 @@ const SitePhotosManagement: React.FC<SitePhotosManagementProps> = ({ projects = 
     window.setTimeout(() => setToast(null), 3500);
   };
 
-  const handleUpload = async (files: File[]) => {
+  const handleUpload = async ({ files, title, titles }: SitePhotoUploadRequest) => {
     if (!projectName.trim()) {
       setUploadError('Select a project before uploading.');
       return;
@@ -73,6 +77,8 @@ const SitePhotosManagement: React.FC<SitePhotosManagementProps> = ({ projects = 
           month,
           year,
           images: files,
+          title,
+          titles,
         },
         setUploadProgress
       );
@@ -91,6 +97,23 @@ const SitePhotosManagement: React.FC<SitePhotosManagementProps> = ({ projects = 
     } finally {
       setIsUploading(false);
       setUploadProgress(0);
+    }
+  };
+
+  const handleUpdateTitle = async (image: SiteImageRecord, title: string) => {
+    try {
+      const response = await siteImagesApi.updateTitle(image.id, title);
+      const payload = response.data?.data ?? response.data;
+      const normalized = normalizeSiteImageRecord(payload, image.projectName || projectName);
+      if (normalized) {
+        setImages((prev) => prev.map((row) => (row.id === image.id ? { ...row, ...normalized } : row)));
+      } else {
+        setImages((prev) => prev.map((row) => (row.id === image.id ? { ...row, title } : row)));
+      }
+      showToast('Title updated.');
+    } catch (err) {
+      showToast(getApiErrorMessage(err, 'Unable to update title.'));
+      throw err;
     }
   };
 
@@ -146,7 +169,12 @@ const SitePhotosManagement: React.FC<SitePhotosManagementProps> = ({ projects = 
       );
     }
     return (
-      <SitePhotoGalleryGrid images={images} onOpen={setLightboxIndex} onDelete={setDeleteTarget} />
+      <SitePhotoGalleryGrid
+        images={images}
+        onOpen={setLightboxIndex}
+        onDelete={setDeleteTarget}
+        onUpdateTitle={handleUpdateTitle}
+      />
     );
   };
 

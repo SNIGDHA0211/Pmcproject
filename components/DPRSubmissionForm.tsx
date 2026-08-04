@@ -3,6 +3,14 @@ import { Icons } from './Icons';
 import { Project, MonthlyScope, MonthlyScopeCategory, MonthlyScopeSubcategory } from '../types';
 import { authApi, dprApi, monthlyScopeApi } from '../services/api';
 import { useTheme, getThemeClasses } from '../utils/theme';
+import {
+  readScopeCumulativeQuantity,
+  readScopeExecutedQuantity,
+  readScopePlannedQuantity,
+  readScopeProgressPercent,
+  readScopeRemainingQuantity,
+  toScopeNumber,
+} from '../utils/scopeProgressFields';
 
 interface ScopeActivity {
   id: string;
@@ -13,12 +21,57 @@ interface ScopeActivity {
   executedQuantity: number;
   nextDayPlannedWork: string;
   remarks: string;
-  // Computed fields
+  // Display fields — populated from backend scope/activity, never locally recalculated
   plannedQuantity?: number;
   unit?: string;
   cumulativeQuantity?: number;
   remainingQuantity?: number;
   progressPercentage?: number;
+}
+
+/** Bind readonly qty/progress fields from a monthly-scope (or nested scope) API object. */
+function bindScopeProgressFields(
+  scope: MonthlyScope | Record<string, unknown> | null | undefined,
+  overrides?: Partial<
+    Pick<
+      ScopeActivity,
+      | 'executedQuantity'
+      | 'cumulativeQuantity'
+      | 'progressPercentage'
+      | 'remainingQuantity'
+      | 'plannedQuantity'
+      | 'unit'
+    >
+  >,
+): Pick<
+  ScopeActivity,
+  | 'plannedQuantity'
+  | 'unit'
+  | 'cumulativeQuantity'
+  | 'remainingQuantity'
+  | 'progressPercentage'
+> {
+  const planned = overrides?.plannedQuantity ?? readScopePlannedQuantity(scope);
+  const cumulative =
+    overrides?.cumulativeQuantity ?? readScopeCumulativeQuantity(scope) ?? 0;
+  const progress =
+    overrides?.progressPercentage ?? readScopeProgressPercent(scope) ?? 0;
+  const remaining =
+    overrides?.remainingQuantity ??
+    readScopeRemainingQuantity(scope) ??
+    Math.max(0, planned - cumulative);
+  const unitFromScope =
+    scope && typeof scope === 'object' && typeof (scope as { unit?: unknown }).unit === 'string'
+      ? String((scope as { unit: string }).unit)
+      : undefined;
+
+  return {
+    plannedQuantity: planned,
+    unit: overrides?.unit ?? unitFromScope,
+    cumulativeQuantity: cumulative,
+    remainingQuantity: remaining,
+    progressPercentage: progress,
+  };
 }
 
 interface DPRSubmissionFormProps {
@@ -106,19 +159,45 @@ function DPRSubmissionForm({ onClose, onSubmit, assignedProjects, existingDPR }:
       setIssuedBy(existingDPR.issued_by || '');
       setDesignation(existingDPR.designation || '');
 
-      // Map scope-based activities
+      // Map scope-based activities — bind cumulative/progress from API, do not recompute
       if (existingDPR.activities && existingDPR.activities.length > 0) {
-        setActivities(existingDPR.activities.map((act: any, index: number) => ({
-          id: act.id?.toString() || Date.now().toString() + index,
-          category: act.category || '',
-          subcategory: act.subcategory || '',
-          scopeId: act.scope?.toString() || act.scope_id?.toString() || '',
-          executedQuantity: act.executed_quantity || 0,
-          nextDayPlannedWork: act.next_day_planned_work || '',
-          remarks: act.remarks || '',
-          // Scope data will be populated when scope is selected
-          scope: act.scope || undefined
-        })));
+        setActivities(existingDPR.activities.map((act: any, index: number) => {
+          const scopeObj =
+            act.scope && typeof act.scope === 'object' ? act.scope : undefined;
+          const progressFields = bindScopeProgressFields(scopeObj ?? act, {
+            executedQuantity: readScopeExecutedQuantity(act),
+            cumulativeQuantity:
+              readScopeCumulativeQuantity(act) ??
+              readScopeCumulativeQuantity(scopeObj) ??
+              undefined,
+            progressPercentage:
+              readScopeProgressPercent(act) ??
+              readScopeProgressPercent(scopeObj) ??
+              undefined,
+            remainingQuantity:
+              readScopeRemainingQuantity(act) ??
+              readScopeRemainingQuantity(scopeObj) ??
+              undefined,
+            plannedQuantity:
+              readScopePlannedQuantity(act) ||
+              readScopePlannedQuantity(scopeObj) ||
+              undefined,
+          });
+          return {
+            id: act.id?.toString() || Date.now().toString() + index,
+            category: nestedEntityId(act.category || scopeObj?.category),
+            subcategory: nestedEntityId(act.subcategory || scopeObj?.subcategory),
+            scopeId:
+              nestedEntityId(act.scope) ||
+              nestedEntityId(act.scope_id) ||
+              '',
+            executedQuantity: toScopeNumber(act.executed_quantity),
+            nextDayPlannedWork: act.next_day_planned_work || '',
+            remarks: act.remarks || '',
+            scope: scopeObj,
+            ...progressFields,
+          };
+        }));
       }
     }
   }, [existingDPR, assignedProjects]);
@@ -188,38 +267,28 @@ function DPRSubmissionForm({ onClose, onSubmit, assignedProjects, existingDPR }:
   };
 
   const updateActivity = (id: string, field: keyof ScopeActivity, value: any) => {
-    setActivities(prev => prev.map(act => {
-      if (act.id === id) {
-        const updatedAct = { ...act, [field]: value };
+    setActivities((prev) =>
+      prev.map((act) => {
+        if (act.id !== id) return act;
+        const updatedAct: ScopeActivity = { ...act, [field]: value };
 
-        // If scopeId changed, fetch and populate scope data
+        // Selecting a scope: bind backend cumulative_quantity / progress as-is.
         if (field === 'scopeId' && value) {
           const selectedScope = availableScopes.find(
             (s) => s && String(s.id) === String(value),
           );
           if (selectedScope) {
             updatedAct.scope = selectedScope;
-            updatedAct.plannedQuantity = selectedScope.planned_quantity;
-            updatedAct.unit = selectedScope.unit;
-            const currentCum = (selectedScope.cumulative_quantity || 0);
-            updatedAct.cumulativeQuantity = currentCum + (updatedAct.executedQuantity || 0);
-            updatedAct.remainingQuantity = Math.max(0, (selectedScope.planned_quantity || 0) - (updatedAct.cumulativeQuantity || 0));
-            updatedAct.progressPercentage = Math.min(100, ((updatedAct.cumulativeQuantity || 0) / (selectedScope.planned_quantity || 1)) * 100);
+            Object.assign(updatedAct, bindScopeProgressFields(selectedScope));
           }
         }
 
-        // If executedQuantity changed, recalculate cumulative and remaining
-        if (field === 'executedQuantity' && updatedAct.scope) {
-          const currentCum = (updatedAct.scope.cumulative_quantity || 0);
-          updatedAct.cumulativeQuantity = currentCum + (Number(value) || 0);
-          updatedAct.remainingQuantity = Math.max(0, (updatedAct.scope.planned_quantity || 0) - (updatedAct.cumulativeQuantity || 0));
-          updatedAct.progressPercentage = Math.min(100, ((updatedAct.cumulativeQuantity || 0) / (updatedAct.scope.planned_quantity || 1)) * 100);
-        }
+        // Executed qty is user input only — do NOT recompute cumulative/progress locally.
+        // Those fields stay bound to the last API scope payload until scopes are refetched.
 
         return updatedAct;
-      }
-      return act;
-    }));
+      }),
+    );
   };
 
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -347,6 +416,27 @@ function DPRSubmissionForm({ onClose, onSubmit, assignedProjects, existingDPR }:
     fetchAvailableScopes();
   }, [selectedProjectId]);
 
+  // When scopes load/refresh, re-bind cumulative/progress from API (never local formulas).
+  useEffect(() => {
+    if (!availableScopes.length) return;
+    setActivities((prev) =>
+      prev.map((act) => {
+        if (!act.scopeId) return act;
+        const selectedScope = availableScopes.find(
+          (s) => s && String(s.id) === String(act.scopeId),
+        );
+        if (!selectedScope) return act;
+        return {
+          ...act,
+          scope: selectedScope,
+          category: act.category || nestedEntityId(selectedScope.category),
+          subcategory: act.subcategory || nestedEntityId(selectedScope.subcategory),
+          ...bindScopeProgressFields(selectedScope),
+        };
+      }),
+    );
+  }, [availableScopes]);
+
   const buildPayload = () => ({
     project: selectedProjectId,
     project_name: selectedProject?.title || '',
@@ -395,7 +485,19 @@ function DPRSubmissionForm({ onClose, onSubmit, assignedProjects, existingDPR }:
         alert(`Activity ${i + 1}: Please enter a valid executed quantity`);
         return;
       }
-      if (activity.scope && activity.executedQuantity > (activity.scope.planned_quantity || 0) - (activity.scope.cumulative_quantity || 0)) {
+      const remaining =
+        activity.remainingQuantity ??
+        readScopeRemainingQuantity(activity.scope) ??
+        Math.max(
+          0,
+          (activity.plannedQuantity ??
+            readScopePlannedQuantity(activity.scope) ??
+            0) -
+            (activity.cumulativeQuantity ??
+              readScopeCumulativeQuantity(activity.scope) ??
+              0),
+        );
+      if (activity.scope && activity.executedQuantity > remaining) {
         alert(`Activity ${i + 1}: Executed quantity cannot exceed remaining quantity`);
         return;
       }
@@ -450,6 +552,8 @@ function DPRSubmissionForm({ onClose, onSubmit, assignedProjects, existingDPR }:
       };
 
       alert('DPR submitted successfully!');
+      // Refresh scopes so cumulative_quantity / progress come from the latest API payload
+      await fetchAvailableScopes();
       window.dispatchEvent(
         new CustomEvent('pmc:notification', {
           detail: {
@@ -463,6 +567,12 @@ function DPRSubmissionForm({ onClose, onSubmit, assignedProjects, existingDPR }:
             },
           },
         })
+      );
+      // Signal other screens (My Scopes, etc.) to refetch — no React Query/Zustand in this app
+      window.dispatchEvent(
+        new CustomEvent('pmc:dpr-saved', {
+          detail: { projectId: selectedProjectId, dprId: response?.data?.id },
+        }),
       );
       onSubmit(submissionData);
       onClose();
@@ -807,9 +917,18 @@ function DPRSubmissionForm({ onClose, onSubmit, assignedProjects, existingDPR }:
                         <label className={labelCls}>Cumulative Qty</label>
                         <input
                           type="text"
-                          value={activity.scope ? String(activity.cumulativeQuantity ?? 0) : '—'}
+                          value={
+                            activity.scopeId
+                              ? String(
+                                  activity.cumulativeQuantity ??
+                                    readScopeCumulativeQuantity(activity.scope) ??
+                                    0,
+                                )
+                              : '—'
+                          }
                           readOnly
                           className={`${inputCls} ${themeClasses.textMuted} cursor-default opacity-90`}
+                          title="From API cumulative_quantity"
                         />
                       </div>
                       <div>
@@ -817,12 +936,19 @@ function DPRSubmissionForm({ onClose, onSubmit, assignedProjects, existingDPR }:
                         <input
                           type="text"
                           value={
-                            activity.scope
-                              ? `${Math.round((activity.progressPercentage || 0) * 100) / 100}%`
+                            activity.scopeId
+                              ? `${
+                                  Math.round(
+                                    (activity.progressPercentage ??
+                                      readScopeProgressPercent(activity.scope) ??
+                                      0) * 100,
+                                  ) / 100
+                                }%`
                               : '—'
                           }
                           readOnly
                           className={`${inputCls} ${themeClasses.textMuted} cursor-default opacity-90`}
+                          title="From API progress / progress_percentage"
                         />
                       </div>
                     </div>

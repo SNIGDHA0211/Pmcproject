@@ -6,6 +6,7 @@ import SitePhotoLightbox from './sitePhotos/SitePhotoLightbox';
 import { useSiteImages } from '../hooks/useSiteImages';
 import type { SiteImageRecord } from '../types';
 import { DASHBOARD_CARD_TITLE_CLASS, getThemeClasses, useTheme } from '../utils/theme';
+import { getSiteImageDisplayTitle } from '../utils/siteImages';
 
 const MAX_ROW_PREVIEW = 6;
 const LOADING_PLACEHOLDERS = 4;
@@ -51,7 +52,9 @@ export const SitePhotosCard: React.FC<SitePhotosCardProps> = ({
     setLightboxOpen(true);
   };
 
-  const renderPreviewImage = (image: SiteImageRecord, index: number) => (
+  const renderPreviewImage = (image: SiteImageRecord, index: number) => {
+    const displayTitle = getSiteImageDisplayTitle(image.title);
+    return (
     <button
       key={image.id}
       type="button"
@@ -64,16 +67,19 @@ export const SitePhotosCard: React.FC<SitePhotosCardProps> = ({
     >
       <img
         src={image.thumbnailUrl || image.imageUrl}
-        alt={`Site photo ${index + 1}`}
+        alt={displayTitle}
         loading="lazy"
         decoding="async"
         className="block h-full w-full object-cover object-center transition-transform duration-500 group-hover:scale-[1.03]"
       />
-      <span className="pointer-events-none absolute bottom-1.5 right-1.5 rounded-md bg-black/55 px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-wide text-white">
-        {index + 1}
+      <span className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent px-1.5 pb-1.5 pt-6">
+        <span className="line-clamp-1 text-[9px] font-bold text-white" title={image.title || undefined}>
+          {displayTitle}
+        </span>
       </span>
     </button>
-  );
+    );
+  };
 
   return (
     <>

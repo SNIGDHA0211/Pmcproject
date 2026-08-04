@@ -787,11 +787,14 @@ export interface MonthlyScope {
   updated_at: string;
   custom_category_name?: string;
   custom_subcategory_name?: string;
-  // Progress tracking fields
+  // Progress tracking fields (backend-owned; do not recompute in UI)
   executed_quantity?: number;
   cumulative_quantity?: number;
   remaining_quantity?: number;
+  /** Backend progress percent — prefer this when present */
+  progress?: number;
   progress_percentage?: number;
+  previous_cumulative?: number;
 }
 
 export interface MonthlyScopeFilters {
@@ -820,9 +823,13 @@ export interface SiteImageRecord {
   projectName: string;
   month: number;
   year: number;
+  /** Optional caption; API may return "". */
+  title: string;
   imageUrl: string;
   thumbnailUrl?: string;
   uploadedAt: string;
   uploadedBy?: string;
   uploadedByUsername?: string;
+  storageBackend?: string;
+  publicId?: string;
 }

@@ -11,6 +11,12 @@ export const SITE_IMAGE_MIME_TYPES = new Set([
   'image/webp',
 ]);
 
+/** API max files per upload request. */
+export const SITE_IMAGE_MAX_FILES = 20;
+
+/** API max title length. */
+export const SITE_IMAGE_TITLE_MAX_LENGTH = 255;
+
 export function buildSiteImageYearOptions(centerYear = new Date().getFullYear()): number[] {
   return Array.from({ length: 6 }, (_, index) => centerYear - 2 + index);
 }
@@ -20,6 +26,22 @@ export function isAllowedSiteImageFile(file: File): boolean {
   if (SITE_IMAGE_MIME_TYPES.has(mime)) return true;
   const ext = file.name.split('.').pop()?.toLowerCase();
   return ext === 'jpg' || ext === 'jpeg' || ext === 'png' || ext === 'webp';
+}
+
+export function clampSiteImageTitle(value: string): string {
+  return (value ?? '').slice(0, SITE_IMAGE_TITLE_MAX_LENGTH);
+}
+
+export function getSiteImageDisplayTitle(title?: string | null): string {
+  const trimmed = (title ?? '').trim();
+  return trimmed || 'Untitled';
+}
+
+export function getSiteImageUploaderLabel(image: {
+  uploadedBy?: string;
+  uploadedByUsername?: string;
+}): string {
+  return image.uploadedByUsername || image.uploadedBy || '—';
 }
 
 export function formatSiteImageUploadDate(value: string): string {
