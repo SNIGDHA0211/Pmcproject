@@ -10,6 +10,12 @@ import {
   progressBarTone,
   toTitleCase,
 } from '../utils/scopeSchedule';
+import {
+  formatScopeProgressFraction,
+  readScopeCompletedQuantity,
+  readScopePlannedQuantity,
+  readScopeProgressPercent,
+} from '../utils/scopeProgressFields';
 
 interface ScopeTableProps {
   scopes: MonthlyScope[];
@@ -97,24 +103,32 @@ const ScopeProgressCell: React.FC<{
   scope: MonthlyScope;
   isDarkTheme: boolean;
 }> = ({ scope, isDarkTheme }) => {
-  const pct = Math.min(Math.max(Number(scope.progress_percentage) || 0, 0), 100);
+  const pct = Math.min(
+    Math.max(Number(readScopeProgressPercent(scope) ?? scope.progress_percentage) || 0, 0),
+    100,
+  );
   const tone = progressBarTone(pct, isDarkTheme);
 
   return (
-    <div className="flex w-full min-w-0 items-center justify-end gap-2">
-      <span className={`shrink-0 text-[11px] font-semibold tabular-nums ${tone.text}`}>
-        {pct.toFixed(0)}%
+    <div className="flex w-full min-w-0 flex-col items-stretch gap-1">
+      <span className={`text-[10px] font-semibold tabular-nums ${isDarkTheme ? 'text-slate-300' : 'text-slate-600'}`}>
+        {formatScopeProgressFraction(scope)}
       </span>
-      <div
-        className={`h-1.5 min-w-0 flex-1 overflow-hidden rounded-full ${
-          isDarkTheme ? 'bg-slate-700' : 'bg-[#E2E8F0]'
-        }`}
-        role="presentation"
-      >
+      <div className="flex w-full min-w-0 items-center justify-end gap-2">
+        <span className={`shrink-0 text-[11px] font-semibold tabular-nums ${tone.text}`}>
+          {pct.toFixed(0)}%
+        </span>
         <div
-          className={`h-full rounded-full transition-all duration-300 ${tone.bar}`}
-          style={{ width: `${pct}%` }}
-        />
+          className={`h-1.5 min-w-0 flex-1 overflow-hidden rounded-full ${
+            isDarkTheme ? 'bg-slate-700' : 'bg-[#E2E8F0]'
+          }`}
+          role="presentation"
+        >
+          <div
+            className={`h-full rounded-full transition-all duration-300 ${tone.bar}`}
+            style={{ width: `${pct}%` }}
+          />
+        </div>
       </div>
     </div>
   );
@@ -170,8 +184,8 @@ const ScopeExpandedPanel: React.FC<{
       ? '—'
       : `${metrics.variancePct > 0 ? '+' : ''}${Math.round(metrics.variancePct)}%`;
   const remarks = scope.description?.trim() || '—';
-  const executed = scope.executed_quantity ?? 0;
-  const planned = scope.planned_quantity ?? 0;
+  const completed = readScopeCompletedQuantity(scope);
+  const planned = readScopePlannedQuantity(scope);
 
   const detailItems: { label: string; value: React.ReactNode; emphasis?: boolean }[] = [
     { label: 'Start Date', value: formatScopeDate(scope.start_date), emphasis: true },
@@ -193,7 +207,7 @@ const ScopeExpandedPanel: React.FC<{
     { label: 'Delay Status', value: `${health.emoji} ${health.label}`, emphasis: true },
     {
       label: 'Quantity',
-      value: `${executed} / ${planned} ${scope.unit}`,
+      value: `${completed} / ${planned} ${scope.unit}`,
     },
     {
       label: 'Created By',

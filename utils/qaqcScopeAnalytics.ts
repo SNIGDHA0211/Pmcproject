@@ -1,5 +1,10 @@
 import type { MonthlyScope } from '../types';
 import { normalizeScopeStatus } from './monthlyScopeFilters';
+import {
+  readScopeCompletedQuantity,
+  readScopePlannedQuantity,
+  readScopeProgressPercent,
+} from './scopeProgressFields';
 
 export interface QaqcScopeSummary {
   total: number;
@@ -36,9 +41,9 @@ export function computeQaqcScopeSummary(scopes: MonthlyScope[]): QaqcScopeSummar
     if (status === 'completed') completed += 1;
     else if (status === 'in_progress') inProgress += 1;
     else pending += 1;
-    progressSum += Number(scope.progress_percentage) || 0;
-    plannedQty += Number(scope.planned_quantity) || 0;
-    executedQty += Number(scope.executed_quantity) || 0;
+    progressSum += Number(readScopeProgressPercent(scope) ?? scope.progress_percentage) || 0;
+    plannedQty += readScopePlannedQuantity(scope);
+    executedQty += readScopeCompletedQuantity(scope);
   }
 
   return {

@@ -370,8 +370,8 @@ const DPRReviewDashboard: React.FC<DPRReviewDashboardProps> = ({
                             <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
                                 {[
                                     { label: "Actual Quantity", value: `${data.executed} ${data.unit}` },
-                                    { label: "Planned Quantity", value: `${data.planned} ${data.unit}` },
                                     { label: "Cumulative Quantity", value: `${data.cumulative} ${data.unit}` },
+                                    { label: "Planned Quantity", value: `${data.planned} ${data.unit}` },
                                     { label: "Progress %", value: `${Number(data.progress).toFixed(2)}%` },
                                     { label: "Remarks", value: data.remarks },
                                     { label: "Site Notes", value: data.siteNotes },

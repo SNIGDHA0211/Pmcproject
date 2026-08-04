@@ -26,6 +26,11 @@ import HealthSafetyMonthlyForm, {
   type HealthSafetyFormValues,
 } from './HealthSafetyMonthlyForm';
 import { canEditHealthSafetyForProject } from '../utils/healthSafetyAccess';
+import {
+  formatScopeProgressFraction,
+  readScopeCompletedQuantity,
+  formatScopeQty,
+} from '../utils/scopeProgressFields';
 import DashboardToastStack, { type DashboardToastItem } from './DashboardToastStack';
 import { websocketService, NotificationData } from '../services/websocket';
 import {
@@ -885,9 +890,9 @@ const MyScopesPage: React.FC<MyScopesPageProps> = ({
                     </p>
                   </div>
                   <div>
-                    <span className={themeClasses.textSecondary}>Executed</span>
+                    <span className={themeClasses.textSecondary}>Completed</span>
                     <p className="font-bold tabular-nums text-emerald-500">
-                      {scope.executed_quantity || 0} {scope.unit}
+                      {formatScopeQty(readScopeCompletedQuantity(scope), scope.unit)}
                     </p>
                   </div>
                 </div>
@@ -1046,12 +1051,14 @@ const MyScopesPage: React.FC<MyScopesPageProps> = ({
                   <td className={`px-6 py-4 text-sm ${themeClasses.textPrimary}`}>
                     <div className="min-w-[120px] space-y-1">
                       <div className="text-xs font-semibold tabular-nums">
-                        {scope.executed_quantity || 0} / {scope.planned_quantity || 0} {scope.unit}
+                        {formatScopeProgressFraction(scope)}
                       </div>
                       <div className={`h-1.5 overflow-hidden rounded-full ${isDarkTheme ? 'bg-white/10' : 'bg-slate-100'}`}>
                         <div
                           className="h-full rounded-full bg-emerald-500"
-                          style={{ width: `${Math.min(100, Number(scope.progress ?? scope.progress_percentage ?? 0))}%` }}
+                          style={{
+                            width: `${Math.min(100, Number(scope.progress ?? scope.progress_percentage ?? 0))}%`,
+                          }}
                         />
                       </div>
                       <div className="text-xs font-bold text-emerald-500">
