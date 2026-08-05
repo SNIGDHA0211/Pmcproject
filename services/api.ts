@@ -361,6 +361,10 @@ export const projectApi = {
   createProject: (data: any) => {
     return api.post(API_ENDPOINTS.PROJECTS.LIST, data);
   },
+  /** DELETE /api/projects-data/projects/{id}/ — Enterprise Portfolio project delete. */
+  deleteProject: (projectId: string | number) => {
+    return api.delete(API_ENDPOINTS.PROJECTS.DELETE(projectId));
+  },
   getSites: (projectId?: string) => {
     const url = projectId
       ? `${API_ENDPOINTS.PROJECTS.SITES}?project_id=${projectId}`

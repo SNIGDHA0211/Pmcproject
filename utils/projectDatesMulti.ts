@@ -47,10 +47,9 @@ export function filterContractorBgEntries(
 export function maxContractorDelay(contractors: ProjectDatesRecord[]): number {
   let max = 0;
   for (const record of contractors) {
-    const delay = Math.abs(
-      Math.round(Number(record.current_delay ?? record.delay_days ?? 0)),
-    );
-    if (delay > max) max = delay;
+    // Only count days late (positive). Ahead-of-schedule (negative) is not a delay.
+    const delay = Math.round(Number(record.current_delay ?? record.delay_days ?? 0));
+    if (Number.isFinite(delay) && delay > max) max = delay;
   }
   return max;
 }

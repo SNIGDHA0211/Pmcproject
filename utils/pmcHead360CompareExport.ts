@@ -84,7 +84,7 @@ export async function downloadPmcHead360CompareExcel(
       card.location,
       card.pmName,
       card.overallScore ?? '—',
-      card.healthLabel,
+      card.projectStatusLabel || card.healthLabel,
       formatPercent(schedule.percent),
       schedule.note,
       formatPercent(budget.percent),

@@ -15,6 +15,11 @@ import {
   ResponsiveContainer, BarChart, Bar, Cell, PieChart, Pie,
   LineChart, Line, Legend, ComposedChart
 } from 'recharts';
+import {
+  ProgressCurveTooltip,
+  ProgressDifferenceSummaryChip,
+} from './charts/ProgressCurveTooltip';
+import { progressCumulativeDifference } from '../utils/projectProgress';
 
 // Specialized Gauge Component for SPI/CPI
 const PerformanceGauge: React.FC<{ value: number; label: string; color: string }> = ({ value, label, color }) => {
@@ -77,7 +82,10 @@ const sCurveData = [
   { name: 'Month 4', planned: 45, actual: 40 },
   { name: 'Month 5', planned: 70, actual: 62 },
   { name: 'Month 6', planned: 90, actual: 80 },
-];
+].map((row) => ({
+  ...row,
+  difference: progressCumulativeDifference(row.planned, row.actual),
+}));
 
 export type StatType = 'portfolio' | 'dprs' | 'attention' | 'utilization' | 'tasks' | 'docs' | 'execution';
 
@@ -545,7 +553,9 @@ const Dashboard: React.FC<DashboardProps> = ({ user, projects, dprs, projectDocu
           <div className="flex items-center justify-between mb-8">
             <div>
               <h3 className={`text-sm font-black uppercase tracking-widest ${themeClasses.textPrimary}`}>Physical Progress S-Curve</h3>
-              <p className={`text-[10px] font-bold uppercase tracking-tight ${themeClasses.textSecondary}`}>Cumulative Planned vs Actual Completion %</p>
+              <p className={`text-[10px] font-bold uppercase tracking-tight ${themeClasses.textSecondary}`}>
+                Cumulative planned − actual = difference
+              </p>
             </div>
             <div className="flex gap-4">
               <div className="flex items-center gap-2">
@@ -564,18 +574,22 @@ const Dashboard: React.FC<DashboardProps> = ({ user, projects, dprs, projectDocu
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={isDarkTheme ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.05)"} />
                 <XAxis dataKey="name" hide />
                 <YAxis unit="%" domain={[0, 100]} stroke={isDarkTheme ? "rgba(255,255,255,0.5)" : "rgba(0,0,0,0.5)"} fontSize={10} tickLine={false} axisLine={false} />
-                <Tooltip 
-                   contentStyle={{ 
-                     background: isDarkTheme ? 'rgba(15, 23, 42, 0.95)' : 'rgba(255, 255, 255, 0.95)', 
-                     border: `1px solid ${isDarkTheme ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'}`, 
-                     borderRadius: '1rem' 
-                   }}
-                />
+                <Tooltip content={<ProgressCurveTooltip isDark={isDarkTheme} />} />
                 <Area type="monotone" dataKey="planned" stroke="#4f46e5" fill="#4f46e5" fillOpacity={0.05} strokeWidth={3} />
                 <Area type="monotone" dataKey="actual" stroke="#10b981" fill="#10b981" fillOpacity={0.1} strokeWidth={4} />
               </AreaChart>
             </ResponsiveContainer>
           </div>
+          {sCurveData.length > 0 && (
+            <div className="mt-3">
+              <ProgressDifferenceSummaryChip
+                planned={sCurveData[sCurveData.length - 1].planned}
+                actual={sCurveData[sCurveData.length - 1].actual}
+                isDark={isDarkTheme}
+                periodLabel={sCurveData[sCurveData.length - 1].name}
+              />
+            </div>
+          )}
         </div>
 
         {/* Phase Progress Bars */}

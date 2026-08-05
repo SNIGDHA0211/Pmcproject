@@ -92,10 +92,14 @@ export function computeProjectDashboardMetrics(
 
   const contractors = getContractorsList(projectDatesBundle);
 
-  const summaryDelayDays = Math.max(
-    Math.abs(toNum(projectDatesBundle?.scl?.current_delay ?? projectDatesBundle?.scl?.delay_days)),
-    maxContractorDelay(contractors),
+  // Days late only (positive). Negative current_delay means ahead / on track — not a delay.
+  const sclLateDays = Math.max(
+    0,
+    Math.round(
+      toNum(projectDatesBundle?.scl?.current_delay ?? projectDatesBundle?.scl?.delay_days),
+    ),
   );
+  const summaryDelayDays = Math.max(sclLateDays, maxContractorDelay(contractors));
 
   const hasDelayData = Boolean(projectDatesBundle?.scl || contractors.length > 0);
 
@@ -154,12 +158,13 @@ export function computeProjectDashboardMetrics(
     nearMiss: toNum(dashboardData?.near_miss),
   };
 
-  const resolvedHasHseData = hasHseData || Boolean(dashboardData);
+  // Only treat explicit HSE records / flags as data — empty dashboard zeros ≠ SAFE 100%.
+  const resolvedHasHseData = Boolean(hasHseData);
 
   const hseBadge = getHealthSafetyStatus(safetyStats);
   const healthSafetyStatus = {
-    label: hseBadge.label,
-    level: hseBadge.level,
+    label: resolvedHasHseData ? hseBadge.label : ('SAFE' as const),
+    level: resolvedHasHseData ? hseBadge.level : ('safe' as const),
     sublabel: (() => {
       const { fatalities, minor, nearMiss, major, significant } = safetyStats;
       if (!resolvedHasHseData) return 'No HSE data';
@@ -183,11 +188,27 @@ export function computeProjectDashboardMetrics(
     (item) => item.type === 'RISK' && item.status !== 'Closed' && item.description.trim(),
   ).length;
 
+  const hasOperationalSignal =
+    resolvedHasHseData ||
+    hasDelayData ||
+    hasDrawingData ||
+    overallProgressPct > 0 ||
+    bottleneckItems.some((item) => item.description.trim()) ||
+    budgetPct != null ||
+    manpowerPct != null ||
+    dprCount > 0;
+
   const projectHealth = (() => {
-    if (safetyStats.fatalities > 0 || safetyStats.major >= 3) {
+    if (!hasOperationalSignal) {
+      return { label: 'New', sublabel: 'No operational data yet', tone: 'warn' as const };
+    }
+    if (resolvedHasHseData && (safetyStats.fatalities > 0 || safetyStats.major >= 3)) {
       return { label: 'Critical', sublabel: 'Requires immediate attention', tone: 'bad' as const };
     }
-    if (safetyStats.major > 0 || safetyStats.significant > 0 || summaryDelayDays > 60) {
+    if (
+      (resolvedHasHseData && (safetyStats.major > 0 || safetyStats.significant > 0)) ||
+      summaryDelayDays > 60
+    ) {
       return { label: 'At Risk', sublabel: 'Monitor key indicators', tone: 'warn' as const };
     }
     return { label: 'Good', sublabel: 'All systems normal', tone: 'good' as const };

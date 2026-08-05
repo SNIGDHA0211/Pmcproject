@@ -3,6 +3,10 @@ import { Calendar, CalendarClock, Flag, Plus, ShieldPlus, Timer, Trash2 } from '
 import type { ProjectDatesRecord } from '../services/api';
 import type { BGEntry } from '../types/bgStatus';
 import { contractorLabel } from '../utils/projectDatesMulti';
+import {
+  formatDelayDaysValue,
+  getScheduleStatus,
+} from '../utils/reportFormatting';
 import { Icons } from './Icons';
 import { CardEditButton, CardHeaderActions } from './FormulaInfoButton';
 import DashboardCardTopAccent from './DashboardCardTopAccent';
@@ -49,6 +53,39 @@ const DATE_MILESTONES = [
   { key: 'eot', label: 'EOT', field: 'eot_date' as const, Icon: Flag },
 ] as const;
 
+/** Plain-language schedule status for site / client users (not technical delay jargon). */
+function getScheduleStatusCopy(delay: number): {
+  title: string;
+  daysLabel: string;
+  ariaLabel: string;
+  titleHint?: string;
+} {
+  const status = getScheduleStatus(delay);
+  const days = formatDelayDaysValue(delay);
+
+  if (status === 'Delayed') {
+    return {
+      title: 'Behind Schedule',
+      daysLabel: 'Days Late',
+      ariaLabel: `Behind schedule by ${days} days`,
+      titleHint: `Work is ${days} days behind the contract finish date — review milestones`,
+    };
+  }
+  if (status === 'Ahead of Schedule') {
+    return {
+      title: 'On Track',
+      daysLabel: 'Days Remaining',
+      ariaLabel: `On track — ${days} days remaining to contract finish`,
+      titleHint: `Still ${days} days left before the contract finish date`,
+    };
+  }
+  return {
+    title: 'On Schedule',
+    daysLabel: 'Days',
+    ariaLabel: 'On schedule — no delay',
+  };
+}
+
 const DelayStatusCard: React.FC<{
   delay: number;
   isDarkTheme: boolean;
@@ -58,8 +95,8 @@ const DelayStatusCard: React.FC<{
   const tone = getDelayTone(delay, isDarkTheme);
   const roundedDelay = Math.round(delay);
   const hasIssue = roundedDelay > 0;
-  const displayValue =
-    roundedDelay < 0 ? String(roundedDelay) : String(Math.abs(roundedDelay));
+  const copy = getScheduleStatusCopy(roundedDelay);
+  const displayValue = formatDelayDaysValue(roundedDelay);
   const blinkClass = hasIssue
     ? isDarkTheme
       ? 'pmc-delay-alert-blink-dark'
@@ -74,28 +111,20 @@ const DelayStatusCard: React.FC<{
     <div
       role={hasIssue ? 'status' : undefined}
       aria-live={hasIssue ? 'polite' : undefined}
-      aria-label={
-        hasIssue
-          ? `Schedule delay alert: ${displayValue} days late`
-          : `Delay up to date: ${displayValue} days`
-      }
-      title={
-        hasIssue
-          ? `Attention: ${displayValue} days delay — check schedule milestones`
-          : undefined
-      }
+      aria-label={copy.ariaLabel}
+      title={copy.titleHint}
       className={`flex shrink-0 flex-col items-center justify-center rounded-lg border text-center ${sizeClass} ${tone.bg} ${tone.border} ${blinkClass} ${
         hasIssue ? 'ring-2 ring-rose-400/40' : ''
       }`}
     >
       <Timer size={14} strokeWidth={2.2} className={`mb-0.5 ${tone.icon}`} aria-hidden />
       <p className={`text-[8px] font-bold uppercase leading-tight tracking-wide sm:text-[9px] ${tone.label}`}>
-        {hasIssue ? 'Delay — Check' : 'Delay Up To Date'}
+        {copy.title}
       </p>
       <p className={`mt-1 text-2xl font-black leading-none tabular-nums sm:text-3xl ${tone.value}`}>
         {displayValue}
       </p>
-      <p className={`mt-0.5 text-[10px] font-semibold sm:text-xs ${tone.label}`}>Days</p>
+      <p className={`mt-0.5 text-[10px] font-semibold sm:text-xs ${tone.label}`}>{copy.daysLabel}</p>
     </div>
   );
 };

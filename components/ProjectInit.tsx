@@ -1,6 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { Icons } from './Icons';
-import { projectApi, notificationApi } from '../services/api';
+import {
+    projectApi,
+    notificationApi,
+    projectDatesApi,
+    saveContractValueRecord,
+} from '../services/api';
 import { User } from '../types';
 import { useTheme, getThemeClasses } from '../utils/theme';
 import { sanitizeProjectDisplayName } from '../utils/hseSiteEngineerProjects';
@@ -25,23 +30,33 @@ interface ProjectInitForm {
     assigned_users: number[];
 }
 
+const EMPTY_FORM: ProjectInitForm = {
+    name: '',
+    location: '',
+    project_start: '',
+    contract_finish: '',
+    forecast_finish: '',
+    original_contract_value: '',
+    approved_vo: '',
+    pending_vo: '',
+    bac: '',
+    working_hours_per_day: '8',
+    working_days_per_month: '26',
+    assigned_users: [],
+};
+
+/** Parse money only when the user typed a value (including 0). */
+function parseOptionalMoney(raw: string): number | undefined {
+    const trimmed = raw.trim();
+    if (!trimmed) return undefined;
+    const n = parseFloat(trimmed);
+    return Number.isFinite(n) ? n : undefined;
+}
+
 const ProjectInit: React.FC<ProjectInitProps> = ({ user, onProjectCreated }) => {
     const { isDarkTheme } = useTheme();
     const themeClasses = getThemeClasses(isDarkTheme);
-    const [formData, setFormData] = useState<ProjectInitForm>({
-        name: '',
-        location: '',
-        project_start: '',
-        contract_finish: '',
-        forecast_finish: '',
-        original_contract_value: '',
-        approved_vo: '',
-        pending_vo: '',
-        bac: '',
-        working_hours_per_day: '8',
-        working_days_per_month: '26',
-        assigned_users: [],
-    });
+    const [formData, setFormData] = useState<ProjectInitForm>({ ...EMPTY_FORM });
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [error, setError] = useState('');
     const [success, setSuccess] = useState('');
@@ -84,52 +99,110 @@ const ProjectInit: React.FC<ProjectInitProps> = ({ user, onProjectCreated }) => 
         setError('');
         setSuccess('');
 
+        const originalContract = parseOptionalMoney(formData.original_contract_value);
+        const approvedVo = parseOptionalMoney(formData.approved_vo);
+        const pendingVo = parseOptionalMoney(formData.pending_vo);
+        const bac = parseOptionalMoney(formData.bac);
+        const projectStart = formData.project_start || '';
+        const contractFinish = formData.contract_finish || '';
+        const forecastFinish = formData.forecast_finish || '';
+
         try {
             // Only project name is required; other fields are optional.
-            const projectData = {
+            const projectData: Record<string, unknown> = {
                 name: projectName,
+                title: projectName,
                 location: formData.location.trim() || '',
-                project_start: formData.project_start || null,
-                contract_finish: formData.contract_finish || null,
-                forecast_finish: formData.forecast_finish || null,
-                original_contract_value: parseFloat(formData.original_contract_value) || 0,
-                approved_vo: parseFloat(formData.approved_vo) || 0,
-                pending_vo: parseFloat(formData.pending_vo) || 0,
-                bac: parseFloat(formData.bac) || 0,
+                project_start: projectStart || null,
+                contract_finish: contractFinish || null,
+                forecast_finish: forecastFinish || null,
                 working_hours_per_day: parseFloat(formData.working_hours_per_day) || 8,
                 working_days_per_month: parseInt(formData.working_days_per_month, 10) || 26,
                 assigned_users: formData.assigned_users,
             };
+            if (originalContract !== undefined) projectData.original_contract_value = originalContract;
+            if (approvedVo !== undefined) projectData.approved_vo = approvedVo;
+            if (pendingVo !== undefined) projectData.pending_vo = pendingVo;
+            if (bac !== undefined) projectData.bac = bac;
 
             const response = await projectApi.initProject(projectData);
 
             if (response.data.success) {
-                setSuccess('Project initialized successfully!');
+                const created = response.data.project ?? {};
+                const projectId = created.id != null ? String(created.id) : '';
+                const seededName =
+                    String(created.name ?? created.title ?? projectName).trim() || projectName;
+
+                const seedWarnings: string[] = [];
+
+                // Seed Project Dates (SCL) when all three init dates are present.
+                if (projectStart && contractFinish && forecastFinish) {
+                    try {
+                        await projectDatesApi.create({
+                            project_name: seededName,
+                            date_type: 'SCL',
+                            project_start: projectStart,
+                            contract_finish: contractFinish,
+                            forecast_finish: forecastFinish,
+                            eot_date: contractFinish,
+                        });
+                    } catch (seedErr) {
+                        console.error('Failed to seed project dates from init:', seedErr);
+                        seedWarnings.push('dates');
+                    }
+                }
+
+                // Seed Contract Values (SCL) when any money field was filled.
+                if (
+                    originalContract !== undefined ||
+                    approvedVo !== undefined ||
+                    pendingVo !== undefined
+                ) {
+                    try {
+                        await saveContractValueRecord({
+                            projectName: seededName,
+                            contractType: 'SCL',
+                            originalContractValue: originalContract ?? 0,
+                            approvedVO: approvedVo ?? 0,
+                            potentialPendingVO: pendingVo ?? 0,
+                            cosExtraItem: 0,
+                        });
+                    } catch (seedErr) {
+                        console.error('Failed to seed contract values from init:', seedErr);
+                        seedWarnings.push('contract values');
+                    }
+                }
+
+                // Patch budget / commencement onto the project record when provided.
+                if (projectId && (bac !== undefined || projectStart)) {
+                    const patch: Record<string, unknown> = {};
+                    if (bac !== undefined) patch.budget = bac;
+                    if (projectStart) patch.commencement_date = projectStart;
+                    try {
+                        await projectApi.patchProject(projectId, patch);
+                    } catch (seedErr) {
+                        console.error('Failed to patch project budget/commencement from init:', seedErr);
+                        seedWarnings.push('budget/dates on project');
+                    }
+                }
+
+                const successMsg =
+                    seedWarnings.length > 0
+                        ? `Project initialized successfully. Some related sections could not be updated (${seedWarnings.join(', ')}).`
+                        : 'Project initialized successfully!';
+                setSuccess(successMsg);
+
                 // Send notification to PMC Coordinators
                 try {
-                    await notificationApi.sendProjectCreatedNotification(response.data.project.id);
+                    if (projectId) {
+                        await notificationApi.sendProjectCreatedNotification(projectId);
+                    }
                 } catch (notificationError) {
                     console.error('Failed to send project created notification:', notificationError);
-                    // Don't fail the whole operation if notification fails
                 }
-                // Reset form
-                setFormData({
-                    name: '',
-                    location: '',
-                    project_start: '',
-                    contract_finish: '',
-                    forecast_finish: '',
-                    original_contract_value: '',
-                    approved_vo: '',
-                    pending_vo: '',
-                    bac: '',
-                    working_hours_per_day: '8',
-                    working_days_per_month: '26',
-                    assigned_users: [],
-                });
-                // Refresh projects list
+
+                setFormData({ ...EMPTY_FORM });
                 loadProjects();
-                // Notify parent
                 if (onProjectCreated) {
                     onProjectCreated();
                 }

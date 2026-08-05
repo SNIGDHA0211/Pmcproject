@@ -31,23 +31,34 @@ export type ExecutiveTabAlertsMap = Record<ExecutiveAlertTab, ExecutiveTabAlert>
 
 type BuildArgs = {
   healthTone: ProjectHealthTone;
+  /** Project health label — skip “At risk” for brand-new projects with no data. */
+  healthLabel?: string;
   sclDates: ProjectDatesRecord | null;
   contractorDates: ProjectDatesRecord | null;
   openIssuesCount: number;
   bottleneckItems: BottleneckItem[];
   drawingApprovalPct: number | null;
+  /** Only flag low drawings when register data exists. */
+  hasDrawingData?: boolean;
   correspondencePending: number;
   /** Gauge 0–100; values &lt; 100 mean CPI &lt; 1 */
   cpiPct: number | null;
   hseStatus: string | null | undefined;
+  /** Days late only (positive). Ahead-of-schedule must not be passed as absolute. */
   delayDays: number | null;
   criticalRisks: number;
 };
 
 const empty = (): ExecutiveTabAlert => ({ count: 0, severity: 'info', lookHere: [] });
 
-function delayOf(d: ProjectDatesRecord | null | undefined): number {
-  return Math.max(0, Number(d?.delay_days ?? d?.current_delay ?? 0) || 0);
+/** Days behind contract finish — ignore ahead-of-schedule (negative) values. */
+function daysLate(d: ProjectDatesRecord | null | undefined): number {
+  const n = Math.round(Number(d?.current_delay ?? d?.delay_days ?? 0) || 0);
+  return n > 0 ? n : 0;
+}
+
+function daysLateLabel(days: number): string {
+  return `${days} day${days === 1 ? '' : 's'} late`;
 }
 
 /**
@@ -64,8 +75,8 @@ export function buildExecutiveTabAlerts(args: BuildArgs): ExecutiveTabAlertsMap 
     compliance: empty(),
   };
 
-  const sclDelay = delayOf(args.sclDates);
-  const contractorDelay = delayOf(args.contractorDates);
+  const sclDelay = daysLate(args.sclDates);
+  const contractorDelay = daysLate(args.contractorDates);
   const highPriorityOpen = args.bottleneckItems.filter(
     (b) => b.status !== 'Closed' && b.priority === 'High' && b.description.trim(),
   );
@@ -73,7 +84,9 @@ export function buildExecutiveTabAlerts(args: BuildArgs): ExecutiveTabAlertsMap 
     (b) => b.type === 'RISK' && b.status !== 'Closed' && b.description.trim(),
   );
   const hseCritical = String(args.hseStatus ?? '').toUpperCase() === 'CRITICAL';
+  const hasDrawingData = args.hasDrawingData === true;
   const drawingsLow =
+    hasDrawingData &&
     args.drawingApprovalPct != null &&
     Number.isFinite(args.drawingApprovalPct) &&
     args.drawingApprovalPct < 75;
@@ -83,14 +96,22 @@ export function buildExecutiveTabAlerts(args: BuildArgs): ExecutiveTabAlertsMap 
       : null;
   const cpiLow = cpi != null && cpi < 1;
   const hasOpenIssues = args.openIssuesCount > 0;
-  const scheduleDelay = Math.max(sclDelay, contractorDelay, args.delayDays ?? 0);
+  const fallbackLate =
+    !args.sclDates && !args.contractorDates && (args.delayDays ?? 0) > 0
+      ? Math.round(args.delayDays!)
+      : 0;
+  const scheduleDelay = Math.max(sclDelay, contractorDelay, fallbackLate);
+  const healthLabel = String(args.healthLabel ?? '').trim();
+  const showHealthWarning =
+    args.healthTone === 'bad' ||
+    (args.healthTone === 'warn' && healthLabel !== 'New');
 
   // —— Schedule ——
   if (sclDelay > 0) {
     map.schedule.lookHere.push({
       id: 'scl-delay',
-      label: 'SCL delay',
-      hint: `${sclDelay} day${sclDelay === 1 ? '' : 's'}`,
+      label: 'SCL behind schedule',
+      hint: daysLateLabel(sclDelay),
       sectionId: 'exec-section-schedule',
       severity: 'critical',
     });
@@ -98,8 +119,8 @@ export function buildExecutiveTabAlerts(args: BuildArgs): ExecutiveTabAlertsMap 
   if (contractorDelay > 0) {
     map.schedule.lookHere.push({
       id: 'contractor-delay',
-      label: 'Contractor delay',
-      hint: `${contractorDelay} day${contractorDelay === 1 ? '' : 's'}`,
+      label: 'Contractor behind schedule',
+      hint: daysLateLabel(contractorDelay),
       sectionId: 'exec-section-schedule',
       severity: 'critical',
     });
@@ -107,8 +128,8 @@ export function buildExecutiveTabAlerts(args: BuildArgs): ExecutiveTabAlertsMap 
   if (scheduleDelay > 0 && map.schedule.lookHere.length === 0) {
     map.schedule.lookHere.push({
       id: 'project-delay',
-      label: 'Project delay',
-      hint: `${scheduleDelay} days`,
+      label: 'Behind schedule',
+      hint: daysLateLabel(scheduleDelay),
       sectionId: 'exec-section-schedule',
       severity: 'critical',
     });
@@ -176,18 +197,18 @@ export function buildExecutiveTabAlerts(args: BuildArgs): ExecutiveTabAlertsMap 
   if (cpiLow) {
     map.money.lookHere.push({
       id: 'cpi',
-      label: 'CPI',
-      hint: cpi!.toFixed(2),
+      label: 'Cost performance',
+      hint: `CPI ${cpi!.toFixed(2)}`,
       sectionId: 'exec-section-financial',
       severity: 'critical',
     });
   }
 
   // —— Overview roll-up ——
-  if (args.healthTone === 'bad' || args.healthTone === 'warn') {
+  if (showHealthWarning) {
     map.overview.lookHere.push({
       id: 'health',
-      label: 'Health',
+      label: 'Project health',
       hint: args.healthTone === 'bad' ? 'Critical' : 'At risk',
       goToTab: scheduleDelay > 0 ? 'schedule' : args.criticalRisks > 0 ? 'risk' : 'overview',
       severity: args.healthTone === 'bad' ? 'critical' : 'warning',
@@ -197,7 +218,7 @@ export function buildExecutiveTabAlerts(args: BuildArgs): ExecutiveTabAlertsMap 
     map.overview.lookHere.push({
       id: 'ov-delay',
       label: 'Schedule',
-      hint: `${scheduleDelay} days delay`,
+      hint: daysLateLabel(scheduleDelay),
       goToTab: 'schedule',
       sectionId: 'exec-section-schedule',
       severity: 'critical',
@@ -236,8 +257,8 @@ export function buildExecutiveTabAlerts(args: BuildArgs): ExecutiveTabAlertsMap 
   if (drawingsLow) {
     map.overview.lookHere.push({
       id: 'ov-drawings',
-      label: 'Compliance',
-      hint: `Drawings ${Math.round(args.drawingApprovalPct!)}%`,
+      label: 'Drawings',
+      hint: `${Math.round(args.drawingApprovalPct!)}% approved`,
       goToTab: 'compliance',
       sectionId: 'exec-section-drawings',
       severity: 'warning',

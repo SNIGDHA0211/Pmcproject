@@ -113,6 +113,7 @@ function extrasFromDashboard(dashboardData: Record<string, unknown>): VitalsExtr
             actual: progressHint,
             cumulativePlanned: progressHint,
             cumulativeActual: progressHint,
+            difference: 0,
             sortKey: Date.now(),
           },
         ]
@@ -160,7 +161,7 @@ function metricsInputFromDashboard(
     ],
     manpowerRows: [],
     hseMetrics: null,
-    hasHseData: hasSeedHseData(project) || Object.keys(dashboardData).length > 0,
+    hasHseData: hasSeedHseData(project),
     bottleneckItems: [],
     drawingApprovalRate,
     hasDrawingData,

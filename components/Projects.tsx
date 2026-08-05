@@ -84,6 +84,7 @@ import type { SubTab } from './FinancialManagement';
 import MachinerySubmissionsTL from './MachinerySubmissionsTL';
 import ProjectsDashboardTour from './tours/ProjectsDashboardTour';
 import { ModalPortal } from './ModalPortal';
+import ProjectEotSection from './projectEot/ProjectEotSection';
 import { CardHeaderActions, CardEditButton, FormulaInfoButton } from './FormulaInfoButton';
 import { DASHBOARD_FORMULAS } from '../utils/dashboardFormulas';
 import PerformanceHighlightCard, {
@@ -93,7 +94,10 @@ import PerformanceHighlightCard, {
 } from './PerformanceHighlightCard';
 import { PlannedEarnedValueGroupCard } from './PlannedEarnedValueCard';
 import { plannedVsActualApi } from '../services/plannedVsActualApi';
-import { pvaBundleToPlannedEarnedPeriod } from '../utils/pvaDashboardAdapter';
+import {
+  pvaBundleHasDisplayData,
+  pvaBundleToPlannedEarnedPeriod,
+} from '../utils/pvaDashboardAdapter';
 import PMCHeadExecutiveShell, {
   type PMCExecutiveTab,
 } from './pmcHead/PMCHeadExecutiveShell';
@@ -164,6 +168,10 @@ import {
   formatChartCountAxisTick,
   formatChartCurrencyAxisTick,
 } from '../utils/dashboardCharts';
+import {
+  ProgressCurveTooltip,
+  ProgressDifferenceSummaryChip,
+} from './charts/ProgressCurveTooltip';
 
 interface ProjectsProps {
   projects: Project[];
@@ -2037,13 +2045,45 @@ const Projects: React.FC<ProjectsProps> = ({
       try {
         // Prefer refactored Planned vs Actual API (backend-computed metrics).
         try {
-          const [bundle, trend] = await Promise.all([
+          const [initialBundle, trend] = await Promise.all([
             plannedVsActualApi.getByProject(projectName, { month, year }),
             plannedVsActualApi.getTrend(projectName, { year }).catch(() => null),
           ]);
-          setPlannedEarnedByPeriod(pvaBundleToPlannedEarnedPeriod(bundle));
 
           const points = trend?.points ?? [];
+          // Selected period (e.g. Aug) may be empty while earlier months (May–Jul) have data.
+          // Fall back to the latest trend month that has values so detail charts aren't blank.
+          let bundle = initialBundle;
+          if (!pvaBundleHasDisplayData(bundle) && points.length > 0) {
+            const latestWithData = [...points]
+              .reverse()
+              .find(
+                (p) =>
+                  p.sclPlanned ||
+                  p.sclActual ||
+                  p.sclCollection ||
+                  p.contractorPlanned ||
+                  p.contractorActual ||
+                  p.contractorCollection,
+              );
+            if (latestWithData?.month) {
+              try {
+                const fallback = await plannedVsActualApi.getByProject(projectName, {
+                  month: latestWithData.month,
+                  year: trend?.year ?? year,
+                });
+                if (pvaBundleHasDisplayData(fallback)) {
+                  bundle = fallback;
+                }
+              } catch {
+                // Keep selected-period empty bundle; trend chart still shows history.
+              }
+            }
+          }
+
+          const periodMetrics = pvaBundleToPlannedEarnedPeriod(bundle);
+          setPlannedEarnedByPeriod(periodMetrics);
+
           const sclMonths = points
             .filter((p) => p.sclPlanned || p.sclActual || p.sclCollection)
             .map((p) => ({
@@ -2066,18 +2106,18 @@ const Projects: React.FC<ProjectsProps> = ({
             sclMonths,
             contractorMonths,
             current: {
-              scl: bundle.scl
+              scl: periodMetrics.scl
                 ? {
-                    planned: bundle.scl.plannedValue,
-                    actual: bundle.scl.actualValue,
-                    collection: bundle.scl.collection,
+                    planned: periodMetrics.scl.plannedValue,
+                    actual: periodMetrics.scl.earnedValue,
+                    collection: periodMetrics.scl.collection ?? 0,
                   }
                 : null,
-              contractor: bundle.contractorSummary
+              contractor: periodMetrics.contractor
                 ? {
-                    planned: bundle.contractorSummary.plannedValue,
-                    actual: bundle.contractorSummary.actualValue,
-                    collection: bundle.contractorSummary.collection,
+                    planned: periodMetrics.contractor.plannedValue,
+                    actual: periodMetrics.contractor.earnedValue,
+                    collection: periodMetrics.contractor.collection ?? 0,
                   }
                 : null,
             },
@@ -2210,6 +2250,22 @@ const Projects: React.FC<ProjectsProps> = ({
     )
     ?? null;
 
+  const hasPersistedHseData = Boolean(
+    (currentHealthSafetyRecord?.id != null && String(currentHealthSafetyRecord.id).trim()) ||
+      (healthSafetyDashboard?.monthlyRecords ?? []).some(
+        (row) => row.id != null && String(row.id).trim(),
+      ) ||
+      ((healthSafetyDashboard?.ytdSummary?.workingDays ?? 0) > 0) ||
+      ((healthSafetyDashboard?.ytdSummary?.manHoursWorked ?? 0) > 0) ||
+      ((healthSafetyDashboard?.ytdSummary?.totalManhours ?? 0) > 0) ||
+      ((healthSafetyDashboard?.ytdSummary?.fatalities ?? 0) +
+        (healthSafetyDashboard?.ytdSummary?.significant ?? 0) +
+        (healthSafetyDashboard?.ytdSummary?.major ?? 0) +
+        (healthSafetyDashboard?.ytdSummary?.minor ?? 0) +
+        (healthSafetyDashboard?.ytdSummary?.nearMiss ?? 0) >
+        0),
+  );
+
   const safetyStats = currentHealthSafetyRecord ? {
     fatalities: currentHealthSafetyRecord.fatalities || 0,
     significant: currentHealthSafetyRecord.significant || 0,
@@ -2281,6 +2337,10 @@ const Projects: React.FC<ProjectsProps> = ({
 
   // Progress S-Curve data from API or empty array
   const progressSCurveData = projectProgressData.length > 0 ? projectProgressData : [];
+  const latestProgressCurvePoint =
+    progressSCurveData.length > 0
+      ? progressSCurveData[progressSCurveData.length - 1]
+      : null;
 
   const dashboardMetrics = computeProjectDashboardMetrics({
     progressChart: progressSCurveData,
@@ -2291,9 +2351,7 @@ const Projects: React.FC<ProjectsProps> = ({
       actual: toNum(row.actual),
     })),
     hseMetrics: toIncidentMetrics(currentHealthSafetyRecord ?? safetyStats),
-    hasHseData: Boolean(
-      currentHealthSafetyRecord || healthSafetyDashboard?.ytdSummary || dashboardData,
-    ),
+    hasHseData: hasPersistedHseData,
     bottleneckItems,
     drawingApprovalRate: drawingProjectSummary?.approvalRate ?? null,
     hasDrawingData: Boolean(drawingProjectSummary),
@@ -2343,6 +2401,26 @@ const Projects: React.FC<ProjectsProps> = ({
       })),
     [costPerformanceData],
   );
+
+  const executiveBgStatusSnapshot = useMemo(() => {
+    const summary = projectDatesBundle?.bg_summary;
+    if (!summary) return null;
+    return {
+      updated: Number(summary.updated) || 0,
+      yetToUpdate: Number(summary.yet_to_update) || 0,
+      notUpdated: Number(summary.not_updated) || 0,
+      compliancePct: Number(summary.compliance_percentage) || 0,
+    };
+  }, [projectDatesBundle?.bg_summary]);
+
+  const executiveCashInflowSnapshot = useMemo(() => {
+    if (!cashflowDataState.length) return null;
+    const last = cashflowDataState[cashflowDataState.length - 1];
+    const planned = Number(last?.cumPlanIn ?? 0);
+    const actual = Number(last?.cumActualIn ?? 0);
+    if (!planned && !actual) return null;
+    return { planned, actual };
+  }, [cashflowDataState]);
 
   const executiveContractSnapshot = useMemo(
     () =>
@@ -2422,8 +2500,11 @@ const Projects: React.FC<ProjectsProps> = ({
   const drawingApprovalPct = dashboardMetrics.drawingApprovalPct;
   const projectHealthSummary = dashboardMetrics.projectHealth;
 
-  const sclDelayDays = Math.abs(
-    toNum(projectDatesBundle?.scl?.current_delay ?? projectDatesBundle?.scl?.delay_days),
+  const sclDelayDays = Math.max(
+    0,
+    Math.round(
+      toNum(projectDatesBundle?.scl?.current_delay ?? projectDatesBundle?.scl?.delay_days),
+    ),
   );
   const contractorDelayDays = maxContractorDelay(projectContractors);
   const selectedContractorRecord = resolveSelectedContractor(
@@ -2460,6 +2541,8 @@ const Projects: React.FC<ProjectsProps> = ({
     healthSafetyLabel: dashboardMetrics.healthSafetyStatus.label,
     healthSafetySublabel: dashboardMetrics.healthSafetyStatus.sublabel,
     drawingApprovalPct,
+    hasDrawingData: Boolean(drawingProjectSummary),
+    hasBottleneckData: bottleneckItems.some((i) => i.description.trim()),
     cpiPct: cpiGaugePct,
     contractValueLabel: sclContractValue?.revisedContractValue
       ? formatIndianCurrencyCompact(sclContractValue.revisedContractValue)
@@ -2750,6 +2833,8 @@ const Projects: React.FC<ProjectsProps> = ({
           correspondenceStats={executiveCorrespondenceStats}
           contractSnapshot={executiveContractSnapshot}
           pvaVelocity={pvaVelocityTrend}
+          bgStatusSnapshot={executiveBgStatusSnapshot}
+          cashInflowSnapshot={executiveCashInflowSnapshot}
         />
       )}
 
@@ -2772,6 +2857,8 @@ const Projects: React.FC<ProjectsProps> = ({
           correspondenceStats={executiveCorrespondenceStats}
           contractSnapshot={executiveContractSnapshot}
           pvaVelocity={pvaVelocityTrend}
+          bgStatusSnapshot={executiveBgStatusSnapshot}
+          cashInflowSnapshot={executiveCashInflowSnapshot}
           onExport={exportProjectDataExcel}
           onOpenFullView={(section) => {
             onTeamLeaderViewChange?.('full');
@@ -2915,6 +3002,22 @@ const Projects: React.FC<ProjectsProps> = ({
                 onDeleteContractor={handleDeleteContractor}
                 onManageBg={openBgStatusModal}
               >
+                {selectedProject?.title ? (
+                  <ProjectEotSection
+                    projectName={selectedProject.title}
+                    role={currentUser.role}
+                    seedDates={
+                      projectDatesBundle?.scl
+                        ? {
+                            project_start: projectDatesBundle.scl.project_start,
+                            contract_finish: projectDatesBundle.scl.contract_finish,
+                            forecast_finish: projectDatesBundle.scl.forecast_finish,
+                            eot_date: projectDatesBundle.scl.eot_date,
+                          }
+                        : null
+                    }
+                  />
+                ) : null}
                 <PMCExecutivePanel title="Site Photos" subtitle="Latest on-site construction imagery">
                   <SitePhotosCard
                     embedded
@@ -3401,13 +3504,14 @@ const Projects: React.FC<ProjectsProps> = ({
             <section id="tl-section-charts" className="exec-section-progress graphs-analytics-section space-y-3">
               {tabVisible('schedule') && (
                 isPMCHead ? (
-                  <PMCExecutivePanel title="Physical Progress Status" subtitle="Progress S-curve — executive view">
+                  <PMCExecutivePanel title="Physical Progress Status" subtitle="Progress S-curve · difference = cumulative plan − actual">
                     <div className="p-3 sm:p-4">
                       {isLoadingProjectProgress ? (
                         <div className="flex items-center justify-center" style={{ height: DASHBOARD_CHART_MIN_HEIGHT }}>
                           <div className={`${typo.muted} ${themeClasses.textMuted}`}>Loading physical progress data...</div>
                         </div>
                       ) : progressSCurveData.length > 0 ? (
+                        <>
                         <ExecutiveChartWithLegend
                           height={DASHBOARD_CHART_MIN_HEIGHT}
                           legend={[
@@ -3437,7 +3541,7 @@ const Projects: React.FC<ProjectsProps> = ({
                                 axisLine={{ stroke: chartAxisStroke(isDarkTheme) }}
                                 tickLine={{ stroke: chartAxisStroke(isDarkTheme) }}
                               />
-                              <Tooltip contentStyle={chartTooltipStyle(isDarkTheme)} />
+                              <Tooltip content={<ProgressCurveTooltip isDark={isDarkTheme} showMonthly />} />
                               <Line type="monotone" dataKey="monthlyPlanned" stroke="#3B82F6" strokeWidth={2} name="Monthly Planned" dot={false} activeDot={chartActiveDot} isAnimationActive={false} />
                               <Line type="monotone" dataKey="monthlyActual" stroke="#10B981" strokeWidth={2} name="Monthly Actual" dot={false} activeDot={chartActiveDot} isAnimationActive={false} />
                               <Line type="monotone" dataKey="planned" stroke="#F59E0B" strokeWidth={2.5} strokeDasharray="6 4" name="Cumulative Planned" dot={false} activeDot={chartActiveDot} isAnimationActive={false} />
@@ -3445,6 +3549,17 @@ const Projects: React.FC<ProjectsProps> = ({
                             </LineChart>
                           </ResponsiveContainer>
                         </ExecutiveChartWithLegend>
+                        {latestProgressCurvePoint && (
+                          <div className="mt-2 px-1">
+                            <ProgressDifferenceSummaryChip
+                              planned={Number(latestProgressCurvePoint.planned) || 0}
+                              actual={Number(latestProgressCurvePoint.actual) || 0}
+                              isDark={isDarkTheme}
+                              periodLabel={String(latestProgressCurvePoint.month)}
+                            />
+                          </div>
+                        )}
+                        </>
                       ) : (
                         <div className="flex items-center justify-center" style={{ height: DASHBOARD_CHART_MIN_HEIGHT }}>
                           <div className={`${typo.muted} ${themeClasses.textMuted}`}>No physical progress data available for this project</div>
@@ -3494,7 +3609,7 @@ const Projects: React.FC<ProjectsProps> = ({
                                 axisLine={{ stroke: chartAxisStroke(isDarkTheme) }}
                                 tickLine={{ stroke: chartAxisStroke(isDarkTheme) }}
                               />
-                              <Tooltip contentStyle={chartTooltipStyle(isDarkTheme)} />
+                              <Tooltip content={<ProgressCurveTooltip isDark={isDarkTheme} showMonthly />} />
                               <Legend {...chartLegendProps(11, isDarkTheme)} />
                               <Line type="monotone" dataKey="monthlyPlanned" stroke="#3B82F6" strokeWidth={2} name="Monthly Planned" dot={false} activeDot={chartActiveDot} isAnimationActive={false} />
                               <Line type="monotone" dataKey="monthlyActual" stroke="#10B981" strokeWidth={2} name="Monthly Actual" dot={false} activeDot={chartActiveDot} isAnimationActive={false} />
@@ -3502,6 +3617,16 @@ const Projects: React.FC<ProjectsProps> = ({
                               <Line type="monotone" dataKey="actual" stroke="#EF4444" strokeWidth={2.5} name="Cumulative Actual" dot={false} activeDot={chartActiveDot} isAnimationActive={false} />
                             </LineChart>
                           </ResponsiveContainer>
+                          {latestProgressCurvePoint && (
+                            <div className="mt-2">
+                              <ProgressDifferenceSummaryChip
+                                planned={Number(latestProgressCurvePoint.planned) || 0}
+                                actual={Number(latestProgressCurvePoint.actual) || 0}
+                                isDark={isDarkTheme}
+                                periodLabel={String(latestProgressCurvePoint.month)}
+                              />
+                            </div>
+                          )}
                         </div>
                       ) : (
                         <div className="flex items-center justify-center" style={{ height: DASHBOARD_CHART_MIN_HEIGHT }}>

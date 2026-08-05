@@ -60,7 +60,7 @@ export function buildTeamLeaderOverviewDecisionQueue(
     });
   });
 
-  if (metrics.healthSafetyLabel === 'CRITICAL') {
+  if (healthSafetySublabel !== 'No HSE data' && metrics.healthSafetyLabel === 'CRITICAL') {
     items.push({
       id: 'hse',
       title: healthSafetySublabel
@@ -72,7 +72,7 @@ export function buildTeamLeaderOverviewDecisionQueue(
     });
   }
 
-  if (metrics.drawingApprovalPct < 75) {
+  if (metrics.drawingApprovalPct > 0 && metrics.drawingApprovalPct < 75) {
     items.push({
       id: 'drawing',
       title: `Drawing approval at ${Math.round(metrics.drawingApprovalPct)}%`,

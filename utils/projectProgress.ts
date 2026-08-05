@@ -10,6 +10,8 @@ export type ProjectProgressChartPoint = {
   actual: number;
   cumulativePlanned: number;
   cumulativeActual: number;
+  /** Cumulative planned − cumulative actual */
+  difference: number;
   /** Epoch ms for chronological sort / phase detection */
   sortKey: number;
 };
@@ -20,7 +22,40 @@ export type ExecutiveProgressCurvePoint = {
   actual: number;
   monthlyPlanned: number;
   monthlyActual: number;
+  /** Cumulative planned − cumulative actual (%). Positive = behind plan. */
+  difference: number;
 };
+
+/** Cumulative planned − cumulative actual (percentage points). */
+export function progressCumulativeDifference(
+  cumulativePlanned: number,
+  cumulativeActual: number,
+): number {
+  const planned = Number(cumulativePlanned);
+  const actual = Number(cumulativeActual);
+  if (!Number.isFinite(planned) || !Number.isFinite(actual)) return 0;
+  return Math.round((planned - actual) * 10) / 10;
+}
+
+export function formatProgressDifferencePct(diff: number): string {
+  if (!Number.isFinite(diff)) return '—';
+  const rounded = Math.round(diff * 10) / 10;
+  const sign = rounded > 0 ? '+' : '';
+  return `${sign}${rounded.toFixed(1)}%`;
+}
+
+/** Client-facing meaning of planned − actual. */
+export function progressDifferenceStatus(diff: number): 'on_plan' | 'behind' | 'ahead' {
+  if (!Number.isFinite(diff) || Math.abs(diff) < 0.05) return 'on_plan';
+  return diff > 0 ? 'behind' : 'ahead';
+}
+
+export function progressDifferenceStatusLabel(diff: number): string {
+  const status = progressDifferenceStatus(diff);
+  if (status === 'on_plan') return 'On plan';
+  if (status === 'behind') return 'Behind plan';
+  return 'Ahead of plan';
+}
 
 type ProgressRow = Record<string, unknown>;
 
@@ -134,6 +169,7 @@ export function mapProjectProgressToChartPoints(
         actual: cumulativeActual,
         cumulativePlanned,
         cumulativeActual,
+        difference: progressCumulativeDifference(cumulativePlanned, cumulativeActual),
         sortKey,
       };
     })
@@ -176,11 +212,16 @@ export function buildExecutiveProgressCurveData(
       ? phase
       : phase.slice(-maxPoints);
 
-  return sampled.map((p) => ({
-    month: p.month,
-    planned: p.cumulativePlanned,
-    actual: p.cumulativeActual,
-    monthlyPlanned: p.monthlyPlanned,
-    monthlyActual: p.monthlyActual,
-  }));
+  return sampled.map((p) => {
+    const planned = p.cumulativePlanned;
+    const actual = p.cumulativeActual;
+    return {
+      month: p.month,
+      planned,
+      actual,
+      monthlyPlanned: p.monthlyPlanned,
+      monthlyActual: p.monthlyActual,
+      difference: progressCumulativeDifference(planned, actual),
+    };
+  });
 }

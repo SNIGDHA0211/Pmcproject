@@ -17,7 +17,8 @@ import {
 } from '../../utils/dashboardSemanticColors';
 import { usePmcExecutiveTheme } from '../../utils/pmcExecutiveTheme';
 import { plannedValueSectionTitle } from '../../utils/dashboardContractorLabels';
-import type { PlannedEarnedPartyMetrics } from '../../services/api';
+import { monthYearLabel } from '../../utils/healthSafety';
+import type { PlannedEarnedByPeriodResponse } from '../../services/api';
 
 const mapPerformanceTone = (tone: PerformanceStatusTone): DashboardSemanticTone => {
   if (tone === 'success') return 'positive';
@@ -27,10 +28,7 @@ const mapPerformanceTone = (tone: PerformanceStatusTone): DashboardSemanticTone 
 };
 
 export interface PMCHeadMoneyKpiSectionProps {
-  plannedEarnedByPeriod: {
-    scl: PlannedEarnedPartyMetrics | null;
-    contractor: PlannedEarnedPartyMetrics | null;
-  } | null;
+  plannedEarnedByPeriod: PlannedEarnedByPeriodResponse | null;
   isLoadingPlannedEarned: boolean;
   plannedEarnedError: string | null;
   cpiGaugePct: number;
@@ -157,12 +155,18 @@ const PMCHeadMoneyKpiSection: React.FC<PMCHeadMoneyKpiSectionProps> = ({
   const cpiTone = mapPerformanceTone(cpiStatus.tone);
   const collectionTone = mapPerformanceTone(collectionStatus.tone);
 
+  const periodLabel =
+    plannedEarnedByPeriod?.month && plannedEarnedByPeriod?.year
+      ? monthYearLabel(plannedEarnedByPeriod.month, plannedEarnedByPeriod.year)
+      : null;
+
   return (
     <section id="exec-section-planned-vs-actual" className={`overflow-hidden ${ex.surface}`}>
       <div className={`border-b px-4 py-3.5 sm:px-5 ${ex.borderSubtle} ${ex.surfaceMuted}`}>
         <h3 className={ex.panelTitle}>Performance indicators</h3>
         <p className={ex.panelSubtitle}>
           Earned value, cost index & collection at a glance
+          {periodLabel ? ` · ${periodLabel}` : ''}
         </p>
       </div>
 
@@ -172,7 +176,11 @@ const PMCHeadMoneyKpiSection: React.FC<PMCHeadMoneyKpiSectionProps> = ({
           sclData={plannedEarnedByPeriod?.scl ?? null}
           contractorData={plannedEarnedByPeriod?.contractor ?? null}
           contractorSectionTitle={plannedValueSectionTitle('Contractor', contractorDisplayName)}
-          groupSubtitle="SCL & Contractor performance"
+          groupSubtitle={
+            periodLabel
+              ? `SCL & Contractor performance · ${periodLabel}`
+              : 'SCL & Contractor performance'
+          }
           isLoading={isLoadingPlannedEarned}
           sclError={plannedEarnedError}
           contractorError={plannedEarnedError}

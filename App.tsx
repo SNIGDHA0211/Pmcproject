@@ -802,7 +802,9 @@ const App: React.FC = () => {
       const savedProject = response.data;
 
       // Transform backend data back to frontend format
+      const createdAt = savedProject.created_at || new Date().toISOString();
       const newProject: Project = {
+        ...projectData,
         id: savedProject.id.toString(),
         title: sanitizeProjectDisplayName(savedProject.name),
         apiName: savedProject.name,
@@ -810,27 +812,31 @@ const App: React.FC = () => {
         location: savedProject.location,
         budget: Number(savedProject.budget),
         description: savedProject.description,
-        status: ProjectStatus.IN_PROGRESS, // Default status for UI
+        status: ProjectStatus.CREATED,
+        createdAt,
+        updatedAt: savedProject.updated_at || createdAt,
         workflowStatus: "SUBMITTED",
-        lastUpdated: new Date().toISOString(),
+        lastUpdated: createdAt,
         tasks: [],
-        documents: [], // Handle docs separately if needed
+        documents: [],
         sites: [],
         auditLogs: [{
           id: `a-${Date.now()}`,
           action: "Project Initiated",
           performedBy: (savedProject.created_by?.toString?.() || savedProject.created_by || currentUser?.id || "sys"),
-          timestamp: savedProject.created_at || new Date().toISOString(),
+          timestamp: createdAt,
           details: savedProject.created_by_name ? `Created by ${savedProject.created_by_name}` : "Created and stored in backend"
         }],
-        ...projectData // Keep other frontend-only fields
       } as Project;
 
       // Auto-assign a unique professional cover (no upload prompt)
       ensureProjectCoverAssigned(newProject.id, newProject.title, newProject.location);
 
-      // Add to local state for immediate UI update
-      setProjects(prev => [newProject, ...prev]);
+      // Add to local state for immediate UI update (kept through portfolio rebuild)
+      setProjects((prev) => {
+        const withoutDup = prev.filter((p) => String(p.id) !== String(newProject.id));
+        return buildPmcHeadDropdownProjects([newProject, ...withoutDup]);
+      });
       setIsCreateModalOpen(false);
 
       // Refresh data from backend to ensure consistency and make it available to other dashboards
@@ -1477,13 +1483,13 @@ const App: React.FC = () => {
     setPortfolioDeleteDeps([]);
 
     try {
-      const response = await projectApi.deleteSite(portfolioDeleteTarget.id);
+      const response = await projectApi.deleteProject(portfolioDeleteTarget.id);
       const message =
         (response.data &&
           typeof response.data === "object" &&
           typeof (response.data as { message?: string }).message === "string" &&
           (response.data as { message: string }).message) ||
-        "Site deleted successfully.";
+        "Project deleted successfully.";
 
       const deletedId = portfolioDeleteTarget.id;
       setPortfolioDeleteTarget(null);
@@ -1502,34 +1508,37 @@ const App: React.FC = () => {
           setPortfolioDeleteDepError(
             getApiErrorMessage(
               err,
-              "This site cannot be deleted because it is referenced by existing records.",
+              "This project cannot be deleted because it is referenced by existing records.",
             ),
           );
           return;
         }
 
         if (status === 403) {
-          const msg = "You do not have permission to delete this site.";
+          const msg = "You do not have permission to delete this project.";
           setPortfolioDeleteError(msg);
           showPortfolioToast(msg, "error");
           return;
         }
 
         if (status === 404) {
-          const msg = "The selected site no longer exists.";
+          const msg = "The selected project no longer exists.";
           setPortfolioDeleteTarget(null);
+          setProjects((prev) =>
+            prev.filter((p) => String(p.id) !== String(portfolioDeleteTarget.id)),
+          );
           showPortfolioToast(msg, "error");
           await fetchData();
           return;
         }
 
-        const msg = getApiErrorMessage(err, "Failed to delete site.");
+        const msg = getApiErrorMessage(err, "Failed to delete project.");
         setPortfolioDeleteError(msg);
         showPortfolioToast(msg, "error");
         return;
       }
 
-      const msg = getApiErrorMessage(err, "Failed to delete site.");
+      const msg = getApiErrorMessage(err, "Failed to delete project.");
       setPortfolioDeleteError(msg);
       showPortfolioToast(msg, "error");
     } finally {
@@ -1701,6 +1710,18 @@ const App: React.FC = () => {
               onViewProject={(id) => {
                 setSelectedProjectId(id);
                 setActiveTab("team_projects");
+              }}
+              onInitializeProject={() => {
+                setSelectedProjectId(null);
+                setActiveTab("project_init");
+              }}
+              onProjectDeleted={(deletedId) => {
+                setProjects((prev) =>
+                  prev.filter((p) => String(p.id) !== String(deletedId)),
+                );
+                if (selectedProjectId && String(selectedProjectId) === String(deletedId)) {
+                  setSelectedProjectId(null);
+                }
               }}
             />
           ) : (
@@ -1959,6 +1980,7 @@ const App: React.FC = () => {
 
             <SiteDeleteDialog
               open={Boolean(portfolioDeleteTarget)}
+              entityLabel="Project"
               siteName={
                 portfolioDeleteTarget
                   ? sanitizeProjectDisplayName(portfolioDeleteTarget.title) ||

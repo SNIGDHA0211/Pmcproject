@@ -63,6 +63,8 @@ export const API_ENDPOINTS = {
     AVAILABLE_USERS: '/projects-data/projects/available-users/',
     UPDATE: (id: string) => `/projects-data/projects/${id}/`,
     PATCH: (id: string) => `/projects-data/projects/${id}/`,
+    /** DELETE project by id — Enterprise Portfolio / Live Project Registry. */
+    DELETE: (id: string | number) => `/projects-data/projects/${id}/`,
     /** POST mark project completed — `/api/projects/{id}/complete/` */
     COMPLETE: (id: string | number) => `/projects/${id}/complete/`,
     ASSIGN_TEAM_LEAD: (id: string) => `/projects-data/projects/${id}/assign-team-lead/`,
@@ -347,6 +349,14 @@ export const API_ENDPOINTS = {
     BG_STATUS: (projectName: string) =>
       `/project-dates/project/${encodeURIComponent(projectName)}/bg-status/`,
     BG_STATUS_DETAIL: (id: string | number) => `/project-dates/bg-status/${id}/`,
+  },
+
+  // Multi-EOT (Extension of Time) — separate from Project Dates
+  PROJECT_EOT: {
+    LIST: '/project-eot/',
+    DETAIL: (id: string | number) => `/project-eot/${id}/`,
+    PROJECT_SUMMARY: (projectName: string) =>
+      `/project-eot/project/${encodeURIComponent(projectName)}/`,
   },
 
 

@@ -55,6 +55,8 @@ interface TeamLeaderOverviewShellProps {
   correspondenceStats?: ExecutiveCorrespondenceStats | null;
   contractSnapshot?: ExecutiveContractSnapshot | null;
   pvaVelocity?: ExecutivePvaVelocityData | null;
+  bgStatusSnapshot?: import('../pmcHead/PMCExecutiveOverviewPanel').ExecutiveBgStatusSnapshot | null;
+  cashInflowSnapshot?: import('../pmcHead/PMCExecutiveOverviewPanel').ExecutiveCashInflowSnapshot | null;
   onExport: () => void;
   onOpenFullView: (section?: TeamLeaderOverviewSection) => void;
   onNavigateModule?: (tab: string) => void;
@@ -78,6 +80,8 @@ const TeamLeaderOverviewShell: React.FC<TeamLeaderOverviewShellProps> = ({
   correspondenceStats = null,
   contractSnapshot = null,
   pvaVelocity = null,
+  bgStatusSnapshot = null,
+  cashInflowSnapshot = null,
   onExport,
   onOpenFullView,
   decisionQueueOverride,
@@ -169,6 +173,8 @@ const TeamLeaderOverviewShell: React.FC<TeamLeaderOverviewShellProps> = ({
         correspondenceStats={correspondenceStats}
         contractSnapshot={contractSnapshot}
         pvaVelocity={pvaVelocity}
+        bgStatusSnapshot={bgStatusSnapshot}
+        cashInflowSnapshot={cashInflowSnapshot}
         projectTitle={project.title}
         bottleneckItems={bottleneckItems}
       />

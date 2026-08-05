@@ -1,9 +1,11 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowUpRight,
+  Check,
   ChevronDown,
   Download,
   FileText,
+  Loader2,
 } from 'lucide-react';
 import { Project } from '../../types';
 import type { ProjectDatesRecord } from '../../services/api';
@@ -21,6 +23,16 @@ import PMCExecutiveOverviewPanel, {
   type ExecutiveQualitySnapshot,
 } from './PMCExecutiveOverviewPanel';
 import { usePmcExecutiveTheme } from '../../utils/pmcExecutiveTheme';
+
+const PROJECT_SWITCH_LOGS = [
+  'Connecting to project workspace…',
+  'Loading schedule, dates & progress…',
+  'Syncing financial & compliance metrics…',
+  'Preparing executive overview…',
+] as const;
+
+const PROJECT_SWITCH_STEP_MS = 650;
+const PROJECT_SWITCH_HOLD_MS = 450;
 
 export type PMCExecutiveTab =
   | 'overview'
@@ -41,6 +53,10 @@ export interface PMCExecutiveShellMetrics {
   healthSafetyLabel: string;
   healthSafetySublabel: string;
   drawingApprovalPct: number;
+  /** False when drawing register has no backend rows for this project. */
+  hasDrawingData?: boolean;
+  /** False when bottleneck log is empty (new / unloaded project). */
+  hasBottleneckData?: boolean;
   cpiPct: number;
   contractValueLabel: string;
   openBottleneckCount: number;
@@ -68,6 +84,8 @@ interface PMCHeadExecutiveShellProps {
   correspondenceStats?: import('../../utils/executiveOverviewNavigation').ExecutiveCorrespondenceStats | null;
   contractSnapshot?: ExecutiveContractSnapshot | null;
   pvaVelocity?: import('./PMCExecutiveOverviewPanel').ExecutivePvaVelocityData | null;
+  bgStatusSnapshot?: import('./PMCExecutiveOverviewPanel').ExecutiveBgStatusSnapshot | null;
+  cashInflowSnapshot?: import('./PMCExecutiveOverviewPanel').ExecutiveCashInflowSnapshot | null;
 }
 
 const TABS: { id: PMCExecutiveTab; label: string }[] = [
@@ -102,10 +120,60 @@ const PMCHeadExecutiveShell: React.FC<PMCHeadExecutiveShellProps> = ({
   correspondenceStats = null,
   contractSnapshot = null,
   pvaVelocity = null,
+  bgStatusSnapshot = null,
+  cashInflowSnapshot = null,
 }) => {
   const ex = usePmcExecutiveTheme();
   const briefRef = useRef<string>('');
   const [briefToast, setBriefToast] = useState<string | null>(null);
+  const [projectSwitch, setProjectSwitch] = useState<{
+    title: string;
+    visibleLogCount: number;
+  } | null>(null);
+  const switchTimersRef = useRef<number[]>([]);
+
+  const clearSwitchTimers = useCallback(() => {
+    switchTimersRef.current.forEach((id) => window.clearTimeout(id));
+    switchTimersRef.current = [];
+  }, []);
+
+  useEffect(() => () => clearSwitchTimers(), [clearSwitchTimers]);
+
+  const handleProjectSelect = useCallback(
+    (id: string) => {
+      if (id === selectedProjectId || projectSwitch) return;
+      const next = projects.find((p) => p.id === id);
+      const title = next?.title?.trim() || 'Selected project';
+      clearSwitchTimers();
+      setProjectSwitch({ title, visibleLogCount: 1 });
+      onProjectChange(id);
+
+      PROJECT_SWITCH_LOGS.forEach((_, index) => {
+        if (index === 0) return;
+        const timer = window.setTimeout(() => {
+          setProjectSwitch((prev) =>
+            prev ? { ...prev, visibleLogCount: index + 1 } : prev,
+          );
+        }, index * PROJECT_SWITCH_STEP_MS);
+        switchTimersRef.current.push(timer);
+      });
+
+      const doneAt =
+        (PROJECT_SWITCH_LOGS.length - 1) * PROJECT_SWITCH_STEP_MS + PROJECT_SWITCH_HOLD_MS;
+      const doneTimer = window.setTimeout(() => {
+        setProjectSwitch(null);
+        switchTimersRef.current = [];
+      }, doneAt);
+      switchTimersRef.current.push(doneTimer);
+    },
+    [
+      clearSwitchTimers,
+      onProjectChange,
+      projectSwitch,
+      projects,
+      selectedProjectId,
+    ],
+  );
 
   const handleBriefReady = useCallback((markdown: string) => {
     briefRef.current = markdown;
@@ -153,11 +221,13 @@ const PMCHeadExecutiveShell: React.FC<PMCHeadExecutiveShellProps> = ({
     () =>
       buildExecutiveTabAlerts({
         healthTone: metrics.projectHealth.tone,
+        healthLabel: metrics.projectHealth.label,
         sclDates,
         contractorDates,
         openIssuesCount: openIssues.length,
         bottleneckItems,
         drawingApprovalPct: metrics.drawingApprovalPct,
+        hasDrawingData: metrics.hasDrawingData === true,
         correspondencePending,
         cpiPct: metrics.cpiPct,
         hseStatus: metrics.healthSafetyLabel,
@@ -219,7 +289,7 @@ const PMCHeadExecutiveShell: React.FC<PMCHeadExecutiveShellProps> = ({
       });
     });
 
-    if (metrics.healthSafetyLabel === 'CRITICAL') {
+    if (metrics.healthSafetySublabel !== 'No HSE data' && metrics.healthSafetyLabel === 'CRITICAL') {
       items.push({
         id: 'hse',
         title: `HSE: ${metrics.healthSafetySublabel}`,
@@ -229,7 +299,7 @@ const PMCHeadExecutiveShell: React.FC<PMCHeadExecutiveShellProps> = ({
       });
     }
 
-    if (metrics.drawingApprovalPct < 75) {
+    if (metrics.hasDrawingData && metrics.drawingApprovalPct < 75) {
       items.push({
         id: 'drawing',
         title: `Drawing approval at ${Math.round(metrics.drawingApprovalPct)}%`,
@@ -252,7 +322,70 @@ const PMCHeadExecutiveShell: React.FC<PMCHeadExecutiveShellProps> = ({
   }, [criticalRiskItems, metrics]);
 
   return (
-    <div className="space-y-2 sm:space-y-3">
+    <div className="relative space-y-2 sm:space-y-3">
+      {projectSwitch && (
+        <div
+          className="absolute inset-0 z-40 flex items-start justify-center rounded-2xl bg-[#0f2744]/55 px-3 py-10 backdrop-blur-[3px] sm:items-center sm:py-6"
+          role="status"
+          aria-live="polite"
+          aria-busy="true"
+        >
+          <div className="w-full max-w-md overflow-hidden rounded-2xl border border-white/15 bg-[#0b1d36]/95 shadow-[0_16px_48px_rgba(7,20,40,0.45)]">
+            <div className="border-b border-white/10 bg-gradient-to-r from-[#1e3a5f]/50 to-transparent px-4 py-3">
+              <div className="flex items-center gap-2.5">
+                <Loader2 size={16} className="shrink-0 animate-spin text-sky-300" />
+                <div className="min-w-0">
+                  <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-sky-200/80">
+                    Switching project
+                  </p>
+                  <p className="truncate text-sm font-semibold text-white">{projectSwitch.title}</p>
+                </div>
+              </div>
+              <div className="mt-3 h-1 overflow-hidden rounded-full bg-white/10">
+                <div
+                  className="h-full rounded-full bg-sky-400 transition-[width] duration-500 ease-out"
+                  style={{
+                    width: `${Math.min(
+                      100,
+                      (projectSwitch.visibleLogCount / PROJECT_SWITCH_LOGS.length) * 100,
+                    )}%`,
+                  }}
+                />
+              </div>
+            </div>
+            <ul className="space-y-1.5 px-4 py-3 font-mono text-[11px] leading-relaxed">
+              {PROJECT_SWITCH_LOGS.slice(0, projectSwitch.visibleLogCount).map((line, index) => {
+                const isLatest = index === projectSwitch.visibleLogCount - 1;
+                const isDone = index < projectSwitch.visibleLogCount - 1;
+                return (
+                  <li
+                    key={line}
+                    className={`flex items-start gap-2 ${
+                      isLatest ? 'text-sky-100' : 'text-slate-400'
+                    }`}
+                  >
+                    <span className="mt-0.5 inline-flex h-3.5 w-3.5 shrink-0 items-center justify-center">
+                      {isDone ? (
+                        <Check size={12} className="text-emerald-400" />
+                      ) : (
+                        <Loader2 size={12} className="animate-spin text-sky-300" />
+                      )}
+                    </span>
+                    <span>
+                      <span className="text-slate-500">[{String(index + 1).padStart(2, '0')}]</span>{' '}
+                      {line}
+                    </span>
+                  </li>
+                );
+              })}
+            </ul>
+            <p className="border-t border-white/10 px-4 py-2 text-[10px] font-medium text-slate-500">
+              Almost ready — just a moment
+            </p>
+          </div>
+        </div>
+      )}
+
       <header className="overflow-hidden rounded-xl bg-gradient-to-r from-[#0f2744] via-[#1e3a5f] to-[#1e3a5f] text-white shadow-[0_4px_20px_rgba(15,39,68,0.2)]">
         <div className="flex flex-col gap-2 p-3 sm:flex-row sm:items-center sm:justify-between sm:px-4 sm:py-2.5">
           <div className="min-w-0 flex-1 sm:max-w-md lg:max-w-lg">
@@ -266,8 +399,9 @@ const PMCHeadExecutiveShell: React.FC<PMCHeadExecutiveShellProps> = ({
               <select
                 id="pmc-exec-project-select"
                 value={selectedProjectId}
-                onChange={(e) => onProjectChange(e.target.value)}
-                className="w-full min-w-0 cursor-pointer appearance-none truncate rounded-lg border border-white/15 bg-white/10 py-1.5 pl-3 pr-8 text-xs font-semibold text-white outline-none backdrop-blur-sm transition hover:bg-white/15 focus:border-white/30 focus:ring-2 focus:ring-white/20 sm:text-sm"
+                disabled={Boolean(projectSwitch)}
+                onChange={(e) => handleProjectSelect(e.target.value)}
+                className="w-full min-w-0 cursor-pointer appearance-none truncate rounded-lg border border-white/15 bg-white/10 py-1.5 pl-3 pr-8 text-xs font-semibold text-white outline-none backdrop-blur-sm transition hover:bg-white/15 focus:border-white/30 focus:ring-2 focus:ring-white/20 disabled:cursor-wait disabled:opacity-70 sm:text-sm"
               >
                 {projects.map((p) => (
                   <option key={p.id} value={p.id} className="text-slate-900">
@@ -418,6 +552,8 @@ const PMCHeadExecutiveShell: React.FC<PMCHeadExecutiveShellProps> = ({
           correspondenceStats={correspondenceStats}
           contractSnapshot={contractSnapshot}
           pvaVelocity={pvaVelocity}
+          bgStatusSnapshot={bgStatusSnapshot}
+          cashInflowSnapshot={cashInflowSnapshot}
           projectTitle={projects.find((p) => p.id === selectedProjectId)?.title ?? 'Project'}
           bottleneckItems={bottleneckItems}
           onBriefReady={handleBriefReady}

@@ -5,6 +5,7 @@ import type { ContractorMasterRecord, ProjectDatesApiRecord } from '../../types/
 import type { ProjectDatesRecord } from '../../services/api';
 import type { BgManageScope } from '../ProjectDatesCard';
 import { ProjectDatesGroupCard } from '../ProjectDatesCard';
+import ProjectEotSection from '../projectEot/ProjectEotSection';
 import { useContractorManagementDashboard } from '../../hooks/useContractorManagementDashboard';
 import {
   mapBgEntriesApi,
@@ -153,6 +154,22 @@ const ContractorManagementDashboard: React.FC<ContractorManagementDashboardProps
         }
         onManageBg={datesAccess.canManageBg && onManageBg ? handleManageBgScope : undefined}
       />
+      {userRole ? (
+        <ProjectEotSection
+          projectName={project.title}
+          role={userRole}
+          seedDates={
+            mappedProjectDates?.scl
+              ? {
+                  project_start: mappedProjectDates.scl.project_start,
+                  contract_finish: mappedProjectDates.scl.contract_finish,
+                  forecast_finish: mappedProjectDates.scl.forecast_finish,
+                  eot_date: mappedProjectDates.scl.eot_date,
+                }
+              : null
+          }
+        />
+      ) : null}
     </div>
   ) : null;
 

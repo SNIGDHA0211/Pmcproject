@@ -5,6 +5,7 @@ import {
   ArrowRight,
   BarChart3,
   Calendar,
+  FileText,
   HardHat,
   IndianRupee,
   MessageSquare,
@@ -38,6 +39,11 @@ import {
   formatChartCountAxisTick,
   formatChartCurrencyAxisTick,
 } from '../../utils/dashboardCharts';
+import {
+  ProgressCurveTooltip,
+  ProgressDifferenceSummaryChip,
+} from '../charts/ProgressCurveTooltip';
+import { progressCumulativeDifference } from '../../utils/projectProgress';
 import { usePmcExecutiveTheme } from '../../utils/pmcExecutiveTheme';
 import type { ExecutiveCorrespondenceStats, ExecutiveOverviewAnchor } from '../../utils/executiveOverviewNavigation';
 import type { ExecutiveContractSnapshot } from '../../utils/executiveContractSnapshot';
@@ -58,6 +64,8 @@ export type ExecutiveProgressPoint = {
   actual: number;
   monthlyPlanned?: number;
   monthlyActual?: number;
+  /** Cumulative planned − cumulative actual */
+  difference?: number;
 };
 
 export type ExecutiveManpowerPoint = {
@@ -105,6 +113,20 @@ export type ExecutivePvaVelocityData = {
   };
 };
 
+/** BG status counts for overview donut. */
+export type ExecutiveBgStatusSnapshot = {
+  updated: number;
+  yetToUpdate: number;
+  notUpdated: number;
+  compliancePct?: number;
+};
+
+/** Cash inflow planned vs actual for overview donut. */
+export type ExecutiveCashInflowSnapshot = {
+  planned: number;
+  actual: number;
+};
+
 interface PMCExecutiveOverviewPanelProps {
   metrics: {
     projectHealth: { label: string; tone: ProjectHealthTone };
@@ -115,7 +137,10 @@ interface PMCExecutiveOverviewPanelProps {
     contractorDelayDays: number;
     criticalRisks: number;
     healthSafetyLabel: string;
+    healthSafetySublabel?: string;
     drawingApprovalPct: number;
+    hasDrawingData?: boolean;
+    hasBottleneckData?: boolean;
     cpiPct: number;
     contractValueLabel: string;
     openBottleneckCount: number;
@@ -134,6 +159,8 @@ interface PMCExecutiveOverviewPanelProps {
   contractSnapshot?: ExecutiveContractSnapshot | null;
   /** Real Planned vs Actual monthly series for Monthly Velocity card. */
   pvaVelocity?: ExecutivePvaVelocityData | null;
+  bgStatusSnapshot?: ExecutiveBgStatusSnapshot | null;
+  cashInflowSnapshot?: ExecutiveCashInflowSnapshot | null;
   projectTitle?: string;
   bottleneckItems?: BottleneckItem[];
   onBriefReady?: (markdown: string) => void;
@@ -369,6 +396,114 @@ const SnapshotInsightBar: React.FC<{
   </div>
 );
 
+type MiniPieSlice = { name: string; value: number; fill: string; label?: string };
+
+const MiniStatusPie: React.FC<{
+  title: string;
+  icon: React.ReactNode;
+  center: string;
+  /** Short plain-language meaning of the center number */
+  meaning: string;
+  subtitle: string;
+  slices: MiniPieSlice[];
+  empty?: boolean;
+  isDark: boolean;
+  onClick?: () => void;
+}> = ({ title, icon, center, meaning, subtitle, slices, empty = false, isDark, onClick }) => (
+  <button
+    type="button"
+    onClick={onClick}
+    title={`${title}: ${meaning}`}
+    className={`flex min-h-[9.5rem] flex-col items-center rounded-xl border p-2.5 text-center transition-all hover:-translate-y-0.5 hover:shadow-md ${
+      onClick ? 'cursor-pointer' : 'cursor-default'
+    } ${
+      isDark
+        ? 'border-white/10 bg-white/[0.03] hover:bg-white/[0.06]'
+        : 'border-slate-200/80 bg-white hover:border-slate-300'
+    }`}
+  >
+    <div className="mb-1 flex w-full items-center justify-center gap-1.5">
+      <span className={isDark ? 'text-slate-400' : 'text-slate-500'}>{icon}</span>
+      <p
+        className={`truncate text-[9px] font-black uppercase tracking-wide ${
+          isDark ? 'text-slate-300' : 'text-slate-600'
+        }`}
+      >
+        {title}
+      </p>
+    </div>
+    <div className="relative h-[68px] w-[68px] shrink-0">
+      <ResponsiveContainer width="100%" height="100%">
+        <PieChart>
+          <Pie
+            data={slices}
+            dataKey="value"
+            innerRadius={20}
+            outerRadius={32}
+            startAngle={90}
+            endAngle={-270}
+            stroke="none"
+            isAnimationActive={false}
+          >
+            {slices.map((entry, i) => (
+              <Cell key={`${entry.name}-${i}`} fill={entry.fill} />
+            ))}
+          </Pie>
+        </PieChart>
+      </ResponsiveContainer>
+      <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center px-1">
+        <span
+          className={`text-[12px] font-black leading-none tabular-nums ${
+            empty
+              ? isDark
+                ? 'text-slate-500'
+                : 'text-slate-400'
+              : isDark
+                ? 'text-slate-100'
+                : 'text-slate-900'
+          }`}
+        >
+          {center}
+        </span>
+      </div>
+    </div>
+    <p
+      className={`mt-1.5 line-clamp-2 px-0.5 text-[10px] font-bold leading-snug ${
+        empty
+          ? isDark
+            ? 'text-slate-500'
+            : 'text-slate-400'
+          : isDark
+            ? 'text-slate-200'
+            : 'text-slate-700'
+      }`}
+    >
+      {meaning}
+    </p>
+    <p
+      className={`mt-0.5 line-clamp-2 px-0.5 text-[9px] font-semibold leading-snug ${
+        isDark ? 'text-slate-500' : 'text-slate-500'
+      }`}
+    >
+      {subtitle}
+    </p>
+    {!empty && slices.some((s) => s.label) && (
+      <ul className="mt-1.5 w-full space-y-0.5 border-t pt-1.5 text-left" style={{ borderColor: isDark ? 'rgba(255,255,255,0.08)' : '#e2e8f0' }}>
+        {slices
+          .filter((s) => s.label)
+          .map((s) => (
+            <li key={s.name} className="flex items-center gap-1.5">
+              <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: s.fill }} />
+              <span className={`truncate text-[8px] font-semibold ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                {s.label}
+              </span>
+            </li>
+          ))}
+      </ul>
+    )}
+  </button>
+);
+
 const PMCExecutiveOverviewPanel: React.FC<PMCExecutiveOverviewPanelProps> = ({
   metrics,
   progressTrend,
@@ -384,6 +519,8 @@ const PMCExecutiveOverviewPanel: React.FC<PMCExecutiveOverviewPanelProps> = ({
   correspondenceStats = null,
   contractSnapshot = null,
   pvaVelocity = null,
+  bgStatusSnapshot = null,
+  cashInflowSnapshot = null,
   projectTitle = 'Project',
   bottleneckItems = [],
   onBriefReady,
@@ -412,12 +549,28 @@ const PMCExecutiveOverviewPanel: React.FC<PMCExecutiveOverviewPanelProps> = ({
   const cpiDisplay = metrics.cpiPct > 0 ? cpiValue.toFixed(2) : '—';
 
   const progressChartData = useMemo(() => {
-    if (progressTrend.length > 0) return progressTrend;
+    if (progressTrend.length > 0) {
+      return progressTrend.map((p) => ({
+        ...p,
+        difference:
+          p.difference ??
+          progressCumulativeDifference(Number(p.planned) || 0, Number(p.actual) || 0),
+      }));
+    }
+    const nowPlanned = metrics.overallProgressPct;
+    const nowActual = metrics.overallProgressPct;
     return [
-      { month: 'Start', planned: 0, actual: 0 },
-      { month: 'Now', planned: metrics.overallProgressPct, actual: metrics.overallProgressPct },
+      { month: 'Start', planned: 0, actual: 0, difference: 0 },
+      {
+        month: 'Now',
+        planned: nowPlanned,
+        actual: nowActual,
+        difference: progressCumulativeDifference(nowPlanned, nowActual),
+      },
     ];
   }, [progressTrend, metrics.overallProgressPct]);
+
+  const latestProgressPoint = progressChartData[progressChartData.length - 1];
 
   const monthlyBars = useMemo(() => {
     const fromTrend =
@@ -454,28 +607,17 @@ const PMCExecutiveOverviewPanel: React.FC<PMCExecutiveOverviewPanelProps> = ({
     (pvaVelocity?.contractorMonths?.length ?? 0) > 0 ||
     Boolean(pvaVelocity?.current?.scl || pvaVelocity?.current?.contractor);
 
-  const delayBars = useMemo(
-    () => [
-      { name: 'SCL', days: Math.max(metrics.sclDelayDays, 0.5), display: metrics.sclDelayDays, fill: PALETTE.sky },
-      {
-        name: 'Contractor',
-        days: Math.max(metrics.contractorDelayDays, 0.5),
-        display: metrics.contractorDelayDays,
-        fill: PALETTE.violet,
-      },
-      {
-        name: 'Summary',
-        days: Math.max(metrics.summaryDelayDays, 0.5),
-        display: metrics.summaryDelayDays,
-        fill: PALETTE.amber,
-      },
-    ],
-    [metrics.sclDelayDays, metrics.contractorDelayDays, metrics.summaryDelayDays],
-  );
-
   const complianceBars = useMemo(() => {
-    const hseScore =
-      metrics.healthSafetyLabel === 'SAFE' ? 100 : metrics.healthSafetyLabel === 'CRITICAL' ? 22 : 55;
+    const hasHseData = metrics.healthSafetySublabel
+      ? metrics.healthSafetySublabel !== 'No HSE data'
+      : false;
+    const hseScore = !hasHseData
+      ? 0
+      : metrics.healthSafetyLabel === 'SAFE'
+        ? 100
+        : metrics.healthSafetyLabel === 'CRITICAL'
+          ? 22
+          : 55;
     const qualityScore =
       qualityPct != null
         ? Math.round(qualityPct)
@@ -483,12 +625,23 @@ const PMCExecutiveOverviewPanel: React.FC<PMCExecutiveOverviewPanelProps> = ({
     const correspondenceScore = correspondenceStats
       ? Math.round((correspondenceStats.client.efficiency + correspondenceStats.contractor.efficiency) / 2)
       : null;
-    const drawingsScore = Math.round(Number(metrics.drawingApprovalPct) || 0);
-    const bottleneckScore =
-      metrics.openBottleneckCount === 0 ? 100 : Math.max(20, 100 - metrics.openBottleneckCount * 25);
+    const hasDrawingData = metrics.hasDrawingData === true;
+    const drawingsScore = hasDrawingData ? Math.round(Number(metrics.drawingApprovalPct) || 0) : 0;
+    const hasBottleneckData = metrics.hasBottleneckData === true;
+    const bottleneckScore = !hasBottleneckData
+      ? 0
+      : metrics.openBottleneckCount === 0
+        ? 100
+        : Math.max(20, 100 - metrics.openBottleneckCount * 25);
 
     return [
-      { name: 'HSE', score: hseScore, fill: hseScore >= 80 ? PALETTE.emerald : PALETTE.rose, anchor: 'hse' as ExecutiveOverviewAnchor },
+      {
+        name: 'HSE',
+        score: hseScore,
+        fill: !hasHseData ? PALETTE.slate : hseScore >= 80 ? PALETTE.emerald : PALETTE.rose,
+        anchor: 'hse' as ExecutiveOverviewAnchor,
+        empty: !hasHseData,
+      },
       {
         name: 'Quality',
         score: qualityScore ?? 0,
@@ -511,14 +664,26 @@ const PMCExecutiveOverviewPanel: React.FC<PMCExecutiveOverviewPanelProps> = ({
       {
         name: 'Drawings',
         score: drawingsScore,
-        fill: drawingsScore >= 75 ? PALETTE.emerald : drawingsScore > 0 ? PALETTE.amber : PALETTE.slate,
+        fill: !hasDrawingData
+          ? PALETTE.slate
+          : drawingsScore >= 75
+            ? PALETTE.emerald
+            : drawingsScore > 0
+              ? PALETTE.amber
+              : PALETTE.slate,
         anchor: 'drawings' as ExecutiveOverviewAnchor,
+        empty: !hasDrawingData,
       },
       {
         name: 'Bottlenecks',
         score: bottleneckScore,
-        fill: metrics.openBottleneckCount === 0 ? PALETTE.emerald : PALETTE.rose,
+        fill: !hasBottleneckData
+          ? PALETTE.slate
+          : metrics.openBottleneckCount === 0
+            ? PALETTE.emerald
+            : PALETTE.rose,
         anchor: 'risk' as ExecutiveOverviewAnchor,
+        empty: !hasBottleneckData,
       },
     ];
   }, [metrics, qualityPct, correspondenceStats]);
@@ -541,21 +706,177 @@ const PMCExecutiveOverviewPanel: React.FC<PMCExecutiveOverviewPanelProps> = ({
     ];
   }, [correspondenceStats]);
 
-  const healthPie = useMemo(
-    () => [
-      {
-        name: 'Score',
-        value: Math.max(5, Math.round(metrics.overallProgressPct)),
-        fill: PALETTE.teal,
-      },
-      {
-        name: 'Gap',
-        value: Math.max(0, 100 - Math.round(metrics.overallProgressPct)),
-        fill: track,
-      },
-    ],
-    [metrics.overallProgressPct, track],
-  );
+  const bgStatusPie = useMemo(() => {
+    const updated = Math.max(0, Number(bgStatusSnapshot?.updated) || 0);
+    const yet = Math.max(0, Number(bgStatusSnapshot?.yetToUpdate) || 0);
+    const notUpdated = Math.max(0, Number(bgStatusSnapshot?.notUpdated) || 0);
+    const total = updated + yet + notUpdated;
+    if (total <= 0) {
+      return {
+        center: '—',
+        meaning: 'No bank guarantee data yet',
+        subtitle: 'Add BG records in Schedule',
+        empty: true,
+        slices: [{ name: 'No data', value: 1, fill: track }],
+      };
+    }
+    const compliance = Math.round(
+      Number(bgStatusSnapshot?.compliancePct) || (updated / total) * 100,
+    );
+    return {
+      center: `${compliance}%`,
+      meaning: `${updated} of ${total} BGs updated`,
+      subtitle: 'Share of guarantees kept current',
+      empty: false,
+      slices: [
+        {
+          name: 'Updated',
+          value: updated || 0.0001,
+          fill: PALETTE.emerald,
+          label: updated ? `Updated ${updated}` : undefined,
+        },
+        {
+          name: 'Yet to update',
+          value: yet || 0.0001,
+          fill: PALETTE.amber,
+          label: yet ? `Pending ${yet}` : undefined,
+        },
+        {
+          name: 'Not updated',
+          value: notUpdated || 0.0001,
+          fill: PALETTE.rose,
+          label: notUpdated ? `Overdue ${notUpdated}` : undefined,
+        },
+      ].filter((s) => s.value > 0.001),
+    };
+  }, [bgStatusSnapshot, track]);
+
+  const cashInflowPie = useMemo(() => {
+    const planned = Math.max(0, Number(cashInflowSnapshot?.planned) || 0);
+    const actual = Math.max(0, Number(cashInflowSnapshot?.actual) || 0);
+    if (planned <= 0 && actual <= 0) {
+      return {
+        center: '—',
+        meaning: 'No cash inflow data yet',
+        subtitle: 'Update cashflow in Financial',
+        empty: true,
+        slices: [{ name: 'No data', value: 1, fill: track }],
+      };
+    }
+    const pct = planned > 0 ? Math.round((actual / planned) * 100) : actual > 0 ? 100 : 0;
+    const remaining = Math.max(0, planned - actual);
+    const ahead = actual > planned;
+    return {
+      center: `${pct}%`,
+      meaning: ahead
+        ? `${pct}% of planned cash received (ahead)`
+        : `${pct}% of planned cash received`,
+      subtitle: `${formatIndianCurrencyCompact(actual)} received of ${formatIndianCurrencyCompact(planned)} plan`,
+      empty: false,
+      slices: [
+        {
+          name: 'Actual inflow',
+          value: actual || 0.0001,
+          fill: PALETTE.teal,
+          label: `Received ${formatIndianCurrencyCompact(actual)}`,
+        },
+        {
+          name: 'Gap to plan',
+          value: remaining || 0.0001,
+          fill: track,
+          label: remaining > 0 ? `Still due ${formatIndianCurrencyCompact(remaining)}` : 'Plan met',
+        },
+      ].filter((s) => s.value > 0.001),
+    };
+  }, [cashInflowSnapshot, track]);
+
+  const safetyPie = useMemo(() => {
+    const hasHseData = metrics.healthSafetySublabel
+      ? metrics.healthSafetySublabel !== 'No HSE data'
+      : false;
+    if (!hasHseData) {
+      return {
+        center: '—',
+        meaning: 'No safety records yet',
+        subtitle: 'Log HSE monthly data',
+        empty: true,
+        slices: [{ name: 'No data', value: 1, fill: track }],
+      };
+    }
+    const label = String(metrics.healthSafetyLabel || 'SAFE').toUpperCase();
+    const score = label === 'SAFE' ? 100 : label === 'CRITICAL' ? 22 : 55;
+    const fill =
+      label === 'SAFE' ? PALETTE.emerald : label === 'CRITICAL' ? PALETTE.rose : PALETTE.amber;
+    const meaning =
+      label === 'SAFE'
+        ? 'Site safety is good'
+        : label === 'CRITICAL'
+          ? 'Critical — incidents need action'
+          : 'Watch — safety needs attention';
+    return {
+      center: label === 'SAFE' ? 'SAFE' : label === 'CRITICAL' ? 'Critical' : 'Watch',
+      meaning,
+      subtitle: `Safety health score ${score}/100`,
+      empty: false,
+      slices: [
+        { name: 'Safety', value: Math.max(1, score), fill, label: `Score ${score}` },
+        {
+          name: 'Gap',
+          value: Math.max(0, 100 - score),
+          fill: track,
+          label: score < 100 ? `Gap ${100 - score}` : undefined,
+        },
+      ],
+    };
+  }, [metrics.healthSafetyLabel, metrics.healthSafetySublabel, track]);
+
+  const complianceDrawingPie = useMemo(() => {
+    const hasDrawingData = metrics.hasDrawingData === true;
+    const drawingPct = hasDrawingData ? Math.round(Number(metrics.drawingApprovalPct) || 0) : null;
+    const compliancePct = qualityPct != null ? Math.round(qualityPct) : null;
+    const values = [drawingPct, compliancePct].filter((v): v is number => v != null);
+    if (values.length === 0) {
+      return {
+        center: '—',
+        meaning: 'No drawing / quality data yet',
+        subtitle: 'Update drawings or quality records',
+        empty: true,
+        slices: [{ name: 'No data', value: 1, fill: track }],
+      };
+    }
+    const avg = Math.round(values.reduce((a, b) => a + b, 0) / values.length);
+    const meaning =
+      drawingPct != null && compliancePct != null
+        ? `Drawings ${drawingPct}% · Quality ${compliancePct}%`
+        : drawingPct != null
+          ? `${drawingPct}% drawings approved`
+          : `${compliancePct}% quality performance`;
+    return {
+      center: `${avg}%`,
+      meaning,
+      subtitle:
+        drawingPct != null && compliancePct != null
+          ? 'Average of drawing approval & quality'
+          : drawingPct != null
+            ? 'Drawing approval rate'
+            : 'Quality performance',
+      empty: false,
+      slices: [
+        {
+          name: 'Complete',
+          value: Math.max(1, avg),
+          fill: PALETTE.indigo,
+          label: `Achieved ${avg}%`,
+        },
+        {
+          name: 'Remaining',
+          value: Math.max(0, 100 - avg),
+          fill: track,
+          label: avg < 100 ? `Remaining ${100 - avg}%` : 'Fully complete',
+        },
+      ],
+    };
+  }, [metrics.hasDrawingData, metrics.drawingApprovalPct, qualityPct, track]);
 
   const cpiAccent = useMemo(() => {
     if (metrics.cpiPct <= 0) return PALETTE.slate;
@@ -613,11 +934,12 @@ const PMCExecutiveOverviewPanel: React.FC<PMCExecutiveOverviewPanelProps> = ({
 
       {/* Row 1 — hero progress + side metrics */}
       <div className="mb-3 grid grid-cols-1 gap-3 xl:grid-cols-12">
-        <article className={`xl:col-span-8 p-3 sm:p-4 ${cardBase}`}>
+        <div className="grid gap-3 xl:col-span-8">
+        <article className={`p-3 sm:p-4 ${cardBase}`}>
           <SectionHeader
             icon={<TrendingUp size={15} />}
             title="Progress curve"
-            subtitle="Cumulative plan vs actual S-curve · 100% delivery threshold"
+            subtitle="Cumulative plan vs actual S-curve · difference = plan − actual"
             accent={PALETTE.teal}
             action={{ label: 'Schedule', onClick: () => onNavigate('schedule', 'progress') }}
             isDark={ex.isDark}
@@ -654,14 +976,7 @@ const PMCExecutiveOverviewPanel: React.FC<PMCExecutiveOverviewPanelProps> = ({
                   allowDataOverflow
                   tickFormatter={(v) => `${v}%`}
                 />
-                <Tooltip
-                  contentStyle={chartTooltipStyle(ex.isDark)}
-                  formatter={(v: number, n: string) => [
-                    `${Number(v).toFixed(1)}%`,
-                    n === 'planned' ? 'Cumulative planned' : n === 'actual' ? 'Cumulative actual' : n,
-                  ]}
-                  labelFormatter={(label) => `Period: ${label}`}
-                />
+                <Tooltip content={<ProgressCurveTooltip isDark={ex.isDark} />} />
                 <Area
                   type="monotone"
                   dataKey="planned"
@@ -685,81 +1000,126 @@ const PMCExecutiveOverviewPanel: React.FC<PMCExecutiveOverviewPanelProps> = ({
               </AreaChart>
             </ResponsiveContainer>
           </div>
-          <ChartLegend
-            items={[
-              { label: 'Cumulative planned', color: PALETTE.indigo },
-              { label: 'Cumulative actual', color: PALETTE.teal },
-            ]}
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            <ChartLegend
+              items={[
+                { label: 'Cumulative planned', color: PALETTE.indigo },
+                { label: 'Cumulative actual', color: PALETTE.teal },
+              ]}
+            />
+            {latestProgressPoint && (
+              <ProgressDifferenceSummaryChip
+                planned={Number(latestProgressPoint.planned) || 0}
+                actual={Number(latestProgressPoint.actual) || 0}
+                isDark={ex.isDark}
+                periodLabel={String(latestProgressPoint.month)}
+              />
+            )}
+            {metrics.progressDeltaLabel && (
+              <p className={`inline-flex rounded-full px-2.5 py-0.5 text-[10px] font-bold ${ex.isDark ? 'bg-teal-500/15 text-teal-300' : 'bg-teal-50 text-teal-700'}`}>
+                Trend: {metrics.progressDeltaLabel}
+              </p>
+            )}
+          </div>
+        </article>
+
+        <article className={`p-3 sm:p-4 ${cardBase}`}>
+          <SectionHeader
+            icon={<IndianRupee size={15} />}
+            title="Financial progress"
+            subtitle="BCWS · BCWP · ACWP · FCST"
+            accent={PALETTE.indigo}
+            action={{ label: 'Money', onClick: () => onNavigate('money', 'financial') }}
+            isDark={ex.isDark}
           />
-          {metrics.progressDeltaLabel && (
-            <p className={`mt-2 inline-flex rounded-full px-2.5 py-0.5 text-[10px] font-bold ${ex.isDark ? 'bg-teal-500/15 text-teal-300' : 'bg-teal-50 text-teal-700'}`}>
-              Trend: {metrics.progressDeltaLabel}
+          {costPerformanceTrend.length > 0 ? (
+            <>
+              <div style={{ height: CHART_H_SM }}>
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={costPerformanceTrend} margin={{ top: 8, right: 12, left: -8, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 6" stroke={chartGridStroke(ex.isDark)} vertical={false} />
+                    <XAxis dataKey="month" tick={chartAxisTick(ex.isDark, 9)} axisLine={false} tickLine={false} interval="preserveStartEnd" />
+                    <YAxis tick={chartAxisTick(ex.isDark, 9)} axisLine={false} tickLine={false} width={48} tickFormatter={formatChartCurrencyAxisTick} />
+                    <Tooltip contentStyle={chartTooltipStyle(ex.isDark)} />
+                    <Line type="monotone" dataKey="bcws" stroke={PALETTE.indigo} strokeWidth={2} name="BCWS" dot={false} />
+                    <Line type="monotone" dataKey="bcwp" stroke={PALETTE.amber} strokeWidth={2} name="BCWP" dot={false} />
+                    <Line type="monotone" dataKey="acwp" stroke={PALETTE.rose} strokeWidth={2} name="ACWP" dot={false} />
+                    <Line type="monotone" dataKey="fcst" stroke={PALETTE.emerald} strokeWidth={2} strokeDasharray="5 4" name="FCST" dot={false} />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+              <ChartLegend
+                items={[
+                  { label: 'BCWS', color: PALETTE.indigo },
+                  { label: 'BCWP', color: PALETTE.amber },
+                  { label: 'ACWP', color: PALETTE.rose },
+                  { label: 'FCST', color: PALETTE.emerald, dashed: true },
+                ]}
+              />
+            </>
+          ) : (
+            <p className={emptyStateClass} style={{ minHeight: EMPTY_STATE_H }}>
+              No financial progress trend data yet
             </p>
           )}
         </article>
+        </div>
 
         <div className="grid gap-3 xl:col-span-4">
           <article className={`p-3 sm:p-4 ${cardBase}`}>
             <SectionHeader
-              icon={<BarChart3 size={15} />}
-              title="Delay histogram"
-              subtitle="Days behind baseline"
-              accent={PALETTE.amber}
-              action={{ label: 'Schedule', onClick: () => onNavigate('schedule', 'schedule') }}
+              icon={<Shield size={15} />}
+              title="Status snapshot"
+              subtitle="What each number means — BG, cash, safety, drawings/quality"
+              accent={PALETTE.navy}
+              action={{ label: 'Compliance', onClick: () => onNavigate('compliance', 'hse') }}
               isDark={ex.isDark}
             />
-            <div style={{ height: CHART_H_XS }}>
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={delayBars} margin={{ top: 4, right: 8, left: -16, bottom: 0 }} barCategoryGap="22%">
-                  <CartesianGrid strokeDasharray="3 6" stroke={chartGridStroke(ex.isDark)} vertical={false} />
-                  <XAxis dataKey="name" tick={chartAxisTick(ex.isDark, 10)} axisLine={false} tickLine={false} />
-                  <YAxis tick={chartAxisTick(ex.isDark, 10)} axisLine={false} tickLine={false} width={24} />
-                  <Tooltip
-                    contentStyle={chartTooltipStyle(ex.isDark)}
-                    formatter={(_v: number, _n: string, props: { payload?: { display?: number } }) => [
-                      `${props.payload?.display ?? 0} days`,
-                      'Delay',
-                    ]}
-                  />
-                  <Bar dataKey="days" radius={[8, 8, 0, 0]} maxBarSize={40}>
-                    {delayBars.map((entry) => (
-                      <Cell key={entry.name} fill={entry.fill} />
-                    ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-            {metrics.summaryDelayDays === 0 && metrics.sclDelayDays === 0 && metrics.contractorDelayDays === 0 && (
-              <p className={`mt-1 text-center text-[10px] font-semibold ${ex.isDark ? 'text-emerald-400' : 'text-emerald-600'}`}>
-                On schedule — no delays recorded
-              </p>
-            )}
-          </article>
-
-          <article className={`p-3 sm:p-4 ${cardBase}`}>
-            <div className="flex items-center gap-2.5">
-              <div className="relative h-[68px] w-[68px] shrink-0">
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie data={healthPie} innerRadius={24} outerRadius={36} dataKey="value" startAngle={90} endAngle={-270} stroke="none">
-                      {healthPie.map((entry, i) => (
-                        <Cell key={i} fill={entry.fill} />
-                      ))}
-                    </Pie>
-                  </PieChart>
-                </ResponsiveContainer>
-                <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
-                  <span className={`text-sm font-black ${ex.headingStrong}`}>{Math.round(metrics.overallProgressPct)}%</span>
-                  <span className={`text-[8px] font-bold uppercase ${ex.label}`}>Done</span>
-                </div>
-              </div>
-              <div className="min-w-0 flex-1">
-                <p className={`text-[10px] font-bold uppercase ${ex.label}`}>Project health</p>
-                <p className="text-lg font-black" style={{ color: healthToneColor(metrics.projectHealth.tone) }}>
-                  {metrics.projectHealth.label}
-                </p>
-                <p className={`text-[10px] ${ex.muted}`}>{openIssuesCount} open issues tracked</p>
-              </div>
+            <div className="mt-1 grid grid-cols-2 gap-2">
+              <MiniStatusPie
+                title="BG Status"
+                icon={<FileText size={12} />}
+                center={bgStatusPie.center}
+                meaning={bgStatusPie.meaning}
+                subtitle={bgStatusPie.subtitle}
+                slices={bgStatusPie.slices}
+                empty={bgStatusPie.empty}
+                isDark={ex.isDark}
+                onClick={() => onNavigate('schedule', 'schedule')}
+              />
+              <MiniStatusPie
+                title="Cash Inflow"
+                icon={<IndianRupee size={12} />}
+                center={cashInflowPie.center}
+                meaning={cashInflowPie.meaning}
+                subtitle={cashInflowPie.subtitle}
+                slices={cashInflowPie.slices}
+                empty={cashInflowPie.empty}
+                isDark={ex.isDark}
+                onClick={() => onNavigate('money', 'financial')}
+              />
+              <MiniStatusPie
+                title="Safety"
+                icon={<HardHat size={12} />}
+                center={safetyPie.center}
+                meaning={safetyPie.meaning}
+                subtitle={safetyPie.subtitle}
+                slices={safetyPie.slices}
+                empty={safetyPie.empty}
+                isDark={ex.isDark}
+                onClick={() => onNavigate('compliance', 'hse')}
+              />
+              <MiniStatusPie
+                title="Compliance"
+                icon={<Shield size={12} />}
+                center={complianceDrawingPie.center}
+                meaning={complianceDrawingPie.meaning}
+                subtitle={complianceDrawingPie.subtitle}
+                slices={complianceDrawingPie.slices}
+                empty={complianceDrawingPie.empty}
+                isDark={ex.isDark}
+                onClick={() => onNavigate('compliance', 'drawings')}
+              />
             </div>
           </article>
         </div>
@@ -1072,8 +1432,8 @@ const PMCExecutiveOverviewPanel: React.FC<PMCExecutiveOverviewPanelProps> = ({
         </article>
       </div>
 
-      {/* Row 3 — manpower, financial, quality */}
-      <div className="mb-3 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+      {/* Row 3 — manpower and quality */}
+      <div className="mb-3 grid grid-cols-1 gap-3 md:grid-cols-2">
         <article className={`p-3 sm:p-4 ${cardBase}`}>
           <SectionHeader
             icon={<Users size={15} />}
@@ -1107,47 +1467,6 @@ const PMCExecutiveOverviewPanel: React.FC<PMCExecutiveOverviewPanelProps> = ({
           ) : (
             <p className={emptyStateClass} style={{ minHeight: EMPTY_STATE_H }}>
               No manpower trend data yet
-            </p>
-          )}
-        </article>
-
-        <article className={`p-3 sm:p-4 md:col-span-2 xl:col-span-1 ${cardBase}`}>
-          <SectionHeader
-            icon={<IndianRupee size={15} />}
-            title="Financial progress"
-            subtitle="BCWS · BCWP · ACWP · FCST"
-            accent={PALETTE.indigo}
-            action={{ label: 'Money', onClick: () => onNavigate('money', 'financial') }}
-            isDark={ex.isDark}
-          />
-          {costPerformanceTrend.length > 0 ? (
-            <>
-              <div style={{ height: CHART_H_SM }}>
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={costPerformanceTrend} margin={{ top: 8, right: 12, left: -8, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 6" stroke={chartGridStroke(ex.isDark)} vertical={false} />
-                    <XAxis dataKey="month" tick={chartAxisTick(ex.isDark, 9)} axisLine={false} tickLine={false} interval="preserveStartEnd" />
-                    <YAxis tick={chartAxisTick(ex.isDark, 9)} axisLine={false} tickLine={false} width={48} tickFormatter={formatChartCurrencyAxisTick} />
-                    <Tooltip contentStyle={chartTooltipStyle(ex.isDark)} />
-                    <Line type="monotone" dataKey="bcws" stroke={PALETTE.indigo} strokeWidth={2} name="BCWS" dot={false} />
-                    <Line type="monotone" dataKey="bcwp" stroke={PALETTE.amber} strokeWidth={2} name="BCWP" dot={false} />
-                    <Line type="monotone" dataKey="acwp" stroke={PALETTE.rose} strokeWidth={2} name="ACWP" dot={false} />
-                    <Line type="monotone" dataKey="fcst" stroke={PALETTE.emerald} strokeWidth={2} strokeDasharray="5 4" name="FCST" dot={false} />
-                  </LineChart>
-                </ResponsiveContainer>
-              </div>
-              <ChartLegend
-                items={[
-                  { label: 'BCWS', color: PALETTE.indigo },
-                  { label: 'BCWP', color: PALETTE.amber },
-                  { label: 'ACWP', color: PALETTE.rose },
-                  { label: 'FCST', color: PALETTE.emerald, dashed: true },
-                ]}
-              />
-            </>
-          ) : (
-            <p className={emptyStateClass} style={{ minHeight: EMPTY_STATE_H }}>
-              No financial progress trend data yet
             </p>
           )}
         </article>

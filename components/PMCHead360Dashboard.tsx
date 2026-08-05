@@ -16,6 +16,7 @@ import {
   RefreshCw,
   Search,
   TrainFront,
+  Trash2,
   Trees,
   UserRound,
   X,
@@ -25,6 +26,7 @@ import { ROLE_LABELS } from '../constants';
 import { useTheme, getThemeClasses } from '../utils/theme';
 import { getPmcExecutiveTheme } from '../utils/pmcExecutiveTheme';
 import type { HealthLabel, ProjectVital, ProjectVitalsCard, VitalStatus } from '../utils/projectVitals';
+import { formatHealthLabelDisplay } from '../utils/projectVitals';
 import {
   buildPortfolioSummary,
   PORTFOLIO_SCORE_FORMULAS,
@@ -38,15 +40,26 @@ import {
 import {
   getApiErrorMessage,
   getProjectOverview,
+  mergeOverviewCardsWithLiveProjects,
 } from '../services/projectOverviewService';
+import { projectApi } from '../services/api';
+import { canDeleteProjectSite } from '../utils/userManagementAccess';
+import { sanitizeProjectDisplayName } from '../utils/hseSiteEngineerProjects';
 import { useDebouncedValue } from '../hooks/useDebouncedValue';
 import { isAbortError } from '../utils/isAbortError';
+import SiteDeleteDialog, { type SiteDeleteDependency } from './SiteDeleteDialog';
+import { parseSiteDeleteDependencies } from './ProjectSiteList';
+import axios from 'axios';
 
 interface PMCHead360DashboardProps {
   user: User;
   projects: Project[];
   dprs: DPR[];
   onViewProject: (id: string) => void;
+  /** Navigate to Initialize Project (sidebar `project_init`). */
+  onInitializeProject?: () => void;
+  /** Called after a project is deleted from the 360 grid (keeps App portfolio in sync). */
+  onProjectDeleted?: (projectId: string) => void;
 }
 
 function healthTone(label: HealthLabel): string {
@@ -54,9 +67,12 @@ function healthTone(label: HealthLabel): string {
     case 'CRITICAL':
       return SCORE_COLORS.critical;
     case 'AT RISK':
+    case 'WATCH':
       return SCORE_COLORS.watch;
     case 'ON TRACK':
+    case 'COMPLETED':
       return SCORE_COLORS.healthy;
+    case 'NO DATA':
     default:
       return SCORE_COLORS.unknown;
   }
@@ -211,6 +227,9 @@ const BriefingGauge: React.FC<{ score: number | null; isDark: boolean }> = ({ sc
         <p className={`mt-1 text-[10px] font-black uppercase tracking-[0.16em] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
           Portfolio Score
         </p>
+        <p className={`mt-1 max-w-[11rem] text-center text-[9px] font-semibold leading-snug ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
+          Average health of all projects with a live score
+        </p>
       </div>
     </div>
   );
@@ -241,7 +260,11 @@ const KpiStatCard: React.FC<{
     >
       {value}
     </p>
-    <p className={`text-[10px] font-semibold ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>{hint}</p>
+    <p
+      className={`mt-1 text-[10px] font-semibold leading-snug ${isDark ? 'text-slate-400' : 'text-slate-500'}`}
+    >
+      {hint}
+    </p>
   </div>
 );
 
@@ -259,20 +282,21 @@ function statusTone(status: VitalStatus): string {
 }
 
 function statusWord(status: VitalStatus, key: 'time' | 'cost' | 'quality' | 'safety'): string {
-  if (status === 'unknown') return '—';
-  if (key === 'safety') {
+  if (status === 'unknown') return 'No Data';
+  if (key === 'safety' || key === 'quality') {
     if (status === 'healthy') return 'Excellent';
     if (status === 'watch') return 'Watch';
-    return 'Critical';
+    return 'Delay';
   }
   if (key === 'time') {
     if (status === 'healthy') return 'On Track';
     if (status === 'watch') return 'Watch';
-    return 'Delay';
+    return 'Critical';
   }
-  if (status === 'healthy') return 'On Track';
+  // cost
+  if (status === 'healthy') return 'Excellent';
   if (status === 'watch') return 'Watch';
-  return 'Risk';
+  return 'Delay';
 }
 
 function projectTypeIcon(title: string) {
@@ -324,7 +348,19 @@ const ProjectGridCard: React.FC<{
   onOpen: () => void;
   onToggleCompare: () => void;
   compareDisabled: boolean;
-}> = ({ card, selected, isDark, index, onOpen, onToggleCompare, compareDisabled }) => {
+  canDelete?: boolean;
+  onDelete?: () => void;
+}> = ({
+  card,
+  selected,
+  isDark,
+  index,
+  onOpen,
+  onToggleCompare,
+  compareDisabled,
+  canDelete = false,
+  onDelete,
+}) => {
   const tone = healthTone(card.healthLabel);
   const TypeIcon = projectTypeIcon(card.title);
   const schedule = vitalOf(card, 'schedule');
@@ -377,33 +413,44 @@ const ProjectGridCard: React.FC<{
             <p className={`mt-0.5 truncate text-[10px] font-bold uppercase tracking-wide ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
               {card.client && card.client !== '—' ? card.client : 'Client TBD'}
             </p>
-            {card.isCompleted && (
-              <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
-                <span
-                  className={`inline-flex rounded-full border px-2 py-0.5 text-[9px] font-black uppercase tracking-wide ${
-                    isDark
-                      ? 'border-emerald-500/40 bg-emerald-500/15 text-emerald-300'
-                      : 'border-emerald-200 bg-emerald-50 text-emerald-700'
-                  }`}
-                >
-                  Completed
-                </span>
-                {card.completedAt && (
-                  <span className={`text-[9px] font-semibold ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                    {new Date(card.completedAt).toLocaleDateString(undefined, {
-                      year: 'numeric',
-                      month: 'short',
-                      day: 'numeric',
-                    })}
+            <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+              <span
+                className={`inline-flex rounded-full border px-2 py-0.5 text-[9px] font-black uppercase tracking-wide ${
+                  isDark ? 'border-white/15 bg-white/5' : 'border-slate-200 bg-white'
+                }`}
+                style={{ color: tone, borderColor: `${tone}55` }}
+                title="Project health status from overview API"
+              >
+                {card.projectStatusLabel || formatHealthLabelDisplay(card.healthLabel)}
+              </span>
+              {card.isCompleted && (
+                <>
+                  <span
+                    className={`inline-flex rounded-full border px-2 py-0.5 text-[9px] font-black uppercase tracking-wide ${
+                      isDark
+                        ? 'border-emerald-500/40 bg-emerald-500/15 text-emerald-300'
+                        : 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                    }`}
+                  >
+                    Completed
                   </span>
-                )}
-                {card.completedBy && (
-                  <span className={`text-[9px] font-semibold ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                    · {card.completedBy}
-                  </span>
-                )}
-              </div>
-            )}
+                  {card.completedAt && (
+                    <span className={`text-[9px] font-semibold ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                      {new Date(card.completedAt).toLocaleDateString(undefined, {
+                        year: 'numeric',
+                        month: 'short',
+                        day: 'numeric',
+                      })}
+                    </span>
+                  )}
+                  {card.completedBy && (
+                    <span className={`text-[9px] font-semibold ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                      · {card.completedBy}
+                    </span>
+                  )}
+                </>
+              )}
+            </div>
           </div>
           <div className="relative flex h-12 w-12 shrink-0 items-center justify-center">
             <svg width="48" height="48" viewBox="0 0 48 48" className="-rotate-90" aria-hidden>
@@ -521,6 +568,24 @@ const ProjectGridCard: React.FC<{
             {card.drawingApprovalPct != null ? ` · Drawings ${card.drawingApprovalPct}%` : ''}
           </span>
           <div className="ml-auto flex items-center gap-1.5">
+            {canDelete && !card.isCompleted && onDelete && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onDelete();
+                }}
+                className={`rounded-lg border p-1.5 transition-all ${
+                  isDark
+                    ? 'border-rose-500/40 bg-rose-600/15 text-rose-300 hover:bg-rose-600/30'
+                    : 'border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100'
+                }`}
+                title="Delete project"
+                aria-label={`Delete ${card.title}`}
+              >
+                <Trash2 size={12} />
+              </button>
+            )}
             <button
               type="button"
               onClick={onToggleCompare}
@@ -561,6 +626,59 @@ const ProjectGridCard: React.FC<{
   );
 };
 
+/** Trailing grid tile — opens Initialize Project. */
+const InitializeProjectGridCard: React.FC<{
+  isDark: boolean;
+  onClick: () => void;
+}> = ({ isDark, onClick }) => (
+  <button
+    type="button"
+    onClick={onClick}
+    className={`group flex h-full min-h-[14rem] w-full flex-col items-center justify-center gap-3 rounded-2xl border border-dashed p-6 text-center transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40 ${
+      isDark
+        ? 'border-cyan-400/35 bg-cyan-500/5 hover:border-cyan-300/50 hover:bg-cyan-500/10'
+        : 'border-slate-300 bg-white hover:border-blue-400 hover:bg-blue-50/60'
+    }`}
+    aria-label="Initialize Project — create a new project"
+  >
+    <span
+      className={`flex h-14 w-14 items-center justify-center rounded-2xl border transition-transform duration-300 group-hover:scale-105 ${
+        isDark
+          ? 'border-cyan-400/40 bg-cyan-500/15 text-cyan-200'
+          : 'border-blue-200 bg-blue-50 text-blue-700'
+      }`}
+    >
+      <Plus size={28} strokeWidth={2.4} />
+    </span>
+    <div className="max-w-[14rem] space-y-1">
+      <p
+        className={`text-sm font-black uppercase tracking-wide ${
+          isDark ? 'text-slate-100' : 'text-slate-900'
+        }`}
+      >
+        Create new project
+      </p>
+      <p
+        className={`text-[11px] font-semibold leading-snug ${
+          isDark ? 'text-slate-400' : 'text-slate-500'
+        }`}
+      >
+        Click to open Initialize Project and set up a new site in the portfolio.
+      </p>
+    </div>
+    <span
+      className={`mt-1 inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-wide ${
+        isDark
+          ? 'bg-cyan-500/15 text-cyan-200'
+          : 'bg-slate-900 text-white'
+      }`}
+    >
+      Initialize Project
+      <ArrowRight size={12} strokeWidth={2.4} />
+    </span>
+  </button>
+);
+
 const CompareMiniBar: React.FC<{ label: string; value: number | null; color: string; isDark: boolean }> = ({
   label,
   value,
@@ -592,11 +710,14 @@ const PMCHead360Dashboard: React.FC<PMCHead360DashboardProps> = ({
   projects,
   dprs: _dprs,
   onViewProject,
+  onInitializeProject,
+  onProjectDeleted,
 }) => {
   void _dprs;
   const { isDarkTheme } = useTheme();
   const themeClasses = getThemeClasses(isDarkTheme);
   const ex = getPmcExecutiveTheme(isDarkTheme);
+  const canDelete = canDeleteProjectSite(user);
 
   const [search, setSearch] = useState('');
   const debouncedSearch = useDebouncedValue(search.trim());
@@ -609,10 +730,16 @@ const PMCHead360Dashboard: React.FC<PMCHead360DashboardProps> = ({
   const [showScoreFormulas, setShowScoreFormulas] = useState(false);
   const [showCardGuide, setShowCardGuide] = useState(false);
 
-  const [allCards, setAllCards] = useState<ProjectVitalsCard[]>([]);
+  const [overviewCards, setOverviewCards] = useState<ProjectVitalsCard[]>([]);
   const [isLoadingVitals, setIsLoadingVitals] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [refreshNonce, setRefreshNonce] = useState(0);
+
+  const [deleteTarget, setDeleteTarget] = useState<ProjectVitalsCard | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [deleteDeps, setDeleteDeps] = useState<SiteDeleteDependency[]>([]);
+  const [deleteDepError, setDeleteDepError] = useState<string | null>(null);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -632,7 +759,7 @@ const PMCHead360Dashboard: React.FC<PMCHead360DashboardProps> = ({
         );
 
         if (!controller.signal.aborted) {
-          setAllCards(result.cards);
+          setOverviewCards(result.cards);
         }
       } catch (error) {
         if (isAbortError(error) || controller.signal.aborted) return;
@@ -640,7 +767,7 @@ const PMCHead360Dashboard: React.FC<PMCHead360DashboardProps> = ({
         setLoadError(
           getApiErrorMessage(error, 'Unable to load project overview. Please try again.'),
         );
-        setAllCards([]);
+        setOverviewCards([]);
       } finally {
         if (!controller.signal.aborted) setIsLoadingVitals(false);
       }
@@ -652,9 +779,75 @@ const PMCHead360Dashboard: React.FC<PMCHead360DashboardProps> = ({
     };
   }, [user.id, debouncedSearch, ordering, clientFilter, refreshNonce]);
 
+  const allCards = useMemo(
+    () => mergeOverviewCardsWithLiveProjects(overviewCards, projects),
+    [overviewCards, projects],
+  );
+
   const handleForceRefresh = () => {
     if (isLoadingVitals) return;
     setRefreshNonce((n) => n + 1);
+  };
+
+  const closeDeleteDialog = () => {
+    if (isDeleting) return;
+    setDeleteTarget(null);
+    setDeleteError(null);
+    setDeleteDeps([]);
+    setDeleteDepError(null);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!deleteTarget || isDeleting) return;
+    setIsDeleting(true);
+    setDeleteError(null);
+    setDeleteDeps([]);
+    setDeleteDepError(null);
+
+    try {
+      await projectApi.deleteProject(deleteTarget.projectId);
+      const deletedId = String(deleteTarget.projectId);
+      setDeleteTarget(null);
+      setOverviewCards((prev) =>
+        prev.filter((card) => String(card.projectId) !== deletedId),
+      );
+      setCompareIds((prev) => prev.filter((id) => id !== deletedId));
+      onProjectDeleted?.(deletedId);
+      setRefreshNonce((n) => n + 1);
+    } catch (err) {
+      if (axios.isAxiosError(err) && err.response) {
+        const status = err.response.status;
+        const data = err.response.data;
+        if (status === 400) {
+          setDeleteDeps(parseSiteDeleteDependencies(data));
+          setDeleteDepError(
+            getApiErrorMessage(
+              err,
+              'This project cannot be deleted because it is referenced by existing records.',
+            ),
+          );
+          return;
+        }
+        if (status === 403) {
+          setDeleteError('You do not have permission to delete this project.');
+          return;
+        }
+        if (status === 404) {
+          const deletedId = String(deleteTarget.projectId);
+          setDeleteTarget(null);
+          setOverviewCards((prev) =>
+            prev.filter((card) => String(card.projectId) !== deletedId),
+          );
+          onProjectDeleted?.(deletedId);
+          return;
+        }
+        setDeleteError(getApiErrorMessage(err, 'Failed to delete project.'));
+        return;
+      }
+      setDeleteError(getApiErrorMessage(err, 'Failed to delete project.'));
+    } finally {
+      setIsDeleting(false);
+    }
   };
 
   const regions = useMemo(
@@ -715,19 +908,31 @@ const PMCHead360Dashboard: React.FC<PMCHead360DashboardProps> = ({
     let critical = 0;
     let atRisk = 0;
     let onTrack = 0;
+    let newOrNoData = 0;
     filteredCards.forEach((card) => {
-      const score = card.overallScore;
-      if (score == null) {
-        if (card.healthLabel === 'CRITICAL') critical += 1;
-        else if (card.healthLabel === 'ON TRACK') onTrack += 1;
-        else atRisk += 1;
-        return;
+      // Prefer backend project_status. New / no-data projects count as On Track
+      // so clients do not confuse empty new sites with delayed / unsafe sites.
+      switch (card.healthLabel) {
+        case 'CRITICAL':
+          critical += 1;
+          break;
+        case 'AT RISK':
+        case 'WATCH':
+          atRisk += 1;
+          break;
+        case 'ON TRACK':
+        case 'COMPLETED':
+          onTrack += 1;
+          break;
+        case 'NO DATA':
+          newOrNoData += 1;
+          onTrack += 1;
+          break;
+        default:
+          break;
       }
-      if (score < 50) critical += 1;
-      else if (score < 75) atRisk += 1;
-      else onTrack += 1;
     });
-    return { critical, atRisk, onTrack };
+    return { critical, atRisk, onTrack, newOrNoData };
   }, [filteredCards]);
 
   const todayLabel = useMemo(
@@ -958,11 +1163,15 @@ const PMCHead360Dashboard: React.FC<PMCHead360DashboardProps> = ({
               : 'bg-gradient-to-br from-white/90 via-slate-50/80 to-transparent'
           }`}
         />
+        <h2 className={`relative mb-3 text-[10px] font-black uppercase tracking-widest ${ex.muted}`}>
+          Portfolio health at a glance
+        </h2>
+
         <div className="relative grid grid-cols-2 gap-3 lg:grid-cols-5 lg:items-stretch">
           <KpiStatCard
             label="Critical"
             value={healthCounts.critical}
-            hint="Score below 50"
+            hint="Serious delay, major cost overrun, or safety incidents — needs immediate attention"
             color={SCORE_COLORS.critical}
             isDark={isDarkTheme}
             delayMs={40}
@@ -970,7 +1179,7 @@ const PMCHead360Dashboard: React.FC<PMCHead360DashboardProps> = ({
           <KpiStatCard
             label="At Risk"
             value={healthCounts.atRisk}
-            hint="Score 50–74"
+            hint="Watch items — slipping schedule, cost pressure, or safety/quality warnings"
             color={SCORE_COLORS.watch}
             isDark={isDarkTheme}
             delayMs={80}
@@ -990,13 +1199,17 @@ const PMCHead360Dashboard: React.FC<PMCHead360DashboardProps> = ({
                 isDarkTheme ? 'text-blue-300 hover:text-blue-200' : 'text-slate-500 hover:text-slate-800'
               }`}
             >
-              {showScoreFormulas ? 'Hide formulas' : 'How scores are calculated'}
+              {showScoreFormulas ? 'Hide explanation' : 'How this score is calculated'}
             </button>
           </div>
           <KpiStatCard
             label="On Track"
             value={healthCounts.onTrack}
-            hint="Score 75+"
+            hint={
+              healthCounts.newOrNoData > 0
+                ? `Healthy projects + newly created sites (${healthCounts.newOrNoData} new / no data yet)`
+                : 'Healthy projects — schedule, cost, quality & safety in good shape'
+            }
             color={SCORE_COLORS.healthy}
             isDark={isDarkTheme}
             delayMs={120}
@@ -1004,7 +1217,7 @@ const PMCHead360Dashboard: React.FC<PMCHead360DashboardProps> = ({
           <KpiStatCard
             label="Total Projects"
             value={filteredCards.length}
-            hint="Shown in grid below"
+            hint="All projects shown in the grid below"
             color={isDarkTheme ? '#93c5fd' : '#2563eb'}
             isDark={isDarkTheme}
             delayMs={160}
@@ -1012,17 +1225,55 @@ const PMCHead360Dashboard: React.FC<PMCHead360DashboardProps> = ({
         </div>
 
         {showScoreFormulas && (
-          <ul
-            className={`relative mt-4 space-y-1.5 rounded-2xl border p-3 text-[10px] leading-relaxed ${
-              isDarkTheme ? 'border-white/10 bg-black/20 text-slate-400' : 'border-slate-200 bg-white text-slate-500'
+          <div
+            className={`relative mt-4 space-y-3 rounded-2xl border p-3.5 text-[11px] leading-relaxed sm:p-4 ${
+              isDarkTheme ? 'border-white/10 bg-black/20 text-slate-300' : 'border-slate-200 bg-white text-slate-600'
             }`}
+            role="region"
+            aria-label="How portfolio scores are calculated"
           >
-            <li><strong className={ex.body}>Portfolio:</strong> {PORTFOLIO_SCORE_FORMULAS.portfolioScore}</li>
-            <li><strong className={ex.body}>Schedule:</strong> {PORTFOLIO_SCORE_FORMULAS.schedule}</li>
-            <li><strong className={ex.body}>Financial:</strong> {PORTFOLIO_SCORE_FORMULAS.financial}</li>
-            <li><strong className={ex.body}>Compliance:</strong> {PORTFOLIO_SCORE_FORMULAS.compliance}</li>
-            <li><strong className={ex.body}>Safety:</strong> {PORTFOLIO_SCORE_FORMULAS.safety}</li>
-          </ul>
+            <div>
+              <p className={`text-[10px] font-black uppercase tracking-widest ${ex.muted}`}>
+                Portfolio score (/100)
+              </p>
+              <p className={`mt-1 font-semibold ${ex.body}`}>
+                Simple average of each project&apos;s health score (0–100) from the overview API.
+                Projects with no live score yet (new / no data) are not included in the average —
+                that is why a portfolio full of new sites can still show a low or mid score if only
+                a few scored projects exist.
+              </p>
+            </div>
+            <div>
+              <p className={`text-[10px] font-black uppercase tracking-widest ${ex.muted}`}>
+                What each count means
+              </p>
+              <ul className="mt-1.5 space-y-1.5">
+                <li>
+                  <strong className={ex.body}>Critical:</strong> Project status is Critical —
+                  typically serious schedule delay, major cost issues, or safety accidents.
+                </li>
+                <li>
+                  <strong className={ex.body}>At Risk:</strong> Status is Watch or At Risk —
+                  early warning on time, cost, quality, or safety before it becomes Critical.
+                </li>
+                <li>
+                  <strong className={ex.body}>On Track:</strong> Status is On Track or Completed,
+                  plus newly created projects that have no KPI data yet (shown as No Data on the card).
+                </li>
+              </ul>
+            </div>
+            <div>
+              <p className={`text-[10px] font-black uppercase tracking-widest ${ex.muted}`}>
+                What feeds each project score
+              </p>
+              <ul className="mt-1.5 space-y-1">
+                <li><strong className={ex.body}>Time:</strong> {PORTFOLIO_SCORE_FORMULAS.schedule}</li>
+                <li><strong className={ex.body}>Cost:</strong> {PORTFOLIO_SCORE_FORMULAS.financial}</li>
+                <li><strong className={ex.body}>Quality / compliance:</strong> {PORTFOLIO_SCORE_FORMULAS.compliance}</li>
+                <li><strong className={ex.body}>Safety:</strong> {PORTFOLIO_SCORE_FORMULAS.safety}</li>
+              </ul>
+            </div>
+          </div>
         )}
       </section>
 
@@ -1039,7 +1290,7 @@ const PMCHead360Dashboard: React.FC<PMCHead360DashboardProps> = ({
           </div>
           <div className="flex items-center gap-2">
             <p className={`hidden text-[10px] font-semibold sm:inline ${ex.muted}`}>
-              Overview API · single request
+              Live portfolio · overview scores when available
             </p>
             <button
               type="button"
@@ -1155,31 +1406,63 @@ const PMCHead360Dashboard: React.FC<PMCHead360DashboardProps> = ({
               />
             ))}
           </div>
-        ) : filteredCards.length === 0 ? (
-          <div
-            className={`rounded-2xl border border-dashed px-4 py-16 text-center text-xs font-semibold ${
-              isDarkTheme ? 'border-white/10 text-slate-500' : 'border-slate-200 text-slate-400'
-            }`}
-          >
-            No projects match your filters.
-          </div>
         ) : (
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
-            {filteredCards.map((card, index) => (
-              <ProjectGridCard
-                key={card.projectId}
-                card={card}
-                index={index}
-                isDark={isDarkTheme}
-                selected={compareIds.includes(card.projectId)}
-                compareDisabled={compareIds.length >= 4}
-                onOpen={() => onViewProject(card.projectId)}
-                onToggleCompare={() => toggleCompare(card.projectId)}
-              />
-            ))}
-          </div>
+          <>
+            {filteredCards.length === 0 && (
+              <p
+                className={`mb-3 text-center text-xs font-semibold ${
+                  isDarkTheme ? 'text-slate-500' : 'text-slate-400'
+                }`}
+              >
+                No projects match your filters.
+              </p>
+            )}
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+              {filteredCards.map((card, index) => (
+                <ProjectGridCard
+                  key={card.projectId}
+                  card={card}
+                  index={index}
+                  isDark={isDarkTheme}
+                  selected={compareIds.includes(card.projectId)}
+                  compareDisabled={compareIds.length >= 4}
+                  onOpen={() => onViewProject(card.projectId)}
+                  onToggleCompare={() => toggleCompare(card.projectId)}
+                  canDelete={canDelete}
+                  onDelete={() => {
+                    setDeleteError(null);
+                    setDeleteDeps([]);
+                    setDeleteDepError(null);
+                    setDeleteTarget(card);
+                  }}
+                />
+              ))}
+              {onInitializeProject && (
+                <InitializeProjectGridCard
+                  isDark={isDarkTheme}
+                  onClick={onInitializeProject}
+                />
+              )}
+            </div>
+          </>
         )}
       </section>
+
+      <SiteDeleteDialog
+        open={Boolean(deleteTarget)}
+        entityLabel="Project"
+        siteName={
+          deleteTarget
+            ? sanitizeProjectDisplayName(deleteTarget.title) || deleteTarget.title
+            : undefined
+        }
+        onCancel={closeDeleteDialog}
+        onConfirm={() => void handleConfirmDelete()}
+        isDeleting={isDeleting}
+        dependencyError={deleteDepError}
+        dependencies={deleteDeps}
+        errorMessage={deleteError}
+      />
 
       {/* Sticky compare tray */}
       <div
@@ -1250,7 +1533,8 @@ const PMCHead360Dashboard: React.FC<PMCHead360DashboardProps> = ({
                     <div className="min-w-0 flex-1">
                       <p className={`line-clamp-2 text-[11px] font-black leading-snug ${ex.body}`}>{card.title}</p>
                       <p className="text-[10px] font-semibold" style={{ color }}>
-                        {card.healthLabel}
+                        {card.projectStatusLabel ||
+                          formatHealthLabelDisplay(card.healthLabel)}
                       </p>
                     </div>
                     <button

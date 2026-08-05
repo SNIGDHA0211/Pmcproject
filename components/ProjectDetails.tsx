@@ -22,6 +22,7 @@ import {
 import ProjectSiteList from './ProjectSiteList';
 import CompleteProjectDialog from './CompleteProjectDialog';
 import DashboardToastStack, { type DashboardToastItem } from './DashboardToastStack';
+import ProjectEotSection from './projectEot/ProjectEotSection';
 import axios from 'axios';
 
 interface ProjectDetailsProps {
@@ -1028,6 +1029,11 @@ const ProjectDetails: React.FC<ProjectDetailsProps> = ({ project, currentUser, o
         projectId={project.id}
         currentUser={currentUser}
         readOnly={isCompleted}
+      />
+
+      <ProjectEotSection
+        projectName={project.title}
+        role={currentUser.role}
       />
 
       {/* Workflow Tabs */}

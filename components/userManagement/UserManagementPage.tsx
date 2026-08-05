@@ -27,11 +27,12 @@ import {
 import { canAccessUserManagement } from '../../utils/userManagementAccess';
 import {
   buildAssignableProjectSelectOptions,
+  buildLiveAssignableProjects,
   clearProjectRowCache,
-  mergeProjectListsById,
   normalizeBackendProjectRow,
   seedProjectRowCache,
 } from '../../utils/pmcHeadExecutiveProjects';
+import { isProjectCompleted } from '../../utils/projectCompletion';
 import { projectApi, unwrapList } from '../../services/api';
 import { ModalPortal } from '../ModalPortal';
 import DashboardToastStack, { type DashboardToastItem } from '../DashboardToastStack';
@@ -40,6 +41,13 @@ import { useDebouncedValue } from '../../hooks/useDebouncedValue';
 import { isAbortError } from '../../utils/isAbortError';
 
 const PAGE_SIZE = 10;
+
+function activePortfolioProjects(list: Project[]): Project[] {
+  return list.filter(
+    (project) =>
+      Boolean(project?.id && project?.title?.trim()) && !isProjectCompleted(project),
+  );
+}
 
 export const MANAGEABLE_ROLES: ManageableUserRole[] = [
   'Team Leader',
@@ -116,14 +124,17 @@ const UserManagementPage: React.FC<UserManagementPageProps> = ({
   const themeClasses = getThemeClasses(isDarkTheme);
   const allowed = canAccessUserManagement(currentUser);
 
-  /** All live backend projects for assign / filter (includes newly initialized). */
-  const [portfolioProjects, setPortfolioProjects] = useState<Project[]>(projects);
+  /** Live Enterprise Portfolio projects only (active + recently created). */
+  const [portfolioProjects, setPortfolioProjects] = useState<Project[]>(() =>
+    activePortfolioProjects(projects),
+  );
   const [projectOptions, setProjectOptions] = useState(() =>
-    buildAssignableProjectSelectOptions(projects),
+    buildAssignableProjectSelectOptions(activePortfolioProjects(projects)),
   );
 
+  // Stay in sync with Enterprise Portfolio — deleted / completed projects drop out.
   useEffect(() => {
-    setPortfolioProjects((prev) => mergeProjectListsById(prev, projects));
+    setPortfolioProjects(activePortfolioProjects(projects));
   }, [projects]);
 
   useEffect(() => {
@@ -138,10 +149,11 @@ const UserManagementPage: React.FC<UserManagementPageProps> = ({
       seedProjectRowCache(rows);
       const mapped = rows
         .map((row) => normalizeBackendProjectRow(row))
-        .filter((p) => Boolean(p?.title?.trim()));
-      setPortfolioProjects((prev) => mergeProjectListsById(projects, prev, mapped));
+        .filter((p) => Boolean(p?.id && p?.title?.trim()));
+      // Replace (do not merge with prev) so portfolio deletes are reflected.
+      setPortfolioProjects(buildLiveAssignableProjects(mapped, projects));
     } catch {
-      setPortfolioProjects((prev) => mergeProjectListsById(prev, projects));
+      setPortfolioProjects(activePortfolioProjects(projects));
     }
   }, [projects]);
 
@@ -157,12 +169,14 @@ const UserManagementPage: React.FC<UserManagementPageProps> = ({
         seedProjectRowCache(rows);
         const mapped = rows
           .map((row) => normalizeBackendProjectRow(row))
-          .filter((p) => Boolean(p?.title?.trim()));
+          .filter((p) => Boolean(p?.id && p?.title?.trim()));
         if (!cancelled) {
-          setPortfolioProjects((prev) => mergeProjectListsById(projects, prev, mapped));
+          setPortfolioProjects(buildLiveAssignableProjects(mapped, projects));
         }
       } catch {
-        // keep projects from props
+        if (!cancelled) {
+          setPortfolioProjects(activePortfolioProjects(projects));
+        }
       }
     })();
 

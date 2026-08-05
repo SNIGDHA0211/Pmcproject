@@ -11,6 +11,8 @@ export type SiteDeleteDependency = {
 interface SiteDeleteDialogProps {
   open: boolean;
   siteName?: string;
+  /** Dialog copy: "Site" (default) or "Project" for portfolio delete. */
+  entityLabel?: string;
   onCancel: () => void;
   onConfirm: () => void;
   isDeleting?: boolean;
@@ -27,6 +29,7 @@ const FOCUSABLE =
 const SiteDeleteDialog: React.FC<SiteDeleteDialogProps> = ({
   open,
   siteName,
+  entityLabel = 'Site',
   onCancel,
   onConfirm,
   isDeleting = false,
@@ -41,6 +44,7 @@ const SiteDeleteDialog: React.FC<SiteDeleteDialogProps> = ({
   const panelRef = useRef<HTMLDivElement>(null);
   const cancelRef = useRef<HTMLButtonElement>(null);
   const previousFocusRef = useRef<HTMLElement | null>(null);
+  const labelLower = entityLabel.toLowerCase();
 
   useEffect(() => {
     if (!open) return;
@@ -100,12 +104,12 @@ const SiteDeleteDialog: React.FC<SiteDeleteDialogProps> = ({
             id={titleId}
             className={`text-lg font-black uppercase tracking-tight ${themeClasses.textPrimary}`}
           >
-            Delete Site
+            Delete {entityLabel}
           </h3>
           <p id={descId} className={`mt-2 text-sm ${themeClasses.textSecondary}`}>
             {hasDependencyBlock
               ? dependencyError ||
-                'This site cannot be deleted because it is referenced by existing records.'
+                `This ${labelLower} cannot be deleted because it is referenced by existing records.`
               : (
                 <>
                   Are you sure you want to delete
@@ -117,7 +121,7 @@ const SiteDeleteDialog: React.FC<SiteDeleteDialogProps> = ({
                       </span>
                     </>
                   ) : (
-                    ' this site'
+                    ` this ${labelLower}`
                   )}
                   ?
                   <br />

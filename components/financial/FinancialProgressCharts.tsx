@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import {
   CartesianGrid,
   Legend,
@@ -9,6 +9,11 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
+import {
+  ProgressCurveTooltip,
+  ProgressDifferenceSummaryChip,
+} from '../charts/ProgressCurveTooltip';
+import { progressCumulativeDifference } from '../../utils/projectProgress';
 
 export type ProgressTrendRow = {
   month: string;
@@ -16,6 +21,7 @@ export type ProgressTrendRow = {
   monthlyActual: number;
   cumulativePlanned: number;
   cumulativeActual: number;
+  difference?: number;
 };
 
 interface FinancialProgressChartsProps {
@@ -31,7 +37,8 @@ const ChartCard: React.FC<{
   className?: string;
   isDarkTheme: boolean;
   themeClasses: Record<string, string>;
-}> = ({ title, children, className = '', isDarkTheme, themeClasses }) => (
+  footer?: React.ReactNode;
+}> = ({ title, children, className = '', isDarkTheme, themeClasses, footer }) => (
   <div
     className={`financial-progress-chart progress-chart rounded-2xl border p-4 ${className} ${
       isDarkTheme ? `${themeClasses.glassCard} ${themeClasses.border}` : 'border-[#E2E8F0] bg-white'
@@ -41,6 +48,7 @@ const ChartCard: React.FC<{
       {title}
     </h4>
     <div className="h-56">{children}</div>
+    {footer ? <div className="mt-2">{footer}</div> : null}
   </div>
 );
 
@@ -50,6 +58,21 @@ const FinancialProgressCharts: React.FC<FinancialProgressChartsProps> = ({
   isDarkTheme,
   themeClasses,
 }) => {
+  const chartData = useMemo(
+    () =>
+      data.map((row) => ({
+        ...row,
+        planned: row.cumulativePlanned,
+        actual: row.cumulativeActual,
+        difference:
+          row.difference ??
+          progressCumulativeDifference(row.cumulativePlanned, row.cumulativeActual),
+      })),
+    [data],
+  );
+
+  const latest = chartData.length > 0 ? chartData[chartData.length - 1] : null;
+
   const empty = (
     <div className={`flex h-full items-center justify-center text-xs font-medium ${themeClasses.textMuted}`}>
       No progress history for this project yet.
@@ -72,11 +95,11 @@ const FinancialProgressCharts: React.FC<FinancialProgressChartsProps> = ({
       >
         {loading ? (
           loadingEl
-        ) : data.length === 0 ? (
+        ) : chartData.length === 0 ? (
           empty
         ) : (
           <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={data}>
+            <LineChart data={chartData}>
               <CartesianGrid strokeDasharray="3 3" stroke={isDarkTheme ? '#334155' : '#E2E8F0'} />
               <XAxis dataKey="month" tick={{ fontSize: 11 }} />
               <YAxis tick={{ fontSize: 11 }} />
@@ -90,22 +113,32 @@ const FinancialProgressCharts: React.FC<FinancialProgressChartsProps> = ({
       </ChartCard>
 
       <ChartCard
-        title="Cumulative Plan vs Actual Trend"
+        title="Cumulative Plan vs Actual · Difference = Plan − Actual"
         className="financial-cumulative-trend-chart"
         isDarkTheme={isDarkTheme}
         themeClasses={themeClasses}
+        footer={
+          latest ? (
+            <ProgressDifferenceSummaryChip
+              planned={latest.cumulativePlanned}
+              actual={latest.cumulativeActual}
+              isDark={isDarkTheme}
+              periodLabel={latest.month}
+            />
+          ) : null
+        }
       >
         {loading ? (
           loadingEl
-        ) : data.length === 0 ? (
+        ) : chartData.length === 0 ? (
           empty
         ) : (
           <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={data}>
+            <LineChart data={chartData}>
               <CartesianGrid strokeDasharray="3 3" stroke={isDarkTheme ? '#334155' : '#E2E8F0'} />
               <XAxis dataKey="month" tick={{ fontSize: 11 }} />
               <YAxis tick={{ fontSize: 11 }} />
-              <Tooltip />
+              <Tooltip content={<ProgressCurveTooltip isDark={isDarkTheme} />} />
               <Legend />
               <Line
                 type="monotone"

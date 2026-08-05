@@ -10,7 +10,7 @@ import {
   pickProjectByHseTitle,
   sanitizeProjectDisplayName,
 } from './hseSiteEngineerProjects';
-import { extractCompletionFields } from './projectCompletion';
+import { extractCompletionFields, isProjectCompleted } from './projectCompletion';
 
 /** Exact login id — not pmc_tl1, pmc_tl19, etc. */
 export const PMC_TL_USERNAME = 'pmc_tl';
@@ -184,14 +184,19 @@ export function ensureHsePortfolioProjects(projects: Project[]): Project[] {
   return dedupePmcHeadDropdownProjects(picked);
 }
 
-/** PMC Head / HO / Manager dropdown: portfolio allowlist only (no wrong / extra titles). */
+/** PMC Head / HO / Manager live registry: official allowlist + newly initiated projects. */
 export function buildPmcHeadDropdownProjects(...lists: Project[][]): Project[] {
   const merged = buildExecutiveProjectDropdownList(...lists).filter(
-    (project) =>
-      !isExcludedPmcTlProjectTitle(project.title) &&
-      isClientPortfolioProjectTitle(project.title),
+    (project) => !isExcludedPmcTlProjectTitle(project.title),
   );
-  return ensureHsePortfolioProjects(merged);
+
+  const allowlisted = merged.filter((project) =>
+    isClientPortfolioProjectTitle(project.title),
+  );
+  const withOfficialStubs = ensureHsePortfolioProjects(allowlisted);
+  const initiatedExtras = merged.filter(isAdditionalInitiatedPortfolioProject);
+
+  return dedupePmcHeadDropdownProjects([...withOfficialStubs, ...initiatedExtras]);
 }
 
 export type ExecutiveProjectSelectOption = {
@@ -257,24 +262,64 @@ export function buildExecutiveProjectSelectOptions(
 }
 
 /**
- * Active client portfolio (~25) plus newly initialized projects for
- * User Management assign / create checkboxes.
- * Hides older inactive / non-portfolio backend rows.
+ * Non-allowlist projects created via Initiate Project (e.g. "testing1").
+ * Kept out of excluded / completed / synthetic stubs so they appear in
+ * Enterprise Portfolio, 360 Overview, and User Management assign lists.
+ */
+export function isAdditionalInitiatedPortfolioProject(project: Project): boolean {
+  if (!project?.title?.trim()) return false;
+  if (isExcludedPmcTlProjectTitle(project.title)) return false;
+  if (isClientPortfolioProjectTitle(project.title)) return false;
+  if (isProjectCompleted(project)) return false;
+  if (isSyntheticExecutiveProjectId(String(project.id ?? ''))) return false;
+
+  const numericId = Number(project.id);
+  if (!Number.isFinite(numericId) || numericId <= 0) return false;
+
+  const createdMs = Date.parse(String(project.createdAt ?? ''));
+  if (Number.isFinite(createdMs)) {
+    const twoYearsMs = 730 * 24 * 60 * 60 * 1000;
+    return Date.now() - createdMs <= twoYearsMs;
+  }
+
+  // Optimistic local add right after Initiate Project (before backend createdAt lands)
+  return true;
+}
+
+/**
+ * Active / working projects for User Management assign / create checkboxes.
+ * Matches Enterprise Portfolio live registry: official ~25 + newly created.
+ * Excludes completed, excluded, and stale backend rows.
  */
 export function isAssignableUserManagementProject(project: Project): boolean {
   if (!project?.title?.trim()) return false;
   if (isExcludedPmcTlProjectTitle(project.title)) return false;
+  if (isProjectCompleted(project)) return false;
+  if (isSyntheticExecutiveProjectId(String(project.id ?? ''))) return false;
 
   if (isClientPortfolioProjectTitle(project.title)) return true;
+  return isAdditionalInitiatedPortfolioProject(project);
+}
 
-  // Newly initialized: not on the official active portfolio allowlist
-  if (project.status === ProjectStatus.CREATED) return true;
-
-  const createdMs = Date.parse(String(project.createdAt ?? ''));
-  if (!Number.isFinite(createdMs)) return false;
-
-  const sixMonthsMs = 180 * 24 * 60 * 60 * 1000;
-  return Date.now() - createdMs <= sixMonthsMs;
+/**
+ * Build the same live project set shown in Enterprise Portfolio
+ * (active only) plus newly created projects — for User Management forms.
+ * Does not retain deleted projects; callers should replace state with this result.
+ */
+export function buildLiveAssignableProjects(
+  apiProjects: Project[],
+  appProjects: Project[] = [],
+): Project[] {
+  return buildPmcHeadDropdownProjects(
+    apiProjects,
+    appProjects,
+    getKnownExecutiveProjectStubs(apiProjects),
+    getHseExecutiveProjectStubs(apiProjects),
+  ).filter(
+    (project) =>
+      isAssignableUserManagementProject(project) &&
+      !isSyntheticExecutiveProjectId(String(project.id ?? '')),
+  );
 }
 
 /**
@@ -552,13 +597,16 @@ export function normalizeBackendProjectRow(row: Record<string, unknown>): Projec
     statusRaw === 'APPROVED' ||
     Boolean(completion.completedAt);
 
+  const budget = Number(row.budget) || Number(row.bac) || 0;
+  const commencementRaw = row.commencement_date ?? row.project_start ?? '';
+
   return {
     id: String(row.id ?? ''),
     title: sanitizeProjectDisplayName(backendName),
     apiName: backendName,
     client: String(row.client_name ?? ''),
     location: String(row.location ?? ''),
-    budget: Number(row.budget) || 0,
+    budget,
     description: String(row.description ?? ''),
     status: isCompletedStatus
       ? ProjectStatus.APPROVED
@@ -585,7 +633,7 @@ export function normalizeBackendProjectRow(row: Record<string, unknown>): Projec
     documents: [],
     activities: [],
     auditLogs: initialAudit,
-    commencementDate: String(row.commencement_date ?? ''),
+    commencementDate: String(commencementRaw ?? ''),
     duration: String(row.duration ?? ''),
     salientFeatures: String(row.salient_features ?? ''),
     siteStaffDetails: String(row.site_staff_details ?? ''),

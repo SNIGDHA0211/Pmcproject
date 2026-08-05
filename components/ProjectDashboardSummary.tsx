@@ -252,10 +252,28 @@ const ProjectDashboardSummary: React.FC<ProjectDashboardSummaryProps> = ({
 
       <KpiCard
         title="Health & Safety"
-        value={healthSafetyStatus.label}
-        valueClassName={isDarkTheme ? hseStyle.darkValue : hseStyle.value}
+        value={
+          healthSafetyStatus.sublabel === 'No HSE data' ? '—' : healthSafetyStatus.label
+        }
+        valueClassName={
+          healthSafetyStatus.sublabel === 'No HSE data'
+            ? isDarkTheme
+              ? 'text-slate-400'
+              : 'text-slate-500'
+            : isDarkTheme
+              ? hseStyle.darkValue
+              : hseStyle.value
+        }
         icon={<Shield size={16} strokeWidth={2.5} />}
-        iconWrapClass={isDarkTheme ? hseStyle.darkIconBg : hseStyle.iconBg}
+        iconWrapClass={
+          healthSafetyStatus.sublabel === 'No HSE data'
+            ? isDarkTheme
+              ? 'bg-white/10 text-slate-400'
+              : 'bg-slate-100 text-slate-500'
+            : isDarkTheme
+              ? hseStyle.darkIconBg
+              : hseStyle.iconBg
+        }
         isDarkTheme={isDarkTheme}
         borderClass={themeClasses.border}
         glassCard={themeClasses.glassCard}
@@ -265,7 +283,9 @@ const ProjectDashboardSummary: React.FC<ProjectDashboardSummaryProps> = ({
               isDarkTheme ? 'text-slate-400' : 'text-slate-500'
             }`}
           >
-            <span className={`h-1.5 w-1.5 rounded-full ${hseStyle.dot}`} />
+            {healthSafetyStatus.sublabel !== 'No HSE data' && (
+              <span className={`h-1.5 w-1.5 rounded-full ${hseStyle.dot}`} />
+            )}
             {healthSafetyStatus.sublabel}
           </p>
         }
@@ -273,9 +293,13 @@ const ProjectDashboardSummary: React.FC<ProjectDashboardSummaryProps> = ({
 
       <KpiCard
         title="Drawing Approval"
-        value={`${drawingRounded}%`}
+        value={drawingRounded > 0 ? `${drawingRounded}%` : '—'}
         valueClassName={
-          drawingOnTrack
+          drawingRounded <= 0
+            ? isDarkTheme
+              ? 'text-slate-400'
+              : 'text-slate-500'
+            : drawingOnTrack
             ? isDarkTheme
               ? 'text-emerald-400'
               : semanticValueClass('positive', false)
@@ -285,7 +309,11 @@ const ProjectDashboardSummary: React.FC<ProjectDashboardSummaryProps> = ({
         }
         icon={<FileText size={16} strokeWidth={2.5} />}
         iconWrapClass={
-          drawingOnTrack
+          drawingRounded <= 0
+            ? isDarkTheme
+              ? 'bg-white/10 text-slate-400'
+              : 'bg-slate-100 text-slate-500'
+            : drawingOnTrack
             ? isDarkTheme
               ? 'bg-emerald-500/15 text-emerald-400'
               : 'bg-emerald-50 text-[#059669]'
@@ -298,7 +326,7 @@ const ProjectDashboardSummary: React.FC<ProjectDashboardSummaryProps> = ({
         glassCard={themeClasses.glassCard}
         sublabel={
           <p className={`${SUMMARY_KPI_SUB_CLASS} ${isDarkTheme ? 'text-slate-400' : 'text-slate-500'}`}>
-            {drawingOnTrack ? 'On track' : 'Needs improvement'}
+            {drawingRounded <= 0 ? 'No drawing data' : drawingOnTrack ? 'On track' : 'Needs improvement'}
           </p>
         }
         footer={

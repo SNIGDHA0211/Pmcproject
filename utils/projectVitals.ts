@@ -8,7 +8,14 @@ import {
 import type { ProjectVitalsSnapshot } from '../services/projectVitalsService';
 
 export type VitalStatus = 'healthy' | 'watch' | 'critical' | 'unknown';
-export type HealthLabel = 'ON TRACK' | 'AT RISK' | 'CRITICAL' | 'NO DATA';
+/** Card-level health from overview `project_status` (or derived fallback). */
+export type HealthLabel =
+  | 'ON TRACK'
+  | 'WATCH'
+  | 'AT RISK'
+  | 'CRITICAL'
+  | 'COMPLETED'
+  | 'NO DATA';
 export type TrendDirection = 'improving' | 'stable' | 'declining';
 
 export type VitalKey = 'schedule' | 'budget' | 'manpower' | 'safety' | 'reports' | 'drawings' | 'compliance';
@@ -31,7 +38,13 @@ export interface ProjectVitalsCard {
   client: string;
   overallScore: number | null;
   healthLabel: HealthLabel;
+  /** Exact overview `project_status` string when provided (e.g. "On Track"). */
+  projectStatusLabel?: string;
+  /** DB lifecycle from overview `status` (active | completed | planning | …). */
+  lifecycleStatus?: string | null;
   progressPct: number | null;
+  /** Backend progress.status when provided. */
+  progressStatusLabel?: string;
   openIssues: number;
   dprCount: number;
   drawingApprovalPct: number | null;
@@ -283,8 +296,10 @@ export const healthBorderClass = (label: HealthLabel): string => {
     case 'CRITICAL':
       return 'border-rose-200 ring-1 ring-rose-100';
     case 'AT RISK':
+    case 'WATCH':
       return 'border-amber-200 ring-1 ring-amber-100';
     case 'ON TRACK':
+    case 'COMPLETED':
       return 'border-emerald-200 ring-1 ring-emerald-100';
     default:
       return 'border-slate-200';
@@ -296,10 +311,28 @@ export const healthBadgeClass = (label: HealthLabel): string => {
     case 'CRITICAL':
       return 'bg-rose-50 text-rose-600 border-rose-200';
     case 'AT RISK':
+    case 'WATCH':
       return 'bg-amber-50 text-amber-700 border-amber-200';
     case 'ON TRACK':
+    case 'COMPLETED':
       return 'bg-emerald-50 text-emerald-700 border-emerald-200';
     default:
       return 'bg-slate-50 text-slate-600 border-slate-200';
   }
 };
+
+/** Title-case display for HealthLabel / API project_status. */
+export function formatHealthLabelDisplay(
+  label: HealthLabel | string | null | undefined,
+): string {
+  const raw = String(label ?? '').trim();
+  if (!raw) return 'No Data';
+  if (/^[A-Z\s]+$/.test(raw)) {
+    return raw
+      .toLowerCase()
+      .split(/\s+/)
+      .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+      .join(' ');
+  }
+  return raw;
+}
