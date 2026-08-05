@@ -67,6 +67,8 @@ export const API_ENDPOINTS = {
     DELETE: (id: string | number) => `/projects-data/projects/${id}/`,
     /** POST mark project completed — `/api/projects/{id}/complete/` */
     COMPLETE: (id: string | number) => `/projects/${id}/complete/`,
+    /** POST mark billing completed — `/api/projects/{id}/complete-billing/` */
+    COMPLETE_BILLING: (id: string | number) => `/projects/${id}/complete-billing/`,
     ASSIGN_TEAM_LEAD: (id: string) => `/projects-data/projects/${id}/assign-team-lead/`,
     ASSIGN_COORDINATOR: (id: string) => `/projects-data/projects/${id}/assign-coordinator/`,
     ADD_SITE_ENGINEERS: (id: string) => `/projects-data/projects/${id}/add-site-engineers/`,
@@ -122,7 +124,8 @@ export const API_ENDPOINTS = {
       `/health-safety/project/${encodeURIComponent(projectName)}/dashboard/`,
   },
 
-  // Project Progress
+  // Project Progress — GET /api/project-progress/
+  // Default: saved months with progress_month <= current month (no filler zeros / no future unless filtered)
   PROJECT_PROGRESS: {
     LIST: '/project-progress/',
     DETAIL: (id: string | number) => `/project-progress/${id}/`,
@@ -247,7 +250,7 @@ export const API_ENDPOINTS = {
     DETAIL: (id: string | number) => `/projects/contractors/${id}/`,
   },
 
-  // Cost Performance
+  // Cost Performance — all saved months (paginated); optional ?project_name=
   COST_PERFORMANCE: {
     LIST: '/cost-performance/',
     DETAIL: (id: string | number) => `/cost-performance/${id}/`,

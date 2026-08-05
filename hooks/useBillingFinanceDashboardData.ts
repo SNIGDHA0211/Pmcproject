@@ -4,7 +4,6 @@ import {
   budgetPerformanceApi,
   cashflowApi,
   contractPerformanceApi,
-  costPerformanceApi,
   getApiErrorMessage,
   normalizeContractPerformanceRecord,
   normalizePlannedEarnedByPeriod,
@@ -13,6 +12,7 @@ import {
   unwrapList,
   type PlannedEarnedByPeriodResponse,
 } from '../services/api';
+import { fetchCostPerformanceChart } from '../utils/costPerformance';
 import { plannedVsActualApi } from '../services/plannedVsActualApi';
 import { pvaBundleToPlannedEarnedPeriod } from '../utils/pvaDashboardAdapter';
 import { emptyCashflowRecord, type CashFlowRecord } from '../types/billing';
@@ -86,18 +86,16 @@ export function useBillingFinanceDashboardData(projectName: string | null, refre
 
     let cancelled = false;
     setIsLoadingCostPerformance(true);
-    costPerformanceApi
-      .getCostPerformance({ project_name: projectName, role: BILLING_ROLE })
-      .then((response) => {
+    fetchCostPerformanceChart(projectName, BILLING_ROLE)
+      .then((chart) => {
         if (cancelled) return;
-        const rows = unwrapList<Record<string, unknown>>(response.data);
         setCostPerformanceData(
-          rows.map((item) => ({
-            month: String(item.month_year ?? ''),
-            bcws: toNum(item.bcws),
-            bcwp: toNum(item.bcwp),
-            acwp: toNum(item.acwp),
-            fcst: toNum(item.fcst),
+          chart.map((item) => ({
+            month: item.month,
+            bcws: item.bcws,
+            bcwp: item.bcwp,
+            acwp: item.acwp,
+            fcst: item.fcst,
           })),
         );
       })

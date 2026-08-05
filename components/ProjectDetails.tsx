@@ -14,13 +14,18 @@ import { useTheme, getThemeClasses } from '../utils/theme';
 import { isPmcHeadEquivalent } from '../utils/pmcRoleAccess';
 import { canCompleteProject } from '../utils/userManagementAccess';
 import {
+  canCompleteProjectBilling,
   extractCompletionFields,
   formatCompletionDate,
+  getProjectCompletionBillingLabel,
   getProjectStatusLabel,
   isProjectCompleted,
 } from '../utils/projectCompletion';
 import ProjectSiteList from './ProjectSiteList';
-import CompleteProjectDialog from './CompleteProjectDialog';
+import CompleteProjectDialog, {
+  type CompleteProjectConfirmPayload,
+} from './CompleteProjectDialog';
+import CompleteBillingDialog from './CompleteBillingDialog';
 import DashboardToastStack, { type DashboardToastItem } from './DashboardToastStack';
 import ProjectEotSection from './projectEot/ProjectEotSection';
 import axios from 'axios';
@@ -48,8 +53,11 @@ const ProjectDetails: React.FC<ProjectDetailsProps> = ({ project, currentUser, o
   const [isMilestoneModalOpen, setIsMilestoneModalOpen] = useState(false);
   const [isReportGeneratorOpen, setIsReportGeneratorOpen] = useState(false);
   const [completeDialogOpen, setCompleteDialogOpen] = useState(false);
+  const [billingDialogOpen, setBillingDialogOpen] = useState(false);
   const [isCompleting, setIsCompleting] = useState(false);
+  const [isCompletingBilling, setIsCompletingBilling] = useState(false);
   const [completeError, setCompleteError] = useState<string | null>(null);
+  const [billingError, setBillingError] = useState<string | null>(null);
   const [toasts, setToasts] = useState<DashboardToastItem[]>([]);
 
   // State for Coordinator assigning Team Lead
@@ -78,6 +86,8 @@ const ProjectDetails: React.FC<ProjectDetailsProps> = ({ project, currentUser, o
   const isPMCHead = isPmcHeadEquivalent(currentUser);
   const isCompleted = isProjectCompleted(project);
   const canMarkComplete = canCompleteProject(currentUser) && !isCompleted;
+  const canMarkBillingComplete =
+    canCompleteProject(currentUser) && canCompleteProjectBilling(project);
   const hasTeamLead = project.teamLeadId && project.teamLeadId !== '';
   const hasSiteEngineers = project.siteEngineerIds && project.siteEngineerIds.length > 0;
   // PMC Manager / Head can assign team lead
@@ -93,15 +103,26 @@ const ProjectDetails: React.FC<ProjectDetailsProps> = ({ project, currentUser, o
     }, 4200);
   };
 
-  const handleConfirmComplete = async (completionNotes: string) => {
+  const handleConfirmComplete = async (payload: CompleteProjectConfirmPayload) => {
     if (isCompleting || isCompleted) return;
     setIsCompleting(true);
     setCompleteError(null);
     try {
-      const body =
-        completionNotes.trim().length > 0
-          ? { completion_notes: completionNotes.trim() }
-          : {};
+      const body: {
+        billing_status: 'Pending' | 'Completed';
+        completion_notes?: string;
+        billing_completion_notes?: string;
+      } = {
+        billing_status: payload.billingStatus,
+      };
+      if (payload.completionNotes) body.completion_notes = payload.completionNotes;
+      if (
+        payload.billingStatus === 'Completed' &&
+        payload.billingCompletionNotes
+      ) {
+        body.billing_completion_notes = payload.billingCompletionNotes;
+      }
+
       const response = await projectApi.completeProject(project.id, body);
       const data =
         response.data && typeof response.data === 'object'
@@ -113,9 +134,11 @@ const ProjectDetails: React.FC<ProjectDetailsProps> = ({ project, currentUser, o
           : 'Project marked as completed successfully.';
 
       const nested =
-        data.project && typeof data.project === 'object'
-          ? (data.project as Record<string, unknown>)
-          : data;
+        data.data && typeof data.data === 'object'
+          ? (data.data as Record<string, unknown>)
+          : data.project && typeof data.project === 'object'
+            ? (data.project as Record<string, unknown>)
+            : data;
       const completion = extractCompletionFields(nested);
 
       onUpdateProject(
@@ -130,7 +153,14 @@ const ProjectDetails: React.FC<ProjectDetailsProps> = ({ project, currentUser, o
             currentUser.id,
           completionNotes:
             completion.completionNotes ??
-            (completionNotes.trim() || null),
+            (payload.completionNotes || null),
+          billingStatus:
+            completion.billingStatus ?? payload.billingStatus ?? 'Pending',
+          billingCompletedAt: completion.billingCompletedAt ?? null,
+          billingCompletedBy: completion.billingCompletedBy ?? null,
+          billingCompletionNotes:
+            completion.billingCompletionNotes ??
+            (payload.billingCompletionNotes || null),
         },
         [],
       );
@@ -148,7 +178,7 @@ const ProjectDetails: React.FC<ProjectDetailsProps> = ({ project, currentUser, o
       if (axios.isAxiosError(err) && err.response?.status === 400) {
         const msg = getApiErrorMessage(
           err,
-          'Project is already marked as completed.',
+          'Unable to complete project. Check billing status and try again.',
         );
         setCompleteError(msg);
         showToast(msg, 'error');
@@ -159,6 +189,75 @@ const ProjectDetails: React.FC<ProjectDetailsProps> = ({ project, currentUser, o
       showToast(msg, 'error');
     } finally {
       setIsCompleting(false);
+    }
+  };
+
+  const handleConfirmBillingComplete = async (billingCompletionNotes: string) => {
+    if (isCompletingBilling || !canMarkBillingComplete) return;
+    setIsCompletingBilling(true);
+    setBillingError(null);
+    try {
+      const body =
+        billingCompletionNotes.trim().length > 0
+          ? { billing_completion_notes: billingCompletionNotes.trim() }
+          : {};
+      const response = await projectApi.completeProjectBilling(project.id, body);
+      const data =
+        response.data && typeof response.data === 'object'
+          ? (response.data as Record<string, unknown>)
+          : {};
+      const message =
+        typeof data.message === 'string' && data.message.trim()
+          ? data.message
+          : 'Billing marked as completed successfully.';
+      const nested =
+        data.data && typeof data.data === 'object'
+          ? (data.data as Record<string, unknown>)
+          : data;
+      const completion = extractCompletionFields(nested);
+
+      onUpdateProject(
+        project.id,
+        {
+          billingStatus: completion.billingStatus ?? 'Completed',
+          billingCompletedAt:
+            completion.billingCompletedAt || new Date().toISOString(),
+          billingCompletedBy:
+            completion.billingCompletedBy ||
+            currentUser.name ||
+            currentUser.username ||
+            currentUser.id,
+          billingCompletionNotes:
+            completion.billingCompletionNotes ??
+            (billingCompletionNotes.trim() || null),
+        },
+        [],
+      );
+
+      setBillingDialogOpen(false);
+      showToast(message, 'success');
+      onRefresh?.();
+    } catch (err) {
+      if (axios.isAxiosError(err) && err.response?.status === 403) {
+        const msg = 'You do not have permission to complete billing.';
+        setBillingError(msg);
+        showToast(msg, 'error');
+        return;
+      }
+      if (axios.isAxiosError(err) && err.response?.status === 400) {
+        const msg = getApiErrorMessage(
+          err,
+          'Billing can only be completed after the project is marked completed.',
+        );
+        setBillingError(msg);
+        showToast(msg, 'error');
+        return;
+      }
+      const msg = getApiErrorMessage(err, 'Failed to mark billing as completed.');
+      setBillingError(msg);
+      showToast(msg, 'error');
+    } finally {
+      setIsCompletingBilling(false);
     }
   };
 
@@ -692,6 +791,23 @@ const ProjectDetails: React.FC<ProjectDetailsProps> = ({ project, currentUser, o
               Mark as Completed
             </button>
           )}
+          {canMarkBillingComplete && (
+            <button
+              type="button"
+              onClick={() => {
+                setBillingError(null);
+                setBillingDialogOpen(true);
+              }}
+              className={`px-4 py-2 flex items-center gap-2 font-black border rounded-lg transition-all text-[10px] uppercase tracking-widest ${
+                isDarkTheme
+                  ? 'text-sky-300 border-sky-500/40 bg-sky-600/15 hover:bg-sky-600/30'
+                  : 'text-sky-700 border-sky-200 bg-sky-50 hover:bg-sky-100'
+              }`}
+            >
+              <Icons.Approve size={14} />
+              Complete Billing
+            </button>
+          )}
           {!isCompleted && (
             <button
               onClick={() => setIsEditModalOpen(true)}
@@ -713,7 +829,8 @@ const ProjectDetails: React.FC<ProjectDetailsProps> = ({ project, currentUser, o
           }`}
           role="status"
         >
-          This project has been completed and is now read-only.
+          {getProjectCompletionBillingLabel(project)}. This project is read-only
+          for operational records.
         </div>
       )}
 
@@ -952,6 +1069,52 @@ const ProjectDetails: React.FC<ProjectDetailsProps> = ({ project, currentUser, o
               </p>
               <p className={`mt-1 text-sm font-semibold ${themeClasses.textPrimary}`}>
                 {project.completionNotes}
+              </p>
+            </div>
+          ) : null}
+          <div>
+            <p
+              className={`text-[11px] font-bold uppercase tracking-wide ${themeClasses.textSecondary}`}
+            >
+              Billing Status
+            </p>
+            <p className={`mt-1 text-sm font-bold ${themeClasses.textPrimary}`}>
+              {getProjectCompletionBillingLabel(project)}
+            </p>
+          </div>
+          {project.billingCompletedAt ? (
+            <div>
+              <p
+                className={`text-[11px] font-bold uppercase tracking-wide ${themeClasses.textSecondary}`}
+              >
+                Billing Completed At
+              </p>
+              <p className={`mt-1 text-sm font-bold ${themeClasses.textPrimary}`}>
+                {formatCompletionDate(project.billingCompletedAt)}
+              </p>
+            </div>
+          ) : null}
+          {project.billingCompletedBy ? (
+            <div>
+              <p
+                className={`text-[11px] font-bold uppercase tracking-wide ${themeClasses.textSecondary}`}
+              >
+                Billing Completed By
+              </p>
+              <p className={`mt-1 text-sm font-bold ${themeClasses.textPrimary}`}>
+                {project.billingCompletedBy}
+              </p>
+            </div>
+          ) : null}
+          {project.billingCompletionNotes ? (
+            <div className="sm:col-span-2 lg:col-span-1">
+              <p
+                className={`text-[11px] font-bold uppercase tracking-wide ${themeClasses.textSecondary}`}
+              >
+                Billing Notes
+              </p>
+              <p className={`mt-1 text-sm font-semibold ${themeClasses.textPrimary}`}>
+                {project.billingCompletionNotes}
               </p>
             </div>
           ) : null}
@@ -1393,9 +1556,22 @@ const ProjectDetails: React.FC<ProjectDetailsProps> = ({ project, currentUser, o
           setCompleteDialogOpen(false);
           setCompleteError(null);
         }}
-        onConfirm={(notes) => void handleConfirmComplete(notes)}
+        onConfirm={(payload) => void handleConfirmComplete(payload)}
         isSubmitting={isCompleting}
         errorMessage={completeError}
+      />
+
+      <CompleteBillingDialog
+        open={billingDialogOpen}
+        projectName={project.title}
+        onCancel={() => {
+          if (isCompletingBilling) return;
+          setBillingDialogOpen(false);
+          setBillingError(null);
+        }}
+        onConfirm={(notes) => void handleConfirmBillingComplete(notes)}
+        isSubmitting={isCompletingBilling}
+        errorMessage={billingError}
       />
     </div>
   );

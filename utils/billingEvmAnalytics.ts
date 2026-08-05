@@ -1,6 +1,6 @@
 import { unwrapList } from '../services/api';
-import { costPerformanceApi } from '../services/api';
 import { costRecordMatchesPeriod } from './financialPeriod';
+import { fetchCostPerformanceChart } from './costPerformance';
 
 export function parseBillingNumeric(value: unknown): number {
   if (typeof value === 'number' && Number.isFinite(value)) return value;
@@ -84,21 +84,14 @@ export async function fetchCostPerformanceTrend(
   projectName: string,
   role?: string,
 ): Promise<EvmTrendPoint[]> {
-  const params: Record<string, string> = { project_name: projectName };
-  if (role?.trim()) params.role = role.trim();
-
   try {
-    const res = await costPerformanceApi.getCostPerformance(params);
-    const rows = unwrapList<Record<string, unknown>>(res.data);
-    return rows
-      .map((row) => ({
-        month: String(row.month_year ?? row.monthYear ?? ''),
-        bcws: parseBillingNumeric(row.bcws ?? row.BCWS),
-        bcwp: parseBillingNumeric(row.bcwp ?? row.BCWP),
-        acwp: parseBillingNumeric(row.acwp ?? row.ACWP ?? row.ac),
-      }))
-      .filter((row) => row.month)
-      .sort((a, b) => a.month.localeCompare(b.month));
+    const chart = await fetchCostPerformanceChart(projectName, role);
+    return chart.map((row) => ({
+      month: row.month,
+      bcws: row.bcws,
+      bcwp: row.bcwp,
+      acwp: row.acwp,
+    }));
   } catch {
     return [];
   }

@@ -2,19 +2,12 @@ import React, { useEffect, useId, useRef, useState } from 'react';
 import { ModalPortal } from './ModalPortal';
 import { Icons } from './Icons';
 import { getThemeClasses, useTheme } from '../utils/theme';
-import type { ProjectBillingStatus } from '../utils/projectCompletion';
 
-export type CompleteProjectConfirmPayload = {
-  billingStatus: ProjectBillingStatus;
-  completionNotes: string;
-  billingCompletionNotes: string;
-};
-
-interface CompleteProjectDialogProps {
+interface CompleteBillingDialogProps {
   open: boolean;
   projectName?: string;
   onCancel: () => void;
-  onConfirm: (payload: CompleteProjectConfirmPayload) => void;
+  onConfirm: (billingCompletionNotes: string) => void;
   isSubmitting?: boolean;
   errorMessage?: string | null;
 }
@@ -22,7 +15,7 @@ interface CompleteProjectDialogProps {
 const FOCUSABLE =
   'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
-const CompleteProjectDialog: React.FC<CompleteProjectDialogProps> = ({
+const CompleteBillingDialog: React.FC<CompleteBillingDialogProps> = ({
   open,
   projectName,
   onCancel,
@@ -35,22 +28,18 @@ const CompleteProjectDialog: React.FC<CompleteProjectDialogProps> = ({
   const titleId = useId();
   const descId = useId();
   const panelRef = useRef<HTMLDivElement>(null);
-  const billingRef = useRef<HTMLSelectElement>(null);
+  const notesRef = useRef<HTMLTextAreaElement>(null);
   const previousFocusRef = useRef<HTMLElement | null>(null);
-  const [billingStatus, setBillingStatus] = useState<ProjectBillingStatus>('Pending');
   const [notes, setNotes] = useState('');
-  const [billingNotes, setBillingNotes] = useState('');
 
   useEffect(() => {
     if (!open) {
-      setBillingStatus('Pending');
       setNotes('');
-      setBillingNotes('');
       return;
     }
 
     previousFocusRef.current = document.activeElement as HTMLElement | null;
-    const t = window.setTimeout(() => billingRef.current?.focus(), 0);
+    const t = window.setTimeout(() => notesRef.current?.focus(), 0);
 
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape' && !isSubmitting) {
@@ -102,10 +91,10 @@ const CompleteProjectDialog: React.FC<CompleteProjectDialogProps> = ({
             id={titleId}
             className={`text-lg font-black uppercase tracking-tight ${themeClasses.textPrimary}`}
           >
-            Complete Project
+            Complete Billing
           </h3>
           <p id={descId} className={`mt-2 text-sm ${themeClasses.textSecondary}`}>
-            Mark
+            Mark billing as completed for
             {projectName ? (
               <>
                 {' '}
@@ -115,70 +104,29 @@ const CompleteProjectDialog: React.FC<CompleteProjectDialogProps> = ({
               </>
             ) : (
               ' this project'
-            )}{' '}
-            as completed. Project status becomes <strong>Completed</strong>; choose
-            whether billing is still pending or also completed.
+            )}
+            . Project status stays <strong>Completed</strong>; only billing moves to
+            Completed.
           </p>
 
           <div className="mt-4 space-y-1.5">
             <label
-              htmlFor="billing-status"
+              htmlFor="billing-completion-notes-only"
               className={`block text-[10px] font-black uppercase tracking-widest ${themeClasses.textSecondary}`}
             >
-              Billing Status <span className="text-rose-500">*</span>
-            </label>
-            <select
-              id="billing-status"
-              ref={billingRef}
-              value={billingStatus}
-              disabled={isSubmitting}
-              onChange={(e) =>
-                setBillingStatus(e.target.value as ProjectBillingStatus)
-              }
-              className={`w-full rounded-xl border px-3 py-2.5 text-sm font-semibold outline-none focus:ring-2 disabled:opacity-60 ${themeClasses.input} ${themeClasses.border} ${themeClasses.textPrimary}`}
-            >
-              <option value="Pending">Pending — complete billing later</option>
-              <option value="Completed">Completed — project & billing together</option>
-            </select>
-          </div>
-
-          <div className="mt-3 space-y-1.5">
-            <label
-              htmlFor="completion-notes"
-              className={`block text-[10px] font-black uppercase tracking-widest ${themeClasses.textSecondary}`}
-            >
-              Completion Notes
+              Billing Completion Notes
             </label>
             <textarea
-              id="completion-notes"
-              rows={2}
+              id="billing-completion-notes-only"
+              ref={notesRef}
+              rows={3}
               value={notes}
               disabled={isSubmitting}
               onChange={(e) => setNotes(e.target.value)}
-              placeholder="Optional project completion remarks…"
+              placeholder="Optional remarks (e.g. final bill released)…"
               className={`w-full resize-y rounded-xl border px-3 py-2 text-sm font-semibold outline-none focus:ring-2 disabled:opacity-60 ${themeClasses.input} ${themeClasses.border} ${themeClasses.textPrimary} ${themeClasses.placeholder}`}
             />
           </div>
-
-          {billingStatus === 'Completed' && (
-            <div className="mt-3 space-y-1.5">
-              <label
-                htmlFor="billing-completion-notes"
-                className={`block text-[10px] font-black uppercase tracking-widest ${themeClasses.textSecondary}`}
-              >
-                Billing Completion Notes
-              </label>
-              <textarea
-                id="billing-completion-notes"
-                rows={2}
-                value={billingNotes}
-                disabled={isSubmitting}
-                onChange={(e) => setBillingNotes(e.target.value)}
-                placeholder="Optional billing remarks (e.g. final bill released)…"
-                className={`w-full resize-y rounded-xl border px-3 py-2 text-sm font-semibold outline-none focus:ring-2 disabled:opacity-60 ${themeClasses.input} ${themeClasses.border} ${themeClasses.textPrimary} ${themeClasses.placeholder}`}
-              />
-            </div>
-          )}
 
           {errorMessage && (
             <p className="mt-3 text-sm font-semibold text-rose-500" role="alert">
@@ -197,15 +145,9 @@ const CompleteProjectDialog: React.FC<CompleteProjectDialogProps> = ({
             </button>
             <button
               type="button"
-              onClick={() =>
-                onConfirm({
-                  billingStatus,
-                  completionNotes: notes.trim(),
-                  billingCompletionNotes: billingNotes.trim(),
-                })
-              }
+              onClick={() => onConfirm(notes.trim())}
               disabled={isSubmitting}
-              className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-emerald-500 disabled:opacity-60"
+              className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-sky-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-sky-500 disabled:opacity-60"
             >
               {isSubmitting ? (
                 <>
@@ -213,7 +155,7 @@ const CompleteProjectDialog: React.FC<CompleteProjectDialogProps> = ({
                   Completing…
                 </>
               ) : (
-                'Mark as Completed'
+                'Mark Billing Completed'
               )}
             </button>
           </div>
@@ -223,4 +165,4 @@ const CompleteProjectDialog: React.FC<CompleteProjectDialogProps> = ({
   );
 };
 
-export default CompleteProjectDialog;
+export default CompleteBillingDialog;

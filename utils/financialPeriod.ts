@@ -150,6 +150,9 @@ export function mapProjectProgressToForm(
   return {
     id: extractRecordId(row),
     progress_month: String(row.progress_month ?? row.progressMonth ?? formatProgressMonthDate(month, year)),
+    progress_month_display: String(
+      row.progress_month_display ?? row.progressMonthDisplay ?? ''
+    ),
     monthly_plan: row.monthly_plan ?? row.monthlyPlan ?? row.monthly_planned ?? '',
     cumulative_plan: row.cumulative_plan ?? row.cumulativePlan ?? row.cumulative_planned ?? '',
     monthly_actual: row.monthly_actual ?? row.monthlyActual ?? row.monthly_actual_progress ?? '',

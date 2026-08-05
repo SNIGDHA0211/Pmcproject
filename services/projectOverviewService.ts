@@ -2,7 +2,7 @@ import api, { getApiErrorMessage } from './api';
 import { API_ENDPOINTS } from '../config/apiConfig';
 import type { Project } from '../types';
 import type { HealthLabel, ProjectVital, ProjectVitalsCard, VitalStatus } from '../utils/projectVitals';
-import { isProjectCompleted } from '../utils/projectCompletion';
+import { extractCompletionFields, isProjectCompleted, normalizeBillingStatus } from '../utils/projectCompletion';
 import { areDuplicateProjectTitles, normalizeProjectTitleKey } from '../utils/hseSiteEngineerProjects';
 import {
   isExcludedPmcTlProjectTitle,
@@ -50,9 +50,20 @@ export interface ProjectOverviewItem {
   compare_enabled?: boolean;
   completed_at?: string | null;
   completed_on?: string | null;
-  completed_by?: string | null;
+  completed_by?:
+    | string
+    | { id?: number | string; username?: string | null; full_name?: string | null }
+    | null;
   completed_by_name?: string | null;
   completion_notes?: string | null;
+  /** Additive: Pending | Completed */
+  billing_status?: string | null;
+  billing_completed_at?: string | null;
+  billing_completed_by?:
+    | string
+    | { id?: number | string; username?: string | null; full_name?: string | null }
+    | null;
+  billing_completion_notes?: string | null;
 }
 
 export interface ProjectOverviewResponse {
@@ -71,6 +82,8 @@ export interface ProjectOverviewQuery {
   client?: string;
   /** Filter by lifecycle `status` (active, completed, …) — not project_status. */
   status?: string | string[];
+  /** Additive filter: Pending | Completed */
+  billing_status?: string | string[];
   project_name?: string;
   ordering?: string;
   /** Dashboard should omit this (never paginate=true) unless intentionally paging. */
@@ -199,10 +212,13 @@ export function mapOverviewItemToVitalsCard(item: ProjectOverviewItem): ProjectV
   const lifecycleRaw = String(item.status ?? '').trim();
   const lifecycleStatus = lifecycleRaw || null;
   const statusRaw = lifecycleRaw.toLowerCase();
-  const completedAt = item.completed_at ?? item.completed_on ?? null;
-  const completedBy =
-    item.completed_by_name ??
-    (typeof item.completed_by === 'string' ? item.completed_by : null);
+  const completion = extractCompletionFields(item as unknown as Record<string, unknown>);
+  const completedAt = completion.completedAt ?? item.completed_at ?? item.completed_on ?? null;
+  const completedBy = completion.completedBy ?? null;
+  const billingStatus =
+    completion.billingStatus ??
+    normalizeBillingStatus(item.billing_status) ??
+    (statusRaw === 'completed' || Boolean(completedAt) ? 'Pending' : null);
   const isCompleted =
     statusRaw === 'completed' ||
     statusRaw === 'approved' ||
@@ -245,6 +261,11 @@ export function mapOverviewItemToVitalsCard(item: ProjectOverviewItem): ProjectV
     isCompleted,
     completedAt,
     completedBy,
+    billingStatus,
+    billingCompletedAt: completion.billingCompletedAt ?? item.billing_completed_at ?? null,
+    billingCompletedBy: completion.billingCompletedBy ?? null,
+    billingCompletionNotes:
+      completion.billingCompletionNotes ?? item.billing_completion_notes ?? null,
   };
 }
 
@@ -261,6 +282,13 @@ function buildOverviewParams(query: ProjectOverviewQuery = {}): Record<string, s
       ? query.status.map((s) => String(s).trim()).filter(Boolean).join(',')
       : String(query.status).trim();
     if (status) params.status = status;
+  }
+
+  if (query.billing_status != null) {
+    const billing = Array.isArray(query.billing_status)
+      ? query.billing_status.map((s) => String(s).trim()).filter(Boolean).join(',')
+      : String(query.billing_status).trim();
+    if (billing) params.billing_status = billing;
   }
 
   const projectName = String(query.project_name ?? '').trim();
@@ -369,6 +397,10 @@ export function buildEmptyOverviewVitalsCard(project: Project): ProjectVitalsCar
     isCompleted: isProjectCompleted(project),
     completedAt: project.completedAt ?? null,
     completedBy: project.completedBy ?? null,
+    billingStatus: project.billingStatus ?? null,
+    billingCompletedAt: project.billingCompletedAt ?? null,
+    billingCompletedBy: project.billingCompletedBy ?? null,
+    billingCompletionNotes: project.billingCompletionNotes ?? null,
   };
 }
 
@@ -426,6 +458,13 @@ export function mergeOverviewCardsWithLiveProjects(
         isCompleted: isProjectCompleted(project) || Boolean(overviewCard.isCompleted),
         completedAt: project.completedAt ?? overviewCard.completedAt ?? null,
         completedBy: project.completedBy ?? overviewCard.completedBy ?? null,
+        billingStatus: project.billingStatus ?? overviewCard.billingStatus ?? null,
+        billingCompletedAt:
+          project.billingCompletedAt ?? overviewCard.billingCompletedAt ?? null,
+        billingCompletedBy:
+          project.billingCompletedBy ?? overviewCard.billingCompletedBy ?? null,
+        billingCompletionNotes:
+          project.billingCompletionNotes ?? overviewCard.billingCompletionNotes ?? null,
       });
       continue;
     }

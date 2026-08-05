@@ -436,12 +436,23 @@ export const projectApi = {
   deleteSite: (siteId: string | number) => {
     return api.delete(API_ENDPOINTS.PROJECTS.INIT_LIST_DETAIL(siteId));
   },
-  /** POST /api/projects/{project_id}/complete/ */
+  /** POST /api/projects/{project_id}/complete/ — billing_status required */
   completeProject: (
     projectId: string | number,
-    body?: { completion_notes?: string },
+    body: {
+      billing_status: 'Pending' | 'Completed';
+      completion_notes?: string;
+      billing_completion_notes?: string;
+    },
   ) => {
-    return api.post(API_ENDPOINTS.PROJECTS.COMPLETE(projectId), body ?? {});
+    return api.post(API_ENDPOINTS.PROJECTS.COMPLETE(projectId), body);
+  },
+  /** POST /api/projects/{project_id}/complete-billing/ — after project is completed */
+  completeProjectBilling: (
+    projectId: string | number,
+    body?: { billing_completion_notes?: string },
+  ) => {
+    return api.post(API_ENDPOINTS.PROJECTS.COMPLETE_BILLING(projectId), body ?? {});
   },
 };
 
@@ -1353,9 +1364,39 @@ export async function saveHealthSafetyRecord(
   }
 }
 
-// Project Progress API (no auth)
+// Project Progress API — GET /api/project-progress/
+// Default: saved months with progress_month <= current month (no filler / no future unless filtered)
+export type ProjectProgressQueryParams = {
+  /** Exact project title */
+  project_name?: string;
+  /** One specific month as YYYY-MM-DD (e.g. 2026-05-01) */
+  month?: string;
+  /** Inclusive range start YYYY-MM-DD (may include future if stored) */
+  start_month?: string;
+  /** Inclusive range end YYYY-MM-DD */
+  end_month?: string;
+  /** Legacy / optional backend role filter */
+  role?: string;
+};
+
+/** Row shape from GET /api/project-progress/ */
+export type ProjectProgressRecord = {
+  id?: number | string;
+  project_name: string;
+  progress_month: string;
+  progress_month_display?: string;
+  monthly_plan: number;
+  cumulative_plan: number;
+  monthly_actual: number;
+  cumulative_actual: number;
+  created_by?: string | null;
+  updated_by?: string | null;
+  created_at?: string;
+  updated_at?: string;
+};
+
 export const projectProgressApi = {
-  getProjectProgress: (params?: { project_name?: string; role?: string }) =>
+  getProjectProgress: (params?: ProjectProgressQueryParams) =>
     api.get(API_ENDPOINTS.PROJECT_PROGRESS.LIST, { params }),
   getProjectProgressDetail: (id: string | number) =>
     api.get(API_ENDPOINTS.PROJECT_PROGRESS.DETAIL(id)),
@@ -3324,13 +3365,16 @@ export const invoicingApi = {
     api.delete(API_ENDPOINTS.INVOICING.DETAIL(id)),
 };
 
-// Cost Performance API (no auth)
+// Cost Performance — GET /api/cost-performance/
+// Default: all saved monthly EVM rows (paginated). No filler months. Filter: project_name.
 export const costPerformanceApi = {
   getCostPerformance: (params?: {
     project_name?: string;
     month_year?: string;
     role?: string;
     ordering?: string;
+    page?: number;
+    page_size?: number;
   }) => api.get(API_ENDPOINTS.COST_PERFORMANCE.LIST, { params }),
   getCostPerformanceDetail: (id: string | number) =>
     api.get(API_ENDPOINTS.COST_PERFORMANCE.DETAIL(id)),
@@ -4494,9 +4538,26 @@ export async function resolveProjectProgressId(
   year: number,
   role?: string,
 ): Promise<string | number | undefined> {
-  const params: Record<string, string> = { project_name: projectName };
-  if (role?.trim()) params.role = role.trim();
-  const response = await projectProgressApi.getProjectProgress(params);
+  const monthDate = formatProgressMonthDate(month, year);
+  const base: Record<string, string> = { project_name: projectName };
+  if (role?.trim()) base.role = role.trim();
+
+  // Prefer API month filter when available
+  try {
+    const filtered = await projectProgressApi.getProjectProgress({
+      ...base,
+      month: monthDate,
+    });
+    const filteredRows = unwrapList<Record<string, unknown>>(filtered.data);
+    const filteredMatch =
+      pickProjectProgressRecord(filteredRows, month, year) ?? filteredRows[0] ?? null;
+    const filteredId = extractRecordId(filteredMatch);
+    if (filteredId != null) return filteredId;
+  } catch {
+    // Fall through to unfiltered list for older backends
+  }
+
+  const response = await projectProgressApi.getProjectProgress(base);
   const rows = unwrapList<Record<string, unknown>>(response.data);
   const match = pickProjectProgressRecord(rows, month, year);
   return extractRecordId(match);

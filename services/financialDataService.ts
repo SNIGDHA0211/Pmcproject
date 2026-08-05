@@ -29,6 +29,7 @@ import {
   pickProjectProgressRecord,
   pickBudgetPerformanceRecord,
   formatFinancialMonthYear,
+  formatProgressMonthDate,
 } from '../utils/financialPeriod';
 
 const CONTRACT_VALUE_TYPES: ContractValueType[] = ['SCL', 'Contractor'];
@@ -80,7 +81,7 @@ export async function fetchFinancialDataSnapshot({
 }: FetchFinancialDataParams): Promise<FinancialDataSnapshot> {
   const roleParam = { role: roleForSubmission };
 
-  // Independent GETs run in parallel to cut financial-tab waterfall latency.
+  // Prefer ?month= for the selected period; fall back to full project list if empty.
   const [
     progSettled,
     pevSettled,
@@ -91,7 +92,11 @@ export async function fetchFinancialDataSnapshot({
     contractResults,
   ] = await Promise.all([
     projectProgressApi
-      .getProjectProgress({ project_name: projectName, ...roleParam })
+      .getProjectProgress({
+        project_name: projectName,
+        month: formatProgressMonthDate(month, year),
+        ...roleParam,
+      })
       .then((value) => ({ status: 'fulfilled' as const, value }))
       .catch((reason) => ({ status: 'rejected' as const, reason })),
     plannedEarnedValueApi
@@ -126,13 +131,28 @@ export async function fetchFinancialDataSnapshot({
 
   let progressForm = mapProjectProgressToForm(null, month, year);
   if (progSettled.status === 'fulfilled') {
-    const progressRows = unwrapProjectProgressList(progSettled.value.data);
-    const progressRow = pickProjectProgressRecord(progressRows, month, year);
-    progressForm = mapProjectProgressToForm(
-      progressRow as Record<string, unknown> | null,
-      month,
-      year
-    );
+    let progressRows = unwrapProjectProgressList(progSettled.value.data);
+    let progressRow: Record<string, unknown> | null =
+      (pickProjectProgressRecord(progressRows, month, year) as Record<string, unknown> | null) ??
+      (progressRows[0] as Record<string, unknown> | undefined) ??
+      null;
+
+    if (!progressRow) {
+      try {
+        const listRes = await projectProgressApi.getProjectProgress({
+          project_name: projectName,
+          ...roleParam,
+        });
+        progressRows = unwrapProjectProgressList(listRes.data);
+        progressRow =
+          (pickProjectProgressRecord(progressRows, month, year) as Record<string, unknown> | null) ??
+          null;
+      } catch {
+        progressRow = null;
+      }
+    }
+
+    progressForm = mapProjectProgressToForm(progressRow, month, year);
   }
 
   let pevForms: FinancialDataSnapshot['pevForms'] = {
@@ -176,7 +196,11 @@ export async function fetchFinancialDataSnapshot({
   }
   if (costRows.length === 0) {
     try {
-      const fallbackRes = await costPerformanceApi.getCostPerformance({ project_name: projectName });
+      // List all saved months for project (paginated), then pick selected period
+      const fallbackRes = await costPerformanceApi.getCostPerformance({
+        project_name: projectName,
+        page_size: 100,
+      });
       costRows = unwrapList<Record<string, unknown>>(fallbackRes.data);
     } catch {
       // keep empty — form maps to blanks
@@ -257,7 +281,9 @@ export async function fetchProjectProgressTrend(
   }));
 }
 
-/** Load S-curve points for a project; retries without role and alternate query keys when needed. */
+/** Load S-curve points for a project from GET /api/project-progress/.
+ * Uses saved months only (no invented filler zeros). Retries without role when needed.
+ */
 export async function fetchProjectProgressChart(
   projectName: string,
   role?: string
@@ -268,7 +294,6 @@ export async function fetchProjectProgressChart(
     attempts.push({ project_name: projectName, role: role.trim() });
   }
   attempts.push({ project_name: projectName });
-  attempts.push({ project: projectName });
 
   for (const params of attempts) {
     try {

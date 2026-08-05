@@ -28,6 +28,10 @@ import { getPmcExecutiveTheme } from '../utils/pmcExecutiveTheme';
 import type { HealthLabel, ProjectVital, ProjectVitalsCard, VitalStatus } from '../utils/projectVitals';
 import { formatHealthLabelDisplay } from '../utils/projectVitals';
 import {
+  formatCompletedBillingLabel,
+  normalizeBillingStatus,
+} from '../utils/projectCompletion';
+import {
   buildPortfolioSummary,
   PORTFOLIO_SCORE_FORMULAS,
   SCORE_COLORS,
@@ -426,13 +430,18 @@ const ProjectGridCard: React.FC<{
               {card.isCompleted && (
                 <>
                   <span
-                    className={`inline-flex rounded-full border px-2 py-0.5 text-[9px] font-black uppercase tracking-wide ${
-                      isDark
-                        ? 'border-emerald-500/40 bg-emerald-500/15 text-emerald-300'
-                        : 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                    className={`inline-flex max-w-full rounded-full border px-2 py-0.5 text-[9px] font-black uppercase tracking-wide ${
+                      (normalizeBillingStatus(card.billingStatus) ?? 'Pending') === 'Completed'
+                        ? isDark
+                          ? 'border-emerald-500/40 bg-emerald-500/15 text-emerald-300'
+                          : 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                        : isDark
+                          ? 'border-amber-500/40 bg-amber-500/15 text-amber-300'
+                          : 'border-amber-200 bg-amber-50 text-amber-800'
                     }`}
+                    title={formatCompletedBillingLabel(card.billingStatus)}
                   >
-                    Completed
+                    {formatCompletedBillingLabel(card.billingStatus)}
                   </span>
                   {card.completedAt && (
                     <span className={`text-[9px] font-semibold ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
@@ -724,6 +733,8 @@ const PMCHead360Dashboard: React.FC<PMCHead360DashboardProps> = ({
   const [regionFilter, setRegionFilter] = useState('all');
   const [pmFilter, setPmFilter] = useState('all');
   const [clientFilter, setClientFilter] = useState('all');
+  /** all | pending | completed — completed projects by billing_status */
+  const [billingFilter, setBillingFilter] = useState<'all' | 'pending' | 'completed'>('all');
   const [ordering, setOrdering] = useState('name');
   const [compareIds, setCompareIds] = useState<string[]>([]);
   const [isExportingCompare, setIsExportingCompare] = useState(false);
@@ -754,6 +765,12 @@ const PMCHead360Dashboard: React.FC<PMCHead360DashboardProps> = ({
             search: debouncedSearch || undefined,
             ordering: ordering || undefined,
             client: clientFilter !== 'all' ? clientFilter : undefined,
+            ...(billingFilter !== 'all'
+              ? {
+                  status: 'completed',
+                  billing_status: billingFilter === 'pending' ? 'Pending' : 'Completed',
+                }
+              : {}),
           },
           { signal: controller.signal },
         );
@@ -777,7 +794,7 @@ const PMCHead360Dashboard: React.FC<PMCHead360DashboardProps> = ({
     return () => {
       controller.abort();
     };
-  }, [user.id, debouncedSearch, ordering, clientFilter, refreshNonce]);
+  }, [user.id, debouncedSearch, ordering, clientFilter, billingFilter, refreshNonce]);
 
   const allCards = useMemo(
     () => mergeOverviewCardsWithLiveProjects(overviewCards, projects),
@@ -898,9 +915,15 @@ const PMCHead360Dashboard: React.FC<PMCHead360DashboardProps> = ({
     return allCards.filter((c) => {
       if (regionFilter !== 'all' && c.location !== regionFilter) return false;
       if (pmFilter !== 'all' && c.pmName !== pmFilter) return false;
+      if (billingFilter !== 'all') {
+        if (!c.isCompleted) return false;
+        const billing = normalizeBillingStatus(c.billingStatus) ?? 'Pending';
+        if (billingFilter === 'pending' && billing !== 'Pending') return false;
+        if (billingFilter === 'completed' && billing !== 'Completed') return false;
+      }
       return true;
     });
-  }, [allCards, regionFilter, pmFilter]);
+  }, [allCards, regionFilter, pmFilter, billingFilter]);
 
   const portfolio = useMemo(() => buildPortfolioSummary(filteredCards), [filteredCards]);
 
@@ -1087,6 +1110,20 @@ const PMCHead360Dashboard: React.FC<PMCHead360DashboardProps> = ({
               value: pm,
               label: pm === 'all' ? 'All PMs' : pm,
             }))}
+          />
+
+          <ThemeFilterSelect
+            ariaLabel="Filter by billing status"
+            isDark={isDarkTheme}
+            value={billingFilter}
+            onChange={(v) =>
+              setBillingFilter(v as 'all' | 'pending' | 'completed')
+            }
+            options={[
+              { value: 'all', label: 'All Billing' },
+              { value: 'pending', label: 'Completed · Billing Pending' },
+              { value: 'completed', label: 'Completed · Billing Done' },
+            ]}
           />
 
           <ThemeFilterSelect

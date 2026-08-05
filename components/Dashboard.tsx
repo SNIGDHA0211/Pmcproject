@@ -6,7 +6,8 @@ import { STATUS_COLORS } from '../constants';
 import { formatINR } from '../utils/format';
 import DPRSubmissionForm from './DPRSubmissionForm';
 import { useTheme, getThemeClasses } from '../utils/theme';
-import { contractValuesApi, costPerformanceApi, contractPerformanceApi, projectProgressApi, manpowerApi, cashflowApi, normalizeContractPerformanceRecord, normalizeContractValueRecord, normalizeManpowerRecord, unwrapList, toNum } from '../services/api';
+import { contractValuesApi, contractPerformanceApi, projectProgressApi, manpowerApi, cashflowApi, normalizeContractPerformanceRecord, normalizeContractValueRecord, normalizeManpowerRecord, unwrapList, toNum } from '../services/api';
+import { fetchCostPerformanceChart } from '../utils/costPerformance';
 import { isPmcHeadEquivalent } from '../utils/pmcRoleAccess';
 import { getSiteEngineerProjects } from '../utils/siteEngineerProjects';
 import { projectAssignedToUser } from '../utils/roleProjectAssignments';
@@ -192,10 +193,24 @@ const Dashboard: React.FC<DashboardProps> = ({ user, projects, dprs, projectDocu
 
       setIsLoadingCostPerformance(true);
       try {
-        const response = await costPerformanceApi.getCostPerformance({ project_name: leadProject.title });
-        const rows = unwrapList<any>(response.data);
-        if (rows.length > 0) {
-          setCostPerformanceData(rows[0]);
+        const chart = await fetchCostPerformanceChart(leadProject.title);
+        if (chart.length > 0) {
+          const latest = chart[chart.length - 1];
+          setCostPerformanceData({
+            month_year: latest.monthYear,
+            bcws: latest.bcws,
+            bcwp: latest.bcwp,
+            acwp: latest.acwp,
+            fcst: latest.fcst,
+            bac: latest.bac,
+            eac: latest.eac,
+            cv: latest.cv,
+            sv: latest.sv,
+            cpi: latest.cpi,
+            vac: latest.vac,
+            over_budget_cost: latest.overBudgetCost,
+            behind_schedule: latest.behindSchedule,
+          });
         } else {
           setCostPerformanceData(null);
         }
@@ -259,10 +274,18 @@ const Dashboard: React.FC<DashboardProps> = ({ user, projects, dprs, projectDocu
 
       setIsLoadingProjectProgress(true);
       try {
-        const response = await projectProgressApi.getProjectProgress({ project_name: leadProject.title });
+        const response = await projectProgressApi.getProjectProgress({
+          project_name: leadProject.title,
+        });
         const rows = unwrapList<any>(response.data);
         if (rows.length > 0) {
-          setProjectProgressData(rows[0]);
+          // Prefer latest saved month (API returns chronological saved rows, no fillers)
+          const sorted = [...rows].sort((a, b) => {
+            const aKey = new Date(String(a.progress_month ?? '')).getTime() || 0;
+            const bKey = new Date(String(b.progress_month ?? '')).getTime() || 0;
+            return aKey - bKey;
+          });
+          setProjectProgressData(sorted[sorted.length - 1]);
         } else {
           setProjectProgressData(null);
         }

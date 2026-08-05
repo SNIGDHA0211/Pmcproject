@@ -30,6 +30,7 @@ import {
 import axios from 'axios';
 import { fetchProjectProgressChart } from '../services/financialDataService';
 import { buildExecutiveProgressCurveData } from '../utils/projectProgress';
+import { fetchCostPerformanceChart } from '../utils/costPerformance';
 import { computeProjectDashboardMetrics } from '../utils/projectDashboardMetrics';
 import { projectApi, costPerformanceApi, budgetPerformanceApi, manpowerApi, cashflowApi, healthSafetyApi, invoicingApi, contractValuesApi, contractPerformanceApi, projectLogsApi, drawingRegisterApi, projectQualityApi, projectEquipmentApi, correspondenceApi, correspondenceDocumentsApi, getApiErrorMessage, normalizeContractPerformanceRecord, normalizeContractValueRecord, normalizeInvoicingRecord, normalizeProjectEquipmentRecord, normalizeProjectQualityStatusRecord, normalizeManpowerRecord, unwrapList, toNum, plannedEarnedValueApi, normalizePlannedEarnedByPeriod, type PlannedEarnedByPeriodResponse, normalizeHSERecord, type HSERecord, normalizeHealthSafetyDashboard, normalizeHealthSafetyYtdSummary, saveHealthSafetyRecord, fetchHealthSafetyYearRecords, fetchHealthSafetyDashboardFallback, type HealthSafetyDashboardData, projectDatesApi, normalizeProjectDatesByProject, mergeBgBundleIntoProjectDatesBundle, type ProjectDatesByProject, type ProjectDateType, type ProjectDatesRecord, mergeQualityRecordsByPeriod, fetchQualityYearRecords, saveProjectQualityRecord, saveDrawingRecord, normalizeCorrespondenceMonthlyPeriod, collectCorrespondenceDocuments, mergeCorrespondenceDocumentLists, mergeCorrespondencePeriods, fetchCorrespondenceYearPeriods, saveCorrespondenceDocument, deleteCorrespondenceDocument, type CorrespondenceDashboardResponse } from '../services/api';
 import type { BgStatusBundle } from '../types/bgStatus';
@@ -1382,24 +1383,29 @@ const Projects: React.FC<ProjectsProps> = ({
       setIsLoadingCostPerformance(true);
       try {
         const role = getBackendRole(currentUser.role);
-        const response = await costPerformanceApi.getCostPerformance({
-          project_name: selectedProject.title,
-          ...(role ? { role } : {}),
-        });
-        const rows = unwrapList<any>(response.data);
-        if (rows.length > 0) {
-          // Transform API data to match chart format
-          const transformedData = rows.map((item: any) => ({
-            month: item.month_year,
-            bcws: toNum(item.bcws),
-            bcwp: toNum(item.bcwp),
-            acwp: toNum(item.acwp),
-            fcst: toNum(item.fcst),
-          }));
-          setCostPerformanceData(transformedData);
-        } else {
-          setCostPerformanceData([]);
-        }
+        // GET /api/cost-performance/?project_name=… — all saved months, no fillers
+        const chartData = await fetchCostPerformanceChart(
+          selectedProject.title,
+          role || undefined,
+        );
+        setCostPerformanceData(
+          chartData.map((row) => ({
+            month: row.month,
+            month_year: row.monthYear,
+            bcws: row.bcws,
+            bcwp: row.bcwp,
+            acwp: row.acwp,
+            fcst: row.fcst,
+            bac: row.bac,
+            eac: row.eac,
+            cv: row.cv,
+            sv: row.sv,
+            cpi: row.cpi,
+            vac: row.vac,
+            over_budget_cost: row.overBudgetCost,
+            behind_schedule: row.behindSchedule,
+          })),
+        );
       } catch (error) {
         console.error('Error fetching cost performance data:', error);
         setCostPerformanceData([]);
@@ -2376,7 +2382,7 @@ const Projects: React.FC<ProjectsProps> = ({
     );
 
   const executiveProgressTrend = useMemo(
-    () => buildExecutiveProgressCurveData(progressSCurveData, 10),
+    () => buildExecutiveProgressCurveData(progressSCurveData, 36),
     [progressSCurveData],
   );
 
@@ -2392,13 +2398,23 @@ const Projects: React.FC<ProjectsProps> = ({
 
   const executiveCostPerformanceTrend = useMemo(
     () =>
-      costPerformanceData.slice(-8).map((row: { month?: string; month_year?: string; bcws?: number; bcwp?: number; acwp?: number; fcst?: number }) => ({
-        month: String(row.month ?? row.month_year ?? ''),
-        bcws: Number(row.bcws ?? 0),
-        bcwp: Number(row.bcwp ?? 0),
-        acwp: Number(row.acwp ?? 0),
-        fcst: Number(row.fcst ?? 0),
-      })),
+      // Full saved history for Overview Financial Progress (same API as Schedule charts)
+      costPerformanceData.map(
+        (row: {
+          month?: string;
+          month_year?: string;
+          bcws?: number;
+          bcwp?: number;
+          acwp?: number;
+          fcst?: number;
+        }) => ({
+          month: String(row.month ?? row.month_year ?? ''),
+          bcws: Number(row.bcws ?? 0),
+          bcwp: Number(row.bcwp ?? 0),
+          acwp: Number(row.acwp ?? 0),
+          fcst: Number(row.fcst ?? 0),
+        }),
+      ),
     [costPerformanceData],
   );
 
@@ -3640,7 +3656,7 @@ const Projects: React.FC<ProjectsProps> = ({
 
               {tabVisible('money') && (
                 isPMCHead ? (
-                  <PMCExecutivePanel title="Financial Progress" subtitle="BCWS, BCWP, ACWP & forecast trend">
+                  <PMCExecutivePanel title="Financial Progress" subtitle="All saved months · BCWS · BCWP · ACWP · FCST (no filler months)">
                     <div className="p-3 sm:p-4 md:p-5">
                       {isLoadingCostPerformance ? (
                         <div className="flex items-center justify-center" style={{ height: DASHBOARD_CHART_MIN_HEIGHT }}>

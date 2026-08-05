@@ -26,7 +26,10 @@ import {
 import { MOCK_USERS, INITIAL_PROJECTS, MOCK_DPRS } from "./services/mockData";
 import { Icons } from "./components/Icons";
 import SiteDeleteDialog, { type SiteDeleteDependency } from "./components/SiteDeleteDialog";
-import CompleteProjectDialog from "./components/CompleteProjectDialog";
+import CompleteProjectDialog, {
+  type CompleteProjectConfirmPayload,
+} from "./components/CompleteProjectDialog";
+import CompleteBillingDialog from "./components/CompleteBillingDialog";
 import DashboardToastStack, { type DashboardToastItem } from "./components/DashboardToastStack";
 import { parseSiteDeleteDependencies } from "./components/ProjectSiteList";
 import { STATUS_COLORS } from "./constants";
@@ -34,7 +37,9 @@ import { projectApi, operationsApi, dprApi, notificationApi, getApiErrorMessage,
 import axios from "axios";
 import { canCompleteProject, canDeleteProjectSite } from "./utils/userManagementAccess";
 import {
+  canCompleteProjectBilling,
   extractCompletionFields,
+  getProjectCompletionBillingLabel,
   getProjectStatusLabel,
   isProjectCompleted,
 } from "./utils/projectCompletion";
@@ -158,6 +163,9 @@ const App: React.FC = () => {
   const [portfolioCompleteTarget, setPortfolioCompleteTarget] = useState<Project | null>(null);
   const [isPortfolioCompleting, setIsPortfolioCompleting] = useState(false);
   const [portfolioCompleteError, setPortfolioCompleteError] = useState<string | null>(null);
+  const [portfolioBillingTarget, setPortfolioBillingTarget] = useState<Project | null>(null);
+  const [isPortfolioCompletingBilling, setIsPortfolioCompletingBilling] = useState(false);
+  const [portfolioBillingError, setPortfolioBillingError] = useState<string | null>(null);
 
   // Modal States
   const [showTCModal, setShowTCModal] = useState(false);
@@ -1552,7 +1560,15 @@ const App: React.FC = () => {
     setPortfolioCompleteError(null);
   };
 
-  const handleConfirmPortfolioComplete = async (completionNotes: string) => {
+  const closePortfolioBillingDialog = () => {
+    if (isPortfolioCompletingBilling) return;
+    setPortfolioBillingTarget(null);
+    setPortfolioBillingError(null);
+  };
+
+  const handleConfirmPortfolioComplete = async (
+    payload: CompleteProjectConfirmPayload,
+  ) => {
     if (!portfolioCompleteTarget || isPortfolioCompleting) return;
     if (isProjectCompleted(portfolioCompleteTarget)) {
       setPortfolioCompleteError("Project is already marked as completed.");
@@ -1563,10 +1579,21 @@ const App: React.FC = () => {
     setPortfolioCompleteError(null);
 
     try {
-      const body =
-        completionNotes.trim().length > 0
-          ? { completion_notes: completionNotes.trim() }
-          : {};
+      const body: {
+        billing_status: "Pending" | "Completed";
+        completion_notes?: string;
+        billing_completion_notes?: string;
+      } = {
+        billing_status: payload.billingStatus,
+      };
+      if (payload.completionNotes) body.completion_notes = payload.completionNotes;
+      if (
+        payload.billingStatus === "Completed" &&
+        payload.billingCompletionNotes
+      ) {
+        body.billing_completion_notes = payload.billingCompletionNotes;
+      }
+
       const response = await projectApi.completeProject(
         portfolioCompleteTarget.id,
         body,
@@ -1581,9 +1608,11 @@ const App: React.FC = () => {
           : "Project marked as completed successfully.";
 
       const nested =
-        data.project && typeof data.project === "object"
-          ? (data.project as Record<string, unknown>)
-          : data;
+        data.data && typeof data.data === "object"
+          ? (data.data as Record<string, unknown>)
+          : data.project && typeof data.project === "object"
+            ? (data.project as Record<string, unknown>)
+            : data;
       const completion = extractCompletionFields(nested);
       const completedId = portfolioCompleteTarget.id;
 
@@ -1602,7 +1631,14 @@ const App: React.FC = () => {
                   null,
                 completionNotes:
                   completion.completionNotes ??
-                  (completionNotes.trim() || null),
+                  (payload.completionNotes || null),
+                billingStatus:
+                  completion.billingStatus ?? payload.billingStatus ?? "Pending",
+                billingCompletedAt: completion.billingCompletedAt ?? null,
+                billingCompletedBy: completion.billingCompletedBy ?? null,
+                billingCompletionNotes:
+                  completion.billingCompletionNotes ??
+                  (payload.billingCompletionNotes || null),
                 updatedAt: new Date().toISOString(),
               }
             : p,
@@ -1623,7 +1659,7 @@ const App: React.FC = () => {
       if (axios.isAxiosError(err) && err.response?.status === 400) {
         const msg = getApiErrorMessage(
           err,
-          "Project is already marked as completed.",
+          "Unable to complete project. Check billing status and try again.",
         );
         setPortfolioCompleteError(msg);
         showPortfolioToast(msg, "error");
@@ -1634,6 +1670,94 @@ const App: React.FC = () => {
       showPortfolioToast(msg, "error");
     } finally {
       setIsPortfolioCompleting(false);
+    }
+  };
+
+  const handleConfirmPortfolioBilling = async (
+    billingCompletionNotes: string,
+  ) => {
+    if (!portfolioBillingTarget || isPortfolioCompletingBilling) return;
+    if (!canCompleteProjectBilling(portfolioBillingTarget)) {
+      setPortfolioBillingError(
+        "Billing can only be completed after the project is marked as completed.",
+      );
+      return;
+    }
+
+    setIsPortfolioCompletingBilling(true);
+    setPortfolioBillingError(null);
+
+    try {
+      const body =
+        billingCompletionNotes.trim().length > 0
+          ? { billing_completion_notes: billingCompletionNotes.trim() }
+          : {};
+      const response = await projectApi.completeProjectBilling(
+        portfolioBillingTarget.id,
+        body,
+      );
+      const data =
+        response.data && typeof response.data === "object"
+          ? (response.data as Record<string, unknown>)
+          : {};
+      const message =
+        typeof data.message === "string" && data.message.trim()
+          ? data.message
+          : "Billing marked as completed successfully.";
+      const nested =
+        data.data && typeof data.data === "object"
+          ? (data.data as Record<string, unknown>)
+          : data;
+      const completion = extractCompletionFields(nested);
+      const projectId = portfolioBillingTarget.id;
+
+      setProjects((prev) =>
+        prev.map((p) =>
+          String(p.id) === String(projectId)
+            ? {
+                ...p,
+                billingStatus: completion.billingStatus ?? "Completed",
+                billingCompletedAt:
+                  completion.billingCompletedAt || new Date().toISOString(),
+                billingCompletedBy:
+                  completion.billingCompletedBy ||
+                  currentUser?.name ||
+                  currentUser?.username ||
+                  currentUser?.id ||
+                  null,
+                billingCompletionNotes:
+                  completion.billingCompletionNotes ??
+                  (billingCompletionNotes.trim() || null),
+                updatedAt: new Date().toISOString(),
+              }
+            : p,
+        ),
+      );
+
+      setPortfolioBillingTarget(null);
+      showPortfolioToast(message, "success");
+      void fetchData();
+    } catch (err) {
+      if (axios.isAxiosError(err) && err.response?.status === 403) {
+        const msg = "You do not have permission to complete billing.";
+        setPortfolioBillingError(msg);
+        showPortfolioToast(msg, "error");
+        return;
+      }
+      if (axios.isAxiosError(err) && err.response?.status === 400) {
+        const msg = getApiErrorMessage(
+          err,
+          "Billing can only be completed after the project is marked as completed.",
+        );
+        setPortfolioBillingError(msg);
+        showPortfolioToast(msg, "error");
+        return;
+      }
+      const msg = getApiErrorMessage(err, "Failed to mark billing as completed.");
+      setPortfolioBillingError(msg);
+      showPortfolioToast(msg, "error");
+    } finally {
+      setIsPortfolioCompletingBilling(false);
     }
   };
 
@@ -1854,7 +1978,7 @@ const App: React.FC = () => {
                   Enterprise Portfolio
                 </h2>
                 <p className={`text-[10px] font-black uppercase tracking-widest ${themeClasses.textSecondary}`}>
-                  Live Project Registry
+                  Live Project Registry · completed projects stay listed below
                 </p>
               </div>
               <div className="flex shrink-0 gap-3">
@@ -1899,7 +2023,9 @@ const App: React.FC = () => {
                       return (
                       <tr
                         key={p.id}
-                        className={`group cursor-pointer transition-all ${themeClasses.bgHover}`}
+                        className={`group cursor-pointer transition-all ${themeClasses.bgHover} ${
+                          completed ? (isDarkTheme ? "bg-emerald-950/20" : "bg-emerald-50/40") : ""
+                        }`}
                         onClick={() => setSelectedProjectId(p.id)}
                       >
                         <td className="px-4 py-4 sm:px-8 sm:py-6">
@@ -1911,8 +2037,18 @@ const App: React.FC = () => {
                           </p>
                         </td>
                         <td className="px-4 py-4 sm:px-8 sm:py-6">
-                          <span className={`inline-block rounded-xl border px-2.5 py-1 text-[10px] font-black uppercase sm:px-3 sm:py-1.5 ${STATUS_COLORS[p.status]}`}>
-                            {getProjectStatusLabel(p)}
+                          <span
+                            className={`inline-block max-w-[16rem] rounded-xl border px-2.5 py-1 text-[10px] font-black uppercase leading-snug sm:px-3 sm:py-1.5 ${
+                              completed
+                                ? isDarkTheme
+                                  ? "border-emerald-500/40 bg-emerald-600/15 text-emerald-300"
+                                  : "border-emerald-200 bg-emerald-50 text-emerald-800"
+                                : STATUS_COLORS[p.status]
+                            }`}
+                          >
+                            {completed
+                              ? getProjectCompletionBillingLabel(p)
+                              : getProjectStatusLabel(p)}
                           </span>
                         </td>
                         {canCompletePortfolioProject && (
@@ -1935,9 +2071,27 @@ const App: React.FC = () => {
                                 <Icons.Approve size={14} aria-hidden />
                                 Mark as Complete
                               </button>
+                            ) : canCompleteProjectBilling(p) ? (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setPortfolioBillingError(null);
+                                  setPortfolioBillingTarget(p);
+                                }}
+                                className={`inline-flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-[10px] font-black uppercase tracking-widest transition-all ${
+                                  isDarkTheme
+                                    ? "border-sky-500/40 bg-sky-600/15 text-sky-300 hover:bg-sky-600/30"
+                                    : "border-sky-200 bg-sky-50 text-sky-700 hover:bg-sky-100"
+                                }`}
+                                aria-label={`Complete billing for ${p.title}`}
+                              >
+                                <Icons.Approve size={14} aria-hidden />
+                                Complete Billing
+                              </button>
                             ) : (
                               <span className={`text-[10px] font-bold uppercase tracking-widest ${themeClasses.textSecondary}`}>
-                                —
+                                Billing Done
                               </span>
                             )}
                           </td>
@@ -2004,9 +2158,23 @@ const App: React.FC = () => {
                   : undefined
               }
               onCancel={closePortfolioCompleteDialog}
-              onConfirm={(notes) => void handleConfirmPortfolioComplete(notes)}
+              onConfirm={(payload) => void handleConfirmPortfolioComplete(payload)}
               isSubmitting={isPortfolioCompleting}
               errorMessage={portfolioCompleteError}
+            />
+
+            <CompleteBillingDialog
+              open={Boolean(portfolioBillingTarget)}
+              projectName={
+                portfolioBillingTarget
+                  ? sanitizeProjectDisplayName(portfolioBillingTarget.title) ||
+                    portfolioBillingTarget.title
+                  : undefined
+              }
+              onCancel={closePortfolioBillingDialog}
+              onConfirm={(notes) => void handleConfirmPortfolioBilling(notes)}
+              isSubmitting={isPortfolioCompletingBilling}
+              errorMessage={portfolioBillingError}
             />
           </div>
         ) : activeTab === "dpr_records" ? (

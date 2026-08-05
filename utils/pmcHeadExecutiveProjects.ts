@@ -184,7 +184,9 @@ export function ensureHsePortfolioProjects(projects: Project[]): Project[] {
   return dedupePmcHeadDropdownProjects(picked);
 }
 
-/** PMC Head / HO / Manager live registry: official allowlist + newly initiated projects. */
+/** PMC Head / HO / Manager live registry: official allowlist + newly initiated projects
+ * (including completed ones, so Mark as Complete stays visible in Enterprise Portfolio).
+ */
 export function buildPmcHeadDropdownProjects(...lists: Project[][]): Project[] {
   const merged = buildExecutiveProjectDropdownList(...lists).filter(
     (project) => !isExcludedPmcTlProjectTitle(project.title),
@@ -196,7 +198,15 @@ export function buildPmcHeadDropdownProjects(...lists: Project[][]): Project[] {
   const withOfficialStubs = ensureHsePortfolioProjects(allowlisted);
   const initiatedExtras = merged.filter(isAdditionalInitiatedPortfolioProject);
 
-  return dedupePmcHeadDropdownProjects([...withOfficialStubs, ...initiatedExtras]);
+  const combined = dedupePmcHeadDropdownProjects([...withOfficialStubs, ...initiatedExtras]);
+
+  // Active projects first, then completed — completed stay in the same registry table.
+  return combined.sort((a, b) => {
+    const aDone = isProjectCompleted(a) ? 1 : 0;
+    const bDone = isProjectCompleted(b) ? 1 : 0;
+    if (aDone !== bDone) return aDone - bDone;
+    return a.title.localeCompare(b.title, undefined, { sensitivity: 'base' });
+  });
 }
 
 export type ExecutiveProjectSelectOption = {
@@ -263,14 +273,14 @@ export function buildExecutiveProjectSelectOptions(
 
 /**
  * Non-allowlist projects created via Initiate Project (e.g. "testing1").
- * Kept out of excluded / completed / synthetic stubs so they appear in
- * Enterprise Portfolio, 360 Overview, and User Management assign lists.
+ * Includes completed projects so they remain visible in Enterprise Portfolio /
+ * 360 Overview after Mark as Complete. User Management assign lists still
+ * exclude completed via `isAssignableUserManagementProject`.
  */
 export function isAdditionalInitiatedPortfolioProject(project: Project): boolean {
   if (!project?.title?.trim()) return false;
   if (isExcludedPmcTlProjectTitle(project.title)) return false;
   if (isClientPortfolioProjectTitle(project.title)) return false;
-  if (isProjectCompleted(project)) return false;
   if (isSyntheticExecutiveProjectId(String(project.id ?? ''))) return false;
 
   const numericId = Number(project.id);
@@ -302,9 +312,8 @@ export function isAssignableUserManagementProject(project: Project): boolean {
 }
 
 /**
- * Build the same live project set shown in Enterprise Portfolio
- * (active only) plus newly created projects — for User Management forms.
- * Does not retain deleted projects; callers should replace state with this result.
+ * Build the same project set shown in Enterprise Portfolio, then drop completed
+ * rows — for User Management assign / create checkboxes only.
  */
 export function buildLiveAssignableProjects(
   apiProjects: Project[],
@@ -656,6 +665,10 @@ export function normalizeBackendProjectRow(row: Record<string, unknown>): Projec
     completedAt: completion.completedAt ?? null,
     completedBy: completion.completedBy ?? null,
     completionNotes: completion.completionNotes ?? null,
+    billingStatus: completion.billingStatus ?? null,
+    billingCompletedAt: completion.billingCompletedAt ?? null,
+    billingCompletedBy: completion.billingCompletedBy ?? null,
+    billingCompletionNotes: completion.billingCompletionNotes ?? null,
   };
 }
 

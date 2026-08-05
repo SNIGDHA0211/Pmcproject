@@ -611,6 +611,11 @@ export interface Project {
   completedAt?: string | null;
   completedBy?: string | null;
   completionNotes?: string | null;
+  /** Additive: Pending | Completed — status stays "completed" in both cases */
+  billingStatus?: 'Pending' | 'Completed' | string | null;
+  billingCompletedAt?: string | null;
+  billingCompletedBy?: string | null;
+  billingCompletionNotes?: string | null;
 }
 
 export interface LaborLog {

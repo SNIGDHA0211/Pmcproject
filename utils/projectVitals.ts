@@ -57,6 +57,10 @@ export interface ProjectVitalsCard {
   isCompleted?: boolean;
   completedAt?: string | null;
   completedBy?: string | null;
+  billingStatus?: string | null;
+  billingCompletedAt?: string | null;
+  billingCompletedBy?: string | null;
+  billingCompletionNotes?: string | null;
 }
 
 const statusFromPercent = (percent: number | null, criticalBelow = 50, watchBelow = 75): VitalStatus => {

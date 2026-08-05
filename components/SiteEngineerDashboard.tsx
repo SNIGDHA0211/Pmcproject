@@ -6,6 +6,11 @@ import {
 } from '../services/api';
 import type { Project, User } from '../types';
 import { getSiteEngineerProjects } from '../utils/siteEngineerProjects';
+import {
+  getLatestProjectProgressPoint,
+  mapProjectProgressToChartPoints,
+  unwrapProjectProgressList,
+} from '../utils/projectProgress';
 import SiteEngineerOverviewPanel, { type SiteEngineerDashboardSnapshot } from './SiteEngineerOverviewPanel';
 
 interface SiteEngineerDashboardProps {
@@ -55,20 +60,16 @@ const SiteEngineerDashboard: React.FC<SiteEngineerDashboardProps> = ({
                 equipmentApi.getEquipment({ project_name: projectName }),
             ]);
 
-            const ppData = ppRes.data.results || ppRes.data;
-      const progressRows = Array.isArray(ppData) ? ppData : [];
-      const progressChart = progressRows.map((pp: Record<string, unknown>) => ({
-        month: pp.progress_month
-          ? new Date(String(pp.progress_month)).toLocaleDateString('en-IN', { month: 'short', year: '2-digit' })
-          : 'N/A',
-        plan: Number(pp.cumulative_plan) || 0,
-        actual: Number(pp.cumulative_actual) || 0,
+      const progressPoints = mapProjectProgressToChartPoints(
+        unwrapProjectProgressList(ppRes.data),
+        projectName,
+      );
+      const progressChart = progressPoints.map((pp) => ({
+        month: pp.month,
+        plan: pp.cumulativePlanned,
+        actual: pp.cumulativeActual,
       }));
-
-      const latestProgress =
-        progressRows.length > 0
-          ? Number(progressRows[progressRows.length - 1]?.cumulative_actual) || 0
-          : 0;
+      const latestProgress = getLatestProjectProgressPoint(progressPoints)?.cumulativeActual ?? 0;
 
       const mpDash = mpDashRes.data;
       const plannedSeries =

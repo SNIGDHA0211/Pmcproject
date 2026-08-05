@@ -14,6 +14,8 @@ export type ProjectProgressChartPoint = {
   difference: number;
   /** Epoch ms for chronological sort / phase detection */
   sortKey: number;
+  /** Raw API progress_month (YYYY-MM-DD) when available */
+  progressMonth?: string;
 };
 
 export type ExecutiveProgressCurvePoint = {
@@ -105,6 +107,15 @@ export function parseProgressMonthSortKey(raw: string): number {
     return Number.isNaN(dt.getTime()) ? 0 : dt.getTime();
   }
 
+  // "Jan-26" / "Jan-2026" (progress_month_display)
+  const dashYr = value.match(/^([A-Za-z]{3,9})-(\d{2,4})$/);
+  if (dashYr) {
+    const yearRaw = Number(dashYr[2]);
+    const year = yearRaw < 100 ? 2000 + yearRaw : yearRaw;
+    const dt = new Date(`${dashYr[1]} 1, ${year}`);
+    return Number.isNaN(dt.getTime()) ? 0 : dt.getTime();
+  }
+
   // "Jun 24" / "Jun 2024" / "June 2024"
   const monYr = value.match(/^([A-Za-z]{3,9})\s+(\d{2,4})$/);
   if (monYr) {
@@ -118,13 +129,24 @@ export function parseProgressMonthSortKey(raw: string): number {
   return Number.isNaN(fallback.getTime()) ? 0 : fallback.getTime();
 }
 
-function formatProgressMonthLabel(raw: string, sortKey: number): string {
+function formatProgressMonthLabel(
+  progressMonth: string,
+  display: string,
+  sortKey: number,
+): string {
+  const fromApi = String(display ?? '').trim();
+  if (fromApi) return fromApi;
+
   if (sortKey > 0) {
     return new Date(sortKey).toLocaleString('en-US', { month: 'short', year: '2-digit' });
   }
-  return String(raw || '—').trim() || '—';
+  return String(progressMonth || '—').trim() || '—';
 }
 
+/**
+ * Map API month rows → chart points.
+ * Plots only saved rows from the backend — does not invent missing months or filler zeros.
+ */
 export function mapProjectProgressToChartPoints(
   rows: ProgressRow[],
   projectName?: string,
@@ -145,20 +167,27 @@ export function mapProjectProgressToChartPoints(
       const progressMonth = String(
         item.progress_month ?? item.progressMonth ?? item.month ?? item.month_year ?? '',
       );
-      const sortKey = parseProgressMonthSortKey(progressMonth);
-      const monthLabel = formatProgressMonthLabel(progressMonth, sortKey);
+      const display = String(
+        item.progress_month_display ?? item.progressMonthDisplay ?? '',
+      );
+      const sortKey =
+        parseProgressMonthSortKey(progressMonth) || parseProgressMonthSortKey(display);
+      const monthLabel = formatProgressMonthLabel(progressMonth, display, sortKey);
 
       const monthlyPlanned = clampPct(
-        Number(item.monthly_plan ?? item.monthlyPlan ?? item.monthly_planned ?? item.monthly_plan_pct) || 0,
+        Number(item.monthly_plan ?? item.monthlyPlan ?? item.monthly_planned ?? item.monthly_plan_pct) ||
+          0,
       );
       const monthlyActual = clampPct(
         Number(item.monthly_actual ?? item.monthlyActual ?? item.monthly_actual_progress) || 0,
       );
       const cumulativePlanned = clampPct(
-        Number(item.cumulative_plan ?? item.cumulativePlan ?? item.planned_progress ?? item.planned) || 0,
+        Number(item.cumulative_plan ?? item.cumulativePlan ?? item.planned_progress ?? item.planned) ||
+          0,
       );
       const cumulativeActual = clampPct(
-        Number(item.cumulative_actual ?? item.cumulativeActual ?? item.actual_progress ?? item.actual) || 0,
+        Number(item.cumulative_actual ?? item.cumulativeActual ?? item.actual_progress ?? item.actual) ||
+          0,
       );
 
       return {
@@ -171,9 +200,19 @@ export function mapProjectProgressToChartPoints(
         cumulativeActual,
         difference: progressCumulativeDifference(cumulativePlanned, cumulativeActual),
         sortKey,
+        progressMonth: progressMonth || undefined,
       };
     })
+    .filter((point) => point.sortKey > 0 || point.month !== '—')
     .sort((a, b) => a.sortKey - b.sortKey || a.month.localeCompare(b.month));
+}
+
+/** Latest saved month point (by progress_month), or null when API returned no rows. */
+export function getLatestProjectProgressPoint(
+  points: ProjectProgressChartPoint[],
+): ProjectProgressChartPoint | null {
+  if (!points.length) return null;
+  return [...points].sort((a, b) => a.sortKey - b.sortKey).at(-1) ?? null;
 }
 
 /**
@@ -199,18 +238,21 @@ export function sliceLatestProgressPhase(
 }
 
 /**
- * Overview Progress Curve: chronological cumulative plan vs actual
- * from the latest S-curve phase (same backend rows as Physical Progress Status).
+ * Overview / executive Progress Curve from the same project-progress rows
+ * used by Physical Progress Status.
+ * By default keeps full saved history (no invented months). Set latestPhaseOnly
+ * only when you intentionally want the post-reset segment.
  */
 export function buildExecutiveProgressCurveData(
   points: ProjectProgressChartPoint[],
-  maxPoints = 10,
+  maxPoints = 36,
+  options?: { latestPhaseOnly?: boolean },
 ): ExecutiveProgressCurvePoint[] {
-  const phase = sliceLatestProgressPhase(points);
-  const sampled =
-    phase.length <= maxPoints
-      ? phase
-      : phase.slice(-maxPoints);
+  const source = options?.latestPhaseOnly
+    ? sliceLatestProgressPhase(points)
+    : [...points].sort((a, b) => a.sortKey - b.sortKey || a.month.localeCompare(b.month));
+
+  const sampled = source.length <= maxPoints ? source : source.slice(-maxPoints);
 
   return sampled.map((p) => {
     const planned = p.cumulativePlanned;

@@ -14,8 +14,6 @@ import {
   Users,
 } from 'lucide-react';
 import {
-  Area,
-  AreaChart,
   Bar,
   BarChart,
   CartesianGrid,
@@ -551,7 +549,11 @@ const PMCExecutiveOverviewPanel: React.FC<PMCExecutiveOverviewPanelProps> = ({
   const progressChartData = useMemo(() => {
     if (progressTrend.length > 0) {
       return progressTrend.map((p) => ({
-        ...p,
+        month: p.month,
+        planned: Number(p.planned) || 0,
+        actual: Number(p.actual) || 0,
+        monthlyPlanned: Number(p.monthlyPlanned) || 0,
+        monthlyActual: Number(p.monthlyActual) || 0,
         difference:
           p.difference ??
           progressCumulativeDifference(Number(p.planned) || 0, Number(p.actual) || 0),
@@ -560,11 +562,20 @@ const PMCExecutiveOverviewPanel: React.FC<PMCExecutiveOverviewPanelProps> = ({
     const nowPlanned = metrics.overallProgressPct;
     const nowActual = metrics.overallProgressPct;
     return [
-      { month: 'Start', planned: 0, actual: 0, difference: 0 },
+      {
+        month: 'Start',
+        planned: 0,
+        actual: 0,
+        monthlyPlanned: 0,
+        monthlyActual: 0,
+        difference: 0,
+      },
       {
         month: 'Now',
         planned: nowPlanned,
         actual: nowActual,
+        monthlyPlanned: 0,
+        monthlyActual: 0,
         difference: progressCumulativeDifference(nowPlanned, nowActual),
       },
     ];
@@ -939,24 +950,14 @@ const PMCExecutiveOverviewPanel: React.FC<PMCExecutiveOverviewPanelProps> = ({
           <SectionHeader
             icon={<TrendingUp size={15} />}
             title="Progress curve"
-            subtitle="Cumulative plan vs actual S-curve · difference = plan − actual"
+            subtitle="Physical Progress S-curve · difference = cumulative plan − actual"
             accent={PALETTE.teal}
             action={{ label: 'Schedule', onClick: () => onNavigate('schedule', 'progress') }}
             isDark={ex.isDark}
           />
           <div style={{ height: CHART_H }}>
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={progressChartData} margin={{ top: 8, right: 12, left: 4, bottom: 0 }}>
-                <defs>
-                  <linearGradient id="execPlanFill" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor={PALETTE.indigo} stopOpacity={0.4} />
-                    <stop offset="100%" stopColor={PALETTE.indigo} stopOpacity={0.02} />
-                  </linearGradient>
-                  <linearGradient id="execActualFill" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor={PALETTE.teal} stopOpacity={0.45} />
-                    <stop offset="100%" stopColor={PALETTE.teal} stopOpacity={0.03} />
-                  </linearGradient>
-                </defs>
+              <LineChart data={progressChartData} margin={{ top: 8, right: 12, left: 4, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 6" stroke={chartGridStroke(ex.isDark)} vertical={false} />
                 <XAxis
                   dataKey="month"
@@ -976,35 +977,58 @@ const PMCExecutiveOverviewPanel: React.FC<PMCExecutiveOverviewPanelProps> = ({
                   allowDataOverflow
                   tickFormatter={(v) => `${v}%`}
                 />
-                <Tooltip content={<ProgressCurveTooltip isDark={ex.isDark} />} />
-                <Area
+                <Tooltip content={<ProgressCurveTooltip isDark={ex.isDark} showMonthly />} />
+                <Line
                   type="monotone"
-                  dataKey="planned"
+                  dataKey="monthlyPlanned"
                   stroke={PALETTE.indigo}
                   strokeWidth={2}
-                  fill="url(#execPlanFill)"
-                  name="Cumulative planned"
+                  name="Monthly Planned"
+                  dot={false}
                   isAnimationActive={false}
                   connectNulls
                 />
-                <Area
+                <Line
+                  type="monotone"
+                  dataKey="monthlyActual"
+                  stroke={PALETTE.emerald}
+                  strokeWidth={2}
+                  name="Monthly Actual"
+                  dot={false}
+                  isAnimationActive={false}
+                  connectNulls
+                />
+                <Line
+                  type="monotone"
+                  dataKey="planned"
+                  stroke={PALETTE.amber}
+                  strokeWidth={2.5}
+                  strokeDasharray="6 4"
+                  name="Cumulative Planned"
+                  dot={false}
+                  isAnimationActive={false}
+                  connectNulls
+                />
+                <Line
                   type="monotone"
                   dataKey="actual"
-                  stroke={PALETTE.teal}
+                  stroke={PALETTE.rose}
                   strokeWidth={2.5}
-                  fill="url(#execActualFill)"
-                  name="Cumulative actual"
+                  name="Cumulative Actual"
+                  dot={false}
                   isAnimationActive={false}
                   connectNulls
                 />
-              </AreaChart>
+              </LineChart>
             </ResponsiveContainer>
           </div>
           <div className="mt-2 flex flex-wrap items-center gap-2">
             <ChartLegend
               items={[
-                { label: 'Cumulative planned', color: PALETTE.indigo },
-                { label: 'Cumulative actual', color: PALETTE.teal },
+                { label: 'Monthly Planned', color: PALETTE.indigo },
+                { label: 'Monthly Actual', color: PALETTE.emerald },
+                { label: 'Cumulative Planned', color: PALETTE.amber, dashed: true },
+                { label: 'Cumulative Actual', color: PALETTE.rose },
               ]}
             />
             {latestProgressPoint && (
@@ -1027,7 +1051,7 @@ const PMCExecutiveOverviewPanel: React.FC<PMCExecutiveOverviewPanelProps> = ({
           <SectionHeader
             icon={<IndianRupee size={15} />}
             title="Financial progress"
-            subtitle="BCWS · BCWP · ACWP · FCST"
+            subtitle="All saved months · BCWS · BCWP · ACWP · FCST"
             accent={PALETTE.indigo}
             action={{ label: 'Money', onClick: () => onNavigate('money', 'financial') }}
             isDark={ex.isDark}
