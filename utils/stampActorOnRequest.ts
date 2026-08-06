@@ -11,6 +11,8 @@ const SKIP_URL_PARTS = [
   '/testing-documents/',
   '/site-images/',
   '/project-feedback/',
+  // Init serializer rejects actor stamp keys (created_by_*, sender_*, updated_by_*).
+  '/projects/init/',
 ];
 
 function shouldSkipUrl(url?: string): boolean {
@@ -22,6 +24,9 @@ export function stampActorOnRequest(config: InternalAxiosRequestConfig): void {
   const method = config.method?.toUpperCase();
   if (!method || method === 'GET' || method === 'DELETE') return;
   if (shouldSkipUrl(config.url)) return;
+  if ((config as InternalAxiosRequestConfig & { skipActorStamp?: boolean }).skipActorStamp) {
+    return;
+  }
 
   const user = getStoredUser();
   const actor = resolveActorFromUser(user);

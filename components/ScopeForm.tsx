@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Project, MonthlyScope, MonthlyScopeCategory, MonthlyScopeSubcategory } from '../types';
 import { Icons } from './Icons';
+import { extractUserFacingFieldErrors, formatUserFacingError } from '../utils/formErrors';
 
 interface ScopeFormProps {
   scope?: MonthlyScope | null;
@@ -44,59 +45,32 @@ const FIELD_LABELS: Record<string, string> = {
 
 /** Map API / axios validation payloads into field -> message for the form UI. */
 function parseScopeApiErrors(error: unknown): Record<string, string> {
-  const mapped: Record<string, string> = {};
-  const data = (error as { response?: { data?: unknown } })?.response?.data;
+  const mapped = extractUserFacingFieldErrors(error);
+  const out: Record<string, string> = { ...mapped };
 
-  if (!data || typeof data !== 'object') {
-    mapped.general = 'Unable to save. Please check the form and try again.';
-    return mapped;
+  if (!out.general) {
+    const summary = formatUserFacingError(error, {
+      fallback: '',
+      context: 'Scope',
+    });
+    if (summary) out.general = summary;
   }
 
-  const body = data as Record<string, unknown>;
-
-  if (typeof body.message === 'string' && body.message.trim()) {
-    mapped.general = body.message.trim();
-  } else if (typeof body.detail === 'string' && body.detail.trim()) {
-    mapped.general = body.detail.trim();
-  }
-
-  const errorsList = body.errors;
-  if (Array.isArray(errorsList)) {
-    for (const item of errorsList) {
-      if (!item || typeof item !== 'object') continue;
-      const row = item as { field?: unknown; message?: unknown };
-      const field = String(row.field ?? '').trim();
-      const message = String(row.message ?? '').trim();
-      if (field && message) mapped[field] = message;
-    }
-  }
-
-  // Django-style { field: ["msg"] } or { field: "msg" }
-  for (const [key, value] of Object.entries(body)) {
-    if (key === 'success' || key === 'message' || key === 'detail' || key === 'errors') continue;
-    if (mapped[key]) continue;
-    if (typeof value === 'string' && value.trim()) {
-      mapped[key] = value.trim();
-    } else if (Array.isArray(value) && value.length > 0) {
-      mapped[key] = String(value[0] ?? '').trim() || 'Please provide a value.';
-    }
-  }
-
-  if (!mapped.general && Object.keys(mapped).length > 0) {
-    const missing = Object.keys(mapped)
+  if (!out.general && Object.keys(out).length > 0) {
+    const missing = Object.keys(out)
       .filter((k) => k !== 'general')
-      .map((k) => FIELD_LABELS[k] || k)
+      .map((k) => FIELD_LABELS[k] || k.replace(/_/g, ' '))
       .join(', ');
-    mapped.general = missing
-      ? `Please fill the required fields: ${missing}.`
+    out.general = missing
+      ? `Please check these fields: ${missing}.`
       : 'Please correct the highlighted fields.';
   }
 
-  if (Object.keys(mapped).length === 0) {
-    mapped.general = 'Unable to save. Please check the form and try again.';
+  if (Object.keys(out).length === 0) {
+    out.general = 'Unable to save. Please check the form and try again.';
   }
 
-  return mapped;
+  return out;
 }
 
 const ScopeForm: React.FC<ScopeFormProps> = ({

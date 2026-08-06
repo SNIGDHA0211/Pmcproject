@@ -45,6 +45,32 @@ export function readScopeRemainingQuantity(source: unknown): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
+/**
+ * Remaining qty for DPR validation / display.
+ * Prefer planned − cumulative when the API remaining field is missing or stale
+ * (e.g. remaining=0 while cumulative=0 and planned>0).
+ */
+export function resolveScopeRemainingQuantity(
+  source: unknown,
+  plannedOverride?: number,
+  cumulativeOverride?: number,
+): number {
+  const planned =
+    plannedOverride ??
+    (source && typeof source === 'object' ? readScopePlannedQuantity(source) : 0);
+  const cumulative =
+    cumulativeOverride ??
+    (source && typeof source === 'object'
+      ? readScopeCumulativeQuantity(source) ?? 0
+      : 0);
+  const derived = Math.max(0, planned - cumulative);
+  const api = source && typeof source === 'object' ? readScopeRemainingQuantity(source) : null;
+
+  if (api == null) return derived;
+  if (api <= 0 && derived > 0) return derived;
+  return api;
+}
+
 export function readScopeExecutedQuantity(source: unknown): number {
   if (!source || typeof source !== 'object') return 0;
   const row = source as Record<string, unknown>;

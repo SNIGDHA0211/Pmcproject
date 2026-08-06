@@ -9,12 +9,14 @@ import {
 import { User } from '../types';
 import { useTheme, getThemeClasses } from '../utils/theme';
 import { sanitizeProjectDisplayName } from '../utils/hseSiteEngineerProjects';
+import { formatUserFacingError } from '../utils/formErrors';
 
 interface ProjectInitProps {
     user: User;
     onProjectCreated?: () => void;
 }
 
+/** Matches the 11 visible init form fields — nothing else is sent in the payload. */
 interface ProjectInitForm {
     name: string;
     location: string;
@@ -27,7 +29,6 @@ interface ProjectInitForm {
     bac: string;
     working_hours_per_day: string;
     working_days_per_month: string;
-    assigned_users: number[];
 }
 
 const EMPTY_FORM: ProjectInitForm = {
@@ -42,7 +43,6 @@ const EMPTY_FORM: ProjectInitForm = {
     bac: '',
     working_hours_per_day: '8',
     working_days_per_month: '26',
-    assigned_users: [],
 };
 
 /** Parse money only when the user typed a value (including 0). */
@@ -51,6 +51,68 @@ function parseOptionalMoney(raw: string): number | undefined {
     if (!trimmed) return undefined;
     const n = parseFloat(trimmed);
     return Number.isFinite(n) ? n : undefined;
+}
+
+/** The init list arrives as a bare array, a paginated page, or a wrapped envelope. */
+function unwrapInitProjects(data: unknown): any[] {
+    if (Array.isArray(data)) return data;
+    if (data && typeof data === 'object') {
+        const record = data as Record<string, unknown>;
+        for (const key of ['results', 'data', 'projects']) {
+            if (Array.isArray(record[key])) return record[key] as any[];
+        }
+    }
+    return [];
+}
+
+/** The created row can arrive under `project`, under `data`, or as the body itself. */
+function readCreatedProject(body: any): any {
+    const record = body ?? {};
+    return record.project ?? record.data ?? (record.id != null ? record : {});
+}
+
+function matchesProjectName(project: any, projectName: string): boolean {
+    const candidate = String(project?.name ?? project?.title ?? project?.project_name ?? '').trim();
+    return candidate.toLowerCase() === projectName.trim().toLowerCase();
+}
+
+/** Second attempt payload: the backend rejects blank optional fields on some deploys. */
+function withoutBlankValues(payload: Record<string, unknown>): Record<string, unknown> {
+    return Object.fromEntries(
+        Object.entries(payload).filter(([, value]) => {
+            if (value === null || value === undefined || value === '') return false;
+            if (Array.isArray(value) && value.length === 0) return false;
+            return true;
+        })
+    );
+}
+
+function flattenErrorEntry(entry: unknown): string {
+    if (typeof entry === 'string') return entry;
+    if (Array.isArray(entry)) return entry.map(flattenErrorEntry).filter(Boolean).join(' ');
+    if (entry && typeof entry === 'object') {
+        const record = entry as Record<string, unknown>;
+        const field = typeof record.field === 'string' ? record.field : '';
+        const message = flattenErrorEntry(record.message ?? record.detail ?? '');
+        if (field && message) return `${field.replace(/_/g, ' ')}: ${message}`;
+        if (message) return message;
+        return Object.entries(record)
+            .map(([key, value]) => {
+                const text = flattenErrorEntry(value);
+                return text ? `${key.replace(/_/g, ' ')}: ${text}` : '';
+            })
+            .filter(Boolean)
+            .join(' ');
+    }
+    return '';
+}
+
+/** Turn an init failure into a sentence the user can act on. */
+function describeInitFailure(err: any, projectName: string): string {
+    return formatUserFacingError(err, {
+        fallback: `Could not initialize "${projectName}". Check the form fields and try again.`,
+        context: 'Project initialization',
+    });
 }
 
 const ProjectInit: React.FC<ProjectInitProps> = ({ user, onProjectCreated }) => {
@@ -72,11 +134,27 @@ const ProjectInit: React.FC<ProjectInitProps> = ({ user, onProjectCreated }) => 
         try {
             setIsLoading(true);
             const response = await projectApi.getInitProjects();
-            setProjects(response.data || []);
+            setProjects(unwrapInitProjects(response.data));
         } catch (err) {
             console.error('Failed to load projects:', err);
         } finally {
             setIsLoading(false);
+        }
+    };
+
+    /**
+     * The init endpoint can fail its response while the row is already written,
+     * so confirm against the server list before reporting a failure.
+     */
+    const findSavedProject = async (projectName: string): Promise<any | null> => {
+        try {
+            const response = await projectApi.getInitProjects();
+            const list = unwrapInitProjects(response.data);
+            setProjects(list);
+            return list.find((project) => matchesProjectName(project, projectName)) ?? null;
+        } catch (lookupErr) {
+            console.error('Failed to verify project initialization:', lookupErr);
+            return null;
         }
     };
 
@@ -95,6 +173,12 @@ const ProjectInit: React.FC<ProjectInitProps> = ({ user, onProjectCreated }) => 
             return;
         }
 
+        const duplicate = projects.some((project) => matchesProjectName(project, projectName));
+        if (duplicate) {
+            setError(`A project named "${projectName}" already exists. Use a different name.`);
+            return;
+        }
+
         setIsSubmitting(true);
         setError('');
         setSuccess('');
@@ -108,27 +192,58 @@ const ProjectInit: React.FC<ProjectInitProps> = ({ user, onProjectCreated }) => 
         const forecastFinish = formData.forecast_finish || '';
 
         try {
-            // Only project name is required; other fields are optional.
+            // Payload = exactly the 11 form fields (no assigned_users or actor stamps).
             const projectData: Record<string, unknown> = {
                 name: projectName,
-                title: projectName,
                 location: formData.location.trim() || '',
                 project_start: projectStart || null,
                 contract_finish: contractFinish || null,
                 forecast_finish: forecastFinish || null,
+                original_contract_value: originalContract ?? 0,
+                approved_vo: approvedVo ?? 0,
+                pending_vo: pendingVo ?? 0,
+                bac: bac ?? 0,
                 working_hours_per_day: parseFloat(formData.working_hours_per_day) || 8,
                 working_days_per_month: parseInt(formData.working_days_per_month, 10) || 26,
-                assigned_users: formData.assigned_users,
             };
-            if (originalContract !== undefined) projectData.original_contract_value = originalContract;
-            if (approvedVo !== undefined) projectData.approved_vo = approvedVo;
-            if (pendingVo !== undefined) projectData.pending_vo = pendingVo;
-            if (bac !== undefined) projectData.bac = bac;
 
-            const response = await projectApi.initProject(projectData);
+            let created: any = null;
+            let failure: any = null;
 
-            if (response.data.success) {
-                const created = response.data.project ?? {};
+            try {
+                const response = await projectApi.initProject(projectData);
+                if (response.data?.success === false) {
+                    failure = { response };
+                } else {
+                    created = readCreatedProject(response.data);
+                }
+            } catch (firstErr: any) {
+                failure = firstErr;
+            }
+
+            // A 400 here often still leaves the row written, so confirm before retrying.
+            if (!created) {
+                created = await findSavedProject(projectName);
+                if (created) failure = null;
+            }
+
+            if (!created && failure?.response?.status === 400) {
+                try {
+                    const retry = await projectApi.initProject(withoutBlankValues(projectData));
+                    if (retry.data?.success !== false) {
+                        created = readCreatedProject(retry.data);
+                        failure = null;
+                    }
+                } catch (retryErr: any) {
+                    failure = retryErr;
+                }
+                if (!created) {
+                    created = await findSavedProject(projectName);
+                    if (created) failure = null;
+                }
+            }
+
+            if (created) {
                 const projectId = created.id != null ? String(created.id) : '';
                 const seededName =
                     String(created.name ?? created.title ?? projectName).trim() || projectName;
@@ -207,11 +322,11 @@ const ProjectInit: React.FC<ProjectInitProps> = ({ user, onProjectCreated }) => 
                     onProjectCreated();
                 }
             } else {
-                setError(response.data.errors || 'Failed to initialize project');
+                setError(describeInitFailure(failure, projectName));
             }
         } catch (err: any) {
-            console.error('Failed to initialize project:', err);
-            setError(err.response?.data?.errors || err.response?.data?.detail || 'Failed to initialize project');
+            console.error('Failed to initialize project:', err, err?.response?.data);
+            setError(describeInitFailure(err, projectName));
         } finally {
             setIsSubmitting(false);
         }

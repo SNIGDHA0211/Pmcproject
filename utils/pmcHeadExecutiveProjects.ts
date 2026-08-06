@@ -298,42 +298,138 @@ export function isAdditionalInitiatedPortfolioProject(project: Project): boolean
 
 /**
  * Active / working projects for User Management assign / create checkboxes.
- * Matches Enterprise Portfolio live registry: official ~25 + newly created.
- * Excludes completed, excluded, and stale backend rows.
+ * Same membership as Enterprise Portfolio Live Project Registry, minus completed
+ * and rows that still have no real backend id (stubs cannot be assigned).
  */
 export function isAssignableUserManagementProject(project: Project): boolean {
   if (!project?.title?.trim()) return false;
   if (isExcludedPmcTlProjectTitle(project.title)) return false;
   if (isProjectCompleted(project)) return false;
-  if (isSyntheticExecutiveProjectId(String(project.id ?? ''))) return false;
 
-  if (isClientPortfolioProjectTitle(project.title)) return true;
-  return isAdditionalInitiatedPortfolioProject(project);
+  const resolved = resolveExecutiveProjectForApi(project);
+  const rawId = String(resolved.id ?? project.id ?? '');
+  if (isSyntheticExecutiveProjectId(rawId)) return false;
+  const numericId = Number(rawId);
+  if (!Number.isFinite(numericId) || numericId <= 0) return false;
+
+  // Live Registry membership: official allowlist OR newly initiated.
+  if (isClientPortfolioProjectTitle(resolved.title || project.title)) return true;
+  return isAdditionalInitiatedPortfolioProject({
+    ...project,
+    ...resolved,
+    id: String(numericId),
+  });
 }
 
 /**
- * Build the same project set shown in Enterprise Portfolio, then drop completed
- * rows — for User Management assign / create checkboxes only.
+ * Build the same project set shown in Enterprise Portfolio Live Project Registry,
+ * then drop completed / deleted. Resolves stub titles against the API pool so
+ * User Management shows every assignable Live Registry project (not only ones
+ * that already carried a numeric id in App state).
  */
 export function buildLiveAssignableProjects(
   apiProjects: Project[],
   appProjects: Project[] = [],
 ): Project[] {
-  return buildPmcHeadDropdownProjects(
+  const pool = mergeProjectListsById(apiProjects, appProjects);
+
+  // Same membership as the Live Project Registry table.
+  const liveRegistry = buildPmcHeadDropdownProjects(
     apiProjects,
     appProjects,
-    getKnownExecutiveProjectStubs(apiProjects),
-    getHseExecutiveProjectStubs(apiProjects),
-  ).filter(
-    (project) =>
-      isAssignableUserManagementProject(project) &&
-      !isSyntheticExecutiveProjectId(String(project.id ?? '')),
+    getKnownExecutiveProjectStubs(
+      apiProjects.length > 0 ? apiProjects : appProjects,
+    ),
+    getHseExecutiveProjectStubs(
+      apiProjects.length > 0 ? apiProjects : appProjects,
+    ),
+  );
+
+  const byKey = new Map<string, Project>();
+
+  const absorb = (project: Project, displayTitle?: string) => {
+    if (!project?.title?.trim() && !displayTitle?.trim()) return;
+    if (isProjectCompleted(project)) return;
+
+    const title = String(displayTitle || project.title).trim();
+    if (!title || isExcludedPmcTlProjectTitle(title)) return;
+
+    const rawId = String(project.id ?? '');
+    if (isSyntheticExecutiveProjectId(rawId)) return;
+    const numericId = Number(rawId);
+    if (!Number.isFinite(numericId) || numericId <= 0) return;
+
+    const key = normalizeProjectTitleKey(title);
+    const next: Project = { ...project, id: String(numericId), title };
+    const existing = byKey.get(key);
+    if (!existing || title.length > existing.title.length) {
+      byKey.set(key, next);
+    }
+  };
+
+  const resolveFromPool = (title: string, fallback?: Project): Project | null => {
+    const fromApi =
+      pickProjectByHseTitle(apiProjects, title) ||
+      pickProjectByHseTitle(pool, title) ||
+      pickProjectByTitle(apiProjects, title) ||
+      pickProjectByTitle(pool, title);
+    if (fromApi && !isSyntheticExecutiveProjectId(String(fromApi.id))) {
+      return fromApi;
+    }
+
+    if (fallback) {
+      const resolved = resolveExecutiveProjectForApi(fallback);
+      if (!isSyntheticExecutiveProjectId(String(resolved.id))) return resolved;
+    }
+
+    return fromApi && !isSyntheticExecutiveProjectId(String(fromApi.id))
+      ? fromApi
+      : null;
+  };
+
+  // 1) Every official portfolio title that exists on the backend.
+  for (const { projectTitle } of HSE_SITE_ENGINEER_ACCOUNTS) {
+    if (isExcludedPmcTlProjectTitle(projectTitle)) continue;
+    const matched = resolveFromPool(projectTitle);
+    if (matched) absorb(matched, projectTitle);
+  }
+
+  // 2) Every Live Registry row (official + newly initiated), with stub → API id.
+  for (const project of liveRegistry) {
+    if (isProjectCompleted(project)) continue;
+    if (isExcludedPmcTlProjectTitle(project.title)) continue;
+
+    const matched = resolveFromPool(project.title, project);
+    if (matched) {
+      const displayTitle = isClientPortfolioProjectTitle(project.title)
+        ? project.title
+        : String(matched.title || project.title).trim();
+      absorb(matched, displayTitle);
+    }
+  }
+
+  // 3) Any remaining active initiated / allowlist rows from the API pool.
+  for (const project of pool) {
+    if (isProjectCompleted(project)) continue;
+    if (isExcludedPmcTlProjectTitle(project.title)) continue;
+    if (isSyntheticExecutiveProjectId(String(project.id ?? ''))) continue;
+
+    if (
+      isClientPortfolioProjectTitle(project.title) ||
+      isAdditionalInitiatedPortfolioProject(project)
+    ) {
+      absorb(project);
+    }
+  }
+
+  return [...byKey.values()].sort((a, b) =>
+    a.title.localeCompare(b.title, undefined, { sensitivity: 'base' }),
   );
 }
 
 /**
  * Assignable projects for User Management (create / assign).
- * Shows the ~25 active portfolio projects and newly initialized ones only.
+ * Shows every Live Registry project that is not completed and has a real id.
  */
 export function buildAssignableProjectSelectOptions(
   projects: Project[],
@@ -341,15 +437,25 @@ export function buildAssignableProjectSelectOptions(
   const byKey = new Map<string, ExecutiveProjectSelectOption>();
 
   for (const project of projects) {
-    if (!isAssignableUserManagementProject(project)) continue;
+    if (isProjectCompleted(project)) continue;
+    if (!project?.title?.trim()) continue;
+    if (isExcludedPmcTlProjectTitle(project.title)) continue;
 
-    const rawId = String(project.id ?? '');
+    const resolved = resolveExecutiveProjectForApi(project);
+    const matched =
+      (!isSyntheticExecutiveProjectId(String(resolved.id))
+        ? resolved
+        : null) ||
+      pickProjectByHseTitle([project, resolved], project.title) ||
+      resolved;
+
+    const rawId = String(matched.id ?? '');
     if (isSyntheticExecutiveProjectId(rawId)) continue;
 
     const numericId = Number(rawId);
     if (!Number.isFinite(numericId) || numericId <= 0) continue;
 
-    const name = String(project.title).trim();
+    const name = String(matched.title || project.title).trim();
     const key = normalizeProjectTitleKey(name);
     const existing = byKey.get(key);
     if (!existing) {

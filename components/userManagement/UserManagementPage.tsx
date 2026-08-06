@@ -32,7 +32,6 @@ import {
   normalizeBackendProjectRow,
   seedProjectRowCache,
 } from '../../utils/pmcHeadExecutiveProjects';
-import { isProjectCompleted } from '../../utils/projectCompletion';
 import { projectApi, unwrapList } from '../../services/api';
 import { ModalPortal } from '../ModalPortal';
 import DashboardToastStack, { type DashboardToastItem } from '../DashboardToastStack';
@@ -42,11 +41,32 @@ import { isAbortError } from '../../utils/isAbortError';
 
 const PAGE_SIZE = 10;
 
-function activePortfolioProjects(list: Project[]): Project[] {
-  return list.filter(
-    (project) =>
-      Boolean(project?.id && project?.title?.trim()) && !isProjectCompleted(project),
-  );
+/** Fetch every projects page so assign list is not capped by DRF page size. */
+async function fetchAllBackendProjects(): Promise<Project[]> {
+  const collected: Record<string, unknown>[] = [];
+  let page = 1;
+  let guard = 0;
+
+  while (guard < 50) {
+    guard += 1;
+    const response = await projectApi.getProjects({ page_size: 200, page });
+    const payload = response.data as Record<string, unknown> | unknown[];
+    const rows = unwrapList<Record<string, unknown>>(payload);
+    collected.push(...rows.filter((row) => row && typeof row === 'object'));
+
+    const next =
+      payload && typeof payload === 'object' && !Array.isArray(payload)
+        ? (payload as Record<string, unknown>).next
+        : null;
+    if (!next || rows.length === 0) break;
+    page += 1;
+  }
+
+  clearProjectRowCache();
+  seedProjectRowCache(collected);
+  return collected
+    .map((row) => normalizeBackendProjectRow(row))
+    .filter((p) => Boolean(p?.id && p?.title?.trim()));
 }
 
 export const MANAGEABLE_ROLES: ManageableUserRole[] = [
@@ -124,18 +144,15 @@ const UserManagementPage: React.FC<UserManagementPageProps> = ({
   const themeClasses = getThemeClasses(isDarkTheme);
   const allowed = canAccessUserManagement(currentUser);
 
-  /** Live Enterprise Portfolio projects only (active + recently created). */
+  /** Same projects as Enterprise Portfolio Live Project Registry (active only). */
   const [portfolioProjects, setPortfolioProjects] = useState<Project[]>(() =>
-    activePortfolioProjects(projects),
+    buildLiveAssignableProjects(projects, projects),
   );
   const [projectOptions, setProjectOptions] = useState(() =>
-    buildAssignableProjectSelectOptions(activePortfolioProjects(projects)),
+    buildAssignableProjectSelectOptions(
+      buildLiveAssignableProjects(projects, projects),
+    ),
   );
-
-  // Stay in sync with Enterprise Portfolio — deleted / completed projects drop out.
-  useEffect(() => {
-    setPortfolioProjects(activePortfolioProjects(projects));
-  }, [projects]);
 
   useEffect(() => {
     setProjectOptions(buildAssignableProjectSelectOptions(portfolioProjects));
@@ -143,17 +160,11 @@ const UserManagementPage: React.FC<UserManagementPageProps> = ({
 
   const refreshAssignableProjects = useCallback(async () => {
     try {
-      clearProjectRowCache();
-      const response = await projectApi.getProjects({ page_size: 1000 });
-      const rows = unwrapList<Record<string, unknown>>(response.data);
-      seedProjectRowCache(rows);
-      const mapped = rows
-        .map((row) => normalizeBackendProjectRow(row))
-        .filter((p) => Boolean(p?.id && p?.title?.trim()));
-      // Replace (do not merge with prev) so portfolio deletes are reflected.
+      const mapped = await fetchAllBackendProjects();
+      // Live Registry (App) + full API list — completed/deleted excluded inside builder.
       setPortfolioProjects(buildLiveAssignableProjects(mapped, projects));
     } catch {
-      setPortfolioProjects(activePortfolioProjects(projects));
+      setPortfolioProjects(buildLiveAssignableProjects(projects, projects));
     }
   }, [projects]);
 
@@ -163,19 +174,13 @@ const UserManagementPage: React.FC<UserManagementPageProps> = ({
 
     void (async () => {
       try {
-        clearProjectRowCache();
-        const response = await projectApi.getProjects({ page_size: 1000 });
-        const rows = unwrapList<Record<string, unknown>>(response.data);
-        seedProjectRowCache(rows);
-        const mapped = rows
-          .map((row) => normalizeBackendProjectRow(row))
-          .filter((p) => Boolean(p?.id && p?.title?.trim()));
+        const mapped = await fetchAllBackendProjects();
         if (!cancelled) {
           setPortfolioProjects(buildLiveAssignableProjects(mapped, projects));
         }
       } catch {
         if (!cancelled) {
-          setPortfolioProjects(activePortfolioProjects(projects));
+          setPortfolioProjects(buildLiveAssignableProjects(projects, projects));
         }
       }
     })();
@@ -1056,7 +1061,7 @@ const UserManagementPage: React.FC<UserManagementPageProps> = ({
               <div>
                 <label className={labelCls}>Assigned Project(s)</label>
                 <div
-                  className={`max-h-40 space-y-1 overflow-y-auto rounded-xl border p-2 ${themeClasses.border}`}
+                  className={`max-h-72 space-y-1 overflow-y-auto rounded-xl border p-2 ${themeClasses.border}`}
                 >
                   {assignableProjectOptions.length === 0 ? (
                     <p className={`text-xs font-semibold ${themeClasses.textSecondary}`}>
@@ -1272,7 +1277,7 @@ const UserManagementPage: React.FC<UserManagementPageProps> = ({
                 </button>
               </div>
               <div
-                className={`max-h-56 space-y-1 overflow-y-auto rounded-xl border p-2 ${themeClasses.border}`}
+                className={`max-h-72 space-y-1 overflow-y-auto rounded-xl border p-2 ${themeClasses.border}`}
               >
                 {assignableProjectOptions.length === 0 ? (
                   <p className={`px-2 py-1.5 text-xs font-semibold ${themeClasses.textSecondary}`}>

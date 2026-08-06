@@ -9,8 +9,10 @@ import {
   readScopePlannedQuantity,
   readScopeProgressPercent,
   readScopeRemainingQuantity,
+  resolveScopeRemainingQuantity,
   toScopeNumber,
 } from '../utils/scopeProgressFields';
+import { formatUserFacingError } from '../utils/formErrors';
 
 interface ScopeActivity {
   id: string;
@@ -57,9 +59,13 @@ function bindScopeProgressFields(
   const progress =
     overrides?.progressPercentage ?? readScopeProgressPercent(scope) ?? 0;
   const remaining =
-    overrides?.remainingQuantity ??
-    readScopeRemainingQuantity(scope) ??
-    Math.max(0, planned - cumulative);
+    overrides?.remainingQuantity != null
+      ? resolveScopeRemainingQuantity(
+          { remaining_quantity: overrides.remainingQuantity },
+          planned,
+          cumulative,
+        )
+      : resolveScopeRemainingQuantity(scope, planned, cumulative);
   const unitFromScope =
     scope && typeof scope === 'object' && typeof (scope as { unit?: unknown }).unit === 'string'
       ? String((scope as { unit: string }).unit)
@@ -267,6 +273,8 @@ function DPRSubmissionForm({ onClose, onSubmit, assignedProjects, existingDPR }:
   };
 
   const updateActivity = (id: string, field: keyof ScopeActivity, value: any) => {
+    setFormError('');
+    setFormSuccess('');
     setActivities((prev) =>
       prev.map((act) => {
         if (act.id !== id) return act;
@@ -292,6 +300,8 @@ function DPRSubmissionForm({ onClose, onSubmit, assignedProjects, existingDPR }:
   };
 
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [formError, setFormError] = useState('');
+  const [formSuccess, setFormSuccess] = useState('');
 
   // Scope-related functions
   const fetchCategories = async () => {
@@ -463,51 +473,71 @@ function DPRSubmissionForm({ onClose, onSubmit, assignedProjects, existingDPR }:
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+    setFormError('');
+    setFormSuccess('');
+
     if (!selectedProjectId) {
-      alert('Please select a project');
+      setFormError('Please select a project before submitting the DPR.');
       return;
     }
 
     if (activities.length === 0) {
-      alert('Please add at least one activity');
+      setFormError('Please add at least one activity with a scope and executed quantity.');
       return;
     }
 
-    // Validate each activity
+    // Validate each activity with plain-language messages
     for (let i = 0; i < activities.length; i++) {
       const activity = activities[i];
+      const label = `Activity ${i + 1}`;
+      if (!activity.category) {
+        setFormError(`${label}: select a Category.`);
+        return;
+      }
+      if (!activity.subcategory) {
+        setFormError(`${label}: select a Subcategory.`);
+        return;
+      }
       if (!activity.scopeId) {
-        alert(`Activity ${i + 1}: Please select a scope`);
+        setFormError(`${label}: select a Scope.`);
         return;
       }
-      if (activity.executedQuantity <= 0) {
-        alert(`Activity ${i + 1}: Please enter a valid executed quantity`);
-        return;
-      }
-      const remaining =
-        activity.remainingQuantity ??
-        readScopeRemainingQuantity(activity.scope) ??
-        Math.max(
-          0,
-          (activity.plannedQuantity ??
-            readScopePlannedQuantity(activity.scope) ??
-            0) -
-            (activity.cumulativeQuantity ??
-              readScopeCumulativeQuantity(activity.scope) ??
-              0),
+      if (!(activity.executedQuantity > 0)) {
+        setFormError(
+          `${label}: enter Executed Qty greater than 0 (how much work was done today).`,
         );
-      if (activity.scope && activity.executedQuantity > remaining) {
-        alert(`Activity ${i + 1}: Executed quantity cannot exceed remaining quantity`);
+        return;
+      }
+      const planned =
+        activity.plannedQuantity ??
+        readScopePlannedQuantity(activity.scope) ??
+        0;
+      const cumulative =
+        activity.cumulativeQuantity ??
+        readScopeCumulativeQuantity(activity.scope) ??
+        0;
+      const remaining = resolveScopeRemainingQuantity(
+        activity.scope ?? {
+          remaining_quantity: activity.remainingQuantity,
+          planned_quantity: planned,
+          cumulative_quantity: cumulative,
+        },
+        planned,
+        cumulative,
+      );
+      if (activity.executedQuantity > remaining + 1e-9) {
+        setFormError(
+          `${label}: Executed Qty (${activity.executedQuantity}) is more than remaining (${remaining}). Planned is ${planned}, already completed (cumulative) is ${cumulative}. Enter ${remaining} or less.`,
+        );
         return;
       }
     }
     if (!issuedBy.trim()) {
-      alert('Please enter Issued By');
+      setFormError('Please enter Issued By (your name).');
       return;
     }
     if (!designation.trim()) {
-      alert('Please enter Designation');
+      setFormError('Please enter Designation (your role, e.g. Site Engineer).');
       return;
     }
 
@@ -533,7 +563,7 @@ function DPRSubmissionForm({ onClose, onSubmit, assignedProjects, existingDPR }:
         }
         console.log('DPR created and submitted successfully:', response.data);
       }
-      
+
       const submissionData = {
         projectId: selectedProjectId,
         projectName: selectedProject?.title,
@@ -551,7 +581,7 @@ function DPRSubmissionForm({ onClose, onSubmit, assignedProjects, existingDPR }:
         status: 'PENDING'
       };
 
-      alert('DPR submitted successfully!');
+      setFormSuccess('DPR submitted successfully.');
       // Refresh scopes so cumulative_quantity / progress come from the latest API payload
       await fetchAvailableScopes();
       window.dispatchEvent(
@@ -576,17 +606,14 @@ function DPRSubmissionForm({ onClose, onSubmit, assignedProjects, existingDPR }:
       );
       onSubmit(submissionData);
       onClose();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('DPR Submission Error:', error);
-      const errorMessage = error.response?.data 
-        ? (typeof error.response.data === 'string' 
-            ? error.response.data 
-            : Object.entries(error.response.data)
-                .map(([key, val]) => `${key}: ${Array.isArray(val) ? val.join(", ") : val}`)
-                .join("\n"))
-        : error.message || "Failed to submit DPR. Please check your network connection.";
-      
-      alert(`Failed to submit DPR.\n\n${errorMessage}`);
+      setFormError(
+        formatUserFacingError(error, {
+          fallback: 'Failed to submit DPR. Please check the form and try again.',
+          context: 'DPR',
+        }),
+      );
     } finally {
       setIsSubmitting(false);
     }
@@ -595,8 +622,11 @@ function DPRSubmissionForm({ onClose, onSubmit, assignedProjects, existingDPR }:
   const [isSavingDraft, setIsSavingDraft] = useState(false);
 
   const handleSaveDraft = async () => {
+    setFormError('');
+    setFormSuccess('');
+
     if (!selectedProjectId) {
-      alert('Please select a project');
+      setFormError('Please select a project before saving a draft.');
       return;
     }
 
@@ -611,18 +641,16 @@ function DPRSubmissionForm({ onClose, onSubmit, assignedProjects, existingDPR }:
         await dprApi.createDPR(draftPayload);
       }
 
-      alert('Draft saved successfully!');
+      setFormSuccess('Draft saved successfully.');
       onClose();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Draft Save Error:', error);
-      const errorMessage = error.response?.data
-        ? (typeof error.response.data === 'string'
-            ? error.response.data
-            : Object.entries(error.response.data)
-                .map(([key, val]) => `${key}: ${Array.isArray(val) ? val.join(", ") : val}`)
-                .join("\n"))
-        : error.message || "Failed to save draft.";
-      alert(`Failed to save draft.\n\n${errorMessage}`);
+      setFormError(
+        formatUserFacingError(error, {
+          fallback: 'Failed to save draft. Please check the form and try again.',
+          context: 'DPR draft',
+        }),
+      );
     } finally {
       setIsSavingDraft(false);
     }
@@ -668,6 +696,18 @@ function DPRSubmissionForm({ onClose, onSubmit, assignedProjects, existingDPR }:
         {/* Main Form Content */}
         <div className="flex-1 overflow-y-auto px-5 py-4 md:px-6 md:py-5">
           <form id="dpr-form" onSubmit={handleSubmit} className="space-y-4">
+            {(formError || formSuccess) && (
+              <div
+                role="alert"
+                className={`rounded-xl border px-4 py-3 text-sm font-semibold ${
+                  formError
+                    ? 'border-rose-500/40 bg-rose-500/10 text-rose-600 dark:text-rose-300'
+                    : 'border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300'
+                }`}
+              >
+                {formError || formSuccess}
+              </div>
+            )}
             {/* Section 1: Project Information */}
             <section className={sectionCls}>
               <div className="flex items-center gap-2 mb-3">

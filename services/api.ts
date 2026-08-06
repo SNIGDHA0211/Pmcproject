@@ -15,6 +15,7 @@ import {
   setAccessToken,
   setRefreshToken,
 } from "../utils/authStorage";
+import { formatUserFacingError } from "../utils/formErrors";
 import { handlePmcHeadMutationNotify } from "../utils/pmcHeadMutationNotify";
 import { stampActorOnRequest } from "../utils/stampActorOnRequest";
 import {
@@ -121,32 +122,7 @@ export function getApiErrorMessage(
   error: unknown,
   fallback = "Unable to complete the request.",
 ): string {
-  if (!axios.isAxiosError(error)) return fallback;
-  if (!error.response)
-    return "Unable to connect to the server. Please try again.";
-
-  const data = error.response.data;
-  if (typeof data === "string" && data.trim()) {
-    return /<(?:!doctype|html)\b/i.test(data) ? fallback : data;
-  }
-  if (data && typeof data === "object") {
-    const body = data as Record<string, unknown>;
-    const directMessage = body.detail ?? body.message ?? body.error;
-    if (typeof directMessage === "string" && directMessage.trim())
-      return directMessage;
-
-    const validation = Object.entries(body).find(
-      ([, value]) =>
-        typeof value === "string" || (Array.isArray(value) && value.length > 0),
-    );
-    if (validation) {
-      const [field, value] = validation;
-      const message = Array.isArray(value) ? value.join(" ") : String(value);
-      return `${field}: ${message}`;
-    }
-  }
-
-  return fallback;
+  return formatUserFacingError(error, { fallback });
 }
 
 const isApiDebugEnabled =
@@ -427,7 +403,28 @@ export const projectApi = {
   },
   // Project Initialization API (PMC Head)
   initProject: (projectData: any) => {
-    return api.post(API_ENDPOINTS.PROJECTS.INIT_PROJECT, projectData);
+    // Init must not receive actor-stamp keys — backend save fails with a generic 400.
+    const ACTOR_STAMP_KEYS = [
+      'created_by_name',
+      'created_by_username',
+      'updated_by_name',
+      'updated_by_username',
+      'sender_name',
+      'sender_username',
+      'sender_role',
+    ] as const;
+    const clean =
+      projectData && typeof projectData === 'object' && !(projectData instanceof FormData)
+        ? { ...projectData }
+        : projectData;
+    if (clean && typeof clean === 'object') {
+      for (const key of ACTOR_STAMP_KEYS) {
+        delete clean[key];
+      }
+    }
+    return api.post(API_ENDPOINTS.PROJECTS.INIT_PROJECT, clean, {
+      skipActorStamp: true,
+    } as any);
   },
   getInitProjects: () => {
     return api.get(API_ENDPOINTS.PROJECTS.INIT_LIST);
