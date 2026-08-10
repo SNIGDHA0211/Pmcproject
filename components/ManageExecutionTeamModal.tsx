@@ -26,21 +26,21 @@ interface ManageExecutionTeamModalProps {
 }
 
 function mapCandidates(payload: unknown): CandidateUser[] {
-  return unwrapList<Record<string, unknown>>(payload)
-    .map((row) => {
-      const id = row.id ?? row.user_id ?? row.pk;
-      if (id == null) return null;
-      const name = String(
-        row.name ?? row.full_name ?? row.display_name ?? row.username ?? '',
-      ).trim();
-      if (!name) return null;
-      return {
-        id: String(id),
-        name,
-        email: String(row.email ?? '').trim() || undefined,
-      };
-    })
-    .filter((u): u is CandidateUser => Boolean(u));
+  const candidates: CandidateUser[] = [];
+  for (const row of unwrapList<Record<string, unknown>>(payload)) {
+    const id = row.id ?? row.user_id ?? row.pk;
+    if (id == null) continue;
+    const name = String(
+      row.name ?? row.full_name ?? row.display_name ?? row.username ?? '',
+    ).trim();
+    if (!name) continue;
+    candidates.push({
+      id: String(id),
+      name,
+      email: String(row.email ?? '').trim() || undefined,
+    });
+  }
+  return candidates;
 }
 
 const RoleAssignRow: React.FC<{

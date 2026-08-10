@@ -149,14 +149,17 @@ function invalidateFromMutation(config: AxiosRequestConfig): void {
  * call and recent successful GETs are served from a short TTL cache.
  */
 function resolveAxiosAdapter(instance: {
-  defaults: { adapter?: AxiosAdapter | AxiosAdapter[] | string | string[] };
+  defaults: { adapter?: unknown };
 }): AxiosAdapter {
   const configured = instance.defaults.adapter;
   // Axios may store adapter as a name/array (e.g. ['xhr','http']) — not callable.
   if (typeof configured === 'function') {
-    return configured;
+    return configured as AxiosAdapter;
   }
-  const resolved = axios.getAdapter(configured ?? ['xhr', 'http']);
+  const resolved = axios.getAdapter(
+    (configured as AxiosAdapter | AxiosAdapter[] | string | string[] | undefined) ??
+      ['xhr', 'http'],
+  );
   if (typeof resolved !== 'function') {
     throw new Error('Unable to resolve Axios HTTP adapter for GET cache.');
   }
@@ -166,14 +169,15 @@ function resolveAxiosAdapter(instance: {
 export function installGetRequestCache(
   instance: {
     defaults: {
-      adapter?: AxiosAdapter | AxiosAdapter[] | string | string[];
+      // Axios typings vary by version; accept the runtime adapter shape loosely.
+      adapter?: unknown;
       baseURL?: string;
     };
   },
 ): void {
   const prior = resolveAxiosAdapter(instance);
 
-  instance.defaults.adapter = async (config) => {
+  instance.defaults.adapter = (async (config: InternalAxiosRequestConfig) => {
     if (shouldSkipCache(config)) {
       const response = await prior(config);
       if (methodOf(config) !== 'get') {
@@ -213,5 +217,5 @@ export function installGetRequestCache(
 
     inflight.set(key, requestPromise);
     return requestPromise;
-  };
+  }) as AxiosAdapter;
 }
