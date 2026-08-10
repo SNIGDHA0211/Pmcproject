@@ -56,7 +56,7 @@ import {
 import ContractorManagementDashboard from './contractor/ContractorManagementDashboard';
 import { contractorMasterApi } from '../services/contractorManagementApi';
 import type { ContractorMasterRecord, ProjectDatesApiRecord } from '../types/contractorManagement';
-import { pickRecordForContractor } from '../utils/contractorFinancialRecords';
+import { pickRecordForContractor, aggregateContractValueRecords, aggregateInvoicingRecords } from '../utils/contractorFinancialRecords';
 import {
   contractorDisplayName,
   plannedValueSectionTitle,
@@ -520,6 +520,8 @@ const Projects: React.FC<ProjectsProps> = ({
   );
   const [editingSclId, setEditingSclId] = useState<number | null>(null);
   const [selectedContractorId, setSelectedContractorId] = useState<number | null>(null);
+  /** Financial tab View selector (null = Cumulative All Contractors). Separate from schedule contractor. */
+  const [pmcMoneyContractorViewId, setPmcMoneyContractorViewId] = useState<number | null>(null);
   const [projectDatesForm, setProjectDatesForm] = useState({
     contractor_id: null as number | null,
     project_start: '',
@@ -870,12 +872,24 @@ const Projects: React.FC<ProjectsProps> = ({
   useEffect(() => {
     if (!selectedProject?.title) {
       setContractorMasters([]);
+      setPmcMoneyContractorViewId(null);
       return;
     }
     void contractorMasterApi
       .list(selectedProject.title)
-      .then(setContractorMasters)
-      .catch(() => setContractorMasters([]));
+      .then((masters) => {
+        setContractorMasters(masters);
+        const activeIds = masters.filter((m) => m.status === 'ACTIVE').map((m) => m.id);
+        setPmcMoneyContractorViewId((prev) => {
+          if (prev === null) return null;
+          if (prev != null && activeIds.includes(prev)) return prev;
+          return null;
+        });
+      })
+      .catch(() => {
+        setContractorMasters([]);
+        setPmcMoneyContractorViewId(null);
+      });
   }, [selectedProject?.title, contractorDashboardRevision]);
 
   const loadProjectDatesFormScl = (record?: ProjectDatesRecord | ProjectDatesApiRecord | null) => {
@@ -2529,18 +2543,76 @@ const Projects: React.FC<ProjectsProps> = ({
   );
   const selectedContractorName = contractorDisplayName(contractorLabel(selectedContractorRecord));
 
-  const selectedContractorContractValue = useMemo(
+  const moneyViewMaster = useMemo(
     () =>
-      pickRecordForContractor(contractorContractValuesList, selectedContractorName) ??
-      contractValuesData.Contractor,
-    [contractorContractValuesList, selectedContractorName, contractValuesData.Contractor],
+      pmcMoneyContractorViewId == null
+        ? null
+        : contractorMasters.find((m) => m.id === pmcMoneyContractorViewId) ?? null,
+    [contractorMasters, pmcMoneyContractorViewId],
   );
 
-  const selectedContractorInvoicing = useMemo(
-    () =>
+  const moneyContractorDisplayName = moneyViewMaster?.contractor_name?.trim() || selectedContractorName;
+
+  const selectedContractorContractValue = useMemo(() => {
+    if (pmcMoneyContractorViewId == null) {
+      return (
+        aggregateContractValueRecords(contractorContractValuesList) ??
+        contractValuesData.Contractor
+      );
+    }
+    return (
+      pickRecordForContractor(
+        contractorContractValuesList,
+        moneyViewMaster?.contractor_name,
+        pmcMoneyContractorViewId,
+      ) ??
+      pickRecordForContractor(contractorContractValuesList, selectedContractorName) ??
+      contractValuesData.Contractor
+    );
+  }, [
+    pmcMoneyContractorViewId,
+    contractorContractValuesList,
+    moneyViewMaster?.contractor_name,
+    selectedContractorName,
+    contractValuesData.Contractor,
+  ]);
+
+  const selectedContractorInvoicing = useMemo(() => {
+    if (pmcMoneyContractorViewId == null) {
+      return aggregateInvoicingRecords(contractorInvoicingList) ?? invoicingData.Contractor;
+    }
+    return (
+      pickRecordForContractor(
+        contractorInvoicingList,
+        moneyViewMaster?.contractor_name,
+        pmcMoneyContractorViewId,
+      ) ??
       pickRecordForContractor(contractorInvoicingList, selectedContractorName) ??
-      invoicingData.Contractor,
-    [contractorInvoicingList, selectedContractorName, invoicingData.Contractor],
+      invoicingData.Contractor
+    );
+  }, [
+    pmcMoneyContractorViewId,
+    contractorInvoicingList,
+    moneyViewMaster?.contractor_name,
+    selectedContractorName,
+    invoicingData.Contractor,
+  ]);
+
+  const handlePmcMoneyContractorViewChange = useCallback(
+    (id: number | null) => {
+      setPmcMoneyContractorViewId(id);
+      if (id == null) return;
+      const master = contractorMasters.find((m) => m.id === id);
+      if (!master) return;
+      const masterName = master.contractor_name.trim().toLowerCase();
+      const datesMatch = projectContractors.find((c) => {
+        const label = contractorLabel(c).trim().toLowerCase();
+        const linkedId = (c as { contractor?: { id?: number } }).contractor?.id;
+        return linkedId === id || label === masterName;
+      });
+      if (datesMatch?.id != null) setSelectedContractorId(datesMatch.id);
+    },
+    [contractorMasters, projectContractors],
   );
 
   const useGlobalContractorFilter = projectContractors.length > 0;
@@ -3053,7 +3125,7 @@ const Projects: React.FC<ProjectsProps> = ({
               <PMCHeadMoneySection
                 sclContractValue={sclContractValue}
                 contractorContractValue={selectedContractorContractValue}
-                contractorDisplayName={selectedContractorName}
+                contractorDisplayName={moneyContractorDisplayName}
                 pmcInvoicing={pmcInvoicing}
                 contractorInvoicing={selectedContractorInvoicing}
                 isLoadingContractValues={isLoadingContractValues}
@@ -3062,6 +3134,9 @@ const Projects: React.FC<ProjectsProps> = ({
                 isLoadingInvoicing={isLoadingInvoicing}
                 pmcInvoicingError={invoicingErrors.PMC}
                 contractorInvoicingError={invoicingErrors.Contractor}
+                contractors={contractorMasters}
+                selectedContractorViewId={pmcMoneyContractorViewId}
+                onContractorViewChange={handlePmcMoneyContractorViewChange}
               />
               </div>
             )}

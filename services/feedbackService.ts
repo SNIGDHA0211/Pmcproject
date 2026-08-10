@@ -67,6 +67,12 @@ function normalizeFeedback(row: any): ProjectFeedback {
     (typeof attachment === 'string' ? attachment : null) ??
     row?.attachment_url ??
     row?.attachmentUrl ??
+    row?.file_url ??
+    row?.fileUrl ??
+    row?.s3_url ??
+    row?.s3Url ??
+    row?.image_url ??
+    row?.imageUrl ??
     '';
   return {
     id: Number(row?.id) || 0,

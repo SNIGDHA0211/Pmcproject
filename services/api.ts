@@ -18,6 +18,7 @@ import {
 import { formatUserFacingError } from "../utils/formErrors";
 import { handlePmcHeadMutationNotify } from "../utils/pmcHeadMutationNotify";
 import { stampActorOnRequest } from "../utils/stampActorOnRequest";
+import { installGetRequestCache } from "../utils/apiGetCache";
 import {
   extractRecordId,
   formatFinancialMonthYear,
@@ -317,6 +318,7 @@ const api = axios.create({
 });
 
 configureApiInstance(api);
+installGetRequestCache(api);
 
 export const authApi = {
   login: (credentials: { username: string; password: string }) =>
@@ -454,9 +456,13 @@ export const projectApi = {
 };
 
 export const operationsApi = {
-  getTasks: (siteId?: string) => {
-    const url = siteId
-      ? `${API_ENDPOINTS.OPERATIONS.TASKS}?site_id=${siteId}`
+  getTasks: (siteIdOrProject?: string, opts?: { projectId?: string }) => {
+    const params = new URLSearchParams();
+    if (opts?.projectId) params.append('project_id', opts.projectId);
+    else if (siteIdOrProject) params.append('site_id', siteIdOrProject);
+    const qs = params.toString();
+    const url = qs
+      ? `${API_ENDPOINTS.OPERATIONS.TASKS}?${qs}`
       : API_ENDPOINTS.OPERATIONS.TASKS;
     return api.get(url);
   },
@@ -496,6 +502,7 @@ const dprApiInstance = axios.create({
 });
 
 configureApiInstance(dprApiInstance);
+installGetRequestCache(dprApiInstance);
 
 export const dprApi = {
   // Get all DPRs with optional filtering
@@ -2930,6 +2937,10 @@ export function normalizeSiteImageRecord(
   const imageUrl =
     (typeof r.image_url === "string" && r.image_url) ||
     (typeof r.imageUrl === "string" && r.imageUrl) ||
+    (typeof r.s3_url === "string" && r.s3_url) ||
+    (typeof r.s3Url === "string" && r.s3Url) ||
+    (typeof r.file_url === "string" && r.file_url) ||
+    (typeof r.fileUrl === "string" && r.fileUrl) ||
     (typeof r.url === "string" && r.url) ||
     (typeof r.secure_url === "string" && r.secure_url) ||
     (typeof r.image === "string" && r.image) ||
@@ -6759,7 +6770,17 @@ function normalizeTestingDocument(row: any): TestingDocument {
     remarks: String(row?.remarks ?? ""),
     documentType: String(row?.document_type ?? row?.documentType ?? ""),
     fileName: String(row?.file_name ?? row?.fileName ?? ""),
-    fileUrl: String(row?.file_url ?? row?.fileUrl ?? ""),
+    fileUrl: String(
+      row?.file_url ??
+        row?.fileUrl ??
+        row?.s3_url ??
+        row?.s3Url ??
+        row?.attachment_url ??
+        row?.attachmentUrl ??
+        row?.image_url ??
+        row?.imageUrl ??
+        "",
+    ),
     fileSize: Number(row?.file_size ?? row?.fileSize) || 0,
     mimeType: String(row?.mime_type ?? row?.mimeType ?? ""),
     testDate: String(row?.test_date ?? row?.testDate ?? ""),

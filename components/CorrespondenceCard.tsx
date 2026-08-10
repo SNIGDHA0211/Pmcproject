@@ -627,13 +627,11 @@ const CorrespondenceCard: React.FC<CorrespondenceCardProps> = ({
   const renderPartyDashboards = (split = true) => {
     if (isCardLoading) {
       return (
-        <div
-          className={`grid gap-2 lg:grid-cols-2 lg:gap-3 ${split ? "grid-cols-1" : "grid-cols-1"}`}
-        >
+        <div className="grid grid-cols-1 gap-3 sm:gap-4 xl:grid-cols-2">
           {Array.from({ length: 2 }).map((_, i) => (
             <div
               key={i}
-              className={`h-40 animate-pulse rounded-lg ${themeClasses.bgSecondary}`}
+              className={`h-48 animate-pulse rounded-2xl ${themeClasses.bgSecondary}`}
             />
           ))}
         </div>
@@ -661,7 +659,7 @@ const CorrespondenceCard: React.FC<CorrespondenceCardProps> = ({
     }
 
     return (
-      <div className="grid grid-cols-1 gap-2 min-[1100px]:grid-cols-2 min-[1100px]:gap-3">
+      <div className="grid grid-cols-1 gap-3 sm:gap-4 xl:grid-cols-2 xl:items-stretch xl:gap-4">
         <CorrespondencePartyDashboard
           partyLabel="Client"
           correspondenceType="CLIENT"

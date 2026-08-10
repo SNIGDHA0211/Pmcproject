@@ -42,29 +42,28 @@ const CorrespondenceDetailedBody: React.FC<CorrespondenceDetailedBodyProps> = ({
   const monthYearText = monthYearLabel(selectedMonth, selectedYear);
 
   return (
-    <div className="flex flex-col gap-6">
-      <CorrespondencePartyDashboard
-        partyLabel="Client"
-        correspondenceType="CLIENT"
-        metrics={period.client}
-        documents={documents}
-        selectedMonth={selectedMonth}
-        selectedYear={selectedYear}
-      />
+    <div className="flex flex-col gap-4 sm:gap-5">
+      <div className="grid grid-cols-1 gap-3 sm:gap-4 xl:grid-cols-2 xl:items-stretch">
+        <CorrespondencePartyDashboard
+          partyLabel="Client"
+          correspondenceType="CLIENT"
+          metrics={period.client}
+          documents={documents}
+          selectedMonth={selectedMonth}
+          selectedYear={selectedYear}
+          split
+        />
 
-      <div
-        className={`border-t border-dashed ${isDarkTheme ? 'border-white/10' : 'border-slate-200'}`}
-        role="separator"
-      />
-
-      <CorrespondencePartyDashboard
-        partyLabel="Contractor"
-        correspondenceType="CONTRACTOR"
-        metrics={period.contractor}
-        documents={documents}
-        selectedMonth={selectedMonth}
-        selectedYear={selectedYear}
-      />
+        <CorrespondencePartyDashboard
+          partyLabel="Contractor"
+          correspondenceType="CONTRACTOR"
+          metrics={period.contractor}
+          documents={documents}
+          selectedMonth={selectedMonth}
+          selectedYear={selectedYear}
+          split
+        />
+      </div>
 
       <div
         className={`space-y-3 rounded-xl border p-4 ${

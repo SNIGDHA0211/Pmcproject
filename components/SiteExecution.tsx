@@ -116,7 +116,7 @@ const SiteExecution: React.FC<SiteExecutionProps> = ({ projects, onViewProject }
               {/* Progress Row */}
               <div className="space-y-2">
                 <div className="flex items-center justify-between text-xs">
-                  <span className={`font-bold ${themeClasses.textSecondary}`}>Progress</span>
+                  <span className={`font-bold ${themeClasses.textSecondary}`}>Site Progress</span>
                   {isLoading ? (
                     <span className={`h-4 w-10 animate-pulse rounded ${themeClasses.bgSecondary}`} />
                   ) : (

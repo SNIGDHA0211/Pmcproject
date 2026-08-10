@@ -526,6 +526,8 @@ export interface CorrespondenceAttachment {
   uploadedBy: string;
   uploadedOn: string;
   version: number;
+  /** Direct S3 / CDN URL when list/detail already provides it. */
+  fileUrl?: string | null;
   canDownload?: boolean;
   canEdit?: boolean;
   canDelete?: boolean;
@@ -560,13 +562,19 @@ export interface Project {
   description: string;
   status: ProjectStatus;
   pmcHeadId: string;
+  pmcHeadName?: string;
   teamLeadId?: string;
   teamLeadName?: string;
   siteEngineerIds: string[];
+  siteEngineerNames?: string[];
   billingEngineerId?: string;
+  billingEngineerName?: string;
   qaqcEngineerId?: string;
+  qaqcEngineerName?: string;
   hseEngineerId?: string;
+  hseEngineerName?: string;
   coordinatorIds: string[];
+  coordinatorNames?: string[];
   createdAt: string;
   updatedAt: string;
   budget: number;
@@ -585,6 +593,8 @@ export interface Project {
   salientFeatures?: string;
   siteStaffDetails?: string;
   hasDocumentation?: boolean;
+  /** URL for init/upload documentation when backend provides it */
+  documentationFileUrl?: string;
   hasReminderAlerts?: boolean;
   hasBarGanttChart?: boolean;
   hasDPRFormat?: boolean;

@@ -13,6 +13,7 @@ import {
   correspondenceAttachmentsApi,
   downloadCorrespondenceAttachmentSecure,
   getCorrespondenceAttachmentsErrorMessage,
+  resolveCorrespondenceAttachmentUrl,
 } from '../services/correspondenceAttachmentsApi';
 import { getThemeClasses, useTheme } from '../utils/theme';
 
@@ -45,6 +46,7 @@ const CorrespondenceFormAttachments: React.FC<CorrespondenceFormAttachmentsProps
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [previewName, setPreviewName] = useState('');
   const [dragOver, setDragOver] = useState(false);
+  const [openingId, setOpeningId] = useState<string | number | null>(null);
 
   const labelClass = `mb-1 block text-[10px] font-black uppercase tracking-widest ${themeClasses.textSecondary}`;
   const inputClass = `w-full rounded-2xl px-4 py-3 text-sm font-bold outline-none ${themeClasses.input}`;
@@ -158,10 +160,26 @@ const CorrespondenceFormAttachments: React.FC<CorrespondenceFormAttachmentsProps
   };
 
   const handleDownload = async (attachment: CorrespondenceAttachment) => {
+    if (openingId != null) return;
+    setOpeningId(attachment.id);
     try {
-      await downloadCorrespondenceAttachmentSecure(attachment.id, attachment.fileName);
+      const { url } = await downloadCorrespondenceAttachmentSecure(
+        attachment.id,
+        attachment.fileName,
+        attachment.fileUrl,
+      );
+      if (url && url !== attachment.fileUrl) {
+        setAttachments((prev) =>
+          prev.map((row) =>
+            String(row.id) === String(attachment.id) ? { ...row, fileUrl: url } : row,
+          ),
+        );
+      }
     } catch (err) {
+      if ((err as Error)?.message === 'OPEN_IN_PROGRESS') return;
       setError(getCorrespondenceAttachmentsErrorMessage(err, 'Download failed.'));
+    } finally {
+      setOpeningId(null);
     }
   };
 
@@ -170,12 +188,26 @@ const CorrespondenceFormAttachments: React.FC<CorrespondenceFormAttachmentsProps
       await handleDownload(attachment);
       return;
     }
+    if (openingId != null) return;
+    setOpeningId(attachment.id);
     try {
-      const url = await correspondenceAttachmentsApi.getDownloadUrl(attachment.id);
+      if (attachment.fileUrl) {
+        setPreviewUrl(attachment.fileUrl);
+        setPreviewName(attachment.fileName);
+        return;
+      }
+      const url = await resolveCorrespondenceAttachmentUrl(attachment);
       setPreviewUrl(url);
       setPreviewName(attachment.fileName);
+      setAttachments((prev) =>
+        prev.map((row) =>
+          String(row.id) === String(attachment.id) ? { ...row, fileUrl: url } : row,
+        ),
+      );
     } catch (err) {
       setError(getCorrespondenceAttachmentsErrorMessage(err, 'Preview failed.'));
+    } finally {
+      setOpeningId(null);
     }
   };
 
@@ -227,11 +259,13 @@ const CorrespondenceFormAttachments: React.FC<CorrespondenceFormAttachmentsProps
     label: string,
     onClick: () => void,
     danger = false,
+    disabled = false,
   ) => (
     <button
       type="button"
+      disabled={disabled}
       onClick={onClick}
-      className={`text-[11px] font-bold hover:underline ${
+      className={`text-[11px] font-bold hover:underline disabled:opacity-50 ${
         danger
           ? isDarkTheme
             ? 'text-rose-300'
@@ -334,8 +368,18 @@ const CorrespondenceFormAttachments: React.FC<CorrespondenceFormAttachmentsProps
                     </p>
                     <div className="mt-1.5 flex flex-wrap gap-2">
                       {canPreviewCorrespondenceAttachment(attachment.fileName) &&
-                        renderActionLink('View', () => void handlePreview(attachment))}
-                      {renderActionLink('Download', () => void handleDownload(attachment))}
+                        renderActionLink(
+                          openingId === attachment.id ? 'Opening…' : 'View',
+                          () => void handlePreview(attachment),
+                          false,
+                          openingId === attachment.id,
+                        )}
+                      {renderActionLink(
+                        openingId === attachment.id ? 'Opening…' : 'Download',
+                        () => void handleDownload(attachment),
+                        false,
+                        openingId === attachment.id,
+                      )}
                       {attachment.canEdit !== false &&
                         renderActionLink('Version', () => {
                           setEditingAttachment(attachment);

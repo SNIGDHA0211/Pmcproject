@@ -11,6 +11,7 @@ import {
   normalizeCorrespondenceDocumentPermissions,
   sortCorrespondenceAttachments,
 } from '../utils/correspondenceAttachments';
+import { openStoredFile, resolveStoredFileUrl } from '../utils/storedFileUrl';
 
 const client = axios.create({
   baseURL: getApiBaseUrl('main'),
@@ -131,16 +132,25 @@ export function getCorrespondenceAttachmentsErrorMessage(
 export async function downloadCorrespondenceAttachmentSecure(
   attachmentId: string | number,
   fileName?: string,
-): Promise<void> {
-  const url = await correspondenceAttachmentsApi.getDownloadUrl(attachmentId);
-  const anchor = document.createElement('a');
-  anchor.href = url;
-  if (fileName) anchor.download = fileName;
-  anchor.rel = 'noopener noreferrer';
-  anchor.target = '_blank';
-  document.body.appendChild(anchor);
-  anchor.click();
-  document.body.removeChild(anchor);
+  directUrl?: string | null,
+): Promise<{ url: string; source: 'direct' | 'presigned_download' }> {
+  return openStoredFile({
+    directUrl,
+    fileName,
+    download: Boolean(fileName),
+    fetchPresignedUrl: () => correspondenceAttachmentsApi.getDownloadUrl(attachmentId),
+  });
+}
+
+/** Resolve preview URL — prefer attachment.fileUrl already in state. */
+export async function resolveCorrespondenceAttachmentUrl(
+  attachment: { id: string | number; fileUrl?: string | null },
+): Promise<string> {
+  const { url } = await resolveStoredFileUrl({
+    directUrl: attachment.fileUrl,
+    fetchPresignedUrl: () => correspondenceAttachmentsApi.getDownloadUrl(attachment.id),
+  });
+  return url;
 }
 
 export function extractCorrespondenceAttachmentMetaFromList(

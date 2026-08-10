@@ -362,14 +362,24 @@ async function fetchCorrespondenceActivity(
 
 export async function fetchPmcHeadActivityNotifications(
   viewerUserId: string,
-  options?: { maxAgeDays?: number; limit?: number },
+  options?: {
+    maxAgeDays?: number;
+    limit?: number;
+    /** Reuse App/bootstrap projects — avoids a third projects list fetch. */
+    projects?: ProjectAssigneeInfo[];
+    directory?: DirectoryUser[];
+  },
 ): Promise<AppNotification[]> {
   const maxAgeDays = options?.maxAgeDays ?? 30;
   const limit = options?.limit ?? 120;
 
   const [directory, projects] = await Promise.all([
-    loadUserDirectory(),
-    loadProjectsForActorFallback(),
+    options?.directory
+      ? Promise.resolve(options.directory)
+      : loadUserDirectory(),
+    options?.projects?.length
+      ? Promise.resolve(options.projects)
+      : loadProjectsForActorFallback(),
   ]);
 
   const batches = await Promise.allSettled([

@@ -18,6 +18,7 @@ import {
   correspondenceAttachmentsApi,
   downloadCorrespondenceAttachmentSecure,
   getCorrespondenceAttachmentsErrorMessage,
+  resolveCorrespondenceAttachmentUrl,
 } from '../services/correspondenceAttachmentsApi';
 import { getThemeClasses, useTheme } from '../utils/theme';
 import { useDebouncedValue } from '../hooks/useDebouncedValue';
@@ -202,10 +203,23 @@ const CorrespondenceAttachmentsPanel: React.FC<CorrespondenceAttachmentsPanelPro
   };
 
   const handleDownload = async (attachment: CorrespondenceAttachment) => {
+    if (downloadingId != null) return;
     setDownloadingId(attachment.id);
     try {
-      await downloadCorrespondenceAttachmentSecure(attachment.id, attachment.fileName);
+      const { url } = await downloadCorrespondenceAttachmentSecure(
+        attachment.id,
+        attachment.fileName,
+        attachment.fileUrl,
+      );
+      if (url && url !== attachment.fileUrl) {
+        setAttachments((prev) =>
+          prev.map((row) =>
+            String(row.id) === String(attachment.id) ? { ...row, fileUrl: url } : row,
+          ),
+        );
+      }
     } catch (err) {
+      if ((err as Error)?.message === 'OPEN_IN_PROGRESS') return;
       showToast(getCorrespondenceAttachmentsErrorMessage(err, 'Download failed.'), 'error');
     } finally {
       setDownloadingId(null);
@@ -214,14 +228,32 @@ const CorrespondenceAttachmentsPanel: React.FC<CorrespondenceAttachmentsPanelPro
 
   const handlePreview = async (attachment: CorrespondenceAttachment) => {
     if (!canPreviewCorrespondenceAttachment(attachment.fileName)) return;
+    if (previewLoading) return;
     setActiveAttachment(attachment);
     setPanelView('preview');
+    setError(null);
+
+    // Reuse URL already on the attachment or a prior preview for the same id
+    if (attachment.fileUrl) {
+      setPreviewUrl(attachment.fileUrl);
+      setPreviewLoading(false);
+      return;
+    }
+    if (previewUrl && activeAttachment && String(activeAttachment.id) === String(attachment.id)) {
+      setPreviewLoading(false);
+      return;
+    }
+
     setPreviewLoading(true);
     setPreviewUrl(null);
-    setError(null);
     try {
-      const url = await correspondenceAttachmentsApi.getDownloadUrl(attachment.id);
+      const url = await resolveCorrespondenceAttachmentUrl(attachment);
       setPreviewUrl(url);
+      setAttachments((prev) =>
+        prev.map((row) =>
+          String(row.id) === String(attachment.id) ? { ...row, fileUrl: url } : row,
+        ),
+      );
     } catch (err) {
       setError(getCorrespondenceAttachmentsErrorMessage(err, 'Preview failed.'));
     } finally {
@@ -283,8 +315,9 @@ const CorrespondenceAttachmentsPanel: React.FC<CorrespondenceAttachmentsPanelPro
             type="button"
             title="Preview"
             aria-label="Preview attachment"
+            disabled={previewLoading}
             onClick={() => void handlePreview(attachment)}
-            className={iconBtnClass('neutral')}
+            className={`${iconBtnClass('neutral')} disabled:opacity-50`}
           >
             <Eye size={16} />
           </button>
@@ -295,7 +328,7 @@ const CorrespondenceAttachmentsPanel: React.FC<CorrespondenceAttachmentsPanelPro
           aria-label="Download attachment"
           disabled={isDownloading}
           onClick={() => void handleDownload(attachment)}
-          className={iconBtnClass('primary')}
+          className={`${iconBtnClass('primary')} disabled:opacity-50`}
         >
           <Download size={16} className={isDownloading ? 'animate-pulse' : ''} />
         </button>

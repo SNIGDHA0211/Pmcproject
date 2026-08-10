@@ -75,25 +75,39 @@ const CorrespondenceMetricStrip: React.FC<CorrespondenceMetricStripProps> = ({
   const gridClass = split
     ? 'grid-cols-2'
     : compact
-      ? 'grid-cols-2 lg:grid-cols-5'
-      : 'grid-cols-2 xl:grid-cols-5';
+      ? 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-5'
+      : 'grid-cols-2 sm:grid-cols-3 xl:grid-cols-5';
 
   return (
-    <div className={`grid gap-1.5 sm:gap-2 ${gridClass}`}>
+    <div className={`grid gap-2 sm:gap-2.5 ${gridClass}`}>
       {METRIC_DEFS.map((metric) => {
         const Icon = metric.icon;
         const value = coerceCorrespondenceCount(breakdown[metric.key]);
         const border = semanticBorderAccentClass(metric.tone);
         const iconWrap = semanticIconWrapClass(metric.tone, isDarkTheme);
         const valueClass = semanticValueClass(metric.tone, isDarkTheme);
+        const spanLate = split && metric.key === 'lateDeliveries';
         return (
           <div
             key={metric.key}
-            className={`relative flex ${isDense ? KPI_TILE_MIN_H_COMPACT : KPI_TILE_MIN_H} flex-col rounded-lg border border-b-[3px] ${border} ${isDense ? 'px-2 py-1.5' : split ? 'px-2.5 py-2 sm:px-3 sm:py-2.5' : 'px-3 py-2.5'
-              } ${isDarkTheme ? 'border-white/10 bg-white/[0.03]' : 'border-slate-200 bg-white shadow-sm'}`}
+            className={`relative flex ${
+              isDense ? KPI_TILE_MIN_H_COMPACT : KPI_TILE_MIN_H
+            } flex-col rounded-xl border border-b-[3px] ${border} ${
+              spanLate ? 'col-span-2' : ''
+            } ${
+              isDense
+                ? 'px-2.5 py-2'
+                : split
+                  ? 'px-2.5 py-2 sm:px-3 sm:py-2.5'
+                  : 'px-3 py-2.5'
+            } ${
+              isDarkTheme
+                ? 'border-white/10 bg-slate-950/40'
+                : 'border-slate-200 bg-white shadow-sm'
+            }`}
           >
             {metric.showInfo && (
-              <div className="absolute right-1 top-1 z-10">
+              <div className="absolute right-1.5 top-1.5 z-10">
                 <FormulaInfoButton
                   title="Late Deliveries"
                   calculatedFields={['lateDeliveries']}
@@ -105,20 +119,33 @@ const CorrespondenceMetricStrip: React.FC<CorrespondenceMetricStripProps> = ({
                 />
               </div>
             )}
-            <div className="flex items-start justify-between gap-1.5">
-              <p className={`min-w-0 flex-1 pr-4 leading-tight line-clamp-2 ${isDense ? 'text-[11px] sm:text-xs' : typo.label} font-semibold uppercase ${DASHBOARD_STATUS_METRIC_LABEL_CLASS(isDarkTheme)}`}>
+            <div className="flex items-start justify-between gap-2">
+              <p
+                className={`min-w-0 flex-1 leading-tight line-clamp-2 ${
+                  isDense ? 'text-[10px] sm:text-[11px]' : typo.label
+                } font-semibold uppercase ${DASHBOARD_STATUS_METRIC_LABEL_CLASS(isDarkTheme)} ${
+                  metric.showInfo ? 'pr-5' : ''
+                }`}
+              >
                 {metric.label}
               </p>
               <span
-                className={`flex shrink-0 items-center justify-center rounded-md ${iconWrap} ${isDense ? 'h-7 w-7' : split ? 'h-7 w-7 sm:h-8 sm:w-8' : 'h-8 w-8'
-                  }`}
+                className={`flex shrink-0 items-center justify-center rounded-md ${iconWrap} ${
+                  isDense ? 'h-7 w-7' : split ? 'h-7 w-7 sm:h-8 sm:w-8' : 'h-8 w-8'
+                }`}
               >
                 <Icon size={isDense ? 14 : split ? 14 : 16} />
               </span>
             </div>
-            <div className="mt-auto pt-0.5 sm:pt-1">
+            <div className="mt-auto pt-1">
               <p
-                className={`truncate font-black tabular-nums leading-none ${isDense ? 'text-lg sm:text-xl' : split ? 'text-base sm:text-xl' : 'text-lg sm:text-2xl'} ${valueClass}`}
+                className={`truncate font-black tabular-nums leading-none ${
+                  isDense
+                    ? 'text-lg sm:text-xl'
+                    : split
+                      ? 'text-base sm:text-xl'
+                      : 'text-lg sm:text-2xl'
+                } ${valueClass}`}
               >
                 {value.toLocaleString('en-IN')}
               </p>

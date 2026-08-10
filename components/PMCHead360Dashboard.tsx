@@ -43,7 +43,6 @@ import {
 } from '../utils/pmcHead360CompareExport';
 import {
   getApiErrorMessage,
-  getProjectOverview,
   mergeOverviewCardsWithLiveProjects,
 } from '../services/projectOverviewService';
 import { projectApi } from '../services/api';
@@ -51,6 +50,12 @@ import { canDeleteProjectSite } from '../utils/userManagementAccess';
 import { sanitizeProjectDisplayName } from '../utils/hseSiteEngineerProjects';
 import { useDebouncedValue } from '../hooks/useDebouncedValue';
 import { isAbortError } from '../utils/isAbortError';
+import {
+  useOverviewCards,
+  useOverviewLoading,
+  useProjectStoreError,
+} from '../hooks/useProjectStore';
+import { projectStore } from '../stores/projectStore';
 import SiteDeleteDialog, { type SiteDeleteDependency } from './SiteDeleteDialog';
 import { parseSiteDeleteDependencies } from './ProjectSiteList';
 import axios from 'axios';
@@ -93,7 +98,8 @@ const ThemeFilterSelect: React.FC<{
   onChange: (value: string) => void;
   isDark: boolean;
   ariaLabel: string;
-}> = ({ value, options, onChange, isDark, ariaLabel }) => {
+  className?: string;
+}> = ({ value, options, onChange, isDark, ariaLabel, className = '' }) => {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const selected = options.find((o) => o.value === value)?.label ?? value;
@@ -115,13 +121,13 @@ const ThemeFilterSelect: React.FC<{
   }, [open]);
 
   return (
-    <div ref={rootRef} className="relative min-w-0">
+    <div ref={rootRef} className={`relative min-w-0 ${className}`}>
       <button
         type="button"
         aria-label={ariaLabel}
         aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
-        className={`flex w-full items-center justify-between gap-2 rounded-xl border py-2.5 pl-3 pr-2.5 text-left text-xs font-bold outline-none transition-all focus:ring-2 focus:ring-blue-500/30 sm:text-sm ${
+        className={`flex h-10 w-full items-center justify-between gap-2 rounded-xl border px-3 pr-2.5 text-left text-xs font-bold outline-none transition-all focus:ring-2 focus:ring-blue-500/30 sm:text-sm ${
           isDark
             ? 'border-white/15 bg-[#0f2744] text-slate-100 hover:border-white/25'
             : 'border-slate-200 bg-white text-slate-700 shadow-sm hover:border-slate-300'
@@ -493,11 +499,11 @@ const ProjectGridCard: React.FC<{
           </div>
         </div>
 
-        {/* Progress — physical % from project-progress API (same as project detail) */}
+        {/* Overview Progress — from GET /api/projects/overview/ → progress.percentage */}
         <div>
           <div className="mb-1 flex items-center justify-between">
             <span className={`text-[9px] font-bold uppercase tracking-wide ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
-              Progress
+              Overview Progress
             </span>
             <span
               className="text-[11px] font-black tabular-nums"
@@ -741,10 +747,11 @@ const PMCHead360Dashboard: React.FC<PMCHead360DashboardProps> = ({
   const [showScoreFormulas, setShowScoreFormulas] = useState(false);
   const [showCardGuide, setShowCardGuide] = useState(false);
 
-  const [overviewCards, setOverviewCards] = useState<ProjectVitalsCard[]>([]);
-  const [isLoadingVitals, setIsLoadingVitals] = useState(true);
-  const [loadError, setLoadError] = useState<string | null>(null);
+  const overviewCards = useOverviewCards();
+  const isLoadingVitals = useOverviewLoading();
+  const loadError = useProjectStoreError();
   const [refreshNonce, setRefreshNonce] = useState(0);
+  const forceOverviewRefreshRef = useRef(false);
 
   const [deleteTarget, setDeleteTarget] = useState<ProjectVitalsCard | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -754,39 +761,24 @@ const PMCHead360Dashboard: React.FC<PMCHead360DashboardProps> = ({
 
   useEffect(() => {
     const controller = new AbortController();
+    const force = forceOverviewRefreshRef.current;
+    forceOverviewRefreshRef.current = false;
 
     const load = async () => {
-      setIsLoadingVitals(true);
-      setLoadError(null);
-
       try {
-        const result = await getProjectOverview(
+        await projectStore.loadOverview(
+          force,
           {
             search: debouncedSearch || undefined,
             ordering: ordering || undefined,
-            client: clientFilter !== 'all' ? clientFilter : undefined,
-            ...(billingFilter !== 'all'
-              ? {
-                  status: 'completed',
-                  billing_status: billingFilter === 'pending' ? 'Pending' : 'Completed',
-                }
-              : {}),
+            client: clientFilter,
+            billingFilter,
           },
           { signal: controller.signal },
         );
-
-        if (!controller.signal.aborted) {
-          setOverviewCards(result.cards);
-        }
       } catch (error) {
         if (isAbortError(error) || controller.signal.aborted) return;
         console.error('Failed to load project overview:', error);
-        setLoadError(
-          getApiErrorMessage(error, 'Unable to load project overview. Please try again.'),
-        );
-        setOverviewCards([]);
-      } finally {
-        if (!controller.signal.aborted) setIsLoadingVitals(false);
       }
     };
 
@@ -803,6 +795,7 @@ const PMCHead360Dashboard: React.FC<PMCHead360DashboardProps> = ({
 
   const handleForceRefresh = () => {
     if (isLoadingVitals) return;
+    forceOverviewRefreshRef.current = true;
     setRefreshNonce((n) => n + 1);
   };
 
@@ -825,12 +818,9 @@ const PMCHead360Dashboard: React.FC<PMCHead360DashboardProps> = ({
       await projectApi.deleteProject(deleteTarget.projectId);
       const deletedId = String(deleteTarget.projectId);
       setDeleteTarget(null);
-      setOverviewCards((prev) =>
-        prev.filter((card) => String(card.projectId) !== deletedId),
-      );
+      projectStore.removeProject(deletedId);
       setCompareIds((prev) => prev.filter((id) => id !== deletedId));
       onProjectDeleted?.(deletedId);
-      setRefreshNonce((n) => n + 1);
     } catch (err) {
       if (axios.isAxiosError(err) && err.response) {
         const status = err.response.status;
@@ -852,9 +842,7 @@ const PMCHead360Dashboard: React.FC<PMCHead360DashboardProps> = ({
         if (status === 404) {
           const deletedId = String(deleteTarget.projectId);
           setDeleteTarget(null);
-          setOverviewCards((prev) =>
-            prev.filter((card) => String(card.projectId) !== deletedId),
-          );
+          projectStore.removeProject(deletedId);
           onProjectDeleted?.(deletedId);
           return;
         }
@@ -1018,12 +1006,12 @@ const PMCHead360Dashboard: React.FC<PMCHead360DashboardProps> = ({
   return (
     <div className="animate-in fade-in space-y-4 pb-36 duration-500 sm:pb-40">
       {/* Header */}
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-        <div className="min-w-0 space-y-2">
+      <div className="space-y-3">
+        <div className="min-w-0">
           <p className={`text-[10px] font-black uppercase tracking-[0.2em] ${ex.isDark ? 'text-slate-400' : 'text-slate-500'}`}>
             {ROLE_LABELS[user.role] || 'PMC Head'}
           </p>
-          <div className="flex flex-wrap items-center gap-2.5">
+          <div className="mt-1 flex flex-wrap items-center gap-2">
             <h1 className={`text-xl font-black tracking-tight sm:text-2xl ${ex.headingStrong}`}>
               Project 360° Overview
             </h1>
@@ -1063,15 +1051,15 @@ const PMCHead360Dashboard: React.FC<PMCHead360DashboardProps> = ({
           </div>
         </div>
 
-        <div className="grid w-full grid-cols-1 gap-2 sm:grid-cols-2 lg:max-w-4xl lg:grid-cols-[1.2fr_minmax(7rem,9rem)_minmax(7rem,9rem)_minmax(7rem,9rem)_minmax(7rem,9rem)_auto]">
-          <div className="relative min-w-0 sm:col-span-2 lg:col-span-1">
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="relative min-w-[12rem] flex-1 basis-[14rem] sm:max-w-[18rem]">
             <Search size={14} className={`pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 ${ex.muted}`} />
             <input
               type="search"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search projects…"
-              className={`w-full rounded-xl border py-2.5 pl-8 pr-3 text-xs outline-none transition-shadow focus:ring-2 focus:ring-blue-500/30 sm:text-sm ${
+              className={`h-10 w-full rounded-xl border pl-8 pr-3 text-xs outline-none transition-shadow focus:ring-2 focus:ring-blue-500/30 sm:text-sm ${
                 isDarkTheme
                   ? 'border-white/15 bg-[#0f2744] text-slate-100 placeholder:text-slate-500'
                   : 'border-slate-200 bg-white text-slate-800 shadow-sm placeholder:text-slate-400'
@@ -1080,6 +1068,7 @@ const PMCHead360Dashboard: React.FC<PMCHead360DashboardProps> = ({
           </div>
 
           <ThemeFilterSelect
+            className="w-[8.75rem] shrink-0"
             ariaLabel="Filter by client"
             isDark={isDarkTheme}
             value={clientFilter}
@@ -1091,6 +1080,7 @@ const PMCHead360Dashboard: React.FC<PMCHead360DashboardProps> = ({
           />
 
           <ThemeFilterSelect
+            className="w-[8.75rem] shrink-0"
             ariaLabel="Filter by region"
             isDark={isDarkTheme}
             value={regionFilter}
@@ -1102,6 +1092,7 @@ const PMCHead360Dashboard: React.FC<PMCHead360DashboardProps> = ({
           />
 
           <ThemeFilterSelect
+            className="w-[8.75rem] shrink-0"
             ariaLabel="Filter by PM"
             isDark={isDarkTheme}
             value={pmFilter}
@@ -1113,6 +1104,7 @@ const PMCHead360Dashboard: React.FC<PMCHead360DashboardProps> = ({
           />
 
           <ThemeFilterSelect
+            className="w-[9.5rem] shrink-0"
             ariaLabel="Filter by billing status"
             isDark={isDarkTheme}
             value={billingFilter}
@@ -1127,6 +1119,7 @@ const PMCHead360Dashboard: React.FC<PMCHead360DashboardProps> = ({
           />
 
           <ThemeFilterSelect
+            className="w-[8.75rem] shrink-0"
             ariaLabel="Sort projects"
             isDark={isDarkTheme}
             value={ordering}
@@ -1141,7 +1134,7 @@ const PMCHead360Dashboard: React.FC<PMCHead360DashboardProps> = ({
           />
 
           <div
-            className={`flex items-center justify-center gap-1.5 rounded-xl border px-3 py-2.5 text-[11px] font-bold ${
+            className={`inline-flex h-10 shrink-0 items-center gap-1.5 rounded-xl border px-3 text-[11px] font-bold ${
               isDarkTheme
                 ? 'border-white/15 bg-[#0f2744] text-slate-300'
                 : 'border-slate-200 bg-white text-slate-600 shadow-sm'
@@ -1386,8 +1379,8 @@ const PMCHead360Dashboard: React.FC<PMCHead360DashboardProps> = ({
                   body: 'Overall health score — average of available Schedule, Cost, Manpower, Safety, and Compliance values.',
                 },
                 {
-                  title: 'Progress',
-                  body: 'Physical progress % from the project-progress API (cumulative actual) — same source as the project Progress chart. Falls back to earned ÷ planned when progress rows are missing. Not the same as the /100 score ring.',
+                  title: 'Overview Progress',
+                  body: 'Progress % from the Projects Overview API (progress.percentage). This is not the same as Site Progress, which uses Project Progress records (cumulative actual). Also not the same as the /100 health score ring.',
                 },
                 {
                   title: 'Time',
@@ -1503,7 +1496,7 @@ const PMCHead360Dashboard: React.FC<PMCHead360DashboardProps> = ({
 
       {/* Sticky compare tray */}
       <div
-        className={`fixed inset-x-3 bottom-3 z-30 mx-auto max-w-[1600px] rounded-2xl border p-3 shadow-2xl backdrop-blur-md md:inset-x-4 md:bottom-4 md:left-[calc(var(--app-sidebar-width,17rem)+1rem)] md:p-4 ${
+        className={`fixed inset-x-3 bottom-3 z-30 mx-auto max-w-[1600px] rounded-2xl border p-3 shadow-2xl backdrop-blur-md md:inset-x-4 md:bottom-4 md:left-[calc(var(--app-sidebar-width,15.5rem)+1rem)] md:p-4 ${
           isDarkTheme
             ? 'border-white/15 bg-[#0b1d36]/95'
             : 'border-slate-200 bg-white/95'

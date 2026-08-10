@@ -44,6 +44,7 @@ interface MeetingDocumentModalsProps {
   onUploadVersion: (file: File) => Promise<void>;
   onDelete: () => Promise<void>;
   onDownload: (doc: MeetingDocumentRecord) => Promise<void>;
+  downloading?: boolean;
 }
 
 const MeetingDocumentModals: React.FC<MeetingDocumentModalsProps> = ({
@@ -61,6 +62,7 @@ const MeetingDocumentModals: React.FC<MeetingDocumentModalsProps> = ({
   onUploadVersion,
   onDelete,
   onDownload,
+  downloading = false,
 }) => {
   const { isDarkTheme } = useTheme();
   const themeClasses = getThemeClasses(isDarkTheme);
@@ -356,11 +358,12 @@ const MeetingDocumentModals: React.FC<MeetingDocumentModalsProps> = ({
               <button type="button" onClick={onClose} className={`flex-1 rounded-lg px-4 py-2.5 text-sm font-bold ${themeClasses.buttonSecondary}`}>Close</button>
               <button
                 type="button"
+                disabled={downloading}
                 onClick={() => void onDownload(document)}
-                className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-indigo-500"
+                className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-indigo-500 disabled:opacity-60"
               >
                 <Icons.Download size={16} />
-                Download
+                {downloading ? 'Opening…' : 'Download'}
               </button>
             </div>
           </div>

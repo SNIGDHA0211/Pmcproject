@@ -13,6 +13,8 @@ export interface MeetingDocumentRecord {
   description?: string | null;
   fileName?: string | null;
   fileSizeBytes?: number | null;
+  /** Direct S3 / CDN URL from list/detail when public or already signed. */
+  fileUrl?: string | null;
   metadata?: Record<string, unknown> | null;
 }
 
@@ -51,6 +53,7 @@ export interface MeetingDocumentVersionRecord {
   uploadedOn: string;
   fileName?: string | null;
   fileSizeBytes?: number | null;
+  fileUrl?: string | null;
 }
 
 export interface MeetingDocumentProjectGroup {

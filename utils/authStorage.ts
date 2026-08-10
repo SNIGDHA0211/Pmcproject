@@ -4,6 +4,9 @@ import { clearAllProjectDatesSectionCaches } from './projectDatesSectionCache';
 import { clearAllPMCHead360Caches } from './pmcHead360Cache';
 import { clearProjectRowCache } from './pmcHeadExecutiveProjects';
 import { invalidateFinancialCache } from './financialDataCache';
+import { clearApiGetCache } from './apiGetCache';
+import { clearOverviewBootstrap } from './dashboardBootstrap';
+import { projectStore } from '../stores/projectStore';
 
 export const ACCESS_TOKEN_KEY = 'access_token';
 export const REFRESH_TOKEN_KEY = 'refresh_token';
@@ -60,6 +63,9 @@ export function clearAppDataCaches(): void {
   clearAllPMCHead360Caches();
   clearProjectRowCache();
   invalidateFinancialCache();
+  clearApiGetCache();
+  clearOverviewBootstrap();
+  projectStore.clearStore();
 }
 
 export function clearLegacyBasicAuth(): void {

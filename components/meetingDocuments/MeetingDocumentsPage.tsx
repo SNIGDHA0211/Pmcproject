@@ -78,6 +78,7 @@ const MeetingDocumentsPage: React.FC<MeetingDocumentsPageProps> = ({ projects })
   const [uploadProgress, setUploadProgress] = useState(0);
   const [modalError, setModalError] = useState<string | null>(null);
   const [toasts, setToasts] = useState<DashboardToastItem[]>([]);
+  const [downloadingId, setDownloadingId] = useState<string | number | null>(null);
 
   const yearOptions = useMemo(() => buildMeetingYearOptions(), []);
 
@@ -255,10 +256,27 @@ const MeetingDocumentsPage: React.FC<MeetingDocumentsPageProps> = ({ projects })
   };
 
   const handleDownload = async (doc: MeetingDocumentRecord) => {
+    if (downloadingId != null) return;
+    setDownloadingId(doc.id);
     try {
-      await downloadMeetingDocumentSecure(doc.id, doc.fileName ?? undefined);
+      const { url } = await downloadMeetingDocumentSecure(
+        doc.id,
+        doc.fileName ?? undefined,
+        doc.fileUrl,
+      );
+      if (url && url !== doc.fileUrl) {
+        setDocuments((prev) =>
+          prev.map((row) => (String(row.id) === String(doc.id) ? { ...row, fileUrl: url } : row)),
+        );
+        if (activeDocument && String(activeDocument.id) === String(doc.id)) {
+          setActiveDocument({ ...activeDocument, fileUrl: url });
+        }
+      }
     } catch (error) {
+      if ((error as Error)?.message === 'OPEN_IN_PROGRESS') return;
       showToast(getMeetingDocumentsErrorMessage(error, 'Download failed.'), 'error');
+    } finally {
+      setDownloadingId(null);
     }
   };
 
@@ -467,7 +485,11 @@ const MeetingDocumentsPage: React.FC<MeetingDocumentsPageProps> = ({ projects })
                           <div className="flex flex-wrap gap-1">
                             {[
                               { label: 'View', onClick: () => void handleView(doc) },
-                              { label: 'Download', onClick: () => void handleDownload(doc) },
+                              {
+                                label: downloadingId === doc.id ? 'Opening…' : 'Download',
+                                onClick: () => void handleDownload(doc),
+                                disabled: downloadingId === doc.id,
+                              },
                               { label: 'Version', onClick: () => openModal('version', doc) },
                               { label: 'Edit', onClick: () => openModal('edit', doc) },
                               { label: 'Delete', onClick: () => openModal('delete', doc), danger: true },
@@ -475,8 +497,9 @@ const MeetingDocumentsPage: React.FC<MeetingDocumentsPageProps> = ({ projects })
                               <button
                                 key={action.label}
                                 type="button"
+                                disabled={Boolean(action.disabled)}
                                 onClick={action.onClick}
-                                className={`rounded-md border px-2 py-1 text-[10px] font-bold ${
+                                className={`rounded-md border px-2 py-1 text-[10px] font-bold disabled:opacity-50 ${
                                   action.danger
                                     ? 'border-rose-200 text-rose-600 hover:bg-rose-50 dark:border-rose-500/30 dark:text-rose-300'
                                     : 'border-slate-200 text-slate-600 hover:bg-slate-50 dark:border-white/10 dark:text-slate-300'
@@ -535,6 +558,7 @@ const MeetingDocumentsPage: React.FC<MeetingDocumentsPageProps> = ({ projects })
         onUploadVersion={handleUploadVersion}
         onDelete={handleDelete}
         onDownload={handleDownload}
+        downloading={downloadingId != null && activeDocument != null && downloadingId === activeDocument.id}
       />
     </div>
   );

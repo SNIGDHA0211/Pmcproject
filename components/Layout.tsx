@@ -17,6 +17,15 @@ import { isTabAllowedForRole } from '../utils/roleRouting';
 import { isPmcHeadEquivalent } from '../utils/pmcRoleAccess';
 import { canAccessUserManagement } from '../utils/userManagementAccess';
 
+/** Client-friendly section titles + one-line hints (UX only — ids/routes unchanged). */
+const SIDEBAR_SECTION_META: Record<string, { title: string; hint: string }> = {
+  Command: { title: 'Workspace', hint: 'Plan and manage projects' },
+  Field: { title: 'On site', hint: 'Progress, photos, and field work' },
+  Reviews: { title: 'Reviews', hint: 'Portfolio and report checks' },
+  Meetings: { title: 'Meetings', hint: 'MOM and meeting files' },
+  Support: { title: 'Alerts', hint: 'Notifications and support' },
+};
+
 interface LayoutProps {
   children: React.ReactNode;
   user: User;
@@ -27,6 +36,8 @@ interface LayoutProps {
   onTeamLeaderBackToOverview?: () => void;
   notifications: AppNotification[];
   onMarkRead: (id: string, isRead?: boolean) => void;
+  /** Lazy-load alert history when the notification bell opens (Sprint 1). */
+  onRequestNotifications?: () => void;
   onNavigateToAlerts?: () => void;
   onNotificationClick?: (notification: AppNotification) => void;
   projects?: Project[];
@@ -48,6 +59,7 @@ const Layout: React.FC<LayoutProps> = ({
   onTeamLeaderBackToOverview,
   notifications,
   onMarkRead,
+  onRequestNotifications,
   onNavigateToAlerts,
   onNotificationClick,
   isOnboardingTourActive = false,
@@ -78,7 +90,17 @@ const Layout: React.FC<LayoutProps> = ({
     } catch {
       /* ignore */
     }
-    return false;
+    return true;
+  });
+  /** Collapsed nav sections (keys = original section ids like Command). */
+  const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>(() => {
+    try {
+      const raw = localStorage.getItem('pmc.sidebarSectionsCollapsed');
+      if (raw) return JSON.parse(raw) as Record<string, boolean>;
+    } catch {
+      /* ignore */
+    }
+    return {};
   });
   const teamLeaderTourRef = useRef<TeamLeaderSidebarTourHandle>(null);
 
@@ -89,6 +111,18 @@ const Layout: React.FC<LayoutProps> = ({
     } catch {
       /* ignore */
     }
+  }, []);
+
+  const toggleSectionCollapsed = useCallback((sectionKey: string) => {
+    setCollapsedSections((prev) => {
+      const next = { ...prev, [sectionKey]: !prev[sectionKey] };
+      try {
+        localStorage.setItem('pmc.sidebarSectionsCollapsed', JSON.stringify(next));
+      } catch {
+        /* ignore */
+      }
+      return next;
+    });
   }, []);
 
   const closeSidebarOverlay = useCallback(() => {
@@ -187,6 +221,13 @@ const Layout: React.FC<LayoutProps> = ({
       roles: [UserRole.PMC_HEAD, UserRole.PMC_HEAD_OFFICE, UserRole.COORDINATOR],
     },
     {
+      id: "user_management",
+      label: "User Management",
+      icon: Icons.User,
+      section: "Command",
+      roles: [UserRole.PMC_HEAD, UserRole.PMC_HEAD_OFFICE, UserRole.CEO],
+    },
+    {
       id: "execution",
       label: "Site Progress",
       icon: Icons.Execution,
@@ -234,13 +275,6 @@ const Layout: React.FC<LayoutProps> = ({
       icon: Icons.Comment,
       section: "Field",
       roles: [UserRole.PMC_HEAD, UserRole.PMC_HEAD_OFFICE, UserRole.COORDINATOR, UserRole.TEAM_LEAD, UserRole.SITE_ENGINEER],
-    },
-    {
-      id: "user_management",
-      label: "User Management",
-      icon: Icons.User,
-      section: "Command",
-      roles: [UserRole.PMC_HEAD, UserRole.PMC_HEAD_OFFICE, UserRole.CEO],
     },
     {
       id: "machinery_list",
@@ -400,7 +434,47 @@ const Layout: React.FC<LayoutProps> = ({
   }, [user.role, user.username, user.isSuperuser]);
 
   const isDesktopRailCollapsed = !sidebarExpanded;
-  const sidebarWidthCss = sidebarExpanded ? '17rem' : '4.5rem';
+  const sidebarWidthCss = sidebarExpanded ? '16.25rem' : '4.5rem';
+
+  const resolveNavLabel = useCallback(
+    (item: { id: string; label: string }) => {
+      if (user.role === UserRole.SITE_ENGINEER) {
+        return SITE_ENGINEER_NAV_LABELS[item.id] ?? item.label;
+      }
+      if (item.id === 'my_scopes' && user.role === UserRole.QAQC_SITE_ENGINEER) return 'QAQC Dashboard';
+      if (item.id === 'my_scopes' && user.role === UserRole.HSE_SITE_ENGINEER) return 'HSE Dashboard';
+      if (item.id === 'my_scopes' && user.role === UserRole.BILLING_SITE_ENGINEER) {
+        return 'Billing Dashboard';
+      }
+      if (item.id === 'financial_management' && user.role === UserRole.BILLING_SITE_ENGINEER) {
+        return 'Financial Management';
+      }
+      return item.label;
+    },
+    [user.role],
+  );
+
+  const activeNavLabel = useMemo(() => {
+    const item = visibleNavigation.find((n) => n.id === activeTab);
+    return item ? resolveNavLabel(item) : 'Overview';
+  }, [visibleNavigation, activeTab, resolveNavLabel]);
+
+  // Keep the section that holds the active page open
+  useEffect(() => {
+    const item = visibleNavigation.find((n) => n.id === activeTab);
+    const section = item && 'section' in item ? (item as { section?: string }).section : undefined;
+    if (!section) return;
+    setCollapsedSections((prev) => {
+      if (!prev[section]) return prev;
+      const next = { ...prev, [section]: false };
+      try {
+        localStorage.setItem('pmc.sidebarSectionsCollapsed', JSON.stringify(next));
+      } catch {
+        /* ignore */
+      }
+      return next;
+    });
+  }, [activeTab, visibleNavigation]);
 
   return (
     <div
@@ -430,18 +504,18 @@ const Layout: React.FC<LayoutProps> = ({
           <aside
             className={`app-sidebar flex h-full flex-shrink-0 flex-col ${
               sidebarExpanded
-                ? 'w-[17rem] max-w-[min(17rem,90vw)]'
-                : 'w-[17rem] max-w-[min(17rem,90vw)] md:w-[4.5rem] md:max-w-[4.5rem]'
+                ? 'w-[16.25rem] max-w-[min(16.25rem,92vw)]'
+                : 'w-[16.25rem] max-w-[min(16.25rem,92vw)] md:w-[4.5rem] md:max-w-[4.5rem]'
             } ${isDesktopRailCollapsed ? 'is-rail-collapsed' : ''} ${sidebarClassName} ${
               isDarkTheme ? 'nav-dark' : 'nav-light'
             }`}
           >
             <div
-              className={`sidebar-header border-b px-4 pb-3 pt-4 ${
+              className={`sidebar-header border-b px-3 pb-2.5 pt-3 ${
                 isDarkTheme ? 'border-white/10' : 'border-slate-200/80'
               }`}
             >
-              <div className="flex items-start justify-between gap-2">
+              <div className="flex items-center justify-between gap-2">
                 <button
                   type="button"
                   className="sidebar-logo-wrap min-w-0 flex-1 text-left"
@@ -455,13 +529,13 @@ const Layout: React.FC<LayoutProps> = ({
                   <img
                     src="/images/Shrikhande-logo-bgremove.png"
                     alt="Shrikhande Consultants Limited"
-                    className="sidebar-logo-full h-10 w-auto max-w-[11.5rem] object-contain object-left"
+                    className="sidebar-logo-full h-8 w-auto max-w-[11rem] object-contain object-left"
                   />
-                  <span className="sidebar-logo-mark mx-auto h-10 w-10 items-center justify-center">
+                  <span className="sidebar-logo-mark mx-auto h-8 w-8 items-center justify-center">
                     <img
                       src="/images/sc-favicon.png"
                       alt="SC"
-                      className="h-8 w-8 object-contain"
+                      className="h-7 w-7 object-contain"
                     />
                   </span>
                 </button>
@@ -477,32 +551,42 @@ const Layout: React.FC<LayoutProps> = ({
                 )}
               </div>
               <div
-                className={`sidebar-role-badge sidebar-chrome mt-3 inline-flex max-w-full items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.12em] ${
+                className={`sidebar-role-badge sidebar-chrome mt-2 inline-flex max-w-full items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.12em] ${
                   isDarkTheme ? 'sidebar-role-badge-dark' : 'sidebar-role-badge-light'
                 }`}
               >
-                <Icons.Safety size={12} strokeWidth={2.2} className="shrink-0 opacity-90" />
+                <Icons.Safety size={11} strokeWidth={2.2} className="shrink-0 opacity-90" />
                 <span className="truncate">{ROLE_LABELS[user.role] ?? user.role}</span>
+              </div>
+              <div
+                className={`sidebar-here-chip sidebar-chrome mt-2 rounded-xl px-2.5 py-1.5 ${
+                  isDarkTheme ? 'sidebar-here-chip-dark' : 'sidebar-here-chip-light'
+                }`}
+                title={`You are viewing ${activeNavLabel}`}
+              >
+                <p
+                  className={`text-[9px] font-bold uppercase tracking-[0.14em] ${
+                    isDarkTheme ? 'text-cyan-300/70' : 'text-cyan-700/70'
+                  }`}
+                >
+                  You are here
+                </p>
+                <p
+                  className={`truncate text-[12px] font-bold leading-tight ${
+                    isDarkTheme ? 'text-slate-100' : 'text-slate-800'
+                  }`}
+                >
+                  {activeNavLabel}
+                </p>
               </div>
             </div>
 
-            <nav className="flex-1 space-y-0.5 overflow-y-auto overflow-x-hidden px-2.5 py-3">
+            <nav className="sidebar-nav-scroll flex-1 space-y-0.5 overflow-y-auto overflow-x-hidden px-2 py-2.5">
               {visibleNavigation.map((item, index) => {
                 const Icon = item.icon;
                 const isActive = activeTab === item.id;
-                const stagger = Math.min(index + 1, 5);
-                const navLabel =
-                  user.role === UserRole.SITE_ENGINEER
-                    ? SITE_ENGINEER_NAV_LABELS[item.id] ?? item.label
-                    : item.id === 'my_scopes' && user.role === UserRole.QAQC_SITE_ENGINEER
-                      ? 'QAQC Dashboard'
-                      : item.id === 'my_scopes' && user.role === UserRole.HSE_SITE_ENGINEER
-                        ? 'HSE Dashboard'
-                        : item.id === 'my_scopes' && user.role === UserRole.BILLING_SITE_ENGINEER
-                        ? 'Billing Dashboard'
-                        : item.id === 'financial_management' && user.role === UserRole.BILLING_SITE_ENGINEER
-                          ? 'Financial Management'
-                          : item.label;
+                const stagger = Math.min(index + 1, 6);
+                const navLabel = resolveNavLabel(item);
                 const sectionLabel = 'section' in item ? (item as { section?: string }).section : undefined;
                 const previousSection =
                   index > 0 && 'section' in visibleNavigation[index - 1]
@@ -510,67 +594,120 @@ const Layout: React.FC<LayoutProps> = ({
                     : undefined;
                 const showSectionHeader = Boolean(sectionLabel && sectionLabel !== previousSection);
                 const showAlertBadge = item.id === 'alerts' && unreadCount > 0;
+                const sectionMeta = sectionLabel
+                  ? SIDEBAR_SECTION_META[sectionLabel] ?? {
+                      title: sectionLabel,
+                      hint: '',
+                    }
+                  : null;
+                const sectionCollapsed = Boolean(
+                  sectionLabel && collapsedSections[sectionLabel] && !isActive,
+                );
+                const hideItem = sectionCollapsed;
 
                 return (
                   <Fragment key={item.id}>
-                    {showSectionHeader && (
-                      <div className={`sidebar-section-block ${index === 0 ? 'mt-0' : 'mt-3'} mb-1.5 px-2.5`}>
+                    {showSectionHeader && sectionLabel && sectionMeta && (
+                      <div
+                        className={`sidebar-section-block ${index === 0 ? 'mt-0' : 'mt-2.5'} mb-1`}
+                      >
                         {index > 0 && (
                           <div
                             className={`mb-2 h-px w-full ${isDarkTheme ? 'bg-white/10' : 'bg-slate-200/90'}`}
                             aria-hidden
                           />
                         )}
-                        <p
-                          className={`sidebar-section-label text-[10px] font-black uppercase ${
-                            isDarkTheme ? 'text-slate-500' : 'text-slate-400'
+                        <button
+                          type="button"
+                          className={`sidebar-section-toggle sidebar-chrome group flex w-full items-start gap-2 rounded-xl px-2 py-1.5 text-left transition-colors ${
+                            isDarkTheme
+                              ? 'hover:bg-white/[0.04]'
+                              : 'hover:bg-slate-100/80'
                           }`}
+                          onClick={() => toggleSectionCollapsed(sectionLabel)}
+                          aria-expanded={!collapsedSections[sectionLabel]}
+                          title={
+                            collapsedSections[sectionLabel]
+                              ? `Expand ${sectionMeta.title}`
+                              : `Collapse ${sectionMeta.title}`
+                          }
                         >
-                          {sectionLabel}
-                        </p>
+                          <span className="min-w-0 flex-1">
+                            <span
+                              className={`sidebar-section-label block text-[10px] font-black uppercase tracking-[0.14em] ${
+                                isDarkTheme ? 'text-slate-400' : 'text-slate-500'
+                              }`}
+                            >
+                              {sectionMeta.title}
+                            </span>
+                            {sectionMeta.hint ? (
+                              <span
+                                className={`mt-0.5 block text-[10px] font-medium leading-snug ${
+                                  isDarkTheme ? 'text-slate-500' : 'text-slate-400'
+                                }`}
+                              >
+                                {sectionMeta.hint}
+                              </span>
+                            ) : null}
+                          </span>
+                          <Icons.ChevronDown
+                            size={14}
+                            className={`mt-0.5 shrink-0 opacity-60 transition-transform duration-300 ${
+                              collapsedSections[sectionLabel] ? '-rotate-90' : 'rotate-0'
+                            } ${isDarkTheme ? 'text-slate-400' : 'text-slate-500'}`}
+                          />
+                        </button>
                       </div>
                     )}
                     {showSectionHeader && isDesktopRailCollapsed && index > 0 && (
                       <div
-                        className={`mx-auto my-2 hidden h-px w-6 md:block ${
+                        className={`mx-auto my-1.5 hidden h-px w-6 md:block ${
                           isDarkTheme ? 'bg-white/15' : 'bg-slate-200'
                         }`}
                         aria-hidden
                       />
                     )}
-                    <button
-                      ref={(el) => {
-                        navItemRefs.current[item.id] = el;
-                      }}
-                      type="button"
-                      title={navLabel}
-                      aria-label={navLabel}
-                      aria-current={isActive ? 'page' : undefined}
-                      onClick={() => {
-                        setActiveTab(item.id);
-                        expandSidebarRail();
-                        closeSidebarOverlay();
-                      }}
-                      style={isActive ? undefined : { animationDelay: `${stagger * 0.04}s` }}
-                      className={`sidebar-nav-item w-full flex items-center gap-3 rounded-xl px-3 py-2.5 text-left ${getTourClassName(item.id)} ${getNavItemClassName(isActive)} ${isActive ? '' : 'sidebar-nav-enter'
-                        }`}
-                    >
-                      <span className={`sidebar-nav-icon shrink-0 ${isActive ? 'text-inherit' : ''}`}>
-                        <Icon size={18} strokeWidth={isActive ? 2.2 : 1.8} />
-                      </span>
-                      <span
-                        className={`sidebar-chrome min-w-0 flex-1 truncate text-[13px] transition-transform duration-200 ${
-                          isActive ? 'font-bold text-inherit' : 'font-semibold'
-                        }`}
+                    {!hideItem && (
+                      <button
+                        ref={(el) => {
+                          navItemRefs.current[item.id] = el;
+                        }}
+                        type="button"
+                        title={navLabel}
+                        aria-label={navLabel}
+                        aria-current={isActive ? 'page' : undefined}
+                        onClick={() => {
+                          setActiveTab(item.id);
+                          expandSidebarRail();
+                          closeSidebarOverlay();
+                        }}
+                        style={isActive ? undefined : { animationDelay: `${stagger * 0.035}s` }}
+                        className={`sidebar-nav-item w-full flex items-center gap-2.5 rounded-xl px-2.5 py-2 text-left ${getTourClassName(item.id)} ${getNavItemClassName(isActive)} ${isActive ? 'is-active' : 'sidebar-nav-enter'
+                          } ${sectionCollapsed ? 'sidebar-nav-hidden' : ''}`}
                       >
-                        {navLabel}
-                      </span>
-                      {showAlertBadge && (
-                        <span className="sidebar-alert-badge inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded-md px-1.5 text-[10px] font-black tabular-nums">
-                          {unreadCount > 99 ? '99+' : unreadCount}
+                        <span className={`sidebar-nav-icon shrink-0 ${isActive ? 'text-inherit' : ''}`}>
+                          <Icon size={17} strokeWidth={isActive ? 2.25 : 1.85} />
                         </span>
-                      )}
-                    </button>
+                        <span
+                          className={`sidebar-chrome min-w-0 flex-1 truncate text-[13px] leading-tight transition-transform duration-200 ${
+                            isActive ? 'font-bold text-inherit' : 'font-semibold'
+                          }`}
+                        >
+                          {navLabel}
+                        </span>
+                        {showAlertBadge && (
+                          <span className="sidebar-alert-badge inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded-md px-1.5 text-[10px] font-black tabular-nums">
+                            {unreadCount > 99 ? '99+' : unreadCount}
+                          </span>
+                        )}
+                        {isActive && (
+                          <Icons.ChevronRight
+                            size={14}
+                            className="sidebar-chrome sidebar-active-chevron shrink-0 opacity-70"
+                          />
+                        )}
+                      </button>
+                    )}
                   </Fragment>
                 );
               })}
@@ -581,9 +718,9 @@ const Layout: React.FC<LayoutProps> = ({
                 isDarkTheme ? 'border-white/10' : 'border-slate-200/80'
               }`}
             >
-              <div className="sidebar-footer-inner flex flex-col gap-1.5 p-3">
+              <div className="sidebar-footer-inner flex flex-col gap-1.5 p-2.5">
                 <div
-                  className={`profile-menu sidebar-profile-card group flex items-center gap-2.5 rounded-xl px-2.5 py-2.5 ${
+                  className={`profile-menu sidebar-profile-card group flex items-center gap-2.5 rounded-xl px-2.5 py-2 ${
                     isDarkTheme ? 'sidebar-profile-card-dark' : 'sidebar-profile-card-light'
                   }`}
                   title={user.name}
@@ -591,15 +728,15 @@ const Layout: React.FC<LayoutProps> = ({
                   <UserAvatar
                     src={user.avatar}
                     name={user.name}
-                    className="h-9 w-9 shrink-0 rounded-full"
+                    className="h-8 w-8 shrink-0 rounded-full"
                     isDarkTheme={isDarkTheme}
                   />
                   <div className="sidebar-chrome min-w-0 flex-1 overflow-hidden">
-                    <p className={`truncate text-sm font-bold leading-tight ${themeClasses.textPrimary}`}>
+                    <p className={`truncate text-[13px] font-bold leading-tight ${themeClasses.textPrimary}`}>
                       {user.name}
                     </p>
                     <p
-                      className={`truncate text-[11px] font-semibold leading-tight tracking-wide ${themeClasses.textSecondary}`}
+                      className={`truncate text-[10px] font-semibold leading-tight tracking-wide ${themeClasses.textSecondary}`}
                     >
                       {ROLE_LABELS[user.role] ?? user.role}
                     </p>
@@ -610,11 +747,11 @@ const Layout: React.FC<LayoutProps> = ({
                   onClick={onLogout}
                   title="Logout"
                   aria-label="Logout"
-                  className={`sidebar-logout-row sidebar-nav-item flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left text-[13px] font-semibold ${
+                  className={`sidebar-logout-row sidebar-nav-item flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-left text-[13px] font-semibold ${
                     isDarkTheme ? 'sidebar-logout-row-dark' : 'sidebar-logout-row-light'
                   }`}
                 >
-                  <Icons.Logout size={17} strokeWidth={1.8} className="shrink-0" />
+                  <Icons.Logout size={16} strokeWidth={1.8} className="shrink-0" />
                   <span className="sidebar-chrome">Logout</span>
                 </button>
               </div>
@@ -725,7 +862,11 @@ const Layout: React.FC<LayoutProps> = ({
 
               {/* Notification bell */}
               <button
-                onClick={() => setShowNotifications(!showNotifications)}
+                onClick={() => {
+                  const next = !showNotifications;
+                  setShowNotifications(next);
+                  if (next) onRequestNotifications?.();
+                }}
                 className={`relative flex h-9 items-center justify-center gap-1.5 rounded-xl px-2.5 transition-colors sm:px-3 ${themeClasses.buttonSecondary}`}
                 aria-label={unreadCount > 0 ? `Alerts (${unreadCount})` : 'Alerts'}
               >

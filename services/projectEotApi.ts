@@ -114,7 +114,11 @@ export function normalizeProjectEotHistoryItem(
       r.supporting_document_url ??
         r.supportingDocumentUrl ??
         r.document_url ??
-        r.file_url,
+        r.file_url ??
+        r.fileUrl ??
+        r.s3_url ??
+        r.s3Url ??
+        r.attachment_url,
     ),
     created_at: strOrNull(r.created_at ?? r.createdAt),
     updated_at: strOrNull(r.updated_at ?? r.updatedAt) ?? undefined,

@@ -468,11 +468,19 @@ export function buildPendingUpdatesSummary(
 
 export async function fetchPendingUpdatesSummary(
   notifications: AppNotification[],
-  options?: { windowDays?: number },
+  options?: {
+    windowDays?: number;
+    projects?: ProjectAssigneeInfo[];
+    directory?: DirectoryUser[];
+  },
 ): Promise<PendingUpdatesSummary> {
   const [directory, projects] = await Promise.all([
-    loadUserDirectory(),
-    loadProjectsForActorFallback(),
+    options?.directory
+      ? Promise.resolve(options.directory)
+      : loadUserDirectory(),
+    options?.projects?.length
+      ? Promise.resolve(options.projects)
+      : loadProjectsForActorFallback(),
   ]);
   return buildPendingUpdatesSummary(notifications, projects, directory, options);
 }

@@ -18,6 +18,7 @@ import {
   parseTestingDocumentMutationResponse,
   testingDocumentsApi,
 } from '../../services/api';
+import { openStoredFile } from '../../utils/storedFileUrl';
 import { MONTH_OPTIONS } from '../../utils/healthSafety';
 import {
   canEditTestingPhotos,
@@ -133,6 +134,7 @@ const TestingPhotosPage: React.FC<TestingPhotosPageProps> = ({
   const [previewDoc, setPreviewDoc] = useState<TestingDocument | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<TestingDocument | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [openingId, setOpeningId] = useState<string | number | null>(null);
 
   useEffect(() => {
     if (initialProjectId) {
@@ -293,20 +295,45 @@ const TestingPhotosPage: React.FC<TestingPhotosPageProps> = ({
   };
 
   const handleDownload = async (doc: TestingDocument) => {
+    if (openingId != null) return;
+    setOpeningId(doc.id);
     try {
-      const res = await testingDocumentsApi.download(doc.id);
-      const body = res.data as { data?: { download_url?: string; file_url?: string } };
-      const url =
-        body?.data?.download_url ||
-        body?.data?.file_url ||
-        doc.fileUrl;
-      if (url) {
-        window.open(url, '_blank', 'noopener,noreferrer');
-      } else {
-        showToast('Download URL not available.');
+      const { url } = await openStoredFile({
+        directUrl: doc.fileUrl,
+        fileName: doc.fileName || undefined,
+        download: Boolean(doc.fileName),
+        fetchPresignedUrl: async () => {
+          const res = await testingDocumentsApi.download(doc.id);
+          const body = res.data as {
+            data?: { download_url?: string; file_url?: string; s3_url?: string };
+            download_url?: string;
+            file_url?: string;
+            s3_url?: string;
+          };
+          return (
+            body?.data?.download_url ||
+            body?.data?.file_url ||
+            body?.data?.s3_url ||
+            body?.download_url ||
+            body?.file_url ||
+            body?.s3_url ||
+            ''
+          );
+        },
+      });
+      if (url && url !== doc.fileUrl) {
+        setDocs((prev) =>
+          prev.map((row) => (row.id === doc.id ? { ...row, fileUrl: url } : row)),
+        );
+        if (previewDoc?.id === doc.id) {
+          setPreviewDoc({ ...previewDoc, fileUrl: url });
+        }
       }
     } catch (err) {
+      if ((err as Error)?.message === 'OPEN_IN_PROGRESS') return;
       showToast(getApiErrorMessage(err, 'Unable to download file.'));
+    } finally {
+      setOpeningId(null);
     }
   };
 
@@ -513,10 +540,11 @@ const TestingPhotosPage: React.FC<TestingPhotosPageProps> = ({
                     </button>
                     <button
                       type="button"
+                      disabled={openingId === doc.id}
                       onClick={() => void handleDownload(doc)}
-                      className={`inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-[10px] font-bold ${themeClasses.border} ${themeClasses.textSecondary}`}
+                      className={`inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-[10px] font-bold disabled:opacity-50 ${themeClasses.border} ${themeClasses.textSecondary}`}
                     >
-                      <Download size={12} /> Download
+                      <Download size={12} /> {openingId === doc.id ? 'Opening…' : 'Download'}
                     </button>
                     {canEdit && (
                       <>
@@ -686,10 +714,11 @@ const TestingPhotosPage: React.FC<TestingPhotosPageProps> = ({
                     <p className={`text-sm ${themeClasses.textSecondary}`}>Preview not available in-browser for this file type.</p>
                     <button
                       type="button"
+                      disabled={openingId === previewDoc.id}
                       onClick={() => void handleDownload(previewDoc)}
-                      className="rounded-xl bg-indigo-600 px-4 py-2 text-xs font-bold text-white"
+                      className="rounded-xl bg-indigo-600 px-4 py-2 text-xs font-bold text-white disabled:opacity-60"
                     >
-                      Download to view
+                      {openingId === previewDoc.id ? 'Opening…' : 'Download to view'}
                     </button>
                   </div>
                 )}

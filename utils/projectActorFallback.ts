@@ -1,7 +1,6 @@
 import type { AppNotification } from '../types';
 import { ROLE_LABELS } from '../constants';
 import { UserRole } from '../types';
-import { projectApi, unwrapList } from '../services/api';
 import {
   formatSubRoleUsername,
   isGenericActorDisplay,
@@ -10,6 +9,10 @@ import {
 } from './actorDisplay';
 import { lookupDirectoryUser, type DirectoryUser } from './userDirectory';
 import { extractAssigneeId } from './roleProjectAssignments';
+import {
+  fetchAllProjectRows,
+  normalizeBackendProjectRow,
+} from './pmcHeadExecutiveProjects';
 
 export interface ProjectAssigneeInfo {
   title: string;
@@ -303,28 +306,63 @@ export function enrichNotificationsActors(
   );
 }
 
+export function projectToAssigneeInfo(project: {
+  title?: string;
+  teamLeadId?: string;
+  teamLeadName?: string;
+  siteEngineerIds?: string[];
+  billingEngineerId?: string;
+  billingEngineerName?: string;
+  qaqcEngineerId?: string;
+  qaqcEngineerName?: string;
+  hseEngineerId?: string;
+  hseEngineerName?: string;
+}): ProjectAssigneeInfo {
+  return {
+    title: String(project.title ?? ''),
+    teamLeadId: project.teamLeadId || undefined,
+    teamLeadName: project.teamLeadName || undefined,
+    siteEngineerIds: Array.isArray(project.siteEngineerIds)
+      ? project.siteEngineerIds.map(String).filter(Boolean)
+      : [],
+    siteEngineerNames: [],
+    billingEngineerId: project.billingEngineerId || undefined,
+    billingEngineerName: project.billingEngineerName || undefined,
+    qaqcEngineerId: project.qaqcEngineerId || undefined,
+    qaqcEngineerName: project.qaqcEngineerName || undefined,
+    hseEngineerId: project.hseEngineerId || undefined,
+    hseEngineerName: project.hseEngineerName || undefined,
+  };
+}
+
 export async function loadProjectsForActorFallback(): Promise<ProjectAssigneeInfo[]> {
   try {
-    const response = await projectApi.getProjects();
-    const rows = unwrapList<Record<string, unknown>>(response.data);
-    return rows.map((p) => ({
-      title: String(p.name ?? p.title ?? ''),
-      teamLeadId: extractAssigneeId(p.team_lead) || undefined,
-      teamLeadName: String(p.team_lead_name ?? '').trim() || undefined,
-      siteEngineerIds: Array.isArray(p.site_engineers)
-        ? p.site_engineers.map((id) => extractAssigneeId(id)).filter(Boolean)
-        : [],
-      siteEngineerNames: Array.isArray(p.site_engineer_names)
-        ? p.site_engineer_names.map((name) => String(name).trim()).filter(Boolean)
-        : [],
-      billingEngineerId: extractAssigneeId(p.billing_site_engineer) || undefined,
-      billingEngineerName:
-        String(p.billing_engineer_name ?? '').trim() || undefined,
-      qaqcEngineerId: extractAssigneeId(p.qaqc_site_engineer) || undefined,
-      qaqcEngineerName: String(p.qaqc_engineer_name ?? '').trim() || undefined,
-      hseEngineerId: extractAssigneeId(p.hse_site_engineer) || undefined,
-      hseEngineerName: String(p.hse_engineer_name ?? '').trim() || undefined,
-    }));
+    // Reuse the shared project-row cache / GET dedupe instead of a bare list call.
+    const rows = await fetchAllProjectRows();
+    return rows.map((p) => {
+      const project = normalizeBackendProjectRow(p);
+      return {
+        title: String(project.title ?? p.name ?? p.title ?? ''),
+        teamLeadId: project.teamLeadId || extractAssigneeId(p.team_lead) || undefined,
+        teamLeadName:
+          project.teamLeadName ||
+          String(p.team_lead_name ?? '').trim() ||
+          undefined,
+        siteEngineerIds: Array.isArray(p.site_engineers)
+          ? p.site_engineers.map((id) => extractAssigneeId(id)).filter(Boolean)
+          : [],
+        siteEngineerNames: Array.isArray(p.site_engineer_names)
+          ? p.site_engineer_names.map((name) => String(name).trim()).filter(Boolean)
+          : [],
+        billingEngineerId: extractAssigneeId(p.billing_site_engineer) || undefined,
+        billingEngineerName:
+          String(p.billing_engineer_name ?? '').trim() || undefined,
+        qaqcEngineerId: extractAssigneeId(p.qaqc_site_engineer) || undefined,
+        qaqcEngineerName: String(p.qaqc_engineer_name ?? '').trim() || undefined,
+        hseEngineerId: extractAssigneeId(p.hse_site_engineer) || undefined,
+        hseEngineerName: String(p.hse_engineer_name ?? '').trim() || undefined,
+      };
+    });
   } catch {
     return [];
   }

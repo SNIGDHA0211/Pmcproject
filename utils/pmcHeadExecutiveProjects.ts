@@ -627,7 +627,7 @@ export function resolveExecutiveProjectsForApi(projects: Project[]): Project[] {
   return projects.map(resolveExecutiveProjectForApi);
 }
 
-async function fetchAllProjectRows(forceRefresh = false): Promise<Record<string, unknown>[]> {
+export async function fetchAllProjectRows(forceRefresh = false): Promise<Record<string, unknown>[]> {
   if (
     !forceRefresh &&
     cachedProjectRows &&
@@ -733,17 +733,27 @@ export function normalizeBackendProjectRow(row: Record<string, unknown>): Projec
     createdAt,
     updatedAt: String(row.updated_at ?? new Date().toISOString()),
     pmcHeadId: row.pmc_head != null ? String(row.pmc_head) : '',
+    pmcHeadName: String(row.pmc_head_name ?? '').trim() || undefined,
     teamLeadId: extractAssigneeId(row.team_lead) || '',
-    teamLeadName: String(row.team_lead_name ?? ''),
+    teamLeadName: String(row.team_lead_name ?? '').trim() || undefined,
     siteEngineerIds: (Array.isArray(row.site_engineers) ? row.site_engineers : [])
       .map((id: unknown) => extractAssigneeId(id))
       .filter(Boolean),
+    siteEngineerNames: (Array.isArray(row.site_engineer_names) ? row.site_engineer_names : [])
+      .map((name) => String(name ?? '').trim())
+      .filter(Boolean),
     billingEngineerId: extractAssigneeId(row.billing_site_engineer),
+    billingEngineerName: String(row.billing_engineer_name ?? '').trim() || undefined,
     qaqcEngineerId: extractAssigneeId(row.qaqc_site_engineer),
+    qaqcEngineerName: String(row.qaqc_engineer_name ?? '').trim() || undefined,
     hseEngineerId: extractAssigneeId(row.hse_site_engineer),
+    hseEngineerName: String(row.hse_engineer_name ?? '').trim() || undefined,
     coordinatorIds: (Array.isArray(row.coordinators) ? row.coordinators : []).map((id) =>
       String(id),
     ),
+    coordinatorNames: (Array.isArray(row.coordinator_names) ? row.coordinator_names : [])
+      .map((name) => String(name ?? '').trim())
+      .filter(Boolean),
     tasks: [],
     documents: [],
     activities: [],
@@ -753,6 +763,14 @@ export function normalizeBackendProjectRow(row: Record<string, unknown>): Projec
     salientFeatures: String(row.salient_features ?? ''),
     siteStaffDetails: String(row.site_staff_details ?? ''),
     hasDocumentation: Boolean(row.has_documentation),
+    documentationFileUrl:
+      (typeof row.documentation_file_url === 'string' && row.documentation_file_url) ||
+      (typeof row.documentation_url === 'string' && row.documentation_url) ||
+      (typeof row.documentation_file === 'string' &&
+      /^https?:\/\//i.test(String(row.documentation_file))
+        ? String(row.documentation_file)
+        : undefined) ||
+      undefined,
     hasISOChecklist: Boolean(row.has_iso_checklist),
     hasTestFrequencyChart: Boolean(row.has_test_frequency_chart),
     plannedValue: Number(row.planned_value) || 0,

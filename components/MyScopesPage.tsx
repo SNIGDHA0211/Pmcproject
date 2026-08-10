@@ -2,7 +2,6 @@ import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { User, UserRole, MonthlyScope, MonthlyScopeFilters, type Project, type ProjectQualityStatusRecord } from '../types';
 import {
   monthlyScopeApi,
-  projectApi,
   projectQualityApi,
   healthSafetyApi,
   normalizeHealthSafetyDashboard,
@@ -14,6 +13,7 @@ import {
   type HealthSafetyDashboardData,
   type HSERecord,
 } from '../services/api';
+import { projectStore } from '../stores/projectStore';
 import { useTheme, getThemeClasses } from '../utils/theme';
 import { Icons } from './Icons';
 import StatusBadge from './StatusBadge';
@@ -42,7 +42,6 @@ import { scopeProjectName } from '../utils/billingDashboardAnalytics';
 import {
   assignedHseProjectsForUser,
   assignedProjectsFromList,
-  assignedProjectsFromRawApi,
   mergeAssignedProjectOptions,
   type AssignedProjectOption,
 } from '../utils/roleProjectAssignments';
@@ -191,11 +190,10 @@ const MyScopesPage: React.FC<MyScopesPageProps> = ({
       setQaqcAssignments(assignedProjectsFromList(projects, user, 'qaqc'));
       return;
     }
-    projectApi
-      .getProjects()
-      .then((res) => {
-        const list = unwrapList<Record<string, unknown>>(res.data);
-        setQaqcAssignments(assignedProjectsFromRawApi(list, user, 'qaqc'));
+    void projectStore
+      .loadProjects(false)
+      .then((list) => {
+        setQaqcAssignments(assignedProjectsFromList(list, user, 'qaqc'));
       })
       .catch(() => setQaqcAssignments([]));
   }, [isQaqcEngineer, projects, user]);
@@ -206,11 +204,10 @@ const MyScopesPage: React.FC<MyScopesPageProps> = ({
       setBillingAssignments(assignedProjectsFromList(projects, user, 'billing'));
       return;
     }
-    projectApi
-      .getProjects()
-      .then((res) => {
-        const list = unwrapList<Record<string, unknown>>(res.data);
-        setBillingAssignments(assignedProjectsFromRawApi(list, user, 'billing'));
+    void projectStore
+      .loadProjects(false)
+      .then((list) => {
+        setBillingAssignments(assignedProjectsFromList(list, user, 'billing'));
       })
       .catch(() => setBillingAssignments([]));
   }, [isBillingEngineer, projects, user]);

@@ -34,6 +34,7 @@ import DashboardToastStack, { type DashboardToastItem } from "./components/Dashb
 import { parseSiteDeleteDependencies } from "./components/ProjectSiteList";
 import { STATUS_COLORS } from "./constants";
 import { projectApi, operationsApi, dprApi, notificationApi, getApiErrorMessage, unwrapList } from "./services/api";
+import { invalidateApiGetCache } from "./utils/apiGetCache";
 import axios from "axios";
 import { canCompleteProject, canDeleteProjectSite } from "./utils/userManagementAccess";
 import {
@@ -62,6 +63,7 @@ import {
 import {
   enrichNotificationsActors,
   loadProjectsForActorFallback,
+  projectToAssigneeInfo,
 } from "./utils/projectActorFallback";
 import { loadUserDirectory } from "./utils/userDirectory";
 import {
@@ -70,10 +72,16 @@ import {
 } from "./utils/pmcHeadPendingUpdates";
 import { userMatchesAssignee, extractAssigneeId, projectAssignedToUser } from "./utils/roleProjectAssignments";
 import { clearAppDataCaches } from "./utils/authStorage";
-import { normalizeBackendProjectRow, buildPmcHeadDropdownProjects, buildPmcHeadExecutiveProjectOptions, getKnownExecutiveProjectStubs, getHseExecutiveProjectStubs, seedProjectRowCache, clearProjectRowCache, isExcludedPmcTlProjectTitle } from "./utils/pmcHeadExecutiveProjects";
+import { scheduleIdleFinancialPrefetch } from "./utils/dashboardBootstrap";
+import { buildPmcHeadDropdownProjects } from "./utils/pmcHeadExecutiveProjects";
 import { sanitizeProjectDisplayName } from "./utils/hseSiteEngineerProjects";
 import { isPmcHeadEquivalent } from "./utils/pmcRoleAccess";
 import { ensureProjectCoverAssigned } from "./utils/projectCoverPhotos";
+import { projectStore } from "./stores/projectStore";
+import {
+  useProjects,
+  useSelectedProjectId,
+} from "./hooks/useProjectStore";
 import {
   clearAppRouteOnLogout,
   getDefaultTabForRole,
@@ -124,15 +132,29 @@ const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState("dashboard");
   const currentUserRef = React.useRef(currentUser);
   currentUserRef.current = currentUser;
-  const [projects, setProjects] = useState<Project[]>([]);
+  const projects = useProjects();
   const projectsRef = React.useRef(projects);
   projectsRef.current = projects;
+  const setProjects = React.useCallback(
+    (updater: Project[] | ((prev: Project[]) => Project[])) => {
+      const prev = projectStore.getState().projects;
+      const next = typeof updater === "function" ? updater(prev) : updater;
+      projectStore.replaceProjects(next);
+    },
+    [],
+  );
   const [dprs, setDprs] = useState<DPR[]>([]);
   const [projectDocuments, setProjectDocuments] = useState<any[]>([]);
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
-  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(
-    null
-  );
+  /** Sprint 1: secondary modules hydrate only when opened */
+  const alertsHydratedRef = React.useRef(false);
+  const activityHydratedRef = React.useRef(false);
+  const dprsHydratedRef = React.useRef(false);
+  const documentsHydratedRef = React.useRef(false);
+  const selectedProjectId = useSelectedProjectId();
+  const setSelectedProjectId = React.useCallback((id: string | null) => {
+    projectStore.selectProject(id);
+  }, []);
   const [financialDataVersion, setFinancialDataVersion] = useState(0);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [projectFilter, setProjectFilter] = useState<"all" | "attention">(
@@ -176,7 +198,6 @@ const App: React.FC = () => {
   const [password, setPassword] = useState(""); // Updated default password
   const [showPassword, setShowPassword] = useState(false);
   const [loginError, setLoginError] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
   const [isLoginSubmitting, setIsLoginSubmitting] = useState(false);
 
   // Theme State
@@ -196,30 +217,29 @@ const App: React.FC = () => {
   }, []);
 
   const fetchData = async () => {
-    setIsLoading(true);
+    if (!currentUser) return;
+    projectStore.setBootstrapUser(currentUser);
     try {
-      const isPmcHead = isPmcHeadEquivalent(currentUser);
-      const [projectsRes, dprsRes] = await Promise.all([
-        projectApi.getProjects(isPmcHead ? { page_size: 1000 } : undefined),
-        dprApi.getDPRs(),
-      ]);
+      await projectStore.refreshProjects();
+    } catch (error) {
+      console.error("Failed to fetch data from backend:", error);
+    }
+  };
 
-      const projectsData = unwrapList(projectsRes.data);
-      if (isPmcHead) {
-        seedProjectRowCache(projectsData);
-      }
+  /** After project mutations: invalidate once, then single refresh (projects + overview). */
+  const refreshProjectsAfterMutation = React.useCallback(async () => {
+    if (!currentUser) return;
+    projectStore.setBootstrapUser(currentUser);
+    try {
+      await projectStore.refreshAfterMutation();
+    } catch (error) {
+      console.error("Failed to refresh projects after mutation:", error);
+    }
+  }, [currentUser?.id]);
 
-      const dprsData = unwrapList(dprsRes.data);
-
-      const backendProjects = projectsData
-        .map((p) => normalizeBackendProjectRow(p as Record<string, unknown>))
-        .filter((project) => project.id);
-
-      console.log('Fetched projects:', backendProjects.length, 'projects');
-
-      // Transform backend DPRs to frontend format
-      const backendDPRs = dprsData.map((d: any) => {
-        // Build work description from activities if available
+  const mapDprRows = React.useCallback(
+    (dprsData: any[], projectList: Project[]): DPR[] =>
+      dprsData.map((d: any) => {
         let workDescription = '';
         if (d.activities && Array.isArray(d.activities) && d.activities.length > 0) {
           workDescription = d.activities
@@ -229,97 +249,110 @@ const App: React.FC = () => {
           workDescription = d.work_done || '';
         }
 
-        // Calculate manpower from activities or use provided value
         let manpower = 0;
         if (d.activities && Array.isArray(d.activities) && d.activities.length > 0) {
-          const avgProgress = d.activities.reduce((sum: number, act: any) => sum + (act.target_achieved || 0), 0) / d.activities.length;
+          const avgProgress =
+            d.activities.reduce((sum: number, act: any) => sum + (act.target_achieved || 0), 0) /
+            d.activities.length;
           manpower = Math.max(1, Math.floor(avgProgress / 10)) || 1;
         } else {
           manpower = d.manpower_count || 0;
         }
 
-        // Find project ID from project name (use backendProjects since projects state isn't updated yet)
         const dprProjectName = sanitizeProjectDisplayName(d.project_name);
-        const project = backendProjects.find(
+        const project = projectList.find(
           (p: Project) =>
             p.title === d.project_name ||
             p.title === dprProjectName ||
             p.apiName === d.project_name,
         );
-        const projectId = project?.id || d.project?.toString() || "";
+        const projectId = project?.id || d.project?.toString() || '';
 
         return {
           id: d.id?.toString() || Date.now().toString(),
-          projectId: projectId,
-          projectName: dprProjectName || "Unknown Project",
-          date: d.report_date ? new Date(d.report_date).toLocaleDateString("en-GB") : new Date().toLocaleDateString("en-GB"),
+          projectId,
+          projectName: dprProjectName || 'Unknown Project',
+          date: d.report_date
+            ? new Date(d.report_date).toLocaleDateString('en-GB')
+            : new Date().toLocaleDateString('en-GB'),
           workDescription: workDescription || 'No description available',
-          manpower: manpower,
+          manpower,
           status: (d.status || 'PENDING').toUpperCase(),
           submittedBy: d.issued_by || currentUser?.id || '',
-          submittedByName: d.issued_by || 'Unknown',
-          submittedAt: d.created_at ? new Date(d.created_at).toLocaleDateString("en-GB") : new Date().toLocaleDateString("en-GB"),
+          submittedByName: d.issued_by || currentUser?.name || 'Unknown',
+          submittedAt: d.created_at
+            ? new Date(d.created_at).toLocaleDateString('en-GB')
+            : new Date().toLocaleDateString('en-GB'),
           labor: d.labor_log || undefined,
           machinery: d.machinery_log || undefined,
-          activityProgress: d.activities?.map((act: any) => ({
-            activityId: act.id?.toString() || '',
-            todayProgress: act.target_achieved || 0
-          })) || undefined,
+          activityProgress:
+            d.activities?.map((act: any) => ({
+              activityId: act.id?.toString() || '',
+              todayProgress: act.target_achieved || 0,
+            })) || undefined,
           criticalIssues: d.unresolved_issues || d.critical_issues || '',
           billingStatus: d.bill_status || d.billing_status || '',
         };
-      });
+      }),
+    [currentUser?.id, currentUser?.name],
+  );
 
-      let projectsForState = backendProjects.filter(
-        (p) => !isExcludedPmcTlProjectTitle(p.title),
-      );
-      if (isPmcHead) {
-        projectsForState = buildPmcHeadDropdownProjects(
-          backendProjects,
-          getKnownExecutiveProjectStubs(backendProjects),
-          getHseExecutiveProjectStubs(backendProjects),
-        );
-      }
-
-      setProjects(projectsForState);
-      setDprs(backendDPRs);
-
-      if (isPmcHead) {
-        void buildPmcHeadExecutiveProjectOptions(backendProjects)
-          .then(({ projects: executiveProjects }) => {
-            if (executiveProjects.length > 0) {
-              setProjects(executiveProjects);
-            }
-          })
-          .catch(() => {
-            // stubs already shown
-          });
-      }
-
-      // Fetch project documents for vault (non-blocking)
-      void projectApi
-        .getProjectDocuments()
-        .then((docsRes) => {
-          setProjectDocuments(docsRes.data);
-        })
-        .catch((docError) => {
-          console.error('Failed to fetch project documents:', docError);
-        });
+  const fetchDprs = React.useCallback(async () => {
+    try {
+      const dprsRes = await dprApi.getDPRs();
+      const dprsData = unwrapList(dprsRes.data);
+      setDprs(mapDprRows(dprsData, projectsRef.current));
+      dprsHydratedRef.current = true;
     } catch (error) {
-      console.error("Failed to fetch data from backend:", error);
-      // Set empty arrays to prevent UI from breaking
-      setProjects([]);
+      console.error('Failed to fetch DPRs:', error);
       setDprs([]);
-      setProjectDocuments([]);
-    } finally {
-      setIsLoading(false);
     }
-  };
+  }, [mapDprRows]);
+
+  const fetchProjectDocumentsLazy = React.useCallback(async () => {
+    try {
+      const docsRes = await projectApi.getProjectDocuments();
+      setProjectDocuments(docsRes.data);
+      documentsHydratedRef.current = true;
+    } catch (docError) {
+      console.error('Failed to fetch project documents:', docError);
+    }
+  }, []);
 
   useEffect(() => {
-    if (!currentUser) return;
-    fetchData();
+    if (!currentUser) {
+      projectStore.clearStore();
+      return;
+    }
+
+    projectStore.setBootstrapUser(currentUser);
+    // Sprint 2 + Project Store: Overview + Projects start together — neither awaits the other.
+    const { overview, projects: projectsPromise } = projectStore.bootstrapParallel();
+    void overview;
+    void projectsPromise;
   }, [currentUser?.id]);
+
+  // Sprint 2: after projects land, idle-prefetch financial/chart GETs (not alerts/DPR).
+  const idlePrefetchDoneRef = React.useRef<string | null>(null);
+  useEffect(() => {
+    if (!currentUser || projects.length === 0) return;
+    // Once per login session after first project list arrives
+    const sessionKey = String(currentUser.id);
+    if (idlePrefetchDoneRef.current === sessionKey) return;
+
+    const shouldPrefetch =
+      isPmcHeadEquivalent(currentUser) ||
+      currentUser.role === UserRole.TEAM_LEAD ||
+      currentUser.role === UserRole.BILLING_SITE_ENGINEER;
+    if (!shouldPrefetch) return;
+
+    idlePrefetchDoneRef.current = sessionKey;
+    const names = projects
+      .slice(0, 5)
+      .map((p) => (p.apiName || p.title || '').trim())
+      .filter(Boolean);
+    scheduleIdleFinancialPrefetch(names);
+  }, [currentUser?.id, currentUser?.role, projects.length]);
 
   useEffect(() => {
     if (authLoading) return;
@@ -525,57 +558,8 @@ const App: React.FC = () => {
   const handleSubmitDPR = async (dprData: any) => {
     // Form already submits to API directly, just refresh the DPR list
     try {
-      // Refresh DPR list from API to show the newly submitted DPR
-      const dprsRes = await dprApi.getDPRs();
-      const dprsData = Array.isArray(dprsRes.data) ? dprsRes.data : (dprsRes.data.results || dprsRes.data);
-
-      const backendDPRs = dprsData.map((d: any) => {
-        // Build work description from activities if available
-        let workDescription = '';
-        if (d.activities && Array.isArray(d.activities) && d.activities.length > 0) {
-          workDescription = d.activities
-            .map((act: any) => `${act.activity}${act.deliverables ? ` - ${act.deliverables}` : ''}`)
-            .join('; ');
-        } else {
-          workDescription = d.work_done || '';
-        }
-
-        // Calculate manpower from activities or use provided value
-        let manpower = 0;
-        if (d.activities && Array.isArray(d.activities) && d.activities.length > 0) {
-          const avgProgress = d.activities.reduce((sum: number, act: any) => sum + (act.target_achieved || 0), 0) / d.activities.length;
-          manpower = Math.max(1, Math.floor(avgProgress / 10)) || 1;
-        } else {
-          manpower = d.manpower_count || 0;
-        }
-
-        // Find project ID from project name (use projects state)
-        const project = projects.find((p: Project) => p.title === d.project_name);
-        const projectId = project?.id || d.project?.toString() || "";
-
-        return {
-          id: d.id?.toString() || Date.now().toString(),
-          projectId: projectId,
-          projectName: d.project_name || "Unknown Project",
-          date: d.report_date ? new Date(d.report_date).toLocaleDateString("en-GB") : new Date().toLocaleDateString("en-GB"),
-          workDescription: workDescription || 'No description available',
-          manpower: manpower,
-          status: (d.status || 'PENDING').toUpperCase(),
-          submittedBy: d.issued_by || currentUser?.id || '',
-          submittedByName: d.issued_by || currentUser?.name || 'Unknown',
-          submittedAt: d.created_at ? new Date(d.created_at).toLocaleDateString("en-GB") : new Date().toLocaleDateString("en-GB"),
-          labor: d.labor_log || undefined,
-          machinery: d.machinery_log || undefined,
-          activityProgress: d.activities?.map((act: any) => ({
-            activityId: act.id?.toString() || '',
-            todayProgress: act.target_achieved || 0
-          })) || undefined,
-          criticalIssues: d.unresolved_issues || d.critical_issues || '',
-          billingStatus: d.bill_status || d.billing_status || '',
-        };
-      });
-
-      setDprs(backendDPRs);
+      invalidateApiGetCache(['/dpr']);
+      await fetchDprs();
     } catch (error: any) {
       console.error("Failed to refresh DPR list:", error);
       // Don't show error alert here as form already handles submission errors
@@ -599,10 +583,15 @@ const App: React.FC = () => {
     }, 5000);
   };
 
-  const fetchAlerts = React.useCallback(async (options?: { silent?: boolean }) => {
+  const fetchAlerts = React.useCallback(async (options?: {
+    silent?: boolean;
+    /** PMC Head 8-module activity + pending summary — only on Alerts page */
+    includeActivity?: boolean;
+  }) => {
     if (!currentUser) return;
     if (!options?.silent) setAlertsLoading(true);
     else setAlertsRefreshing(true);
+    const includeActivity = Boolean(options?.includeActivity);
     try {
       const rows = await fetchAllAlerts();
       const mapped = rows.map((row) =>
@@ -614,20 +603,29 @@ const App: React.FC = () => {
       );
 
       let merged = sortNotificationsDesc(mapped);
-      if (isPmcHeadEquivalent(currentUser)) {
+      if (isPmcHeadEquivalent(currentUser) && includeActivity) {
         try {
+          // One projects + directory load shared by activity feed, enrich, and pending summary.
+          const liveProjects = projectsRef.current;
           const [directory, assigneeProjects] = await Promise.all([
             loadUserDirectory(),
-            loadProjectsForActorFallback(),
+            liveProjects.length > 0
+              ? Promise.resolve(liveProjects.map(projectToAssigneeInfo))
+              : loadProjectsForActorFallback(),
           ]);
           const activityAlerts = await fetchPmcHeadActivityNotifications(
             currentUser.id,
+            { directory, projects: assigneeProjects },
           );
           merged = mergeActivityNotifications(mapped, activityAlerts);
           merged = enrichNotificationsActors(merged, directory, assigneeProjects);
+          activityHydratedRef.current = true;
           setPendingLoading(true);
           try {
-            const pending = await fetchPendingUpdatesSummary(merged);
+            const pending = await fetchPendingUpdatesSummary(merged, {
+              directory,
+              projects: assigneeProjects,
+            });
             setPendingUpdates(pending);
           } catch (pendingError) {
             console.warn("Failed to load pending updates summary:", pendingError);
@@ -639,7 +637,8 @@ const App: React.FC = () => {
           console.warn("Failed to load PMC Head activity alerts:", activityError);
           setPendingUpdates(null);
         }
-      } else {
+      } else if (!includeActivity && !activityHydratedRef.current) {
+        // Keep prior pending panel empty until Alerts page loads activity.
         setPendingUpdates(null);
       }
 
@@ -649,12 +648,21 @@ const App: React.FC = () => {
             .filter((n) => isSyntheticActivityNotification(n.id) && n.isRead)
             .map((n) => n.id),
         );
-        const sorted = sortNotificationsDesc(merged);
+        // When refreshing without activity, preserve previously loaded synthetic activity rows.
+        let next = merged;
+        if (!includeActivity && activityHydratedRef.current) {
+          const syntheticPrev = prev.filter((n) => isSyntheticActivityNotification(n.id));
+          if (syntheticPrev.length > 0) {
+            next = mergeActivityNotifications(merged, syntheticPrev);
+          }
+        }
+        const sorted = sortNotificationsDesc(next);
         if (readSyntheticIds.size === 0) return sorted;
         return sorted.map((n) =>
           readSyntheticIds.has(n.id) ? { ...n, isRead: true } : n,
         );
       });
+      alertsHydratedRef.current = true;
     } catch (error) {
       console.error("Failed to load alerts:", error);
     } finally {
@@ -736,7 +744,10 @@ const App: React.FC = () => {
       await alertsApi.update(id, { is_read: isRead });
     } catch (error) {
       console.error("Failed to update alert read status:", error);
-      void fetchAlerts({ silent: true });
+      void fetchAlerts({
+        silent: true,
+        includeActivity: activeTab === 'alerts',
+      });
     }
   };
 
@@ -747,23 +758,33 @@ const App: React.FC = () => {
     }
   }, [activeTab]);
 
+  // Reset secondary hydration when session ends
   useEffect(() => {
-    if (!currentUser) {
-      setNotifications([]);
-      return;
-    }
-    void fetchAlerts();
-  }, [currentUser?.id, fetchAlerts]);
+    if (currentUser) return;
+    setNotifications([]);
+    setPendingUpdates(null);
+    setDprs([]);
+    setProjectDocuments([]);
+    alertsHydratedRef.current = false;
+    activityHydratedRef.current = false;
+    dprsHydratedRef.current = false;
+    documentsHydratedRef.current = false;
+    idlePrefetchDoneRef.current = null;
+  }, [currentUser]);
 
+  // Priority 4: Alerts page — history + activity/pending (first visit + poll while open)
   useEffect(() => {
     if (!currentUser || activeTab !== 'alerts') return;
-    void fetchAlerts({ silent: true });
+    void fetchAlerts({
+      silent: alertsHydratedRef.current,
+      includeActivity: true,
+    });
   }, [activeTab, currentUser?.id, fetchAlerts]);
 
   useEffect(() => {
     if (!currentUser || activeTab !== 'alerts') return;
     const intervalId = window.setInterval(() => {
-      void fetchAlerts({ silent: true });
+      void fetchAlerts({ silent: true, includeActivity: true });
     }, 60_000);
     return () => window.clearInterval(intervalId);
   }, [activeTab, currentUser?.id, fetchAlerts]);
@@ -773,7 +794,7 @@ const App: React.FC = () => {
     const refreshIfOnAlerts = () => {
       if (document.visibilityState !== 'visible') return;
       if (activeTab !== 'alerts') return;
-      void fetchAlerts({ silent: true });
+      void fetchAlerts({ silent: true, includeActivity: true });
     };
     window.addEventListener('focus', refreshIfOnAlerts);
     document.addEventListener('visibilitychange', refreshIfOnAlerts);
@@ -782,6 +803,33 @@ const App: React.FC = () => {
       document.removeEventListener('visibilitychange', refreshIfOnAlerts);
     };
   }, [activeTab, currentUser?.id, fetchAlerts]);
+
+  // Priority 4: DPR list — only when DPR Review or coordinator dashboard needs it
+  useEffect(() => {
+    if (!currentUser) return;
+    const needsAppDprs =
+      activeTab === 'dpr_records' ||
+      (activeTab === 'dashboard' && !isPmcHeadEquivalent(currentUser));
+    if (!needsAppDprs) return;
+    void fetchDprs();
+  }, [activeTab, currentUser?.id, currentUser?.role, fetchDprs]);
+
+  // Documents vault — only when non–PMC-Head dashboard needs document KPIs
+  useEffect(() => {
+    if (!currentUser) return;
+    const needsDocs = activeTab === 'dashboard' && !isPmcHeadEquivalent(currentUser);
+    if (!needsDocs || documentsHydratedRef.current) return;
+    void fetchProjectDocumentsLazy();
+  }, [activeTab, currentUser?.id, currentUser?.role, fetchProjectDocumentsLazy]);
+
+  const handleRequestNotifications = React.useCallback(() => {
+    if (!currentUser) return;
+    // Bell / notification panel: alert history only (no 8-module activity blast)
+    void fetchAlerts({
+      silent: alertsHydratedRef.current,
+      includeActivity: false,
+    });
+  }, [currentUser?.id, fetchAlerts]);
 
   const handleCreateProject = async (projectData: Partial<Project>, initialDocs: Partial<Document>[], documentationFile?: File) => {
     try {
@@ -847,9 +895,10 @@ const App: React.FC = () => {
       });
       setIsCreateModalOpen(false);
 
-      // Refresh data from backend to ensure consistency and make it available to other dashboards
+      // Refresh once via Project Store (invalidate + single refresh pass)
       clearAppDataCaches();
-      await fetchData();
+      projectStore.setBootstrapUser(currentUser);
+      await projectStore.refreshAfterMutation();
 
       addNotification(
         currentUser?.id || "admin",
@@ -927,9 +976,9 @@ const App: React.FC = () => {
         })
       );
 
-      // Refresh data if in new system to update the list
+      // Refresh projects if in new system to update the list
       if (activeTab === "dpr_records") {
-        fetchData();
+        void fetchData();
       }
     } catch (error: any) {
       console.error("Failed to approve DPR:", error);
@@ -972,9 +1021,9 @@ const App: React.FC = () => {
         })
       );
 
-      // Refresh data if in new system to update the list
+      // Refresh projects if in new system to update the list
       if (activeTab === "dpr_records") {
-        fetchData();
+        void fetchData();
       }
     } catch (error: any) {
       console.error("Failed to reject DPR:", error);
@@ -1501,11 +1550,9 @@ const App: React.FC = () => {
 
       const deletedId = portfolioDeleteTarget.id;
       setPortfolioDeleteTarget(null);
-      setProjects((prev) => prev.filter((p) => String(p.id) !== String(deletedId)));
-      if (selectedProjectId && String(selectedProjectId) === String(deletedId)) {
-        setSelectedProjectId(null);
-      }
+      projectStore.removeProject(deletedId);
       showPortfolioToast(message, "success");
+      void refreshProjectsAfterMutation();
     } catch (err) {
       if (axios.isAxiosError(err) && err.response) {
         const status = err.response.status;
@@ -1532,11 +1579,9 @@ const App: React.FC = () => {
         if (status === 404) {
           const msg = "The selected project no longer exists.";
           setPortfolioDeleteTarget(null);
-          setProjects((prev) =>
-            prev.filter((p) => String(p.id) !== String(portfolioDeleteTarget.id)),
-          );
+          projectStore.removeProject(portfolioDeleteTarget.id);
           showPortfolioToast(msg, "error");
-          await fetchData();
+          await refreshProjectsAfterMutation();
           return;
         }
 
@@ -1647,7 +1692,7 @@ const App: React.FC = () => {
 
       setPortfolioCompleteTarget(null);
       showPortfolioToast(message, "success");
-      void fetchData();
+      void refreshProjectsAfterMutation();
     } catch (err) {
       if (axios.isAxiosError(err) && err.response?.status === 403) {
         const msg =
@@ -1736,7 +1781,7 @@ const App: React.FC = () => {
 
       setPortfolioBillingTarget(null);
       showPortfolioToast(message, "success");
-      void fetchData();
+      void refreshProjectsAfterMutation();
     } catch (err) {
       if (axios.isAxiosError(err) && err.response?.status === 403) {
         const msg = "You do not have permission to complete billing.";
@@ -1795,6 +1840,7 @@ const App: React.FC = () => {
         }}
         notifications={notifications}
         onMarkRead={handleMarkRead}
+        onRequestNotifications={handleRequestNotifications}
         onNavigateToAlerts={() => {
           setActiveTab("alerts");
           const targetPath = TAB_PATHS.alerts;
@@ -1840,12 +1886,8 @@ const App: React.FC = () => {
                 setActiveTab("project_init");
               }}
               onProjectDeleted={(deletedId) => {
-                setProjects((prev) =>
-                  prev.filter((p) => String(p.id) !== String(deletedId)),
-                );
-                if (selectedProjectId && String(selectedProjectId) === String(deletedId)) {
-                  setSelectedProjectId(null);
-                }
+                projectStore.removeProject(deletedId);
+                void refreshProjectsAfterMutation();
               }}
             />
           ) : (
@@ -2238,7 +2280,7 @@ const App: React.FC = () => {
             variant={isPmcHeadEquivalent(currentUser) ? 'executive' : 'default'}
             pendingUpdates={isPmcHeadEquivalent(currentUser) ? pendingUpdates : null}
             pendingLoading={isPmcHeadEquivalent(currentUser) ? pendingLoading : false}
-            onRefresh={() => void fetchAlerts({ silent: true })}
+            onRefresh={() => void fetchAlerts({ silent: true, includeActivity: true })}
             onMarkRead={handleMarkRead}
             onNavigate={handleAlertNavigation}
           />
@@ -2255,7 +2297,8 @@ const App: React.FC = () => {
             user={currentUser}
             onProjectCreated={() => {
               clearAppDataCaches();
-              fetchData();
+              projectStore.setBootstrapUser(currentUser);
+              void projectStore.refreshAfterMutation();
             }}
           />
         ) : (

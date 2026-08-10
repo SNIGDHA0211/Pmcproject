@@ -386,10 +386,10 @@ const PMCHeadExecutiveShell: React.FC<PMCHeadExecutiveShellProps> = ({
         </div>
       )}
 
-      <header className="overflow-hidden rounded-xl bg-gradient-to-r from-[#0f2744] via-[#1e3a5f] to-[#1e3a5f] text-white shadow-[0_4px_20px_rgba(15,39,68,0.2)]">
+      <header className={ex.shellHeader}>
         <div className="flex flex-col gap-2 p-3 sm:flex-row sm:items-center sm:justify-between sm:px-4 sm:py-2.5">
           <div className="min-w-0 flex-1 sm:max-w-md lg:max-w-lg">
-            <h1 className="truncate text-base font-bold tracking-tight sm:text-lg">
+            <h1 className={ex.shellTitle}>
               PMC Executive Project Review
             </h1>
             <div className="relative mt-1 max-w-full">
@@ -401,7 +401,7 @@ const PMCHeadExecutiveShell: React.FC<PMCHeadExecutiveShellProps> = ({
                 value={selectedProjectId}
                 disabled={Boolean(projectSwitch)}
                 onChange={(e) => handleProjectSelect(e.target.value)}
-                className="w-full min-w-0 cursor-pointer appearance-none truncate rounded-lg border border-white/15 bg-white/10 py-1.5 pl-3 pr-8 text-xs font-semibold text-white outline-none backdrop-blur-sm transition hover:bg-white/15 focus:border-white/30 focus:ring-2 focus:ring-white/20 disabled:cursor-wait disabled:opacity-70 sm:text-sm"
+                className={ex.shellSelect}
               >
                 {projects.map((p) => (
                   <option key={p.id} value={p.id} className="text-slate-900">
@@ -411,25 +411,21 @@ const PMCHeadExecutiveShell: React.FC<PMCHeadExecutiveShellProps> = ({
               </select>
               <ChevronDown
                 size={14}
-                className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-white/60"
+                className={`pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 ${ex.shellSelectChevron}`}
                 aria-hidden
               />
             </div>
           </div>
 
           <div className="flex shrink-0 flex-wrap gap-1.5">
-            <button
-              type="button"
-              onClick={onExport}
-              className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-white/20 bg-white/10 px-3 py-2 text-xs font-semibold text-white transition hover:bg-white/15 sm:text-sm"
-            >
+            <button type="button" onClick={onExport} className={ex.shellBtnSecondary}>
               <Download size={14} />
               Export
             </button>
             <button
               type="button"
               onClick={() => void handleGenerateBrief()}
-              className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-sky-300/30 bg-sky-500/20 px-3 py-2 text-xs font-semibold text-sky-50 transition hover:bg-sky-500/30 sm:text-sm"
+              className={ex.shellBtnBrief}
               title="Generate one-click executive meeting brief"
             >
               <FileText size={14} />
@@ -439,7 +435,7 @@ const PMCHeadExecutiveShell: React.FC<PMCHeadExecutiveShellProps> = ({
             <button
               type="button"
               onClick={() => onJumpToTab('risk')}
-              className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-amber-500 px-3 py-2 text-xs font-bold text-white shadow-sm transition hover:bg-amber-400 sm:text-sm"
+              className={ex.shellBtnEscalate}
             >
               <ArrowUpRight size={14} />
               Escalate
@@ -447,7 +443,7 @@ const PMCHeadExecutiveShell: React.FC<PMCHeadExecutiveShellProps> = ({
           </div>
         </div>
 
-        <nav className="flex gap-1 overflow-x-auto border-t border-white/10 px-2 py-1.5 scrollbar-thin sm:px-3">
+        <nav className={ex.shellNav}>
           {TABS.map((tab) => {
             const alert = tabAlerts[tab.id];
             const badgeCount = alert.count;
@@ -458,9 +454,7 @@ const PMCHeadExecutiveShell: React.FC<PMCHeadExecutiveShellProps> = ({
                 type="button"
                 onClick={() => onTabChange(tab.id)}
                 className={`relative shrink-0 rounded-full px-3 py-1.5 pr-3 text-[10px] font-bold uppercase tracking-wide transition sm:px-3.5 sm:pr-3.5 sm:text-xs ${
-                  activeTab === tab.id
-                    ? 'bg-white/20 text-white ring-1 ring-white/25'
-                    : 'text-blue-100/80 hover:bg-white/10 hover:text-white'
+                  activeTab === tab.id ? ex.shellTabActive : ex.shellTabInactive
                 }`}
                 aria-label={
                   badgeCount > 0
@@ -473,9 +467,7 @@ const PMCHeadExecutiveShell: React.FC<PMCHeadExecutiveShellProps> = ({
                   {badgeCount > 0 && (
                     <span
                       className={`pmc-tab-alert-badge inline-flex h-4 min-w-[1rem] items-center justify-center rounded-full px-1 text-[9px] font-bold leading-none ${
-                        isCritical
-                          ? 'bg-[#c45c5c] text-white ring-1 ring-white/25'
-                          : 'bg-[#c4a35a] text-[#1a1520] ring-1 ring-white/20'
+                        isCritical ? ex.shellTabBadgeCritical : ex.shellTabBadgeWatch
                       }`}
                     >
                       {badgeCount > 9 ? '9+' : badgeCount}
@@ -490,7 +482,11 @@ const PMCHeadExecutiveShell: React.FC<PMCHeadExecutiveShellProps> = ({
 
       {briefToast && (
         <div
-          className="rounded-xl border border-sky-200 bg-sky-50 px-3 py-2 text-center text-xs font-bold text-sky-800 dark:border-sky-500/30 dark:bg-sky-500/10 dark:text-sky-200"
+          className={
+            ex.isDark
+              ? 'rounded-xl border border-sky-500/30 bg-sky-500/10 px-3 py-2 text-center text-xs font-bold text-sky-200'
+              : 'rounded-xl border border-sky-200 bg-sky-50 px-3 py-2 text-center text-xs font-bold text-sky-800'
+          }
           role="status"
         >
           {briefToast}
@@ -498,17 +494,12 @@ const PMCHeadExecutiveShell: React.FC<PMCHeadExecutiveShellProps> = ({
       )}
 
       {activeTabAlert.count > 0 && (
-        <div
-          className="flex flex-wrap items-center gap-x-2 gap-y-1.5 rounded-lg border border-slate-200 bg-[#f4f7fb] px-3 py-2 dark:border-white/12 dark:bg-[#122a45]/55"
-          role="status"
-        >
-          <span className="text-[10px] font-bold uppercase tracking-wide text-[#1e3a5f] dark:text-slate-200">
+        <div className={ex.shellUpdates} role="status">
+          <span className={ex.shellUpdatesLabel}>
             Updates
-            <span className="ml-1.5 inline-flex h-4 min-w-[1rem] items-center justify-center rounded bg-[#1e3a5f] px-1 text-[9px] font-bold text-white dark:bg-slate-200 dark:text-[#0f2744]">
-              {activeTabAlert.count}
-            </span>
+            <span className={ex.shellUpdatesCount}>{activeTabAlert.count}</span>
           </span>
-          <span className="hidden h-3.5 w-px bg-slate-300 dark:bg-white/15 sm:block" aria-hidden />
+          <span className={ex.shellUpdatesDivider} aria-hidden />
           <ul className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5">
             {activeTabAlert.lookHere.map((item) => (
               <li key={item.id}>
@@ -516,15 +507,13 @@ const PMCHeadExecutiveShell: React.FC<PMCHeadExecutiveShellProps> = ({
                   type="button"
                   onClick={() => handleLookHere(item)}
                   title={item.hint}
-                  className={`inline-flex max-w-full items-center gap-1.5 rounded-md border bg-white px-2.5 py-1 text-left shadow-[0_1px_1px_rgba(15,39,68,0.04)] transition hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1e3a5f]/25 dark:bg-[#163352] dark:hover:bg-[#1a3a5c] ${
-                    item.severity === 'critical'
-                      ? 'border-slate-200 border-l-2 border-l-[#8b5a5a] dark:border-white/10 dark:border-l-[#b89090]'
-                      : 'border-slate-200 border-l-2 border-l-[#8a7a55] dark:border-white/10 dark:border-l-[#c4b48a]'
+                  className={`${ex.shellUpdatePill} ${
+                    item.severity === 'critical' ? ex.shellUpdatePillCritical : ex.shellUpdatePillWatch
                   }`}
                 >
-                  <span className="truncate text-[11px] font-semibold text-slate-800 dark:text-slate-100">
+                  <span className={ex.shellUpdateText}>
                     {item.label}
-                    <span className="font-medium text-slate-600 dark:text-slate-300">
+                    <span className={ex.shellUpdateHint}>
                       {' · '}
                       {item.hint}
                     </span>

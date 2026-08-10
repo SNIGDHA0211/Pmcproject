@@ -18,7 +18,8 @@ const SEGMENTS = [
   { key: "onTime" as const, label: "On Time", color: "#22c55e" },
   {
     key: "lateDeliveries" as const,
-    label: "Late Deliveries",
+    label: "Late",
+    fullLabel: "Late Deliveries",
     color: "#ef4444",
   },
   { key: "pending" as const, label: "Pending", color: "#f59e0b" },
@@ -44,7 +45,7 @@ const CorrespondenceStatusDonut: React.FC<CorrespondenceStatusDonutProps> = ({
   const chartData = useMemo(
     () =>
       SEGMENTS.map((segment) => ({
-        name: segment.label,
+        name: segment.fullLabel ?? segment.label,
         value: toCount(breakdown[segment.key]),
         color: segment.color,
       })).filter((item) => item.value > 0),
@@ -56,9 +57,9 @@ const CorrespondenceStatusDonut: React.FC<CorrespondenceStatusDonutProps> = ({
 
   return (
     <div
-      className={`flex h-full min-h-[9.5rem] flex-col rounded-lg border px-3 py-2.5 sm:min-h-[10rem] sm:px-3.5 sm:py-3 ${
+      className={`flex h-full min-h-[9.5rem] flex-col overflow-hidden rounded-xl border px-3 py-2.5 sm:min-h-[10rem] sm:px-3.5 sm:py-3 ${
         isDarkTheme
-          ? "border-white/10 bg-white/[0.03]"
+          ? "border-white/10 bg-slate-950/35"
           : "border-slate-200 bg-white shadow-sm"
       }`}
     >
@@ -68,13 +69,13 @@ const CorrespondenceStatusDonut: React.FC<CorrespondenceStatusDonutProps> = ({
         Status Breakdown
       </p>
 
-      <div className="mt-2 flex min-h-0 flex-1 flex-col justify-center gap-3 min-[300px]:grid min-[300px]:grid-cols-[auto_minmax(0,1fr)] min-[300px]:items-center min-[300px]:gap-x-3 sm:gap-x-4">
+      <div className="mt-2 flex min-h-0 flex-1 flex-col items-stretch justify-center gap-3 sm:flex-row sm:items-center sm:gap-4">
         {/* Donut */}
-        <div className="mx-auto flex shrink-0 items-center justify-center min-[300px]:mx-0">
+        <div className="mx-auto flex shrink-0 items-center justify-center sm:mx-0">
           <div
             className={`relative ${
               dense
-                ? "size-[5.75rem] sm:size-[6.25rem]"
+                ? "size-[5.5rem] sm:size-[6rem]"
                 : "size-[6.5rem] sm:size-[7.25rem]"
             }`}
           >
@@ -107,12 +108,12 @@ const CorrespondenceStatusDonut: React.FC<CorrespondenceStatusDonutProps> = ({
             <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
               <div className="text-center leading-tight">
                 <p
-                  className={`text-[11px] font-semibold uppercase sm:text-xs ${DASHBOARD_STATUS_METRIC_LABEL_CLASS(isDarkTheme)}`}
+                  className={`text-[10px] font-semibold uppercase sm:text-[11px] ${DASHBOARD_STATUS_METRIC_LABEL_CLASS(isDarkTheme)}`}
                 >
                   Total
                 </p>
                 <p
-                  className={`text-lg font-black tabular-nums sm:text-xl ${themeClasses.textPrimary}`}
+                  className={`text-base font-black tabular-nums sm:text-lg ${themeClasses.textPrimary}`}
                 >
                   {total.toLocaleString("en-IN")}
                 </p>
@@ -121,41 +122,45 @@ const CorrespondenceStatusDonut: React.FC<CorrespondenceStatusDonutProps> = ({
           </div>
         </div>
 
-        {/* Legend */}
-        <div className="flex w-full min-w-0 flex-col justify-center gap-2 sm:gap-2.5">
+        {/* Legend — stacked rows so label / count / % never overlap */}
+        <ul className="flex w-full min-w-0 flex-1 flex-col justify-center gap-1.5 sm:gap-2">
           {SEGMENTS.map((segment) => {
             const count = toCount(breakdown[segment.key]);
             const pct = total > 0 ? (count / total) * 100 : 0;
+            const displayLabel = dense
+              ? segment.label
+              : (segment.fullLabel ?? segment.label);
 
             return (
-              <div
+              <li
                 key={segment.key}
-                className="grid grid-cols-[auto_minmax(0,1fr)_auto_auto] items-center gap-x-2 gap-y-0.5"
+                className="flex min-w-0 items-center gap-2"
+                title={`${segment.fullLabel ?? segment.label}: ${count} (${pct.toFixed(1)}%)`}
               >
                 <span
-                  className="h-3 w-3 shrink-0 rounded-full sm:h-3.5 sm:w-3.5"
+                  className="h-2.5 w-2.5 shrink-0 rounded-full sm:h-3 sm:w-3"
                   style={{ backgroundColor: segment.color }}
                   aria-hidden
                 />
                 <span
-                  className={`min-w-0 text-sm font-semibold leading-snug sm:text-base ${themeClasses.textPrimary}`}
+                  className={`min-w-0 flex-1 truncate text-xs font-semibold sm:text-sm ${themeClasses.textPrimary}`}
                 >
-                  {segment.label}
+                  {displayLabel}
                 </span>
                 <span
-                  className={`shrink-0 text-sm font-bold tabular-nums sm:text-base ${themeClasses.textPrimary}`}
+                  className={`shrink-0 text-xs font-bold tabular-nums sm:text-sm ${themeClasses.textPrimary}`}
                 >
                   {count}
                 </span>
                 <span
-                  className={`shrink-0 min-w-[2.75rem] text-right text-sm tabular-nums sm:text-base ${DASHBOARD_METRIC_SECONDARY_VALUE_CLASS(isDarkTheme)}`}
+                  className={`w-12 shrink-0 text-right text-xs tabular-nums sm:w-14 sm:text-sm ${DASHBOARD_METRIC_SECONDARY_VALUE_CLASS(isDarkTheme)}`}
                 >
                   {pct.toFixed(1)}%
                 </span>
-              </div>
+              </li>
             );
           })}
-        </div>
+        </ul>
       </div>
     </div>
   );

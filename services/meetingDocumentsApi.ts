@@ -2,6 +2,7 @@ import axios, { type AxiosProgressEvent } from 'axios';
 import { API_ENDPOINTS, getApiBaseUrl } from '../config/apiConfig';
 import { getAccessToken } from '../utils/authStorage';
 import { getApiErrorMessage, unwrapList } from './api';
+import { openStoredFile, pickDirectStoredFileUrl } from '../utils/storedFileUrl';
 import type {
   MeetingDocumentMetadataPatch,
   MeetingDocumentRecord,
@@ -50,6 +51,7 @@ function normalizeVersion(row: Record<string, unknown>): MeetingDocumentVersionR
     uploadedOn: String(row.uploaded_on ?? row.uploaded_at ?? row.created_at ?? ''),
     fileName: (row.file_name ?? row.filename ?? row.original_filename ?? null) as string | null,
     fileSizeBytes: Number(row.file_size ?? row.file_size_bytes ?? row.size ?? 0) || null,
+    fileUrl: pickDirectStoredFileUrl(row),
   };
 }
 
@@ -70,6 +72,7 @@ export function normalizeMeetingDocument(row: unknown): MeetingDocumentRecord {
     description: (r.description ?? null) as string | null,
     fileName: (r.file_name ?? r.filename ?? r.original_filename ?? null) as string | null,
     fileSizeBytes: Number(r.file_size ?? r.file_size_bytes ?? r.size ?? 0) || null,
+    fileUrl: pickDirectStoredFileUrl(r),
     metadata: (r.metadata ?? r.document_metadata ?? null) as Record<string, unknown> | null,
   };
 }
@@ -272,14 +275,12 @@ export function parseMeetingDocumentResponse(data: unknown): MeetingDocumentReco
 export async function downloadMeetingDocumentSecure(
   id: string | number,
   fileName?: string,
-): Promise<void> {
-  const url = await meetingDocumentsApi.getDownloadUrl(id);
-  const anchor = document.createElement('a');
-  anchor.href = url;
-  if (fileName) anchor.download = fileName;
-  anchor.rel = 'noopener noreferrer';
-  anchor.target = '_blank';
-  document.body.appendChild(anchor);
-  anchor.click();
-  document.body.removeChild(anchor);
+  directUrl?: string | null,
+): Promise<{ url: string; source: 'direct' | 'presigned_download' }> {
+  return openStoredFile({
+    directUrl,
+    fileName,
+    download: Boolean(fileName),
+    fetchPresignedUrl: () => meetingDocumentsApi.getDownloadUrl(id),
+  });
 }

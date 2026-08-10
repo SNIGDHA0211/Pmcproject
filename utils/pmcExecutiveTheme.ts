@@ -213,6 +213,58 @@ export function getPmcExecutiveTheme(isDark: boolean) {
     dividerGradient: isDark
       ? 'h-px bg-gradient-to-r from-transparent via-white/10 to-transparent'
       : 'h-px bg-gradient-to-r from-transparent via-slate-200 to-transparent',
+
+    /** Executive shell chrome (project switcher + tab strip + updates) */
+    shellHeader: isDark
+      ? 'overflow-hidden rounded-xl border border-white/10 bg-gradient-to-r from-[#0f2744] via-[#1e3a5f] to-[#1e3a5f] text-white shadow-[0_4px_20px_rgba(15,39,68,0.35)]'
+      : 'overflow-hidden rounded-xl border border-slate-200 bg-white text-slate-900 shadow-[0_4px_20px_rgba(15,23,42,0.06)]',
+    shellTitle: isDark
+      ? 'truncate text-base font-bold tracking-tight text-white sm:text-lg'
+      : 'truncate text-base font-bold tracking-tight text-[#1e3a5f] sm:text-lg',
+    shellSelect: isDark
+      ? 'w-full min-w-0 cursor-pointer appearance-none truncate rounded-lg border border-white/15 bg-white/10 py-1.5 pl-3 pr-8 text-xs font-semibold text-white outline-none backdrop-blur-sm transition hover:bg-white/15 focus:border-white/30 focus:ring-2 focus:ring-white/20 disabled:cursor-wait disabled:opacity-70 sm:text-sm'
+      : 'w-full min-w-0 cursor-pointer appearance-none truncate rounded-lg border border-slate-200 bg-slate-50 py-1.5 pl-3 pr-8 text-xs font-semibold text-slate-800 outline-none transition hover:bg-white focus:border-blue-300 focus:ring-2 focus:ring-blue-500/20 disabled:cursor-wait disabled:opacity-70 sm:text-sm',
+    shellSelectChevron: isDark ? 'text-white/60' : 'text-slate-400',
+    shellNav: isDark
+      ? 'flex gap-1 overflow-x-auto border-t border-white/10 bg-black/10 px-2 py-1.5 scrollbar-thin sm:px-3'
+      : 'flex gap-1 overflow-x-auto border-t border-slate-100 bg-slate-50/90 px-2 py-1.5 scrollbar-thin sm:px-3',
+    shellTabActive: isDark
+      ? 'bg-white/20 text-white ring-1 ring-white/25'
+      : 'bg-[#1e3a5f] text-white shadow-sm',
+    shellTabInactive: isDark
+      ? 'text-blue-100/80 hover:bg-white/10 hover:text-white'
+      : 'text-slate-600 hover:bg-white hover:text-slate-900 ring-1 ring-transparent hover:ring-slate-200',
+    shellTabBadgeCritical: isDark
+      ? 'bg-rose-500/90 text-white ring-1 ring-white/25'
+      : 'bg-rose-100 text-rose-700 ring-1 ring-rose-200',
+    shellTabBadgeWatch: isDark
+      ? 'bg-amber-400 text-[#1a1520] ring-1 ring-white/20'
+      : 'bg-amber-100 text-amber-800 ring-1 ring-amber-200',
+    shellBtnSecondary: isDark
+      ? 'inline-flex items-center justify-center gap-1.5 rounded-lg border border-white/20 bg-white/10 px-3 py-2 text-xs font-semibold text-white transition hover:bg-white/15 sm:text-sm'
+      : 'inline-flex items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 sm:text-sm',
+    shellBtnBrief: isDark
+      ? 'inline-flex items-center justify-center gap-1.5 rounded-lg border border-sky-300/30 bg-sky-500/20 px-3 py-2 text-xs font-semibold text-sky-50 transition hover:bg-sky-500/30 sm:text-sm'
+      : 'inline-flex items-center justify-center gap-1.5 rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-xs font-semibold text-sky-800 transition hover:bg-sky-100 sm:text-sm',
+    shellBtnEscalate:
+      'inline-flex items-center justify-center gap-1.5 rounded-lg bg-amber-500 px-3 py-2 text-xs font-bold text-white shadow-sm transition hover:bg-amber-400 sm:text-sm',
+    shellUpdates: isDark
+      ? 'flex flex-wrap items-center gap-x-2 gap-y-1.5 rounded-lg border border-white/12 bg-[#122a45]/55 px-3 py-2'
+      : 'flex flex-wrap items-center gap-x-2 gap-y-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 shadow-sm',
+    shellUpdatesLabel: isDark
+      ? 'text-[10px] font-bold uppercase tracking-wide text-slate-200'
+      : 'text-[10px] font-bold uppercase tracking-wide text-[#1e3a5f]',
+    shellUpdatesCount: isDark
+      ? 'ml-1.5 inline-flex h-4 min-w-[1rem] items-center justify-center rounded bg-slate-200 px-1 text-[9px] font-bold text-[#0f2744]'
+      : 'ml-1.5 inline-flex h-4 min-w-[1rem] items-center justify-center rounded bg-[#1e3a5f] px-1 text-[9px] font-bold text-white',
+    shellUpdatesDivider: isDark ? 'hidden h-3.5 w-px bg-white/15 sm:block' : 'hidden h-3.5 w-px bg-slate-200 sm:block',
+    shellUpdatePill: isDark
+      ? 'inline-flex max-w-full items-center gap-1.5 rounded-md border border-white/10 bg-[#163352] px-2.5 py-1 text-left transition hover:bg-[#1a3a5c] focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-400/30'
+      : 'inline-flex max-w-full items-center gap-1.5 rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1 text-left shadow-sm transition hover:bg-white focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1e3a5f]/20',
+    shellUpdatePillCritical: isDark ? 'border-l-2 border-l-rose-400' : 'border-l-2 border-l-rose-500',
+    shellUpdatePillWatch: isDark ? 'border-l-2 border-l-amber-400' : 'border-l-2 border-l-amber-500',
+    shellUpdateText: isDark ? 'truncate text-[11px] font-semibold text-slate-100' : 'truncate text-[11px] font-semibold text-slate-800',
+    shellUpdateHint: isDark ? 'font-medium text-slate-300' : 'font-medium text-slate-600',
   };
 }
 

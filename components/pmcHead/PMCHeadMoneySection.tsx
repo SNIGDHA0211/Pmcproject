@@ -8,6 +8,7 @@ import {
   TrendingUp,
 } from 'lucide-react';
 import type { ContractValueRecord, InvoicingRecord } from '../../types';
+import type { ContractorMasterRecord } from '../../types/contractorManagement';
 import { formatIndianCurrencyCompact, formatIndianCurrencyFull } from '../../utils/format';
 import {
   getCertificationSemanticTone,
@@ -18,6 +19,9 @@ import {
   semanticValueClass,
 } from '../../utils/dashboardSemanticColors';
 import { usePmcExecutiveTheme } from '../../utils/pmcExecutiveTheme';
+import CmContractorSelector, {
+  CM_CUMULATIVE_VIEW_LABEL,
+} from '../contractor/ui/CmContractorSelector';
 
 const partyAccent = (party: 'SCL' | 'Contractor') =>
   party === 'SCL'
@@ -39,20 +43,21 @@ const MetricCell: React.FC<{
   value: string;
   tone?: 'neutral' | 'positive' | 'negative' | 'warning';
   fullValue?: string;
-}> = ({ label, value, tone = 'neutral', fullValue }) => {
+  emphasize?: boolean;
+}> = ({ label, value, tone = 'neutral', fullValue, emphasize = false }) => {
   const ex = usePmcExecutiveTheme();
   return (
-  <div className={ex.metricCell}>
-    <p className={`text-[10px] font-bold uppercase leading-tight tracking-wide sm:text-[11px] ${ex.label}`}>
-      {label}
-    </p>
-    <p
-      className={`mt-1.5 truncate text-lg font-black tabular-nums sm:text-xl ${semanticValueClass(tone, ex.isDark)}`}
-      title={fullValue ?? value}
-    >
-      {value}
-    </p>
-  </div>
+    <div className={`${ex.metricCell} ${emphasize ? 'sm:col-span-2' : ''}`}>
+      <p className={`text-[10px] font-bold uppercase leading-tight tracking-wide ${ex.label}`}>
+        {label}
+      </p>
+      <p
+        className={`mt-1 break-words text-sm font-black leading-snug tabular-nums sm:text-[15px] ${semanticValueClass(tone, ex.isDark)}`}
+        title={fullValue ?? value}
+      >
+        {value}
+      </p>
+    </div>
   );
 };
 
@@ -65,7 +70,8 @@ const ProgressInsight: React.FC<{
   footnote: string;
 }> = ({ title, subtitle, percent, tone, badge, footnote }) => {
   const ex = usePmcExecutiveTheme();
-  const barPct = Math.min(100, Math.max(0, Math.abs(percent)));
+  const displayPct = Math.round(Math.abs(percent) < 0.5 ? 0 : percent);
+  const barPct = Math.min(100, Math.max(0, Math.abs(displayPct)));
   return (
     <div className={ex.progressInsight}>
       <div className="flex items-start justify-between gap-3">
@@ -74,7 +80,7 @@ const ProgressInsight: React.FC<{
           <p className={`mt-0.5 text-[11px] sm:text-xs ${ex.muted}`}>{subtitle}</p>
         </div>
         <p className={`shrink-0 text-2xl font-black tabular-nums sm:text-3xl ${semanticValueClass(tone, ex.isDark)}`}>
-          {percent.toFixed(0)}%
+          {displayPct === 0 ? '0%' : `${displayPct}%`}
         </p>
       </div>
       <div className={`mt-4 h-2.5 overflow-hidden rounded-full ${ex.isDark ? 'bg-white/10' : 'bg-slate-200/80'}`}>
@@ -142,8 +148,13 @@ const PartyFinanceCard: React.FC<{
     );
   }
 
-  const growthPct = contract?.growthPercentage ?? contract?.approvedVOPercentage ?? 0;
-  const growthTone = getGrowthSemanticTone(growthPct);
+  const growthPctRaw = contract?.growthPercentage ?? contract?.approvedVOPercentage ?? 0;
+  const growthPct = Math.abs(growthPctRaw) < 0.5 ? 0 : growthPctRaw;
+  const growthTone = growthPct === 0 ? 'neutral' : getGrowthSemanticTone(growthPct);
+  const growthBadge =
+    growthPct === 0
+      ? 'No change'
+      : `${Math.abs(growthPct).toFixed(0)}% ${growthPct > 0 ? 'growth' : 'decline'}`;
   const certPct = invoicing?.collectionPercentage ?? 0;
   const certTone = getCertificationSemanticTone(certPct);
   const certLabel = getCertificationStatusLabel(certPct);
@@ -152,19 +163,22 @@ const PartyFinanceCard: React.FC<{
     <article className={`overflow-hidden ring-1 ${ex.surface} ${accent.ring}`}>
       <header className={`bg-gradient-to-r px-4 py-4 text-white sm:px-5 sm:py-5 ${accent.header}`}>
         <div className="flex items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white/15 backdrop-blur">
+          <div className="flex min-w-0 items-center gap-3">
+            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-white/15 backdrop-blur">
               <Building2 size={22} strokeWidth={2} />
             </span>
-            <div>
+            <div className="min-w-0">
               <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-white/70">Portfolio</p>
-              <h3 className="text-xl font-black tracking-tight sm:text-2xl">{displayName}</h3>
+              <h3 className="truncate text-xl font-black tracking-tight sm:text-2xl">{displayName}</h3>
             </div>
           </div>
           {contract && (
-            <div className="text-right">
+            <div className="shrink-0 text-right">
               <p className="text-[10px] font-bold uppercase tracking-wide text-white/70">Revised value</p>
-              <p className="text-lg font-black tabular-nums sm:text-xl" title={formatIndianCurrencyFull(contract.revisedContractValue)}>
+              <p
+                className="whitespace-nowrap text-base font-black tabular-nums sm:text-lg"
+                title={formatIndianCurrencyFull(contract.revisedContractValue)}
+              >
                 {formatIndianCurrencyCompact(contract.revisedContractValue)}
               </p>
             </div>
@@ -180,7 +194,7 @@ const PartyFinanceCard: React.FC<{
           </div>
           {contract ? (
             <>
-              <div className="grid grid-cols-2 gap-2.5 sm:gap-3 lg:grid-cols-5">
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-2.5">
                 <MetricCell
                   label="Original"
                   value={formatIndianCurrencyCompact(contract.originalContractValue)}
@@ -207,6 +221,7 @@ const PartyFinanceCard: React.FC<{
                   label="Revised"
                   value={formatIndianCurrencyCompact(contract.revisedContractValue)}
                   fullValue={formatIndianCurrencyFull(contract.revisedContractValue)}
+                  emphasize
                 />
               </div>
               <div className="mt-4">
@@ -215,7 +230,7 @@ const PartyFinanceCard: React.FC<{
                   subtitle="Revised vs original contract"
                   percent={growthPct}
                   tone={growthTone}
-                  badge={`${Math.abs(growthPct).toFixed(0)}% ${growthPct >= 0 ? 'growth' : 'decline'}`}
+                  badge={growthBadge}
                   footnote="Growth over original contract value"
                 />
               </div>
@@ -234,7 +249,7 @@ const PartyFinanceCard: React.FC<{
           </div>
           {invoicing ? (
             <>
-              <div className="grid grid-cols-2 gap-2.5 sm:gap-3 lg:grid-cols-4">
+              <div className="grid grid-cols-2 gap-2 sm:gap-2.5">
                 <MetricCell
                   label="Gross billed"
                   value={formatIndianCurrencyCompact(invoicing.grossBilled)}
@@ -253,7 +268,7 @@ const PartyFinanceCard: React.FC<{
                 />
                 <MetricCell
                   label="Efficiency"
-                  value={`${certPct.toFixed(0)}%`}
+                  value={`${Math.round(certPct)}%`}
                   tone={certTone}
                 />
               </div>
@@ -289,6 +304,11 @@ export interface PMCHeadMoneySectionProps {
   isLoadingInvoicing?: boolean;
   pmcInvoicingError?: string | null;
   contractorInvoicingError?: string | null;
+  /** Active contractor masters for the View selector (same as Contractor Management). */
+  contractors?: ContractorMasterRecord[];
+  /** null = Cumulative (All Contractors) */
+  selectedContractorViewId?: number | null;
+  onContractorViewChange?: (id: number | null) => void;
 }
 
 const PMCHeadMoneySection: React.FC<PMCHeadMoneySectionProps> = ({
@@ -303,6 +323,9 @@ const PMCHeadMoneySection: React.FC<PMCHeadMoneySectionProps> = ({
   isLoadingInvoicing = false,
   pmcInvoicingError = null,
   contractorInvoicingError = null,
+  contractors = [],
+  selectedContractorViewId = null,
+  onContractorViewChange,
 }) => {
   const ex = usePmcExecutiveTheme();
   const totalRevised =
@@ -318,15 +341,40 @@ const PMCHeadMoneySection: React.FC<PMCHeadMoneySectionProps> = ({
     (pmcInvoicing?.netCollected ?? 0) + (contractorInvoicing?.netCollected ?? 0);
 
   const summaryLoading = isLoadingContractValues || isLoadingInvoicing;
+  const showContractorSelector = Boolean(onContractorViewChange) && contractors.length > 0;
+  const contractorCardLabel =
+    selectedContractorViewId == null
+      ? CM_CUMULATIVE_VIEW_LABEL
+      : contractorDisplayName?.trim() || 'Contractor';
+  const contractorSubLabel =
+    selectedContractorViewId == null ? 'All contractors' : 'Selected contractor';
 
   return (
     <div className="space-y-4 sm:space-y-5">
       {/* Executive money snapshot */}
       <section className={`overflow-hidden ${ex.surface}`}>
         <div className={`border-b px-4 py-3 sm:px-5 ${ex.borderSubtle} ${ex.surfaceMuted}`}>
-          <div className="flex items-center gap-2">
-            <CircleDollarSign size={18} className={ex.isDark ? 'text-blue-400' : 'text-[#1e3a5f]'} />
-            <h2 className={ex.panelTitle}>Financial command snapshot</h2>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+            <div className="flex min-w-0 items-center gap-2">
+              <CircleDollarSign size={18} className={ex.isDark ? 'text-blue-400' : 'text-[#1e3a5f]'} />
+              <div className="min-w-0">
+                <h2 className={ex.panelTitle}>Financial command snapshot</h2>
+                <p className={`mt-0.5 truncate text-[11px] font-medium ${ex.muted}`}>
+                  Viewing · {contractorCardLabel}
+                </p>
+              </div>
+            </div>
+            {showContractorSelector && (
+              <CmContractorSelector
+                contractors={contractors}
+                value={selectedContractorViewId}
+                onChange={onContractorViewChange!}
+                includeCumulativeOption
+                showNumbering={false}
+                label="View"
+                className="w-full sm:w-[240px] sm:shrink-0 lg:w-[280px]"
+              />
+            )}
           </div>
         </div>
         <div className={`grid grid-cols-2 gap-px lg:grid-cols-4 ${ex.summaryGridGap}`}>
@@ -334,7 +382,7 @@ const PMCHeadMoneySection: React.FC<PMCHeadMoneySectionProps> = ({
             {
               label: 'Combined revised contract',
               value: summaryLoading ? '—' : formatIndianCurrencyCompact(totalRevised),
-              sub: 'SCL + Contractor',
+              sub: `SCL + ${contractorSubLabel}`,
             },
             {
               label: 'Total gross billed',
@@ -380,7 +428,11 @@ const PMCHeadMoneySection: React.FC<PMCHeadMoneySectionProps> = ({
         />
         <PartyFinanceCard
           party="Contractor"
-          partyLabel={contractorDisplayName}
+          partyLabel={
+            selectedContractorViewId == null
+              ? 'All Contractors'
+              : contractorDisplayName?.trim() || 'Contractor'
+          }
           contract={contractorContractValue}
           invoicing={contractorInvoicing}
           contractLoading={isLoadingContractValues}

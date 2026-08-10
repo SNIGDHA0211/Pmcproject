@@ -5,6 +5,7 @@ import type {
   CorrespondenceAttachmentSummary,
   CorrespondenceDocumentDetailPermissions,
 } from '../types';
+import { pickDirectStoredFileUrl } from './storedFileUrl';
 
 export const CORRESPONDENCE_ATTACHMENT_ACCEPT =
   '.pdf,.docx,.xlsx,.pptx,.jpg,.jpeg,.png,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.openxmlformats-officedocument.presentationml.presentation,image/jpeg,image/png';
@@ -127,6 +128,7 @@ export function normalizeCorrespondenceAttachment(row: unknown): CorrespondenceA
       r.uploaded_on ?? r.uploaded_at ?? r.uploadedOn ?? r.created_at ?? '',
     ),
     version: Number(r.version ?? r.version_number ?? 1) || 1,
+    fileUrl: pickDirectStoredFileUrl(r),
     canDownload: permissions?.can_download != null ? Boolean(permissions.can_download) : undefined,
     canEdit: permissions?.can_edit != null ? Boolean(permissions.can_edit) : undefined,
     canDelete: permissions?.can_delete != null ? Boolean(permissions.can_delete) : undefined,

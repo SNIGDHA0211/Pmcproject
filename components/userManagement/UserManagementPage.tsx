@@ -33,6 +33,7 @@ import {
   seedProjectRowCache,
 } from '../../utils/pmcHeadExecutiveProjects';
 import { projectApi, unwrapList } from '../../services/api';
+import { projectStore } from '../../stores/projectStore';
 import { ModalPortal } from '../ModalPortal';
 import DashboardToastStack, { type DashboardToastItem } from '../DashboardToastStack';
 import { getThemeClasses, useTheme } from '../../utils/theme';
@@ -41,8 +42,17 @@ import { isAbortError } from '../../utils/isAbortError';
 
 const PAGE_SIZE = 10;
 
-/** Fetch every projects page so assign list is not capped by DRF page size. */
+/** Prefer Global Project Store; fall back to paginated GET only if store is empty. */
 async function fetchAllBackendProjects(): Promise<Project[]> {
+  try {
+    const fromStore = await projectStore.loadProjects(false);
+    if (fromStore.length > 0) {
+      return fromStore.filter((p) => Boolean(p?.id && p?.title?.trim()));
+    }
+  } catch {
+    // fall through to paginated fetch
+  }
+
   const collected: Record<string, unknown>[] = [];
   let page = 1;
   let guard = 0;
@@ -160,8 +170,8 @@ const UserManagementPage: React.FC<UserManagementPageProps> = ({
 
   const refreshAssignableProjects = useCallback(async () => {
     try {
-      const mapped = await fetchAllBackendProjects();
-      // Live Registry (App) + full API list — completed/deleted excluded inside builder.
+      const mapped = await projectStore.refreshProjects();
+      // Live Registry (App) + store list — completed/deleted excluded inside builder.
       setPortfolioProjects(buildLiveAssignableProjects(mapped, projects));
     } catch {
       setPortfolioProjects(buildLiveAssignableProjects(projects, projects));
@@ -172,6 +182,7 @@ const UserManagementPage: React.FC<UserManagementPageProps> = ({
     if (!allowed) return;
     let cancelled = false;
 
+    // Load once when User Management opens — not on every App `projects` identity change.
     void (async () => {
       try {
         const mapped = await fetchAllBackendProjects();
@@ -188,7 +199,16 @@ const UserManagementPage: React.FC<UserManagementPageProps> = ({
     return () => {
       cancelled = true;
     };
-  }, [allowed, projects]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount / allowed only
+  }, [allowed]);
+
+  // Sync titles from Live Registry without another full projects pagination.
+  useEffect(() => {
+    setPortfolioProjects((prev) => {
+      if (!projects.length) return prev;
+      return buildLiveAssignableProjects(prev, projects);
+    });
+  }, [projects]);
 
   const [roleFilter, setRoleFilter] = useState('');
   const [projectFilter, setProjectFilter] = useState('');
