@@ -7,6 +7,7 @@ import { useTheme, getThemeClasses } from "../utils/theme";
 import { monthlyScopeApi } from "../services/api";
 import DprReviewKpiCards from "./dprReview/DprReviewKpiCards";
 import { isPmcHeadEquivalent } from "../utils/pmcRoleAccess";
+import TutorialVideosPanel from "./tutorialVideos/TutorialVideosPanel";
 import {
     countActivityStats,
     formatDprDateTime,
@@ -1234,6 +1235,8 @@ const DPRReviewDashboard: React.FC<DPRReviewDashboardProps> = ({
                     </div>
                 </div>
             )}
+
+            <TutorialVideosPanel section="dpr_review" />
         </div>
     );
 };

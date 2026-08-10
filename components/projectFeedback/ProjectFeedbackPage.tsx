@@ -35,6 +35,7 @@ import {
 import { MONTH_OPTIONS } from '../../utils/healthSafety';
 import { ModalPortal } from '../ModalPortal';
 import DashboardToastStack, { type DashboardToastItem } from '../DashboardToastStack';
+import TutorialVideosPanel from '../tutorialVideos/TutorialVideosPanel';
 import { getThemeClasses, useTheme } from '../../utils/theme';
 import { useDebouncedValue } from '../../hooks/useDebouncedValue';
 import { isAbortError } from '../../utils/isAbortError';
@@ -1157,6 +1158,8 @@ const ProjectFeedbackPage: React.FC<ProjectFeedbackPageProps> = ({
           </div>
         </ModalPortal>
       )}
+
+      <TutorialVideosPanel section="project_feedback" />
     </div>
   );
 };

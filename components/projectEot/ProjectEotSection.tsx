@@ -34,13 +34,188 @@ type FormState = {
   supporting_document: File | null;
 };
 
+type FormFieldKey =
+  | 'project_start'
+  | 'contract_finish'
+  | 'forecast_finish'
+  | 'eot_date'
+  | 'extension_days'
+  | 'status'
+  | 'approval_date'
+  | 'reason'
+  | 'remarks'
+  | 'supporting_document';
+
+type FieldErrors = Partial<Record<FormFieldKey, string>>;
+
+function simplifyFieldMessage(raw: string, field?: string): string {
+  const t = raw.trim();
+  if (!t) return '';
+  if (/reason is required/i.test(t) || (field === 'reason' && /required/i.test(t))) {
+    return 'Please enter the reason for this extension of time.';
+  }
+  if (/required/i.test(t)) return 'Please fill in this field.';
+  if (/valid date|date format|invalid date/i.test(t)) {
+    return 'Please enter a valid date.';
+  }
+  if (/greater than|positive|at least/i.test(t)) {
+    return 'Please enter a number greater than 0.';
+  }
+  if (/invalid choice|not a valid choice/i.test(t)) {
+    return 'Please choose a valid option.';
+  }
+  return t.replace(/[_]/g, ' ');
+}
+
+function parseApiFieldErrors(error: unknown): FieldErrors {
+  if (!error || typeof error !== 'object' || !('response' in error)) return {};
+  const data = (error as { response?: { data?: unknown } }).response?.data;
+  if (!data || typeof data !== 'object' || Array.isArray(data)) return {};
+  const body = data as Record<string, unknown>;
+  const keys = new Set<FormFieldKey>([
+    'project_start',
+    'contract_finish',
+    'forecast_finish',
+    'eot_date',
+    'extension_days',
+    'status',
+    'approval_date',
+    'reason',
+    'remarks',
+    'supporting_document',
+  ]);
+  const out: FieldErrors = {};
+
+  // Backend shape: { errors: [{ field, message }] }
+  const list = body.errors;
+  if (Array.isArray(list)) {
+    for (const entry of list) {
+      if (!entry || typeof entry !== 'object') continue;
+      const row = entry as Record<string, unknown>;
+      const field = typeof row.field === 'string' ? row.field.trim() : '';
+      if (!field || !keys.has(field as FormFieldKey)) continue;
+      const msg =
+        typeof row.message === 'string'
+          ? row.message
+          : Array.isArray(row.message)
+            ? String(row.message[0] ?? '')
+            : '';
+      if (!msg.trim()) continue;
+      out[field as FormFieldKey] = simplifyFieldMessage(msg, field);
+    }
+  }
+
+  // DRF shape: { reason: ["..."] }
+  for (const key of keys) {
+    if (out[key]) continue;
+    const value = body[key];
+    let text = '';
+    if (typeof value === 'string') text = value.trim();
+    else if (Array.isArray(value) && value.length > 0) text = String(value[0]).trim();
+    if (!text) continue;
+    out[key] = simplifyFieldMessage(text, key);
+  }
+
+  return out;
+}
+
+function validateEotForm(form: FormState, projectName: string): {
+  fieldErrors: FieldErrors;
+  formError: string | null;
+} {
+  const fieldErrors: FieldErrors = {};
+
+  if (!projectName.trim()) {
+    return {
+      fieldErrors,
+      formError: 'Please open this form from a project page.',
+    };
+  }
+
+  if (!form.project_start) {
+    fieldErrors.project_start = 'Please select the project start date.';
+  }
+  if (!form.contract_finish) {
+    fieldErrors.contract_finish = 'Please select the contract finish date.';
+  }
+  if (!form.forecast_finish) {
+    fieldErrors.forecast_finish = 'Please select the forecast finish date.';
+  }
+  if (!form.eot_date) {
+    fieldErrors.eot_date = 'Please select the EOT date.';
+  }
+
+  if (!String(form.reason ?? '').trim()) {
+    fieldErrors.reason = 'Please enter the reason for this extension of time.';
+  }
+
+  const daysRaw = String(form.extension_days ?? '').trim();
+  const extensionDays = Number(daysRaw);
+  if (!daysRaw) {
+    fieldErrors.extension_days = 'Please enter how many extra days are needed.';
+  } else if (!Number.isFinite(extensionDays) || extensionDays <= 0) {
+    fieldErrors.extension_days = 'Extension days must be a number greater than 0.';
+  } else if (!Number.isInteger(extensionDays)) {
+    fieldErrors.extension_days = 'Please enter whole days only (no decimals).';
+  }
+
+  if (!form.status || !STATUS_OPTIONS.some((o) => o.value === form.status)) {
+    fieldErrors.status = 'Please choose a status.';
+  }
+
+  if (String(form.status).toLowerCase() === 'approved' && !form.approval_date) {
+    fieldErrors.approval_date = 'Please add the approval date when status is Approved.';
+  }
+
+  if (
+    form.project_start &&
+    form.contract_finish &&
+    form.project_start > form.contract_finish
+  ) {
+    fieldErrors.contract_finish =
+      'Contract finish date should be on or after the project start date.';
+  }
+
+  if (
+    form.contract_finish &&
+    form.eot_date &&
+    form.eot_date < form.contract_finish
+  ) {
+    fieldErrors.eot_date =
+      'EOT date is usually on or after the contract finish date. Please check.';
+  }
+
+  const count = Object.keys(fieldErrors).length;
+  return {
+    fieldErrors,
+    formError:
+      count > 0
+        ? `Please fix ${count} item${count === 1 ? '' : 's'} highlighted below.`
+        : null,
+  };
+}
+
 const STATUS_OPTIONS: { value: ProjectEotStatus; label: string }[] = [
-  { value: 'draft', label: 'Draft' },
   { value: 'submitted', label: 'Submitted' },
   { value: 'pending', label: 'Pending' },
   { value: 'approved', label: 'Approved' },
   { value: 'rejected', label: 'Rejected' },
 ];
+
+function statusLabel(status: string | null | undefined): string {
+  if (!status) return '—';
+  const key = String(status).toLowerCase();
+  const match = STATUS_OPTIONS.find((o) => o.value === key);
+  if (match) return match.label;
+  if (key === 'draft') return 'Submitted';
+  return String(status).replace(/_/g, ' ');
+}
+
+function normalizeFormStatus(status: string | null | undefined): ProjectEotStatus {
+  const key = String(status || '').toLowerCase();
+  if (STATUS_OPTIONS.some((o) => o.value === key)) return key as ProjectEotStatus;
+  return 'submitted';
+}
 
 function toInputDate(value: string | null | undefined): string {
   if (!value) return '';
@@ -89,7 +264,7 @@ function emptyForm(seed?: ProjectEotSeedDates | null): FormState {
     extension_days: '',
     reason: '',
     remarks: '',
-    status: 'draft',
+    status: 'submitted',
     approval_date: '',
     supporting_document: null,
   };
@@ -110,7 +285,7 @@ function formFromHistory(
         : '',
     reason: item.reason || '',
     remarks: item.remarks || '',
-    status: item.status || 'draft',
+    status: normalizeFormStatus(item.status),
     approval_date: toInputDate(item.approval_date),
     supporting_document: null,
   };
@@ -142,14 +317,56 @@ const ProjectEotSection: React.FC<ProjectEotSectionProps> = ({
   const [loadError, setLoadError] = useState<string | null>(null);
   const [forbidden, setForbidden] = useState(false);
 
+  const [historyOpen, setHistoryOpen] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<ProjectEotHistoryItem | null>(
     null,
   );
   const [form, setForm] = useState<FormState>(() => emptyForm(seedDates));
   const [formError, setFormError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [isSaving, setIsSaving] = useState(false);
   const [deletingId, setDeletingId] = useState<number | null>(null);
+
+  const clearFieldError = (key: FormFieldKey) => {
+    setFieldErrors((prev) => {
+      if (!prev[key]) return prev;
+      const next = { ...prev };
+      delete next[key];
+      return next;
+    });
+  };
+
+  const updateForm = <K extends keyof FormState>(key: K, value: FormState[K]) => {
+    setForm((prev) => ({ ...prev, [key]: value }));
+    if (
+      key === 'project_start' ||
+      key === 'contract_finish' ||
+      key === 'forecast_finish' ||
+      key === 'eot_date' ||
+      key === 'extension_days' ||
+      key === 'status' ||
+      key === 'approval_date' ||
+      key === 'reason' ||
+      key === 'remarks' ||
+      key === 'supporting_document'
+    ) {
+      clearFieldError(key);
+    }
+    setFormError(null);
+  };
+
+  const fieldClass = (key: FormFieldKey) =>
+    `w-full rounded-2xl border px-4 py-3 text-sm font-bold outline-none ${themeClasses.input} ${
+      fieldErrors[key]
+        ? 'border-rose-400 ring-2 ring-rose-200/70'
+        : themeClasses.border
+    }`;
+
+  const fieldHint = (key: FormFieldKey) =>
+    fieldErrors[key] ? (
+      <p className="mt-1 text-[11px] font-semibold text-rose-500">{fieldErrors[key]}</p>
+    ) : null;
 
   const loadSummary = useCallback(async () => {
     const name = projectName?.trim();
@@ -181,7 +398,12 @@ const ProjectEotSection: React.FC<ProjectEotSectionProps> = ({
           eot_history: [],
         });
       } else {
-        setLoadError(getProjectEotErrorMessage(err, 'Failed to load EOT summary'));
+        setLoadError(
+          getProjectEotErrorMessage(
+            err,
+            'Could not load extension of time details. Please try again.',
+          ),
+        );
         setSummary(null);
       }
     } finally {
@@ -197,6 +419,7 @@ const ProjectEotSection: React.FC<ProjectEotSectionProps> = ({
     setEditingItem(null);
     setForm(emptyForm(seedDates));
     setFormError(null);
+    setFieldErrors({});
     setModalOpen(true);
   };
 
@@ -204,39 +427,23 @@ const ProjectEotSection: React.FC<ProjectEotSectionProps> = ({
     setEditingItem(item);
     setForm(formFromHistory(item, seedDates));
     setFormError(null);
+    setFieldErrors({});
     setModalOpen(true);
   };
 
   const buildPayload = (): ProjectEotPayload | null => {
-    const name = projectName.trim();
-    if (!name) {
-      setFormError('Project name is required.');
-      return null;
-    }
-    const extensionDays = Number(form.extension_days);
-    if (!Number.isFinite(extensionDays) || extensionDays <= 0) {
-      setFormError('Extension Days must be greater than 0.');
-      return null;
-    }
-    if (
-      String(form.status).toLowerCase() === 'approved' &&
-      !form.approval_date
-    ) {
-      setFormError('Approval Date is required when status is approved.');
-      return null;
-    }
-    if (
-      !form.project_start ||
-      !form.contract_finish ||
-      !form.forecast_finish ||
-      !form.eot_date
-    ) {
-      setFormError('All schedule dates are required.');
-      return null;
-    }
+    const { fieldErrors: nextErrors, formError: nextFormError } = validateEotForm(
+      form,
+      projectName,
+    );
+    setFieldErrors(nextErrors);
+    setFormError(nextFormError);
+    if (nextFormError || Object.keys(nextErrors).length > 0) return null;
+
+    const extensionDays = Number(String(form.extension_days).trim());
 
     return {
-      project_name: name,
+      project_name: projectName.trim(),
       date_type: 'SCL',
       contractor_id: null,
       project_start: form.project_start,
@@ -246,7 +453,7 @@ const ProjectEotSection: React.FC<ProjectEotSectionProps> = ({
       extension_days: extensionDays,
       reason: form.reason,
       remarks: form.remarks,
-      status: form.status,
+      status: normalizeFormStatus(form.status),
       approval_date: form.approval_date || null,
       supporting_document: form.supporting_document,
     };
@@ -259,6 +466,7 @@ const ProjectEotSection: React.FC<ProjectEotSectionProps> = ({
 
     setIsSaving(true);
     setFormError(null);
+    setFieldErrors({});
     try {
       if (editingItem) {
         await projectEotApi.updateProjectEOT(editingItem.id, payload);
@@ -269,7 +477,18 @@ const ProjectEotSection: React.FC<ProjectEotSectionProps> = ({
       setEditingItem(null);
       await loadSummary();
     } catch (err) {
-      setFormError(getProjectEotErrorMessage(err, 'Failed to save EOT'));
+      const apiFields = parseApiFieldErrors(err);
+      setFieldErrors(apiFields);
+      if (Object.keys(apiFields).length > 0) {
+        setFormError('Please fix the highlighted fields and try again.');
+      } else {
+        setFormError(
+          getProjectEotErrorMessage(
+            err,
+            'Could not save this extension of time. Please check the details and try again.',
+          ),
+        );
+      }
     } finally {
       setIsSaving(false);
     }
@@ -277,15 +496,25 @@ const ProjectEotSection: React.FC<ProjectEotSectionProps> = ({
 
   const handleDelete = async (item: ProjectEotHistoryItem) => {
     if (!canManage) return;
-    const label = item.eot_no != null ? `EOT #${item.eot_no}` : `EOT ${item.id}`;
-    if (!window.confirm(`Delete ${label}? This cannot be undone.`)) return;
+    const label = item.eot_no != null ? `EOT #${item.eot_no}` : `this EOT`;
+    if (
+      !window.confirm(
+        `Are you sure you want to delete ${label}? This cannot be undone.`,
+      )
+    )
+      return;
 
     setDeletingId(item.id);
     try {
       await projectEotApi.deleteProjectEOT(item.id);
       await loadSummary();
     } catch (err) {
-      window.alert(getProjectEotErrorMessage(err, 'Failed to delete EOT'));
+      window.alert(
+        getProjectEotErrorMessage(
+          err,
+          'Could not delete this extension of time. Please try again.',
+        ),
+      );
     } finally {
       setDeletingId(null);
     }
@@ -391,7 +620,7 @@ const ProjectEotSection: React.FC<ProjectEotSectionProps> = ({
                   <span
                     className={`inline-flex rounded-lg border px-2.5 py-1 text-[10px] font-black uppercase tracking-wide ${statusBadgeClass(String(currentStatus), isDarkTheme)}`}
                   >
-                    {String(currentStatus)}
+                    {statusLabel(String(currentStatus))}
                   </span>
                 ) : (
                   <p className={`text-lg font-black ${themeClasses.textPrimary}`}>
@@ -402,138 +631,158 @@ const ProjectEotSection: React.FC<ProjectEotSectionProps> = ({
             </div>
           </div>
 
-          <div className="mb-2 flex items-center justify-between gap-2">
-            <h4
-              className={`text-xs font-black uppercase tracking-widest ${themeClasses.textPrimary}`}
-            >
-              EOT History
-            </h4>
+          <div className="flex flex-wrap items-center gap-2">
             <button
               type="button"
-              onClick={() => void loadSummary()}
-              className={`text-[10px] font-bold uppercase tracking-wide ${themeClasses.textSecondary} hover:underline`}
+              onClick={() => setHistoryOpen((open) => !open)}
+              aria-expanded={historyOpen}
+              className={`inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-[11px] font-black uppercase tracking-wide transition ${
+                isDarkTheme
+                  ? 'border-cyan-400/25 bg-cyan-500/10 text-cyan-200 hover:bg-cyan-500/15'
+                  : 'border-cyan-200 bg-cyan-50 text-cyan-900 hover:bg-cyan-100'
+              }`}
             >
-              Refresh
+              {historyOpen ? 'Hide EOT History' : 'Show EOT History'}
+              <span className={`tabular-nums opacity-80`}>
+                ({history.length})
+              </span>
             </button>
+            {historyOpen && (
+              <button
+                type="button"
+                onClick={() => void loadSummary()}
+                className={`text-[10px] font-bold uppercase tracking-wide ${themeClasses.textSecondary} hover:underline`}
+              >
+                Refresh
+              </button>
+            )}
           </div>
 
-          {history.length === 0 ? (
-            <p className={`text-sm font-semibold ${themeClasses.textSecondary}`}>
-              No EOT records yet.
-            </p>
-          ) : (
-            <div className={`overflow-x-auto rounded-xl border ${themeClasses.border}`}>
-              <table className="min-w-full text-left text-sm">
-                <thead>
-                  <tr
-                    className={`border-b text-[10px] font-black uppercase tracking-widest ${themeClasses.border} ${themeClasses.textSecondary} ${isDarkTheme ? 'bg-white/[0.03]' : 'bg-slate-50'}`}
-                  >
-                    <th className="px-3 py-2.5">EOT No</th>
-                    <th className="px-3 py-2.5">EOT Date</th>
-                    <th className="px-3 py-2.5">Extension Days</th>
-                    <th className="px-3 py-2.5">Reason</th>
-                    <th className="px-3 py-2.5">Status</th>
-                    <th className="px-3 py-2.5">Approval Date</th>
-                    <th className="px-3 py-2.5">Remarks</th>
-                    <th className="px-3 py-2.5">Supporting Document</th>
-                    <th className="px-3 py-2.5">Created At</th>
-                    {canManage && <th className="px-3 py-2.5">Actions</th>}
-                  </tr>
-                </thead>
-                <tbody>
-                  {history.map((row) => (
+          {historyOpen &&
+            (history.length === 0 ? (
+              <p className={`mt-3 text-sm font-semibold ${themeClasses.textSecondary}`}>
+                No extension of time records yet. Click “Add New EOT” to create
+                one.
+              </p>
+            ) : (
+              <div
+                className={`mt-3 overflow-x-auto rounded-xl border ${themeClasses.border}`}
+              >
+                <table className="min-w-full text-left text-sm">
+                  <thead>
                     <tr
-                      key={row.id}
-                      className={`border-b last:border-0 ${themeClasses.border}`}
+                      className={`border-b text-[10px] font-black uppercase tracking-widest ${themeClasses.border} ${themeClasses.textSecondary} ${isDarkTheme ? 'bg-white/[0.03]' : 'bg-slate-50'}`}
                     >
-                      <td
-                        className={`px-3 py-2.5 font-bold ${themeClasses.textPrimary}`}
-                      >
-                        {row.eot_no ?? row.id}
-                      </td>
-                      <td className={`px-3 py-2.5 ${themeClasses.textPrimary}`}>
-                        {displayDate(row.eot_date)}
-                      </td>
-                      <td className={`px-3 py-2.5 ${themeClasses.textPrimary}`}>
-                        {row.extension_days || '—'}
-                      </td>
-                      <td
-                        className={`max-w-[180px] truncate px-3 py-2.5 ${themeClasses.textSecondary}`}
-                        title={row.reason || undefined}
-                      >
-                        {row.reason || '—'}
-                      </td>
-                      <td className="px-3 py-2.5">
-                        <span
-                          className={`inline-flex rounded-md border px-2 py-0.5 text-[10px] font-black uppercase ${statusBadgeClass(String(row.status), isDarkTheme)}`}
-                        >
-                          {row.status || '—'}
-                        </span>
-                      </td>
-                      <td className={`px-3 py-2.5 ${themeClasses.textPrimary}`}>
-                        {displayDate(row.approval_date)}
-                      </td>
-                      <td
-                        className={`max-w-[160px] truncate px-3 py-2.5 ${themeClasses.textSecondary}`}
-                        title={row.remarks || undefined}
-                      >
-                        {row.remarks || '—'}
-                      </td>
-                      <td className="px-3 py-2.5">
-                        {row.supporting_document_url ? (
-                          <div className="flex flex-wrap gap-2">
-                            <a
-                              href={row.supporting_document_url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-xs font-bold text-blue-600 hover:underline"
-                            >
-                              View
-                            </a>
-                            <a
-                              href={row.supporting_document_url}
-                              download
-                              className="text-xs font-bold text-blue-600 hover:underline"
-                            >
-                              Download
-                            </a>
-                          </div>
-                        ) : (
-                          <span className={`text-xs ${themeClasses.textSecondary}`}>
-                            No Document
-                          </span>
-                        )}
-                      </td>
-                      <td className={`px-3 py-2.5 text-xs ${themeClasses.textSecondary}`}>
-                        {displayDate(row.created_at)}
-                      </td>
-                      {canManage && (
-                        <td className="px-3 py-2.5">
-                          <div className="flex flex-wrap gap-2">
-                            <button
-                              type="button"
-                              onClick={() => openEdit(row)}
-                              className={`rounded-lg px-2 py-1 text-[10px] font-black uppercase ${isDarkTheme ? 'bg-white/10 text-white hover:bg-white/15' : 'bg-slate-100 text-slate-800 hover:bg-slate-200'}`}
-                            >
-                              Edit
-                            </button>
-                            <button
-                              type="button"
-                              disabled={deletingId === row.id}
-                              onClick={() => void handleDelete(row)}
-                              className="rounded-lg bg-rose-600/10 px-2 py-1 text-[10px] font-black uppercase text-rose-600 hover:bg-rose-600/20 disabled:opacity-50"
-                            >
-                              {deletingId === row.id ? '…' : 'Delete'}
-                            </button>
-                          </div>
-                        </td>
-                      )}
+                      <th className="px-3 py-2.5">EOT No</th>
+                      <th className="px-3 py-2.5">EOT Date</th>
+                      <th className="px-3 py-2.5">Extension Days</th>
+                      <th className="px-3 py-2.5">Reason</th>
+                      <th className="px-3 py-2.5">Status</th>
+                      <th className="px-3 py-2.5">Approval Date</th>
+                      <th className="px-3 py-2.5">Remarks</th>
+                      <th className="px-3 py-2.5">Supporting Document</th>
+                      <th className="px-3 py-2.5">Created At</th>
+                      {canManage && <th className="px-3 py-2.5">Actions</th>}
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
+                  </thead>
+                  <tbody>
+                    {history.map((row) => (
+                      <tr
+                        key={row.id}
+                        className={`border-b last:border-0 ${themeClasses.border}`}
+                      >
+                        <td
+                          className={`px-3 py-2.5 font-bold ${themeClasses.textPrimary}`}
+                        >
+                          {row.eot_no ?? row.id}
+                        </td>
+                        <td className={`px-3 py-2.5 ${themeClasses.textPrimary}`}>
+                          {displayDate(row.eot_date)}
+                        </td>
+                        <td className={`px-3 py-2.5 ${themeClasses.textPrimary}`}>
+                          {row.extension_days || '—'}
+                        </td>
+                        <td
+                          className={`max-w-[180px] truncate px-3 py-2.5 ${themeClasses.textSecondary}`}
+                          title={row.reason || undefined}
+                        >
+                          {row.reason || '—'}
+                        </td>
+                        <td className="px-3 py-2.5">
+                          <span
+                            className={`inline-flex rounded-md border px-2 py-0.5 text-[10px] font-black uppercase ${statusBadgeClass(String(row.status), isDarkTheme)}`}
+                          >
+                            {statusLabel(row.status)}
+                          </span>
+                        </td>
+                        <td className={`px-3 py-2.5 ${themeClasses.textPrimary}`}>
+                          {displayDate(row.approval_date)}
+                        </td>
+                        <td
+                          className={`max-w-[160px] truncate px-3 py-2.5 ${themeClasses.textSecondary}`}
+                          title={row.remarks || undefined}
+                        >
+                          {row.remarks || '—'}
+                        </td>
+                        <td className="px-3 py-2.5">
+                          {row.supporting_document_url ? (
+                            <div className="flex flex-wrap gap-2">
+                              <a
+                                href={row.supporting_document_url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-xs font-bold text-blue-600 hover:underline"
+                              >
+                                View
+                              </a>
+                              <a
+                                href={row.supporting_document_url}
+                                download
+                                className="text-xs font-bold text-blue-600 hover:underline"
+                              >
+                                Download
+                              </a>
+                            </div>
+                          ) : (
+                            <span
+                              className={`text-xs ${themeClasses.textSecondary}`}
+                            >
+                              No Document
+                            </span>
+                          )}
+                        </td>
+                        <td
+                          className={`px-3 py-2.5 text-xs ${themeClasses.textSecondary}`}
+                        >
+                          {displayDate(row.created_at)}
+                        </td>
+                        {canManage && (
+                          <td className="px-3 py-2.5">
+                            <div className="flex flex-wrap gap-2">
+                              <button
+                                type="button"
+                                onClick={() => openEdit(row)}
+                                className={`rounded-lg px-2 py-1 text-[10px] font-black uppercase ${isDarkTheme ? 'bg-white/10 text-white hover:bg-white/15' : 'bg-slate-100 text-slate-800 hover:bg-slate-200'}`}
+                              >
+                                Edit
+                              </button>
+                              <button
+                                type="button"
+                                disabled={deletingId === row.id}
+                                onClick={() => void handleDelete(row)}
+                                className="rounded-lg bg-rose-600/10 px-2 py-1 text-[10px] font-black uppercase text-rose-600 hover:bg-rose-600/20 disabled:opacity-50"
+                              >
+                                {deletingId === row.id ? '…' : 'Delete'}
+                              </button>
+                            </div>
+                          </td>
+                        )}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ))}
         </>
       )}
 
@@ -550,8 +799,8 @@ const ProjectEotSection: React.FC<ProjectEotSectionProps> = ({
                   {editingItem ? 'Edit EOT' : 'Add New EOT'}
                 </h3>
                 <p className={`mt-1 text-[11px] ${themeClasses.textSecondary}`}>
-                  Uses legacy Project Dates field names. Extension metadata is
-                  stored via the Multi-EOT API.
+                  Enter the revised project dates and how many extra days are
+                  needed.
                 </p>
               </div>
               <button
@@ -563,7 +812,11 @@ const ProjectEotSection: React.FC<ProjectEotSectionProps> = ({
               </button>
             </div>
 
-            <form onSubmit={(e) => void handleSubmit(e)} className="space-y-4">
+            <form
+              onSubmit={(e) => void handleSubmit(e)}
+              noValidate
+              className="space-y-4"
+            >
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 {(
                   [
@@ -577,17 +830,16 @@ const ProjectEotSection: React.FC<ProjectEotSectionProps> = ({
                     <label
                       className={`mb-1 block text-[10px] font-black uppercase tracking-widest ${themeClasses.textSecondary}`}
                     >
-                      {label}
+                      {label} *
                     </label>
                     <input
                       type="date"
-                      required
                       value={form[key]}
-                      onChange={(e) =>
-                        setForm((prev) => ({ ...prev, [key]: e.target.value }))
-                      }
-                      className={`w-full rounded-2xl border px-4 py-3 text-sm font-bold outline-none ${themeClasses.input} ${themeClasses.border}`}
+                      onChange={(e) => updateForm(key, e.target.value)}
+                      aria-invalid={Boolean(fieldErrors[key])}
+                      className={fieldClass(key)}
                     />
+                    {fieldHint(key)}
                   </div>
                 ))}
               </div>
@@ -597,37 +849,34 @@ const ProjectEotSection: React.FC<ProjectEotSectionProps> = ({
                   <label
                     className={`mb-1 block text-[10px] font-black uppercase tracking-widest ${themeClasses.textSecondary}`}
                   >
-                    Extension Days
+                    Extension Days *
                   </label>
                   <input
                     type="number"
                     min={1}
-                    required
+                    step={1}
+                    inputMode="numeric"
+                    placeholder="e.g. 30"
                     value={form.extension_days}
-                    onChange={(e) =>
-                      setForm((prev) => ({
-                        ...prev,
-                        extension_days: e.target.value,
-                      }))
-                    }
-                    className={`w-full rounded-2xl border px-4 py-3 text-sm font-bold outline-none ${themeClasses.input} ${themeClasses.border}`}
+                    onChange={(e) => updateForm('extension_days', e.target.value)}
+                    aria-invalid={Boolean(fieldErrors.extension_days)}
+                    className={fieldClass('extension_days')}
                   />
+                  {fieldHint('extension_days')}
                 </div>
                 <div>
                   <label
                     className={`mb-1 block text-[10px] font-black uppercase tracking-widest ${themeClasses.textSecondary}`}
                   >
-                    Status
+                    Status *
                   </label>
                   <select
                     value={form.status}
                     onChange={(e) =>
-                      setForm((prev) => ({
-                        ...prev,
-                        status: e.target.value as ProjectEotStatus,
-                      }))
+                      updateForm('status', e.target.value as ProjectEotStatus)
                     }
-                    className={`w-full rounded-2xl border px-4 py-3 text-sm font-bold outline-none ${themeClasses.input} ${themeClasses.border}`}
+                    aria-invalid={Boolean(fieldErrors.status)}
+                    className={fieldClass('status')}
                   >
                     {STATUS_OPTIONS.map((opt) => (
                       <option key={opt.value} value={opt.value}>
@@ -635,28 +884,23 @@ const ProjectEotSection: React.FC<ProjectEotSectionProps> = ({
                       </option>
                     ))}
                   </select>
+                  {fieldHint('status')}
                 </div>
                 <div>
                   <label
                     className={`mb-1 block text-[10px] font-black uppercase tracking-widest ${themeClasses.textSecondary}`}
                   >
                     Approval Date
-                    {String(form.status).toLowerCase() === 'approved'
-                      ? ' *'
-                      : ''}
+                    {String(form.status).toLowerCase() === 'approved' ? ' *' : ''}
                   </label>
                   <input
                     type="date"
-                    required={String(form.status).toLowerCase() === 'approved'}
                     value={form.approval_date}
-                    onChange={(e) =>
-                      setForm((prev) => ({
-                        ...prev,
-                        approval_date: e.target.value,
-                      }))
-                    }
-                    className={`w-full rounded-2xl border px-4 py-3 text-sm font-bold outline-none ${themeClasses.input} ${themeClasses.border}`}
+                    onChange={(e) => updateForm('approval_date', e.target.value)}
+                    aria-invalid={Boolean(fieldErrors.approval_date)}
+                    className={fieldClass('approval_date')}
                   />
+                  {fieldHint('approval_date')}
                 </div>
                 <div>
                   <label
@@ -667,13 +911,16 @@ const ProjectEotSection: React.FC<ProjectEotSectionProps> = ({
                   <input
                     type="file"
                     onChange={(e) =>
-                      setForm((prev) => ({
-                        ...prev,
-                        supporting_document: e.target.files?.[0] ?? null,
-                      }))
+                      updateForm('supporting_document', e.target.files?.[0] ?? null)
                     }
-                    className={`w-full rounded-2xl border px-4 py-2.5 text-sm outline-none ${themeClasses.input} ${themeClasses.border}`}
+                    aria-invalid={Boolean(fieldErrors.supporting_document)}
+                    className={`w-full rounded-2xl border px-4 py-2.5 text-sm outline-none ${themeClasses.input} ${
+                      fieldErrors.supporting_document
+                        ? 'border-rose-400 ring-2 ring-rose-200/70'
+                        : themeClasses.border
+                    }`}
                   />
+                  {fieldHint('supporting_document')}
                 </div>
               </div>
 
@@ -681,16 +928,21 @@ const ProjectEotSection: React.FC<ProjectEotSectionProps> = ({
                 <label
                   className={`mb-1 block text-[10px] font-black uppercase tracking-widest ${themeClasses.textSecondary}`}
                 >
-                  Reason
+                  Reason *
                 </label>
                 <textarea
                   rows={2}
                   value={form.reason}
-                  onChange={(e) =>
-                    setForm((prev) => ({ ...prev, reason: e.target.value }))
-                  }
-                  className={`w-full rounded-2xl border px-4 py-3 text-sm font-medium outline-none ${themeClasses.input} ${themeClasses.border}`}
+                  onChange={(e) => updateForm('reason', e.target.value)}
+                  placeholder="Why is extra time needed?"
+                  aria-invalid={Boolean(fieldErrors.reason)}
+                  className={`w-full rounded-2xl border px-4 py-3 text-sm font-medium outline-none ${themeClasses.input} ${
+                    fieldErrors.reason
+                      ? 'border-rose-400 ring-2 ring-rose-200/70'
+                      : themeClasses.border
+                  }`}
                 />
+                {fieldHint('reason')}
               </div>
 
               <div>
@@ -702,17 +954,29 @@ const ProjectEotSection: React.FC<ProjectEotSectionProps> = ({
                 <textarea
                   rows={2}
                   value={form.remarks}
-                  onChange={(e) =>
-                    setForm((prev) => ({ ...prev, remarks: e.target.value }))
-                  }
-                  className={`w-full rounded-2xl border px-4 py-3 text-sm font-medium outline-none ${themeClasses.input} ${themeClasses.border}`}
+                  onChange={(e) => updateForm('remarks', e.target.value)}
+                  placeholder="Any extra notes (optional)"
+                  aria-invalid={Boolean(fieldErrors.remarks)}
+                  className={`w-full rounded-2xl border px-4 py-3 text-sm font-medium outline-none ${themeClasses.input} ${
+                    fieldErrors.remarks
+                      ? 'border-rose-400 ring-2 ring-rose-200/70'
+                      : themeClasses.border
+                  }`}
                 />
+                {fieldHint('remarks')}
               </div>
 
               {formError && (
-                <p className="whitespace-pre-wrap text-[11px] font-bold text-rose-500">
+                <div
+                  className={`rounded-xl border px-3 py-2.5 text-[12px] font-semibold whitespace-pre-wrap ${
+                    isDarkTheme
+                      ? 'border-rose-500/40 bg-rose-500/10 text-rose-200'
+                      : 'border-rose-200 bg-rose-50 text-rose-700'
+                  }`}
+                  role="alert"
+                >
                   {formError}
-                </p>
+                </div>
               )}
 
               <div className="mt-2 flex flex-col gap-3 sm:flex-row">

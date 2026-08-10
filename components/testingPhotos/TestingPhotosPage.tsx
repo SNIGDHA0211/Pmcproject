@@ -25,6 +25,7 @@ import {
   testingPhotosProjectsForUser,
 } from '../../utils/testingDocumentsAccess';
 import { ModalPortal } from '../ModalPortal';
+import TutorialVideosPanel from '../tutorialVideos/TutorialVideosPanel';
 import { getThemeClasses, useTheme } from '../../utils/theme';
 
 interface TestingPhotosPageProps {
@@ -763,6 +764,8 @@ const TestingPhotosPage: React.FC<TestingPhotosPageProps> = ({
           </div>
         </ModalPortal>
       )}
+
+      <TutorialVideosPanel section="testing_photos" />
     </div>
   );
 };

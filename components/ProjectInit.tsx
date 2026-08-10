@@ -10,6 +10,7 @@ import { User } from '../types';
 import { useTheme, getThemeClasses } from '../utils/theme';
 import { sanitizeProjectDisplayName } from '../utils/hseSiteEngineerProjects';
 import { formatUserFacingError } from '../utils/formErrors';
+import TutorialVideosPanel from './tutorialVideos/TutorialVideosPanel';
 
 interface ProjectInitProps {
     user: User;
@@ -596,6 +597,8 @@ const ProjectInit: React.FC<ProjectInitProps> = ({ user, onProjectCreated }) => 
                         </button>
                     </div>
                 </form>
+
+                <TutorialVideosPanel section="initialize_project" />
             </div>
         </div>
     );

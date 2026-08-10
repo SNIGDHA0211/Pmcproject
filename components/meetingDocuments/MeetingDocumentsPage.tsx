@@ -30,6 +30,7 @@ import {
 import { getThemeClasses, useTheme } from '../../utils/theme';
 import { useDebouncedValue, SEARCH_DEBOUNCE_MS } from '../../hooks/useDebouncedValue';
 import { isAbortError } from '../../utils/isAbortError';
+import TutorialVideosPanel from '../tutorialVideos/TutorialVideosPanel';
 
 interface MeetingDocumentsPageProps {
   projects: Project[];
@@ -560,6 +561,8 @@ const MeetingDocumentsPage: React.FC<MeetingDocumentsPageProps> = ({ projects })
         onDownload={handleDownload}
         downloading={downloadingId != null && activeDocument != null && downloadingId === activeDocument.id}
       />
+
+      <TutorialVideosPanel section="meeting_documents" />
     </div>
   );
 };

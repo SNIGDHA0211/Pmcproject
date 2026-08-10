@@ -297,7 +297,7 @@ const contractMetricCell = (
 ) => (
   <div
     className={`rounded-xl border px-2.5 py-2 ${
-      isDark ? 'border-white/10 bg-white/[0.04]' : 'border-slate-100 bg-white shadow-sm'
+      isDark ? 'border-white/10 bg-white/[0.06] backdrop-blur-sm' : 'border-cyan-100/60 bg-white/55 backdrop-blur-md shadow-sm'
     }`}
     style={accent ? { borderLeftWidth: 3, borderLeftColor: accent } : undefined}
   >
@@ -905,17 +905,15 @@ const PMCExecutiveOverviewPanel: React.FC<PMCExecutiveOverviewPanelProps> = ({
   }, [metrics.cpiPct, track, cpiAccent]);
 
   const cardBase = ex.isDark
-    ? 'rounded-2xl border border-white/10 bg-gradient-to-br from-[#0b1d36]/98 to-[#071428]/90 shadow-[0_8px_32px_rgba(0,0,0,0.22)]'
-    : 'rounded-2xl border border-slate-200/80 bg-gradient-to-br from-white to-slate-50/90 shadow-[0_8px_32px_rgba(15,39,68,0.06)]';
+    ? 'rounded-2xl pmc360-glass-panel-dark'
+    : 'rounded-2xl pmc360-glass-panel-light';
 
   const emptyStateClass = `flex items-center justify-center px-3 text-center text-[11px] font-medium ${ex.muted}`;
 
   return (
     <section
-      className={`max-h-[calc(100vh-10.5rem)] overflow-y-auto rounded-2xl border p-2.5 scrollbar-thin sm:p-3 ${
-        ex.isDark
-          ? 'border-white/10 bg-gradient-to-b from-[#071428]/60 via-[#0b1d36]/40 to-[#071428]/60'
-          : 'border-slate-200/90 bg-gradient-to-b from-slate-100/80 via-white/50 to-slate-100/60'
+      className={`max-h-[calc(100vh-10.5rem)] overflow-y-auto rounded-2xl p-2.5 scrollbar-thin sm:p-3 ${
+        ex.isDark ? 'pmc360-glass-panel-dark' : 'pmc360-glass-panel-light'
       }`}
       aria-label="Executive overview dashboard"
     >

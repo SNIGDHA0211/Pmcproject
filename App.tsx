@@ -31,6 +31,7 @@ import CompleteProjectDialog, {
 } from "./components/CompleteProjectDialog";
 import CompleteBillingDialog from "./components/CompleteBillingDialog";
 import DashboardToastStack, { type DashboardToastItem } from "./components/DashboardToastStack";
+import TutorialVideosPanel from "./components/tutorialVideos/TutorialVideosPanel";
 import { parseSiteDeleteDependencies } from "./components/ProjectSiteList";
 import { STATUS_COLORS } from "./constants";
 import { projectApi, operationsApi, dprApi, notificationApi, getApiErrorMessage, unwrapList } from "./services/api";
@@ -1971,6 +1972,9 @@ const App: React.FC = () => {
             projects={projects}
             currentUser={currentUser}
             selectedProjectId={selectedProjectId}
+            tutorialSection={
+              currentUser.role === UserRole.TEAM_LEAD ? 'overview' : 'projects'
+            }
             onViewProject={(id) => {
               setSelectedProjectId(id);
             }}
@@ -2218,6 +2222,8 @@ const App: React.FC = () => {
               isSubmitting={isPortfolioCompletingBilling}
               errorMessage={portfolioBillingError}
             />
+
+            <TutorialVideosPanel section="portfolio" />
           </div>
         ) : activeTab === "dpr_records" ? (
           <DPRReviewDashboard

@@ -18,6 +18,7 @@ import {
   getWprSummaryCountColors,
   getWprTy,
 } from "../utils/wprReviewTypography";
+import TutorialVideosPanel from "./tutorialVideos/TutorialVideosPanel";
 import { useTheme, getThemeClasses } from "../utils/theme";
 import {
   strVal,
@@ -1233,6 +1234,8 @@ const WPRReviewDashboard: React.FC<WPRReviewDashboardProps> = ({
             )}
         </div>
       </div>
+
+      <TutorialVideosPanel section="wpr_review" />
     </div>
   );
 };

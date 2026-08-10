@@ -48,5 +48,13 @@ export const PMCExecutiveDetailFrame: React.FC<PMCExecutiveDetailFrameProps> = (
     return <>{children}</>;
   }
 
-  return <div className={ex.detailFrame}>{children}</div>;
+  return (
+    <div className={ex.detailFrame}>
+      <div
+        className={`pmc-executive-detail-wash ${ex.isDark ? 'pmc-executive-detail-wash-dark' : ''}`}
+        aria-hidden
+      />
+      {children}
+    </div>
+  );
 };

@@ -3,6 +3,7 @@ import { Project } from '../types';
 import { Icons } from './Icons';
 import { useTheme, getThemeClasses } from '../utils/theme';
 import { fetchProjectProgressChart } from '../services/financialDataService';
+import TutorialVideosPanel from './tutorialVideos/TutorialVideosPanel';
 
 interface SiteExecutionProps {
   projects: Project[];
@@ -173,6 +174,8 @@ const SiteExecution: React.FC<SiteExecutionProps> = ({ projects, onViewProject }
           </div>
         )}
       </div>
+
+      <TutorialVideosPanel section="site_progress" />
     </div>
   );
 };

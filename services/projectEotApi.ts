@@ -272,7 +272,7 @@ function buildEotJsonBody(payload: ProjectEotPayload): Record<string, unknown> {
     extension_days: payload.extension_days,
     reason: payload.reason ?? '',
     remarks: payload.remarks ?? '',
-    status: payload.status ?? 'draft',
+    status: payload.status ?? 'submitted',
     approval_date: payload.approval_date || null,
     supporting_document: null,
   };
@@ -319,26 +319,116 @@ export { getApiErrorMessage };
 /** Prefer full backend validation text for EOT forms. */
 export function getProjectEotErrorMessage(
   error: unknown,
-  fallback = 'Unable to complete the request.',
+  fallback = 'Something went wrong. Please try again.',
 ): string {
   if (!error || typeof error !== 'object' || !('response' in error)) {
     return getApiErrorMessage(error, fallback);
   }
-  const response = (error as { response?: { data?: unknown } }).response;
+  const response = (error as { response?: { status?: number; data?: unknown } })
+    .response;
+  const status = response?.status;
+  if (status === 401) {
+    return 'Your session has expired. Please sign in again.';
+  }
+  if (status === 403) {
+    return 'You do not have permission to do this.';
+  }
+  if (status === 404) {
+    return 'This extension of time record was not found.';
+  }
+  if (status === 413) {
+    return 'The file is too large. Please upload a smaller document.';
+  }
+  if (status && status >= 500) {
+    return 'The server is busy right now. Please try again in a moment.';
+  }
+
   const data = response?.data;
   if (data && typeof data === 'object' && !Array.isArray(data)) {
     const body = data as Record<string, unknown>;
-    const fieldLines = Object.entries(body)
-      .filter(([key]) => !['detail', 'message', 'error', 'success'].includes(key))
-      .map(([field, value]) => {
-        if (typeof value === 'string' && value.trim()) return `${field}: ${value}`;
-        if (Array.isArray(value) && value.length > 0) {
-          return `${field}: ${value.map(String).join(' ')}`;
-        }
-        return null;
-      })
-      .filter((line): line is string => Boolean(line));
-    if (fieldLines.length > 0) return fieldLines.join('\n');
+    const fieldFriendly: Record<string, string> = {
+      project_name: 'Project name',
+      project_start: 'Project start date',
+      contract_finish: 'Contract finish date',
+      forecast_finish: 'Forecast finish date',
+      eot_date: 'EOT date',
+      extension_days: 'Extension days',
+      reason: 'Reason',
+      remarks: 'Remarks',
+      status: 'Status',
+      approval_date: 'Approval date',
+      supporting_document: 'Supporting document',
+      date_type: 'Date type',
+      contractor_id: 'Contractor',
+      non_field_errors: '',
+    };
+
+    const simplifyValue = (raw: string): string => {
+      const t = raw.trim();
+      if (/reason is required/i.test(t)) {
+        return 'Please enter the reason for this extension of time.';
+      }
+      if (/required/i.test(t)) return 'This field is required.';
+      if (/valid date|date format|invalid date/i.test(t)) {
+        return 'Please enter a valid date.';
+      }
+      if (/greater than|positive|at least/i.test(t)) {
+        return 'Please enter a number greater than 0.';
+      }
+      if (/invalid choice|not a valid choice/i.test(t)) {
+        return 'Please choose a valid option from the list.';
+      }
+      return t.replace(/[_]/g, ' ');
+    };
+
+    const fieldLines: string[] = [];
+
+    // Backend shape: { errors: [{ field, message }] }
+    if (Array.isArray(body.errors)) {
+      for (const entry of body.errors) {
+        if (!entry || typeof entry !== 'object') continue;
+        const row = entry as Record<string, unknown>;
+        const field = typeof row.field === 'string' ? row.field : '';
+        const msg =
+          typeof row.message === 'string'
+            ? row.message
+            : Array.isArray(row.message)
+              ? String(row.message[0] ?? '')
+              : '';
+        if (!msg.trim()) continue;
+        const label = fieldFriendly[field] ?? (field ? field.replace(/_/g, ' ') : '');
+        const text = simplifyValue(msg);
+        fieldLines.push(label ? `${label}: ${text}` : text);
+      }
+    }
+
+    // DRF field map (skip meta keys / errors array already handled)
+    for (const [field, value] of Object.entries(body)) {
+      if (
+        ['detail', 'message', 'error', 'success', 'errors'].includes(field)
+      ) {
+        continue;
+      }
+      const label = fieldFriendly[field] ?? field.replace(/_/g, ' ');
+      let text = '';
+      if (typeof value === 'string' && value.trim()) text = simplifyValue(value);
+      else if (Array.isArray(value) && value.length > 0) {
+        const first = value[0];
+        if (typeof first === 'string') text = simplifyValue(first);
+        else if (first && typeof first === 'object') continue; // avoid [object Object]
+      }
+      if (!text) continue;
+      fieldLines.push(label ? `${label}: ${text}` : text);
+    }
+
+    if (fieldLines.length > 0) return [...new Set(fieldLines)].join('\n');
+
+    if (typeof body.message === 'string' && body.message.trim()) {
+      return simplifyValue(body.message);
+    }
+    if (typeof body.detail === 'string' && body.detail.trim()) {
+      return simplifyValue(body.detail);
+    }
   }
   return getApiErrorMessage(error, fallback);
 }

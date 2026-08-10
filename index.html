@@ -14,7 +14,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <style>
         :root {
-            --dashboard-bg-url: url('/images/construction-bg.jpg');
+            --dashboard-bg-url: url('/images/construction-cranes-bg.jpg');
         }
         body {
             font-family: 'Inter', sans-serif;
@@ -78,49 +78,63 @@
         .glass-input::placeholder {
             color: rgba(255, 255, 255, 0.4);
         }
-        /* Command-center sidebar — Shrikhande brand (blue + mint/cyan) */
+        /* Command-center sidebar — frosted glass, matches 360 overview */
         .nav-dark {
             background:
-              linear-gradient(180deg, rgba(8, 22, 42, 0.995) 0%, rgba(6, 17, 32, 0.995) 100%);
-            backdrop-filter: blur(14px);
-            -webkit-backdrop-filter: blur(14px);
-            border-right: 1px solid rgba(56, 189, 248, 0.14);
-            box-shadow: inset -1px 0 0 rgba(72, 199, 142, 0.06);
+              linear-gradient(175deg, rgba(15, 39, 68, 0.92) 0%, rgba(11, 29, 54, 0.88) 48%, rgba(7, 20, 40, 0.9) 100%);
+            backdrop-filter: blur(22px) saturate(1.3);
+            -webkit-backdrop-filter: blur(22px) saturate(1.3);
+            border-right: 1px solid rgba(103, 232, 249, 0.2);
+            box-shadow:
+              10px 0 36px rgba(0, 0, 0, 0.28),
+              inset -1px 0 0 rgba(103, 232, 249, 0.08),
+              inset 0 1px 0 rgba(255, 255, 255, 0.06);
         }
         .nav-light {
             background:
-              linear-gradient(165deg, #ffffff 0%, #f5faff 42%, #f0faf6 100%);
-            backdrop-filter: blur(14px);
-            -webkit-backdrop-filter: blur(14px);
-            border-right: 1px solid rgba(15, 23, 42, 0.07);
-            box-shadow: 6px 0 28px rgba(15, 23, 42, 0.045);
+              linear-gradient(175deg, rgba(255, 255, 255, 0.92) 0%, rgba(248, 250, 252, 0.88) 45%, rgba(236, 254, 255, 0.82) 100%);
+            backdrop-filter: blur(22px) saturate(1.25);
+            -webkit-backdrop-filter: blur(22px) saturate(1.25);
+            border-right: 1px solid rgba(100, 116, 139, 0.28);
+            box-shadow:
+              10px 0 32px rgba(15, 23, 42, 0.08),
+              inset -1px 0 0 rgba(6, 182, 212, 0.08),
+              inset 0 1px 0 rgba(255, 255, 255, 0.85);
         }
         .active-pill {
-            background: linear-gradient(135deg, rgba(34, 211, 238, 0.22) 0%, rgba(56, 189, 248, 0.12) 100%);
+            background: linear-gradient(135deg, rgba(34, 211, 238, 0.24) 0%, rgba(56, 189, 248, 0.12) 100%);
             color: #e0f7ff;
-            box-shadow: 0 0 24px rgba(34, 211, 238, 0.18);
+            box-shadow: 0 0 22px rgba(34, 211, 238, 0.16);
         }
         .active-pill-light {
-            background: linear-gradient(135deg, #ecfeff 0%, #e0f2fe 55%, #d1fae5 100%) !important;
+            background: linear-gradient(135deg, rgba(236, 254, 255, 0.95) 0%, rgba(224, 242, 254, 0.9) 55%, rgba(209, 250, 229, 0.75) 100%) !important;
             color: #0e7490 !important;
-            border: 1px solid #a5f3fc !important;
+            border: 1px solid rgba(103, 232, 249, 0.55) !important;
         }
         /* Sidebar active — clear “you are here” without noisy glow */
         button.sidebar-nav-item.sidebar-nav-active-light,
         button.sidebar-nav-item.active-pill-light {
-            background: linear-gradient(90deg, rgba(6, 182, 212, 0.16) 0%, rgba(72, 199, 142, 0.09) 100%) !important;
+            background: linear-gradient(90deg, rgba(6, 182, 212, 0.18) 0%, rgba(255, 255, 255, 0.55) 100%) !important;
             color: #0e7490 !important;
-            border: 1px solid rgba(6, 182, 212, 0.3) !important;
+            border: 1px solid rgba(6, 182, 212, 0.32) !important;
             border-left: 3px solid #06b6d4 !important;
-            box-shadow: 0 4px 14px rgba(6, 182, 212, 0.12);
+            box-shadow:
+              0 6px 16px rgba(6, 182, 212, 0.12),
+              inset 0 1px 0 rgba(255, 255, 255, 0.65);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
         }
         button.sidebar-nav-item.sidebar-nav-active-dark,
         button.sidebar-nav-item.active-pill {
-            background: linear-gradient(90deg, rgba(34, 211, 238, 0.2) 0%, rgba(56, 189, 248, 0.08) 70%, transparent 100%) !important;
+            background: linear-gradient(90deg, rgba(34, 211, 238, 0.22) 0%, rgba(15, 39, 68, 0.45) 70%, transparent 100%) !important;
             color: #e0f7ff !important;
-            border: 1px solid rgba(34, 211, 238, 0.24) !important;
+            border: 1px solid rgba(34, 211, 238, 0.28) !important;
             border-left: 3px solid #22d3ee !important;
-            box-shadow: 0 0 18px rgba(34, 211, 238, 0.14);
+            box-shadow:
+              0 0 18px rgba(34, 211, 238, 0.14),
+              inset 0 1px 0 rgba(255, 255, 255, 0.06);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
         }
         button.sidebar-nav-item.sidebar-nav-active-light:hover,
         button.sidebar-nav-item.sidebar-nav-active-dark:hover,
@@ -164,12 +178,18 @@
             animation: sidebarHereIn 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
         }
         .sidebar-here-chip-light {
-            background: linear-gradient(135deg, rgba(6, 182, 212, 0.08), rgba(72, 199, 142, 0.07));
-            border: 1px solid rgba(6, 182, 212, 0.22);
+            background: linear-gradient(145deg, rgba(255, 255, 255, 0.78), rgba(236, 254, 255, 0.62));
+            border: 1px solid rgba(6, 182, 212, 0.28);
+            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.75);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
         }
         .sidebar-here-chip-dark {
-            background: rgba(34, 211, 238, 0.07);
-            border: 1px solid rgba(34, 211, 238, 0.18);
+            background: linear-gradient(145deg, rgba(34, 211, 238, 0.12), rgba(15, 39, 68, 0.45));
+            border: 1px solid rgba(34, 211, 238, 0.22);
+            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
         }
         .sidebar-nav-scroll {
             scrollbar-gutter: stable;
@@ -326,10 +346,12 @@
             color: #475569;
         }
         .sidebar-nav-item-idle-light:hover {
-            background-color: rgba(6, 182, 212, 0.07) !important;
+            background: linear-gradient(90deg, rgba(6, 182, 212, 0.1), rgba(255, 255, 255, 0.45)) !important;
             color: #0f172a !important;
-            border-left-color: rgba(6, 182, 212, 0.45);
+            border-left-color: rgba(6, 182, 212, 0.5);
+            border-color: rgba(6, 182, 212, 0.18);
             transform: translateX(2px);
+            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.5);
         }
         .sidebar-nav-item-idle-light:hover .sidebar-nav-icon {
             transform: scale(1.08);
@@ -339,10 +361,12 @@
             color: rgba(226, 232, 240, 0.78);
         }
         .sidebar-nav-item-idle-dark:hover {
-            background-color: rgba(34, 211, 238, 0.09) !important;
+            background: linear-gradient(90deg, rgba(34, 211, 238, 0.12), rgba(15, 39, 68, 0.35)) !important;
             color: #f8fafc !important;
-            border-left-color: rgba(34, 211, 238, 0.5);
+            border-left-color: rgba(34, 211, 238, 0.55);
+            border-color: rgba(34, 211, 238, 0.16);
             transform: translateX(2px);
+            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
         }
         .sidebar-nav-item-idle-dark:hover .sidebar-nav-icon {
             transform: scale(1.08);
@@ -373,14 +397,20 @@
             letter-spacing: 0.12em;
         }
         .sidebar-role-badge-dark {
-            background: rgba(255, 255, 255, 0.04);
-            border: 1px solid rgba(34, 211, 238, 0.22);
-            color: rgba(224, 247, 255, 0.9);
+            background: linear-gradient(135deg, rgba(34, 211, 238, 0.12), rgba(15, 39, 68, 0.5));
+            border: 1px solid rgba(34, 211, 238, 0.26);
+            color: rgba(224, 247, 255, 0.95);
+            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
         }
         .sidebar-role-badge-light {
-            background: linear-gradient(90deg, rgba(6, 182, 212, 0.08), rgba(72, 199, 142, 0.08));
-            border: 1px solid rgba(6, 182, 212, 0.25);
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.85), rgba(236, 254, 255, 0.7));
+            border: 1px solid rgba(6, 182, 212, 0.28);
             color: #0e7490;
+            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.8);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
         }
         .sidebar-alert-badge {
             background: linear-gradient(135deg, #fbbf24, #f59e0b);
@@ -392,22 +422,32 @@
             transition: transform 0.22s ease, box-shadow 0.22s ease, border-color 0.22s ease;
         }
         .sidebar-profile-card-light {
-            background: rgba(255, 255, 255, 0.9);
-            border: 1px solid rgba(15, 23, 42, 0.08);
+            background: linear-gradient(145deg, rgba(255, 255, 255, 0.88), rgba(236, 254, 255, 0.7));
+            border: 1px solid rgba(100, 116, 139, 0.28);
+            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.75);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
         }
         .sidebar-profile-card-light:hover {
             transform: translateY(-1px);
-            box-shadow: 0 8px 20px rgba(15, 23, 42, 0.08);
-            border-color: rgba(6, 182, 212, 0.28);
+            box-shadow:
+              0 8px 20px rgba(15, 23, 42, 0.08),
+              inset 0 1px 0 rgba(255, 255, 255, 0.85);
+            border-color: rgba(6, 182, 212, 0.35);
         }
         .sidebar-profile-card-dark {
-            background: rgba(255, 255, 255, 0.04);
-            border: 1px solid rgba(34, 211, 238, 0.14);
+            background: linear-gradient(145deg, rgba(15, 39, 68, 0.75), rgba(8, 47, 73, 0.55));
+            border: 1px solid rgba(103, 232, 249, 0.2);
+            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
         }
         .sidebar-profile-card-dark:hover {
             transform: translateY(-1px);
-            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
-            border-color: rgba(34, 211, 238, 0.3);
+            box-shadow:
+              0 8px 24px rgba(0, 0, 0, 0.35),
+              inset 0 1px 0 rgba(255, 255, 255, 0.08);
+            border-color: rgba(34, 211, 238, 0.35);
         }
         .sidebar-logout-row-dark {
             color: rgba(226, 232, 240, 0.7);
@@ -487,6 +527,239 @@
             background-position: center bottom;
             background-repeat: no-repeat;
             opacity: 0.95;
+        }
+        /* Main workspace — construction atmosphere shows through */
+        .app-main-scroll {
+            isolation: isolate;
+        }
+        .app-main-scroll-light {
+            background:
+              linear-gradient(180deg, rgba(248, 250, 252, 0.28) 0%, rgba(241, 245, 249, 0.12) 42%, rgba(248, 250, 252, 0.22) 100%);
+        }
+        .app-main-scroll-dark {
+            background:
+              linear-gradient(180deg, rgba(7, 20, 40, 0.18) 0%, rgba(7, 20, 40, 0.08) 45%, rgba(7, 20, 40, 0.22) 100%);
+        }
+        .pmc360-hero {
+            position: relative;
+            overflow: hidden;
+            border-radius: 1.25rem;
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+        }
+        .pmc360-hero-photo {
+            position: absolute;
+            inset: 0;
+            background-size: cover;
+            background-position: center 40%;
+            background-repeat: no-repeat;
+            transform: scale(1.04);
+            transition: transform 12s ease-out;
+        }
+        .pmc360-hero:hover .pmc360-hero-photo {
+            transform: scale(1.08);
+        }
+        .pmc360-hero-wash-light {
+            background:
+              linear-gradient(115deg, rgba(255,255,255,0.62) 0%, rgba(248,250,252,0.48) 48%, rgba(224,242,254,0.32) 100%);
+        }
+        .pmc360-hero-wash-dark {
+            background:
+              linear-gradient(115deg, rgba(7,20,40,0.62) 0%, rgba(11,29,54,0.48) 52%, rgba(8,47,73,0.32) 100%);
+        }
+        /* Frosted glass cards — clearer visibility, still translucent */
+        .pmc360-glass-light {
+            background: linear-gradient(155deg, rgba(255,255,255,0.88) 0%, rgba(248,250,252,0.82) 55%, rgba(236,254,255,0.76) 100%);
+            border: 1px solid rgba(100, 116, 139, 0.42);
+            box-shadow:
+              0 10px 30px rgba(15, 23, 42, 0.1),
+              inset 0 1px 0 rgba(255, 255, 255, 0.8);
+            backdrop-filter: blur(18px) saturate(1.2);
+            -webkit-backdrop-filter: blur(18px) saturate(1.2);
+        }
+        .pmc360-glass-dark {
+            background: linear-gradient(155deg, rgba(15, 39, 68, 0.82) 0%, rgba(11, 29, 54, 0.76) 60%, rgba(8, 47, 73, 0.7) 100%);
+            border: 1px solid rgba(103, 232, 249, 0.24);
+            box-shadow:
+              0 12px 34px rgba(0, 0, 0, 0.36),
+              inset 0 1px 0 rgba(255, 255, 255, 0.09);
+            backdrop-filter: blur(20px) saturate(1.25);
+            -webkit-backdrop-filter: blur(20px) saturate(1.25);
+        }
+        .pmc360-glass-light:hover,
+        .pmc360-glass-dark:hover {
+            border-color: rgba(6, 182, 212, 0.42);
+        }
+        .pmc360-glass-panel-light {
+            background: linear-gradient(160deg, rgba(255,255,255,0.9) 0%, rgba(241,245,249,0.82) 100%);
+            border: 1px solid rgba(100, 116, 139, 0.45);
+            box-shadow:
+              0 14px 40px rgba(15, 23, 42, 0.11),
+              inset 0 1px 0 rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(22px) saturate(1.25);
+            -webkit-backdrop-filter: blur(22px) saturate(1.25);
+        }
+        .pmc360-glass-panel-dark {
+            background: linear-gradient(160deg, rgba(11, 29, 54, 0.88) 0%, rgba(7, 20, 40, 0.78) 100%);
+            border: 1px solid rgba(103, 232, 249, 0.26);
+            box-shadow:
+              0 16px 44px rgba(0, 0, 0, 0.42),
+              inset 0 1px 0 rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(24px) saturate(1.3);
+            -webkit-backdrop-filter: blur(24px) saturate(1.3);
+        }
+        /* Executive detail frame — soft looping highlight to draw focus */
+        @keyframes pmc-exec-highlight-sweep {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+        @keyframes pmc-exec-highlight-breathe {
+            0%, 100% {
+                opacity: 0.35;
+                transform: scale(1);
+            }
+            50% {
+                opacity: 0.7;
+                transform: scale(1.015);
+            }
+        }
+        @keyframes pmc-exec-border-pulse {
+            0%, 100% {
+                border-color: rgba(6, 182, 212, 0.28);
+                box-shadow:
+                  0 14px 40px rgba(15, 23, 42, 0.08),
+                  0 0 0 1px rgba(6, 182, 212, 0.12),
+                  inset 0 1px 0 rgba(255, 255, 255, 0.7);
+            }
+            50% {
+                border-color: rgba(6, 182, 212, 0.55);
+                box-shadow:
+                  0 16px 44px rgba(15, 23, 42, 0.1),
+                  0 0 28px rgba(6, 182, 212, 0.18),
+                  inset 0 1px 0 rgba(255, 255, 255, 0.85);
+            }
+        }
+        @keyframes pmc-exec-border-pulse-dark {
+            0%, 100% {
+                border-color: rgba(103, 232, 249, 0.22);
+                box-shadow:
+                  0 16px 44px rgba(0, 0, 0, 0.36),
+                  0 0 0 1px rgba(34, 211, 238, 0.1),
+                  inset 0 1px 0 rgba(255, 255, 255, 0.06);
+            }
+            50% {
+                border-color: rgba(103, 232, 249, 0.48);
+                box-shadow:
+                  0 18px 48px rgba(0, 0, 0, 0.4),
+                  0 0 32px rgba(34, 211, 238, 0.16),
+                  inset 0 1px 0 rgba(255, 255, 255, 0.09);
+            }
+        }
+        .pmc-executive-detail {
+            position: relative;
+            isolation: isolate;
+            overflow: hidden;
+        }
+        .pmc-executive-detail.pmc360-glass-panel-light {
+            animation: pmc-exec-border-pulse 5.5s ease-in-out infinite;
+        }
+        .pmc-executive-detail.pmc360-glass-panel-dark {
+            animation: pmc-exec-border-pulse-dark 5.5s ease-in-out infinite;
+        }
+        .pmc-executive-detail-wash {
+            pointer-events: none;
+            position: absolute;
+            inset: -20%;
+            z-index: 0;
+            background:
+              radial-gradient(ellipse 55% 40% at 15% 20%, rgba(6, 182, 212, 0.22), transparent 55%),
+              radial-gradient(ellipse 50% 45% at 85% 75%, rgba(14, 165, 233, 0.16), transparent 55%),
+              radial-gradient(ellipse 40% 35% at 50% 50%, rgba(165, 243, 252, 0.12), transparent 60%);
+            background-size: 140% 140%;
+            animation: pmc-exec-highlight-sweep 10s ease-in-out infinite,
+                       pmc-exec-highlight-breathe 6s ease-in-out infinite;
+        }
+        .pmc-executive-detail-wash-dark {
+            background:
+              radial-gradient(ellipse 55% 40% at 15% 20%, rgba(34, 211, 238, 0.2), transparent 55%),
+              radial-gradient(ellipse 50% 45% at 85% 75%, rgba(56, 189, 248, 0.14), transparent 55%),
+              radial-gradient(ellipse 40% 35% at 50% 50%, rgba(8, 47, 73, 0.4), transparent 60%);
+            background-size: 140% 140%;
+        }
+        .pmc-executive-detail > *:not(.pmc-executive-detail-wash) {
+            position: relative;
+            z-index: 1;
+        }
+        @media (prefers-reduced-motion: reduce) {
+            .pmc-executive-detail.pmc360-glass-panel-light,
+            .pmc-executive-detail.pmc360-glass-panel-dark,
+            .pmc-executive-detail-wash {
+                animation: none !important;
+            }
+        }
+        .pmc360-glass-input-light {
+            background: rgba(255, 255, 255, 0.82);
+            border: 1px solid rgba(100, 116, 139, 0.45);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7);
+        }
+        .pmc360-glass-input-dark {
+            background: rgba(15, 39, 68, 0.78);
+            border: 1px solid rgba(148, 163, 184, 0.3);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.07);
+        }
+        /* Hero — Watch Tutorial (matches overview frosted cyan theme) */
+        .pmc360-tutorial-watch-light {
+            background: linear-gradient(
+              135deg,
+              rgba(255, 255, 255, 0.94) 0%,
+              rgba(224, 242, 254, 0.88) 55%,
+              rgba(207, 250, 254, 0.82) 100%
+            );
+            border: 1px solid rgba(6, 182, 212, 0.42);
+            color: #0c4a6e;
+            box-shadow:
+              0 8px 22px rgba(6, 182, 212, 0.14),
+              inset 0 1px 0 rgba(255, 255, 255, 0.92);
+            backdrop-filter: blur(16px) saturate(1.2);
+            -webkit-backdrop-filter: blur(16px) saturate(1.2);
+        }
+        .pmc360-tutorial-watch-light:hover {
+            border-color: rgba(6, 182, 212, 0.62);
+            background: linear-gradient(
+              135deg,
+              rgba(255, 255, 255, 0.98) 0%,
+              rgba(186, 230, 253, 0.92) 100%
+            );
+            color: #075985;
+            box-shadow:
+              0 10px 26px rgba(6, 182, 212, 0.2),
+              inset 0 1px 0 rgba(255, 255, 255, 1);
+        }
+        .pmc360-tutorial-watch-dark {
+            background: linear-gradient(
+              135deg,
+              rgba(11, 29, 54, 0.88) 0%,
+              rgba(8, 47, 73, 0.82) 100%
+            );
+            border: 1px solid rgba(103, 232, 249, 0.32);
+            color: #a5f3fc;
+            box-shadow:
+              0 8px 22px rgba(0, 0, 0, 0.28),
+              inset 0 1px 0 rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(16px) saturate(1.25);
+            -webkit-backdrop-filter: blur(16px) saturate(1.25);
+        }
+        .pmc360-tutorial-watch-dark:hover {
+            border-color: rgba(103, 232, 249, 0.52);
+            color: #ecfeff;
+            box-shadow:
+              0 10px 26px rgba(6, 182, 212, 0.12),
+              inset 0 1px 0 rgba(255, 255, 255, 0.14);
         }
         ::-webkit-scrollbar {
             width: 6px;

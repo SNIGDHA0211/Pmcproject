@@ -36,6 +36,7 @@ import { projectApi, unwrapList } from '../../services/api';
 import { projectStore } from '../../stores/projectStore';
 import { ModalPortal } from '../ModalPortal';
 import DashboardToastStack, { type DashboardToastItem } from '../DashboardToastStack';
+import TutorialVideosPanel from '../tutorialVideos/TutorialVideosPanel';
 import { getThemeClasses, useTheme } from '../../utils/theme';
 import { useDebouncedValue } from '../../hooks/useDebouncedValue';
 import { isAbortError } from '../../utils/isAbortError';
@@ -1517,6 +1518,7 @@ const UserManagementPage: React.FC<UserManagementPageProps> = ({
       </ModalPortal>
 
       <DashboardToastStack toasts={toasts} />
+      <TutorialVideosPanel section="user_management" />
     </div>
   );
 };

@@ -11,6 +11,7 @@ import {
 import DashboardCardTopAccent from '../DashboardCardTopAccent';
 import { Icons } from '../Icons';
 import SitePhotoDeleteDialog from './SitePhotoDeleteDialog';
+import TutorialVideosPanel from '../tutorialVideos/TutorialVideosPanel';
 import SitePhotoFilters from './SitePhotoFilters';
 import SitePhotoGalleryGrid from './SitePhotoGalleryGrid';
 import SitePhotoGallerySkeleton from './SitePhotoGallerySkeleton';
@@ -317,6 +318,8 @@ const SitePhotosManagement: React.FC<SitePhotosManagementProps> = ({ projects = 
         onConfirm={handleDeleteConfirm}
         isDeleting={isDeleting}
       />
+
+      <TutorialVideosPanel section="site_photos" />
     </div>
   );
 };

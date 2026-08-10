@@ -23,6 +23,8 @@ import PMCExecutiveOverviewPanel, {
   type ExecutiveQualitySnapshot,
 } from './PMCExecutiveOverviewPanel';
 import { usePmcExecutiveTheme } from '../../utils/pmcExecutiveTheme';
+import TutorialWatchButton from '../tutorialVideos/TutorialWatchButton';
+import type { TutorialSectionKey } from '../../utils/tutorialVideosSections';
 
 const PROJECT_SWITCH_LOGS = [
   'Connecting to project workspace…',
@@ -86,6 +88,8 @@ interface PMCHeadExecutiveShellProps {
   pvaVelocity?: import('./PMCExecutiveOverviewPanel').ExecutivePvaVelocityData | null;
   bgStatusSnapshot?: import('./PMCExecutiveOverviewPanel').ExecutiveBgStatusSnapshot | null;
   cashInflowSnapshot?: import('./PMCExecutiveOverviewPanel').ExecutiveCashInflowSnapshot | null;
+  /** Tutorial section key for Watch Tutorial in the header (Projects module default). */
+  tutorialSection?: TutorialSectionKey;
 }
 
 const TABS: { id: PMCExecutiveTab; label: string }[] = [
@@ -122,6 +126,7 @@ const PMCHeadExecutiveShell: React.FC<PMCHeadExecutiveShellProps> = ({
   pvaVelocity = null,
   bgStatusSnapshot = null,
   cashInflowSnapshot = null,
+  tutorialSection = 'projects',
 }) => {
   const ex = usePmcExecutiveTheme();
   const briefRef = useRef<string>('');
@@ -417,7 +422,8 @@ const PMCHeadExecutiveShell: React.FC<PMCHeadExecutiveShellProps> = ({
             </div>
           </div>
 
-          <div className="flex shrink-0 flex-wrap gap-1.5">
+          <div className="flex shrink-0 flex-wrap items-center justify-end gap-1.5">
+            <TutorialWatchButton section={tutorialSection} variant="shell" />
             <button type="button" onClick={onExport} className={ex.shellBtnSecondary}>
               <Download size={14} />
               Export

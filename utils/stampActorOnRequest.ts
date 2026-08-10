@@ -11,6 +11,8 @@ const SKIP_URL_PARTS = [
   '/testing-documents/',
   '/site-images/',
   '/project-feedback/',
+  // Tutorial upload FormData must contain ONLY title/description/section/upload.
+  '/tutorial-videos/',
   // Init serializer rejects actor stamp keys (created_by_*, sender_*, updated_by_*).
   '/projects/init/',
 ];

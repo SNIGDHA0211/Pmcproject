@@ -23,6 +23,8 @@ import {
 } from 'lucide-react';
 import { DPR, Project, User } from '../types';
 import { ROLE_LABELS } from '../constants';
+import TutorialVideosPanel from './tutorialVideos/TutorialVideosPanel';
+import TutorialWatchButton from './tutorialVideos/TutorialWatchButton';
 import { useTheme, getThemeClasses } from '../utils/theme';
 import { getPmcExecutiveTheme } from '../utils/pmcExecutiveTheme';
 import type { HealthLabel, ProjectVital, ProjectVitalsCard, VitalStatus } from '../utils/projectVitals';
@@ -127,10 +129,10 @@ const ThemeFilterSelect: React.FC<{
         aria-label={ariaLabel}
         aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
-        className={`flex h-10 w-full items-center justify-between gap-2 rounded-xl border px-3 pr-2.5 text-left text-xs font-bold outline-none transition-all focus:ring-2 focus:ring-blue-500/30 sm:text-sm ${
+        className={`flex h-10 w-full items-center justify-between gap-2 rounded-xl px-3 pr-2.5 text-left text-xs font-bold outline-none transition-all focus:ring-2 focus:ring-blue-500/30 sm:text-sm ${
           isDark
-            ? 'border-white/15 bg-[#0f2744] text-slate-100 hover:border-white/25'
-            : 'border-slate-200 bg-white text-slate-700 shadow-sm hover:border-slate-300'
+            ? 'pmc360-glass-input-dark text-slate-100 hover:border-cyan-400/35'
+            : 'pmc360-glass-input-light text-slate-700 hover:border-slate-400'
         }`}
       >
         <span className="truncate">{selected}</span>
@@ -143,10 +145,10 @@ const ThemeFilterSelect: React.FC<{
       </button>
       {open && (
         <ul
-          className={`absolute right-0 z-50 mt-1.5 max-h-56 min-w-full overflow-y-auto rounded-xl border py-1 shadow-xl ${
+          className={`absolute right-0 z-50 mt-1.5 max-h-56 min-w-full overflow-y-auto rounded-xl py-1 ${
             isDark
-              ? 'border-white/15 bg-[#0f2744] text-slate-100'
-              : 'border-slate-200 bg-white text-slate-700'
+              ? 'pmc360-glass-panel-dark text-slate-100'
+              : 'pmc360-glass-panel-light text-slate-700'
           }`}
           role="listbox"
         >
@@ -254,10 +256,8 @@ const KpiStatCard: React.FC<{
   delayMs?: number;
 }> = ({ label, value, hint, color, isDark, delayMs = 0 }) => (
   <div
-    className={`group flex min-h-[7rem] flex-col justify-between rounded-2xl border p-4 shadow-sm transition-all duration-500 hover:-translate-y-1 hover:shadow-lg animate-in fade-in slide-in-from-bottom-2 ${
-      isDark
-        ? 'border-white/10 bg-[#0f2744]/90 backdrop-blur-sm'
-        : 'border-slate-200/80 bg-white'
+    className={`group flex min-h-[7rem] flex-col justify-between rounded-2xl p-4 transition-all duration-500 hover:-translate-y-1 animate-in fade-in slide-in-from-bottom-2 ${
+      isDark ? 'pmc360-glass-dark' : 'pmc360-glass-light'
     }`}
     style={{ animationDelay: `${delayMs}ms`, animationFillMode: 'both' }}
   >
@@ -390,11 +390,9 @@ const ProjectGridCard: React.FC<{
 
   return (
     <article
-      className={`group relative flex h-full flex-col overflow-hidden rounded-2xl border transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg animate-in fade-in slide-in-from-bottom-2 ${
-        isDark
-          ? 'border-white/10 bg-[#0b1d36]/95 shadow-[0_6px_20px_rgba(0,0,0,0.28)]'
-          : 'border-slate-200 bg-white shadow-[0_2px_14px_rgba(15,23,42,0.05)]'
-      } ${selected ? (isDark ? 'ring-2 ring-cyan-400/40' : 'ring-2 ring-cyan-500/25 ring-offset-1') : ''}`}
+      className={`group relative flex h-full flex-col overflow-hidden rounded-2xl transition-all duration-300 hover:-translate-y-0.5 animate-in fade-in slide-in-from-bottom-2 ${
+        isDark ? 'pmc360-glass-dark' : 'pmc360-glass-light'
+      } ${selected ? (isDark ? 'ring-2 ring-cyan-400/50' : 'ring-2 ring-cyan-500/35 ring-offset-1 ring-offset-transparent') : ''}`}
       style={{
         animationDelay: `${Math.min(index, 12) * 35}ms`,
         animationFillMode: 'both',
@@ -407,7 +405,9 @@ const ProjectGridCard: React.FC<{
         <div className="flex items-start gap-3">
           <div
             className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${
-              isDark ? 'bg-white/5 text-cyan-300' : 'bg-slate-50 text-slate-700'
+              isDark
+                ? 'bg-cyan-500/15 text-cyan-300 ring-1 ring-cyan-400/25'
+                : 'bg-cyan-50/80 text-cyan-800 ring-1 ring-cyan-200/70'
             }`}
           >
             <TypeIcon size={20} strokeWidth={1.8} />
@@ -425,8 +425,8 @@ const ProjectGridCard: React.FC<{
             </p>
             <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
               <span
-                className={`inline-flex rounded-full border px-2 py-0.5 text-[9px] font-black uppercase tracking-wide ${
-                  isDark ? 'border-white/15 bg-white/5' : 'border-slate-200 bg-white'
+                className={`inline-flex rounded-full border px-2 py-0.5 text-[9px] font-black uppercase tracking-wide backdrop-blur-sm ${
+                  isDark ? 'border-white/20 bg-white/10' : 'border-white/60 bg-white/55'
                 }`}
                 style={{ color: tone, borderColor: `${tone}55` }}
                 title="Project health status from overview API"
@@ -649,10 +649,10 @@ const InitializeProjectGridCard: React.FC<{
   <button
     type="button"
     onClick={onClick}
-    className={`group flex h-full min-h-[14rem] w-full flex-col items-center justify-center gap-3 rounded-2xl border border-dashed p-6 text-center transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40 ${
+    className={`group flex h-full min-h-[14rem] w-full flex-col items-center justify-center gap-3 rounded-2xl border border-dashed p-6 text-center transition-all duration-300 hover:-translate-y-0.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500/40 ${
       isDark
-        ? 'border-cyan-400/35 bg-cyan-500/5 hover:border-cyan-300/50 hover:bg-cyan-500/10'
-        : 'border-slate-300 bg-white hover:border-blue-400 hover:bg-blue-50/60'
+        ? 'border-cyan-400/45 bg-cyan-500/10 backdrop-blur-md hover:border-cyan-300/60 hover:bg-cyan-500/15'
+        : 'border-cyan-400/50 bg-cyan-50/45 backdrop-blur-md hover:border-cyan-500/70 hover:bg-cyan-50/70'
     }`}
     aria-label="Initialize Project — create a new project"
   >
@@ -660,7 +660,7 @@ const InitializeProjectGridCard: React.FC<{
       className={`flex h-14 w-14 items-center justify-center rounded-2xl border transition-transform duration-300 group-hover:scale-105 ${
         isDark
           ? 'border-cyan-400/40 bg-cyan-500/15 text-cyan-200'
-          : 'border-blue-200 bg-blue-50 text-blue-700'
+          : 'border-cyan-300/70 bg-white/50 text-cyan-800'
       }`}
     >
       <Plus size={28} strokeWidth={2.4} />
@@ -685,7 +685,7 @@ const InitializeProjectGridCard: React.FC<{
       className={`mt-1 inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-wide ${
         isDark
           ? 'bg-cyan-500/15 text-cyan-200'
-          : 'bg-slate-900 text-white'
+          : 'bg-cyan-600/90 text-white backdrop-blur-sm'
       }`}
     >
       Initialize Project
@@ -990,7 +990,9 @@ const PMCHead360Dashboard: React.FC<PMCHead360DashboardProps> = ({
   if (!isLoadingVitals && !loadError && allCards.length === 0 && !debouncedSearch && clientFilter === 'all') {
     return (
       <div
-        className={`flex min-h-[400px] flex-col items-center justify-center rounded-3xl border p-8 text-center ${themeClasses.glassCard} ${themeClasses.border}`}
+        className={`flex min-h-[400px] flex-col items-center justify-center rounded-3xl p-8 text-center ${
+          isDarkTheme ? 'pmc360-glass-panel-dark' : 'pmc360-glass-panel-light'
+        }`}
       >
         <FileText className={`mb-4 ${themeClasses.textMuted}`} size={48} />
         <h3 className={`text-xl font-black uppercase tracking-tight ${themeClasses.textPrimary}`}>
@@ -1005,9 +1007,35 @@ const PMCHead360Dashboard: React.FC<PMCHead360DashboardProps> = ({
 
   return (
     <div className="animate-in fade-in space-y-4 pb-36 duration-500 sm:pb-40">
-      {/* Header */}
-      <div className="space-y-3">
-        <div className="min-w-0">
+      {/* Header — construction hero */}
+      <div className="pmc360-hero">
+        <div
+          className="pmc360-hero-photo"
+          style={{ backgroundImage: "url(/images/construction-cranes-bg.jpg)" }}
+          aria-hidden
+        />
+        <div
+          className={`pointer-events-none absolute inset-0 ${
+            isDarkTheme ? 'pmc360-hero-wash-dark' : 'pmc360-hero-wash-light'
+          }`}
+          aria-hidden
+        />
+        <div
+          className={`pointer-events-none absolute inset-0 bg-cover bg-center mix-blend-soft-light ${
+            isDarkTheme ? 'opacity-[0.16]' : 'opacity-[0.1]'
+          }`}
+          style={{
+            backgroundImage: isDarkTheme
+              ? 'url(/images/blueprint-dark.png)'
+              : 'url(/images/blueprint-light.png)',
+          }}
+          aria-hidden
+        />
+        <div className="relative space-y-3 p-4 sm:p-5">
+        <div className="absolute right-4 top-4 z-10 sm:right-5 sm:top-5">
+          <TutorialWatchButton section="overview" variant="hero" isDark={isDarkTheme} />
+        </div>
+        <div className="min-w-0 pr-[8.5rem] sm:pr-44">
           <p className={`text-[10px] font-black uppercase tracking-[0.2em] ${ex.isDark ? 'text-slate-400' : 'text-slate-500'}`}>
             {ROLE_LABELS[user.role] || 'PMC Head'}
           </p>
@@ -1016,14 +1044,14 @@ const PMCHead360Dashboard: React.FC<PMCHead360DashboardProps> = ({
               Project 360° Overview
             </h1>
             <span
-              className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-bold ${
+              className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-bold backdrop-blur-sm ${
                 isLoadingVitals
                   ? isDarkTheme
                     ? 'border-amber-500/30 bg-amber-500/10 text-amber-300'
-                    : 'border-amber-200 bg-amber-50 text-amber-700'
+                    : 'border-amber-200 bg-amber-50/80 text-amber-700'
                   : isDarkTheme
                     ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300'
-                    : 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                    : 'border-emerald-200 bg-emerald-50/80 text-emerald-700'
               }`}
             >
               <span
@@ -1039,16 +1067,19 @@ const PMCHead360Dashboard: React.FC<PMCHead360DashboardProps> = ({
               disabled={isLoadingVitals}
               title="Refresh live data from server"
               aria-label="Refresh live data from server"
-              className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-bold transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
+              className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-bold transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
                 isDarkTheme
-                  ? 'border-white/15 bg-white/5 text-slate-200 hover:bg-white/10'
-                  : 'border-slate-200 bg-white text-slate-600 shadow-sm hover:bg-slate-50'
+                  ? 'pmc360-glass-input-dark text-slate-200 hover:border-cyan-400/35'
+                  : 'pmc360-glass-input-light text-slate-600 hover:border-slate-400'
               }`}
             >
               <RefreshCw size={12} className={isLoadingVitals ? 'animate-spin' : ''} />
               Refresh
             </button>
           </div>
+          <p className={`mt-1.5 max-w-2xl text-xs font-semibold sm:text-sm ${ex.muted}`}>
+            Live portfolio command center — site health, billing, and delivery at a glance.
+          </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
@@ -1059,10 +1090,10 @@ const PMCHead360Dashboard: React.FC<PMCHead360DashboardProps> = ({
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search projects…"
-              className={`h-10 w-full rounded-xl border pl-8 pr-3 text-xs outline-none transition-shadow focus:ring-2 focus:ring-blue-500/30 sm:text-sm ${
+              className={`h-10 w-full rounded-xl pl-8 pr-3 text-xs outline-none transition-shadow focus:ring-2 focus:ring-blue-500/30 sm:text-sm ${
                 isDarkTheme
-                  ? 'border-white/15 bg-[#0f2744] text-slate-100 placeholder:text-slate-500'
-                  : 'border-slate-200 bg-white text-slate-800 shadow-sm placeholder:text-slate-400'
+                  ? 'pmc360-glass-input-dark text-slate-100 placeholder:text-slate-500'
+                  : 'pmc360-glass-input-light text-slate-800 placeholder:text-slate-400'
               }`}
             />
           </div>
@@ -1134,15 +1165,16 @@ const PMCHead360Dashboard: React.FC<PMCHead360DashboardProps> = ({
           />
 
           <div
-            className={`inline-flex h-10 shrink-0 items-center gap-1.5 rounded-xl border px-3 text-[11px] font-bold ${
+            className={`inline-flex h-10 shrink-0 items-center gap-1.5 rounded-xl px-3 text-[11px] font-bold ${
               isDarkTheme
-                ? 'border-white/15 bg-[#0f2744] text-slate-300'
-                : 'border-slate-200 bg-white text-slate-600 shadow-sm'
+                ? 'pmc360-glass-input-dark text-slate-300'
+                : 'pmc360-glass-input-light text-slate-600'
             }`}
           >
             <CalendarDays size={14} />
             {todayLabel}
           </div>
+        </div>
         </div>
       </div>
 
@@ -1171,27 +1203,35 @@ const PMCHead360Dashboard: React.FC<PMCHead360DashboardProps> = ({
 
       {/* Portfolio summary strip */}
       <section
-        className={`relative overflow-hidden rounded-3xl border p-4 sm:p-5 ${
-          isDarkTheme
-            ? 'border-white/10 bg-[#071428]/80'
-            : 'border-slate-200 bg-slate-50/90'
+        className={`relative overflow-hidden rounded-3xl p-4 sm:p-5 ${
+          isDarkTheme ? 'pmc360-glass-panel-dark' : 'pmc360-glass-panel-light'
         }`}
       >
         <div
-          className={`pointer-events-none absolute inset-0 ${isDarkTheme ? 'opacity-[0.08]' : 'opacity-[0.05]'}`}
+          className={`pointer-events-none absolute inset-0 ${isDarkTheme ? 'opacity-[0.14]' : 'opacity-[0.1]'}`}
           style={{
-            backgroundImage:
-              "url('https://images.unsplash.com/photo-1541888946425-d81bb19240f5?auto=format&fit=crop&w=1600&q=60')",
+            backgroundImage: "url(/images/construction-cranes-bg.jpg)",
             backgroundSize: 'cover',
             backgroundPosition: 'center',
           }}
+          aria-hidden
         />
         <div
           className={`pointer-events-none absolute inset-0 ${
-            isDarkTheme
-              ? 'bg-gradient-to-br from-[#0b1d36]/90 via-[#0b1d36]/70 to-transparent'
-              : 'bg-gradient-to-br from-white/90 via-slate-50/80 to-transparent'
+            isDarkTheme ? 'pmc360-hero-wash-dark' : 'pmc360-hero-wash-light'
           }`}
+          aria-hidden
+        />
+        <div
+          className={`pointer-events-none absolute inset-0 bg-cover bg-center mix-blend-soft-light ${
+            isDarkTheme ? 'opacity-[0.14]' : 'opacity-[0.09]'
+          }`}
+          style={{
+            backgroundImage: isDarkTheme
+              ? 'url(/images/blueprint-dark.png)'
+              : 'url(/images/blueprint-light.png)',
+          }}
+          aria-hidden
         />
         <h2 className={`relative mb-3 text-[10px] font-black uppercase tracking-widest ${ex.muted}`}>
           Portfolio health at a glance
@@ -1215,10 +1255,8 @@ const PMCHead360Dashboard: React.FC<PMCHead360DashboardProps> = ({
             delayMs={80}
           />
           <div
-            className={`col-span-2 flex flex-col justify-center rounded-2xl border px-3 py-4 shadow-sm lg:col-span-1 ${
-              isDarkTheme
-                ? 'border-white/10 bg-[#0f2744]/95'
-                : 'border-slate-200 bg-white'
+            className={`col-span-2 flex flex-col justify-center rounded-2xl px-3 py-4 lg:col-span-1 ${
+              isDarkTheme ? 'pmc360-glass-dark' : 'pmc360-glass-light'
             }`}
           >
             <BriefingGauge score={portfolio.portfolioScore} isDark={isDarkTheme} />
@@ -1256,8 +1294,10 @@ const PMCHead360Dashboard: React.FC<PMCHead360DashboardProps> = ({
 
         {showScoreFormulas && (
           <div
-            className={`relative mt-4 space-y-3 rounded-2xl border p-3.5 text-[11px] leading-relaxed sm:p-4 ${
-              isDarkTheme ? 'border-white/10 bg-black/20 text-slate-300' : 'border-slate-200 bg-white text-slate-600'
+            className={`relative mt-4 space-y-3 rounded-2xl p-3.5 text-[11px] leading-relaxed sm:p-4 ${
+              isDarkTheme
+                ? 'pmc360-glass-dark text-slate-300'
+                : 'pmc360-glass-light text-slate-600'
             }`}
             role="region"
             aria-label="How portfolio scores are calculated"
@@ -1326,14 +1366,14 @@ const PMCHead360Dashboard: React.FC<PMCHead360DashboardProps> = ({
               type="button"
               onClick={() => setShowCardGuide((v) => !v)}
               aria-expanded={showCardGuide}
-              className={`inline-flex items-center gap-1.5 rounded-xl border px-3 py-2 text-[10px] font-black uppercase tracking-wide transition-all ${
+              className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-2 text-[10px] font-black uppercase tracking-wide transition-all ${
                 showCardGuide
                   ? isDarkTheme
-                    ? 'border-cyan-400/40 bg-cyan-500/15 text-cyan-200'
-                    : 'border-cyan-500/40 bg-cyan-50 text-cyan-800'
+                    ? 'border border-cyan-400/40 bg-cyan-500/15 text-cyan-200'
+                    : 'border border-cyan-500/40 bg-cyan-50/80 text-cyan-800'
                   : isDarkTheme
-                    ? 'border-white/15 text-slate-300 hover:bg-white/5'
-                    : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50 shadow-sm'
+                    ? 'pmc360-glass-input-dark text-slate-300 hover:border-cyan-400/35'
+                    : 'pmc360-glass-input-light text-slate-600 hover:border-slate-400'
               }`}
             >
               <HelpCircle size={14} strokeWidth={2.2} />
@@ -1344,10 +1384,8 @@ const PMCHead360Dashboard: React.FC<PMCHead360DashboardProps> = ({
 
         {showCardGuide && (
           <div
-            className={`mb-4 rounded-2xl border p-4 shadow-sm animate-in fade-in slide-in-from-top-2 ${
-              isDarkTheme
-                ? 'border-cyan-400/20 bg-[#0f2744]/90'
-                : 'border-cyan-200/80 bg-white'
+            className={`mb-4 rounded-2xl p-4 animate-in fade-in slide-in-from-top-2 ${
+              isDarkTheme ? 'pmc360-glass-panel-dark' : 'pmc360-glass-panel-light'
             }`}
             role="region"
             aria-label="Project card meaning guide"
@@ -1413,8 +1451,8 @@ const PMCHead360Dashboard: React.FC<PMCHead360DashboardProps> = ({
               ].map((item) => (
                 <li
                   key={item.title}
-                  className={`rounded-xl border px-3 py-2.5 ${
-                    isDarkTheme ? 'border-white/10 bg-white/5' : 'border-slate-100 bg-slate-50/80'
+                  className={`rounded-xl px-3 py-2.5 ${
+                    isDarkTheme ? 'pmc360-glass-dark' : 'pmc360-glass-light'
                   }`}
                 >
                   <p className={`text-[11px] font-black ${ex.heading}`}>{item.title}</p>
@@ -1430,8 +1468,8 @@ const PMCHead360Dashboard: React.FC<PMCHead360DashboardProps> = ({
             {Array.from({ length: 8 }).map((_, i) => (
               <div
                 key={`skeleton-${i}`}
-                className={`h-56 animate-pulse rounded-2xl border ${
-                  isDarkTheme ? 'border-white/10 bg-white/5' : 'border-slate-200 bg-slate-100'
+                className={`h-56 animate-pulse rounded-2xl ${
+                  isDarkTheme ? 'pmc360-glass-dark' : 'pmc360-glass-light'
                 }`}
               />
             ))}
@@ -1496,10 +1534,8 @@ const PMCHead360Dashboard: React.FC<PMCHead360DashboardProps> = ({
 
       {/* Sticky compare tray */}
       <div
-        className={`fixed inset-x-3 bottom-3 z-30 mx-auto max-w-[1600px] rounded-2xl border p-3 shadow-2xl backdrop-blur-md md:inset-x-4 md:bottom-4 md:left-[calc(var(--app-sidebar-width,15.5rem)+1rem)] md:p-4 ${
-          isDarkTheme
-            ? 'border-white/15 bg-[#0b1d36]/95'
-            : 'border-slate-200 bg-white/95'
+        className={`fixed inset-x-3 bottom-3 z-30 mx-auto max-w-[1600px] rounded-2xl p-3 md:inset-x-4 md:bottom-4 md:left-[calc(var(--app-sidebar-width,15.5rem)+1rem)] md:p-4 ${
+          isDarkTheme ? 'pmc360-glass-panel-dark' : 'pmc360-glass-panel-light'
         }`}
       >
         <div className="mb-2.5 flex flex-wrap items-center justify-between gap-2">
@@ -1547,14 +1583,14 @@ const PMCHead360Dashboard: React.FC<PMCHead360DashboardProps> = ({
               return (
                 <div
                   key={card.projectId}
-                  className={`rounded-xl border p-2.5 transition-all duration-300 hover:shadow-md ${
-                    isDarkTheme ? 'border-white/10 bg-white/5' : 'border-slate-100 bg-slate-50'
+                  className={`rounded-xl p-2.5 transition-all duration-300 ${
+                    isDarkTheme ? 'pmc360-glass-dark' : 'pmc360-glass-light'
                   }`}
                 >
                   <div className="mb-2 flex items-start gap-2">
                     <div
-                      className={`flex h-10 w-10 shrink-0 flex-col items-center justify-center rounded-xl border text-[11px] font-black tabular-nums ${
-                        isDarkTheme ? 'bg-white/5' : 'bg-white'
+                      className={`flex h-10 w-10 shrink-0 flex-col items-center justify-center rounded-xl border text-[11px] font-black tabular-nums backdrop-blur-sm ${
+                        isDarkTheme ? 'bg-white/10' : 'bg-white/55'
                       }`}
                       style={{ borderColor: `${color}66`, color }}
                     >
@@ -1599,6 +1635,8 @@ const PMCHead360Dashboard: React.FC<PMCHead360DashboardProps> = ({
           </div>
         )}
       </div>
+
+      <TutorialVideosPanel section="overview" hideWatchButton />
     </div>
   );
 };

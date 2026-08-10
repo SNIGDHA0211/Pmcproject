@@ -431,6 +431,13 @@ export const API_ENDPOINTS = {
     BY_PROJECT: (projectName: string) =>
       `/meeting-documents/project/${encodeURIComponent(projectName)}/`,
   },
+
+  TUTORIAL_VIDEOS: {
+    LIST: '/tutorial-videos/',
+    DETAIL: (id: string | number) => `/tutorial-videos/${id}/`,
+    VIEW: (id: string | number) => `/tutorial-videos/${id}/view/`,
+    REPROCESS: (id: string | number) => `/tutorial-videos/${id}/reprocess/`,
+  },
 };
 
 /**

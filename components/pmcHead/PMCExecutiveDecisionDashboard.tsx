@@ -75,7 +75,7 @@ const statusSurface = (status: ActionableKpi['status'], isDark: boolean) => {
       ? 'border-emerald-500/30 bg-emerald-500/10'
       : 'border-emerald-200 bg-emerald-50/80';
   }
-  return isDark ? 'border-white/10 bg-white/[0.03]' : 'border-slate-200 bg-white';
+  return isDark ? 'border-white/10 bg-white/[0.06] backdrop-blur-sm' : 'border-cyan-100/70 bg-white/60 backdrop-blur-md';
 };
 
 const statusDot = (status: ActionableKpi['status']) => {
@@ -129,8 +129,8 @@ const CardShell: React.FC<{
   isDark: boolean;
 }> = ({ children, className = '', isDark }) => (
   <div
-    className={`rounded-2xl border p-3.5 shadow-sm sm:p-4 ${
-      isDark ? 'border-white/10 bg-[#0b1d36]/80' : 'border-slate-200/90 bg-white'
+    className={`rounded-2xl p-3.5 sm:p-4 ${
+      isDark ? 'pmc360-glass-panel-dark' : 'pmc360-glass-panel-light'
     } ${className}`}
   >
     {children}

@@ -16,6 +16,7 @@ import { PendingUpdateDetail, PendingUpdateUserCard } from './alerts/PendingUpda
 import { Icons } from './Icons';
 import { getThemeClasses, useTheme } from '../utils/theme';
 import type { PendingUpdatesSummary } from '../utils/pmcHeadPendingUpdates';
+import TutorialVideosPanel from './tutorialVideos/TutorialVideosPanel';
 
 interface AlertsPageProps {
   notifications: AppNotification[];
@@ -383,6 +384,8 @@ const AlertsPage: React.FC<AlertsPageProps> = ({
           </div>
         </div>
       </div>
+
+      <TutorialVideosPanel section="alerts" />
     </div>
   );
 };

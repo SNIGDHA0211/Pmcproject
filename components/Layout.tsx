@@ -477,18 +477,23 @@ const Layout: React.FC<LayoutProps> = ({
   }, [activeTab, visibleNavigation]);
 
   return (
-    <div
-      className={`relative h-screen overflow-hidden ${isDarkTheme ? "bg-slate-900" : "bg-gradient-to-br from-blue-50 to-indigo-100"}`}
-    >
-      {isDarkTheme && (
-        <div
-          className="absolute inset-0 bg-cover bg-center opacity-20"
-          style={{
-            backgroundImage: "url(/images/construction-bg.jpg)",
-            backgroundColor: "rgb(15 23 42)", // Fallback background
-          }}
-        />
-      )}
+    <div className={`relative h-screen overflow-hidden ${isDarkTheme ? 'bg-[#071428]' : 'bg-slate-100'}`}>
+      <div
+        className={`absolute inset-0 bg-cover bg-center ${isDarkTheme ? 'opacity-[0.45]' : 'opacity-[0.38]'}`}
+        style={{
+          backgroundImage: "url(/images/construction-cranes-bg.jpg)",
+          backgroundPosition: 'center 35%',
+        }}
+        aria-hidden
+      />
+      <div
+        className={`pointer-events-none absolute inset-0 ${
+          isDarkTheme
+            ? 'bg-gradient-to-br from-[#071428]/75 via-[#0b1d36]/55 to-[#071428]/7'
+            : 'bg-gradient-to-br from-white/70 via-slate-50/55 to-cyan-50/40'
+        }`}
+        aria-hidden
+      />
       <div
         className={`flex h-full overflow-hidden relative z-10 animate-fade-in ${isDarkTheme ? 'text-white' : 'text-gray-900'}`}
         style={{ '--app-sidebar-width': sidebarWidthCss } as React.CSSProperties}
@@ -512,7 +517,7 @@ const Layout: React.FC<LayoutProps> = ({
           >
             <div
               className={`sidebar-header border-b px-3 pb-2.5 pt-3 ${
-                isDarkTheme ? 'border-white/10' : 'border-slate-200/80'
+                isDarkTheme ? 'border-cyan-400/15' : 'border-cyan-200/50'
               }`}
             >
               <div className="flex items-center justify-between gap-2">
@@ -613,7 +618,7 @@ const Layout: React.FC<LayoutProps> = ({
                       >
                         {index > 0 && (
                           <div
-                            className={`mb-2 h-px w-full ${isDarkTheme ? 'bg-white/10' : 'bg-slate-200/90'}`}
+                            className={`mb-2 h-px w-full ${isDarkTheme ? 'bg-cyan-400/15' : 'bg-cyan-200/60'}`}
                             aria-hidden
                           />
                         )}
@@ -621,8 +626,8 @@ const Layout: React.FC<LayoutProps> = ({
                           type="button"
                           className={`sidebar-section-toggle sidebar-chrome group flex w-full items-start gap-2 rounded-xl px-2 py-1.5 text-left transition-colors ${
                             isDarkTheme
-                              ? 'hover:bg-white/[0.04]'
-                              : 'hover:bg-slate-100/80'
+                              ? 'hover:bg-cyan-400/[0.07]'
+                              : 'hover:bg-cyan-50/70'
                           }`}
                           onClick={() => toggleSectionCollapsed(sectionLabel)}
                           aria-expanded={!collapsedSections[sectionLabel]}
@@ -635,7 +640,7 @@ const Layout: React.FC<LayoutProps> = ({
                           <span className="min-w-0 flex-1">
                             <span
                               className={`sidebar-section-label block text-[10px] font-black uppercase tracking-[0.14em] ${
-                                isDarkTheme ? 'text-slate-400' : 'text-slate-500'
+                                isDarkTheme ? 'text-cyan-300/65' : 'text-cyan-800/55'
                               }`}
                             >
                               {sectionMeta.title}
@@ -715,7 +720,7 @@ const Layout: React.FC<LayoutProps> = ({
 
             <div
               className={`sidebar-footer mt-auto border-t ${
-                isDarkTheme ? 'border-white/10' : 'border-slate-200/80'
+                isDarkTheme ? 'border-cyan-400/15' : 'border-cyan-200/50'
               }`}
             >
               <div className="sidebar-footer-inner flex flex-col gap-1.5 p-2.5">
@@ -983,13 +988,15 @@ const Layout: React.FC<LayoutProps> = ({
 
           <div
             key={activeTab}
-            className="flex-1 overflow-y-auto p-4 md:p-8 scroll-smooth animate-fade-in"
+            className={`app-main-scroll relative flex-1 overflow-y-auto scroll-smooth animate-fade-in ${
+              isDarkTheme ? 'app-main-scroll-dark' : 'app-main-scroll-light'
+            }`}
             onClick={() => {
               setShowNotifications(false);
               handleMainBodyClick();
             }}
           >
-            {children}
+            <div className="relative z-[1] p-4 md:p-8">{children}</div>
           </div>
         </main>
       </div>

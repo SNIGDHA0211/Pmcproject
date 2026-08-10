@@ -7,6 +7,7 @@ import type {
   CorrespondenceRecipientType,
 } from '../types';
 import DashboardCardTopAccent from './DashboardCardTopAccent';
+import TutorialVideosPanel from './tutorialVideos/TutorialVideosPanel';
 import { Icons } from './Icons';
 import { FullScreenCard, FullScreenHeaderToolbar, useFullScreenExpand } from './FullScreenCard';
 import DashboardChartShell from './DashboardChartShell';
@@ -188,6 +189,8 @@ interface ProjectsProps {
   onTeamLeaderViewChange?: (view: 'overview' | 'full') => void;
   teamLeaderScrollSection?: TeamLeaderOverviewSection | null;
   onTeamLeaderScrollSectionConsumed?: () => void;
+  /** Tutorial Videos section key for this page instance */
+  tutorialSection?: 'overview' | 'projects';
 }
 
 const CONTRACT_VALUE_TYPES: ContractValueType[] = ['SCL', 'Contractor'];
@@ -447,6 +450,7 @@ const Projects: React.FC<ProjectsProps> = ({
   onTeamLeaderViewChange,
   teamLeaderScrollSection = null,
   onTeamLeaderScrollSectionConsumed,
+  tutorialSection = 'projects',
 }) => {
   // Dedicated stable refs for critical final walkthrough steps (Project Logs, Machinery, Equipment)
   const projectLogsRef = useRef<HTMLDivElement>(null);
@@ -2923,6 +2927,7 @@ const Projects: React.FC<ProjectsProps> = ({
           pvaVelocity={pvaVelocityTrend}
           bgStatusSnapshot={executiveBgStatusSnapshot}
           cashInflowSnapshot={executiveCashInflowSnapshot}
+          tutorialSection={tutorialSection}
         />
       )}
 
@@ -4148,6 +4153,8 @@ const Projects: React.FC<ProjectsProps> = ({
           projectEquipmentRef={projectEquipmentRef}
         />
       )}
+
+      <TutorialVideosPanel section={tutorialSection} />
     </div>
   );
 };
