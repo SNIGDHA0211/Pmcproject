@@ -67,7 +67,11 @@ const TutorialWatchButton: React.FC<TutorialWatchButtonProps> = ({
           size={14}
           strokeWidth={2.5}
           className={
-            isHero ? (isDark ? 'text-cyan-300' : 'text-cyan-600') : undefined
+            isHero
+              ? isDark
+                ? 'text-amber-300'
+                : 'text-amber-700'
+              : undefined
           }
         />
         <span className="hidden min-[420px]:inline">Watch Tutorial</span>

@@ -1011,7 +1011,11 @@ const PMCHead360Dashboard: React.FC<PMCHead360DashboardProps> = ({
       <div className="pmc360-hero">
         <div
           className="pmc360-hero-photo"
-          style={{ backgroundImage: "url(/images/construction-cranes-bg.jpg)" }}
+          style={{
+            backgroundImage: isDarkTheme
+              ? 'url(/images/construction-bg.jpg)'
+              : 'url(/images/construction-cranes-bg.jpg)',
+          }}
           aria-hidden
         />
         <div
@@ -1022,7 +1026,7 @@ const PMCHead360Dashboard: React.FC<PMCHead360DashboardProps> = ({
         />
         <div
           className={`pointer-events-none absolute inset-0 bg-cover bg-center mix-blend-soft-light ${
-            isDarkTheme ? 'opacity-[0.16]' : 'opacity-[0.1]'
+            isDarkTheme ? 'opacity-[0.16]' : 'opacity-[0.08]'
           }`}
           style={{
             backgroundImage: isDarkTheme
@@ -1208,9 +1212,11 @@ const PMCHead360Dashboard: React.FC<PMCHead360DashboardProps> = ({
         }`}
       >
         <div
-          className={`pointer-events-none absolute inset-0 ${isDarkTheme ? 'opacity-[0.14]' : 'opacity-[0.1]'}`}
+          className={`pointer-events-none absolute inset-0 ${isDarkTheme ? 'opacity-[0.14]' : 'opacity-[0.16]'}`}
           style={{
-            backgroundImage: "url(/images/construction-cranes-bg.jpg)",
+            backgroundImage: isDarkTheme
+              ? 'url(/images/construction-bg.jpg)'
+              : 'url(/images/construction-cranes-bg.jpg)',
             backgroundSize: 'cover',
             backgroundPosition: 'center',
           }}

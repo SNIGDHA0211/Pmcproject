@@ -46,6 +46,7 @@ import {
   isProjectCompleted,
 } from "./utils/projectCompletion";
 import { getLoginFailureMessage } from "./utils/loginCredentials";
+import { makeNavReturn, type NavReturnContext } from "./utils/navReturn";
 import { useAuth } from "./contexts/AuthContext";
 import { websocketService, NotificationData } from "./services/websocket";
 import { alertsApi, fetchAllAlerts } from "./services/alertsApi";
@@ -166,7 +167,8 @@ const App: React.FC = () => {
   const [isAnyTourRunning, setIsAnyTourRunning] = useState(false);
   const [financialSection, setFinancialSection] = useState<SubTab>('progress');
   const [financialSectionLocked, setFinancialSectionLocked] = useState(false);
-  const [financialReturnTab, setFinancialReturnTab] = useState<string | null>(null);
+  /** When user drills from an overview into a connected section — Layout Back returns here. */
+  const [navReturn, setNavReturn] = useState<NavReturnContext | null>(null);
   const [financialInitialProjectId, setFinancialInitialProjectId] = useState<string | null>(null);
   const [testingPhotosInitialProjectId, setTestingPhotosInitialProjectId] = useState<string | null>(null);
   const [alertsLoading, setAlertsLoading] = useState(false);
@@ -363,7 +365,7 @@ const App: React.FC = () => {
       setActiveTab("dashboard");
       setSelectedProjectId(null);
       setFinancialSectionLocked(false);
-      setFinancialReturnTab(null);
+      setNavReturn(null);
       setProjectFilter("all");
       return;
     }
@@ -689,6 +691,7 @@ const App: React.FC = () => {
     if (isPmcHeadEquivalent(currentUser)) {
       const moduleKey = (notification.moduleName || "").trim().toLowerCase();
       if (moduleKey === "site photos") {
+        setNavReturn(makeNavReturn('alerts'));
         setActiveTab("site_photos");
         const sitePhotosPath = TAB_PATHS.site_photos;
         if (sitePhotosPath && getAppRoutePath() !== sitePhotosPath) {
@@ -699,6 +702,7 @@ const App: React.FC = () => {
 
       const nav = resolveAlertNavigation(notification);
       if (nav?.tab && isTabAllowedForRole(nav.tab, currentUser!.role, currentUser!.username, currentUser)) {
+        setNavReturn(makeNavReturn('alerts'));
         setActiveTab(nav.tab);
         const navPath = TAB_PATHS[nav.tab];
         if (navPath && getAppRoutePath() !== navPath) {
@@ -707,6 +711,7 @@ const App: React.FC = () => {
         return;
       }
 
+      setNavReturn(makeNavReturn('alerts'));
       setActiveTab("team_projects");
       const targetPath = TAB_PATHS.team_projects;
       if (targetPath && getAppRoutePath() !== targetPath) {
@@ -721,11 +726,15 @@ const App: React.FC = () => {
     if (nav.section) {
       setFinancialSection(normalizeFinancialSubTab(nav.section));
       setFinancialSectionLocked(true);
-      setFinancialReturnTab(nav.returnTab ?? null);
+      setNavReturn(
+        nav.returnTab
+          ? makeNavReturn(nav.returnTab)
+          : makeNavReturn(activeTab === 'alerts' ? 'alerts' : 'team_projects'),
+      );
       if (projectId) setFinancialInitialProjectId(projectId);
     } else {
       setFinancialSectionLocked(false);
-      setFinancialReturnTab(null);
+      setNavReturn(makeNavReturn('alerts'));
     }
 
     setActiveTab(nav.tab);
@@ -1131,6 +1140,7 @@ const App: React.FC = () => {
   };
 
   const handleStatClick = (type: StatType) => {
+    setNavReturn(makeNavReturn('dashboard', 'Overview'));
     switch (type) {
       case "portfolio":
         setActiveTab("projects");
@@ -1155,7 +1165,7 @@ const App: React.FC = () => {
     await authLogout();
     setSelectedProjectId(null);
     setFinancialSectionLocked(false);
-    setFinancialReturnTab(null);
+    setNavReturn(null);
     setProjectFilter("all");
     clearAppRouteOnLogout();
     setActiveTab("dashboard");
@@ -1270,16 +1280,18 @@ const App: React.FC = () => {
     return (
       <div className="min-h-screen w-full relative font-['Inter'] selection:bg-indigo-500 selection:text-white overflow-hidden">
 
-        {/* Background */}
+        {/* Background — login-only night construction site (app shell keeps panorama) */}
         <div
-          className="absolute inset-0 bg-cover bg-center bg-no-repeat"
+          className="absolute inset-0 bg-cover bg-no-repeat opacity-[0.62] saturate-[1.08]"
           style={{
-            backgroundImage: "url(/images/construction-bg.jpg)",
+            backgroundImage: 'url(/images/construction-bg.jpg)',
+            backgroundPosition: 'center center',
           }}
         />
 
-        {/* Overlay */}
-        <div className="absolute inset-0 bg-slate-900/60" />
+        {/* Overlay — navy + warm site-light glow for login readability */}
+        <div className="absolute inset-0 bg-gradient-to-br from-[#0a1420]/88 via-[#121a24]/72 to-[#1a2332]/82" />
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_72%_32%,rgba(230,168,40,0.22)_0%,transparent_52%)]" />
 
         {/* Center Container */}
         <div className="relative z-10 flex min-h-screen items-center justify-center px-4 py-6 sm:px-6 lg:px-8">
@@ -1818,6 +1830,23 @@ const App: React.FC = () => {
           setTeamLeaderProjectsView('overview');
           setTeamLeaderScrollSection(null);
         }}
+        navReturn={navReturn}
+        onNavBack={() => {
+          if (!navReturn) return;
+          const target = navReturn.tab;
+          setNavReturn(null);
+          setFinancialSectionLocked(false);
+          setFinancialInitialProjectId(null);
+          if (target === 'team_projects' && currentUser.role === UserRole.TEAM_LEAD) {
+            setTeamLeaderProjectsView('overview');
+            setTeamLeaderScrollSection(null);
+          }
+          setActiveTab(target);
+          const targetPath = TAB_PATHS[target];
+          if (targetPath && getAppRoutePath() !== targetPath) {
+            syncAppRoutePath(targetPath, "push");
+          }
+        }}
         setActiveTab={(tab) => {
           const nextTab = isTabAllowedForRole(tab, currentUser.role, currentUser.username, currentUser)
             ? tab
@@ -1832,7 +1861,7 @@ const App: React.FC = () => {
             syncAppRoutePath(targetPath, "push");
           }
           setFinancialSectionLocked(false);
-          setFinancialReturnTab(null);
+          setNavReturn(null);
           if (nextTab !== "testing_photos") {
             setTestingPhotosInitialProjectId(null);
           }
@@ -1843,6 +1872,7 @@ const App: React.FC = () => {
         onMarkRead={handleMarkRead}
         onRequestNotifications={handleRequestNotifications}
         onNavigateToAlerts={() => {
+          setNavReturn(null);
           setActiveTab("alerts");
           const targetPath = TAB_PATHS.alerts;
           if (targetPath && getAppRoutePath() !== targetPath) {
@@ -1880,11 +1910,21 @@ const App: React.FC = () => {
               dprs={dprs}
               onViewProject={(id) => {
                 setSelectedProjectId(id);
+                setNavReturn(makeNavReturn('dashboard', 'Overview'));
                 setActiveTab("team_projects");
+                const targetPath = TAB_PATHS.team_projects;
+                if (targetPath && getAppRoutePath() !== targetPath) {
+                  syncAppRoutePath(targetPath, "push");
+                }
               }}
               onInitializeProject={() => {
                 setSelectedProjectId(null);
+                setNavReturn(makeNavReturn('dashboard', 'Overview'));
                 setActiveTab("project_init");
+                const targetPath = TAB_PATHS.project_init;
+                if (targetPath && getAppRoutePath() !== targetPath) {
+                  syncAppRoutePath(targetPath, "push");
+                }
               }}
               onProjectDeleted={(deletedId) => {
                 projectStore.removeProject(deletedId);
@@ -1899,12 +1939,22 @@ const App: React.FC = () => {
               projectDocuments={projectDocuments}
               onViewProject={(id) => {
                 setSelectedProjectId(id);
+                setNavReturn(makeNavReturn('dashboard', 'Overview'));
                 setActiveTab("projects");
+                const targetPath = TAB_PATHS.projects;
+                if (targetPath && getAppRoutePath() !== targetPath) {
+                  syncAppRoutePath(targetPath, "push");
+                }
               }}
               onReviewProjects={() => {
                 setSelectedProjectId(null);
+                setNavReturn(makeNavReturn('dashboard', 'Overview'));
                 setActiveTab("projects");
                 setProjectFilter("attention");
+                const targetPath = TAB_PATHS.projects;
+                if (targetPath && getAppRoutePath() !== targetPath) {
+                  syncAppRoutePath(targetPath, "push");
+                }
               }}
               onStatClick={handleStatClick}
               onSubmitDPR={handleSubmitDPR}
@@ -1914,7 +1964,14 @@ const App: React.FC = () => {
           <SiteEngineerDashboard
             user={currentUser}
             projects={projects}
-            onNavigate={setActiveTab}
+            onNavigate={(tab) => {
+              setNavReturn(makeNavReturn('site_engineer_dashboard', 'Overview'));
+              setActiveTab(tab);
+              const targetPath = TAB_PATHS[tab];
+              if (targetPath && getAppRoutePath() !== targetPath) {
+                syncAppRoutePath(targetPath, "push");
+              }
+            }}
           />
         ) : activeTab === "machinery_list" ? (
           <MachineryList
@@ -1934,7 +1991,7 @@ const App: React.FC = () => {
             onNavigateFinancial={(section, projectId) => {
               setFinancialSection(normalizeBillingFinancialSubTab(section));
               setFinancialSectionLocked(true);
-              setFinancialReturnTab("my_scopes");
+              setNavReturn(makeNavReturn('my_scopes'));
               if (projectId) {
                 setFinancialInitialProjectId(projectId);
               }
@@ -1946,6 +2003,7 @@ const App: React.FC = () => {
             }}
             onNavigateTestingPhotos={(projectId) => {
               setTestingPhotosInitialProjectId(projectId ?? null);
+              setNavReturn(makeNavReturn('my_scopes'));
               setActiveTab("testing_photos");
               const targetPath = TAB_PATHS.testing_photos;
               if (targetPath && getAppRoutePath() !== targetPath) {
@@ -1964,7 +2022,12 @@ const App: React.FC = () => {
             }
             onViewProject={(id) => {
               setSelectedProjectId(id);
+              setNavReturn(makeNavReturn('execution', 'Site Progress'));
               setActiveTab("projects");
+              const targetPath = TAB_PATHS.projects;
+              if (targetPath && getAppRoutePath() !== targetPath) {
+                syncAppRoutePath(targetPath, "push");
+              }
             }}
           />
         ) : activeTab === "team_projects" ? (
@@ -1979,10 +2042,14 @@ const App: React.FC = () => {
               setSelectedProjectId(id);
             }}
             onNavigate={(navData) => {
+              const returnCtx = makeNavReturn(
+                'team_projects',
+                currentUser.role === UserRole.TEAM_LEAD ? 'Overview' : 'Projects',
+              );
               if (typeof navData === 'object' && navData.tab === 'testing_photos') {
                 setTestingPhotosInitialProjectId(navData.projectId ?? null);
                 setFinancialSectionLocked(false);
-                setFinancialReturnTab(null);
+                setNavReturn(returnCtx);
                 setActiveTab('testing_photos');
                 const targetPath = TAB_PATHS.testing_photos;
                 if (targetPath && getAppRoutePath() !== targetPath) {
@@ -1991,7 +2058,9 @@ const App: React.FC = () => {
               } else if (typeof navData === 'object' && navData.tab && navData.section) {
                 setFinancialSection(normalizeFinancialSubTab(navData.section));
                 setFinancialSectionLocked(true);
-                setFinancialReturnTab(navData.returnTab ?? null);
+                setNavReturn(
+                  navData.returnTab ? makeNavReturn(navData.returnTab) : returnCtx,
+                );
                 setActiveTab(navData.tab);
                 const targetPath = TAB_PATHS[navData.tab];
                 if (targetPath && getAppRoutePath() !== targetPath) {
@@ -1999,7 +2068,7 @@ const App: React.FC = () => {
                 }
               } else if (typeof navData === 'string') {
                 setFinancialSectionLocked(false);
-                setFinancialReturnTab(null);
+                setNavReturn(returnCtx);
                 setActiveTab(navData);
                 const targetPath = TAB_PATHS[navData];
                 if (targetPath && getAppRoutePath() !== targetPath) {
@@ -2261,16 +2330,17 @@ const App: React.FC = () => {
             initialSubTab={financialSection}
             initialProjectId={financialInitialProjectId}
             lockToInitialSection={financialSectionLocked}
-            returnTab={financialReturnTab}
+            returnTab={navReturn?.tab ?? null}
             variant={currentUser.role === UserRole.BILLING_SITE_ENGINEER ? 'billing' : 'default'}
             onReturnToProject={
-              financialReturnTab
+              navReturn
                 ? () => {
-                  setActiveTab(financialReturnTab);
+                  const target = navReturn.tab;
+                  setActiveTab(target);
                   setFinancialSectionLocked(false);
-                  setFinancialReturnTab(null);
+                  setNavReturn(null);
                   setFinancialInitialProjectId(null);
-                  const targetPath = TAB_PATHS[financialReturnTab];
+                  const targetPath = TAB_PATHS[target];
                   if (targetPath && getAppRoutePath() !== targetPath) {
                     syncAppRoutePath(targetPath, "push");
                   }

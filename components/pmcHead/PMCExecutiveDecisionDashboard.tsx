@@ -258,22 +258,22 @@ const PMCExecutiveDecisionDashboard: React.FC<PMCExecutiveDecisionDashboardProps
     <div className="space-y-3 sm:space-y-4" aria-label="Executive decision dashboard">
       {/* Prominent AI CTAs — always visible first */}
       <div
-        className={`relative overflow-hidden rounded-2xl border px-3.5 py-3 sm:px-4 sm:py-3.5 ${
+        className={`relative overflow-hidden rounded-xl border px-3.5 py-3 sm:px-4 sm:py-3.5 ${
           ex.isDark
-            ? 'border-indigo-400/25 bg-gradient-to-r from-indigo-500/15 via-[#0b1d36] to-violet-500/15'
-            : 'border-indigo-200/90 bg-gradient-to-r from-indigo-50 via-white to-violet-50 shadow-[0_6px_20px_rgba(79,70,229,0.1)]'
+            ? 'border-white/12 bg-[#161f2b]'
+            : 'border-slate-200 bg-slate-50'
         }`}
       >
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
           <div className="min-w-0 sm:max-w-[46%]">
             <p
               className={`text-[10px] font-black uppercase tracking-[0.16em] ${
-                ex.isDark ? 'text-indigo-300' : 'text-indigo-600'
+                ex.isDark ? 'text-slate-400' : 'text-slate-500'
               }`}
             >
               AI decision support
             </p>
-            <p className={`mt-0.5 truncate text-sm font-black tracking-tight ${ex.isDark ? 'text-white' : 'text-slate-900'}`}>
+            <p className={`mt-0.5 truncate text-sm font-bold tracking-tight ${ex.isDark ? 'text-white' : 'text-slate-900'}`}>
               Leadership guidance on demand
             </p>
           </div>
@@ -284,7 +284,11 @@ const PMCExecutiveDecisionDashboard: React.FC<PMCExecutiveDecisionDashboardProps
                 setShowAiSuggest(false);
                 setShowAiSummary(true);
               }}
-              className="pmc-ai-btn-summary inline-flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-indigo-600 via-indigo-500 to-blue-600 px-3.5 py-2.5 text-[11px] font-black uppercase tracking-wide text-white shadow-md transition focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300 sm:text-xs"
+              className={`pmc-ai-btn-summary inline-flex w-full items-center justify-center gap-2 rounded-lg px-3.5 py-2.5 text-[11px] font-bold uppercase tracking-wide text-white shadow-sm transition focus:outline-none focus-visible:ring-2 sm:text-xs ${
+                ex.isDark
+                  ? 'bg-cyan-600 hover:bg-cyan-500 focus-visible:ring-cyan-300/40'
+                  : 'bg-[#1e3a5f] hover:bg-[#16304f] focus-visible:ring-slate-300'
+              }`}
             >
               <Sparkles size={15} strokeWidth={2.3} className="shrink-0" />
               AI Executive Summary
@@ -295,7 +299,11 @@ const PMCExecutiveDecisionDashboard: React.FC<PMCExecutiveDecisionDashboardProps
                 setShowAiSummary(false);
                 setShowAiSuggest(true);
               }}
-              className="pmc-ai-btn-suggest inline-flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-violet-600 via-purple-600 to-fuchsia-600 px-3.5 py-2.5 text-[11px] font-black uppercase tracking-wide text-white shadow-md transition focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-300 sm:text-xs"
+              className={`pmc-ai-btn-suggest inline-flex w-full items-center justify-center gap-2 rounded-lg border px-3.5 py-2.5 text-[11px] font-bold uppercase tracking-wide shadow-sm transition focus:outline-none focus-visible:ring-2 sm:text-xs ${
+                ex.isDark
+                  ? 'border-white/15 bg-white/8 text-white hover:bg-white/12 focus-visible:ring-cyan-300/30'
+                  : 'border-slate-200 bg-white text-slate-800 hover:bg-slate-50 focus-visible:ring-slate-300'
+              }`}
             >
               <Lightbulb size={15} strokeWidth={2.3} className="shrink-0" />
               AI Suggest

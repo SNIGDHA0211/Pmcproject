@@ -16,6 +16,8 @@ import AlertNotificationItem from './alerts/AlertNotificationItem';
 import { isTabAllowedForRole } from '../utils/roleRouting';
 import { isPmcHeadEquivalent } from '../utils/pmcRoleAccess';
 import { canAccessUserManagement } from '../utils/userManagementAccess';
+import type { NavReturnContext } from '../utils/navReturn';
+import { navReturnLabel } from '../utils/navReturn';
 
 /** Client-friendly section titles + one-line hints (UX only — ids/routes unchanged). */
 const SIDEBAR_SECTION_META: Record<string, { title: string; hint: string }> = {
@@ -34,6 +36,9 @@ interface LayoutProps {
   setActiveTab: (tab: string) => void;
   teamLeaderProjectsView?: 'overview' | 'full';
   onTeamLeaderBackToOverview?: () => void;
+  /** When set and user is on a connected section, show Back to the overview/source. */
+  navReturn?: NavReturnContext | null;
+  onNavBack?: () => void;
   notifications: AppNotification[];
   onMarkRead: (id: string, isRead?: boolean) => void;
   /** Lazy-load alert history when the notification bell opens (Sprint 1). */
@@ -57,6 +62,8 @@ const Layout: React.FC<LayoutProps> = ({
   setActiveTab,
   teamLeaderProjectsView = 'overview',
   onTeamLeaderBackToOverview,
+  navReturn = null,
+  onNavBack,
   notifications,
   onMarkRead,
   onRequestNotifications,
@@ -73,9 +80,11 @@ const Layout: React.FC<LayoutProps> = ({
     // Update HTML background for a seamless theme experience
     const html = document.documentElement;
     if (isDarkTheme) {
-      html.style.backgroundColor = "#0b1d36";
+      html.style.backgroundColor = '#0a1420';
+      html.dataset.theme = 'dark';
     } else {
-      html.style.backgroundColor = "#f8fafc"; // Matches blue-50
+      html.style.backgroundColor = '#e8f4fb';
+      html.dataset.theme = 'light';
     }
   }, [isDarkTheme]);
   const themeClasses = getThemeClasses(isDarkTheme);
@@ -477,20 +486,31 @@ const Layout: React.FC<LayoutProps> = ({
   }, [activeTab, visibleNavigation]);
 
   return (
-    <div className={`relative h-screen overflow-hidden ${isDarkTheme ? 'bg-[#071428]' : 'bg-slate-100'}`}>
+    <div className={`relative h-screen overflow-hidden ${isDarkTheme ? 'bg-[#0a1420]' : 'bg-[#e8f4fb]'}`}>
+      {/* Shared construction panorama — opacity + overlays tuned per theme */}
       <div
-        className={`absolute inset-0 bg-cover bg-center ${isDarkTheme ? 'opacity-[0.45]' : 'opacity-[0.38]'}`}
+        className={`absolute inset-0 bg-cover bg-no-repeat ${
+          isDarkTheme ? 'opacity-[0.48] saturate-[1.05]' : 'opacity-[0.38] saturate-[0.95] brightness-[1.05]'
+        }`}
         style={{
-          backgroundImage: "url(/images/construction-cranes-bg.jpg)",
-          backgroundPosition: 'center 35%',
+          backgroundImage: 'url(/images/construction-panorama-bg.png)',
+          backgroundPosition: 'center 42%',
         }}
         aria-hidden
       />
       <div
         className={`pointer-events-none absolute inset-0 ${
           isDarkTheme
-            ? 'bg-gradient-to-br from-[#071428]/75 via-[#0b1d36]/55 to-[#071428]/7'
-            : 'bg-gradient-to-br from-white/70 via-slate-50/55 to-cyan-50/40'
+            ? 'bg-gradient-to-br from-[#0a1420]/88 via-[#101820]/70 to-[#1a2332]/80'
+            : 'bg-gradient-to-br from-[#e8f4fb]/86 via-[#f5f9fc]/68 to-[#fff4e4]/48'
+        }`}
+        aria-hidden
+      />
+      <div
+        className={`pointer-events-none absolute inset-0 ${
+          isDarkTheme
+            ? 'bg-[radial-gradient(ellipse_at_72%_28%,rgba(230,168,40,0.16)_0%,transparent_52%),radial-gradient(ellipse_at_20%_80%,rgba(56,120,180,0.10)_0%,transparent_50%)]'
+            : 'bg-[radial-gradient(ellipse_at_80%_22%,rgba(255,196,70,0.20)_0%,transparent_46%),radial-gradient(ellipse_at_18%_12%,rgba(90,168,220,0.18)_0%,transparent_44%)]'
         }`}
         aria-hidden
       />
@@ -809,18 +829,7 @@ const Layout: React.FC<LayoutProps> = ({
                 {sidebarOverlayOpen ? <Icons.Close size={18} /> : <Icons.Menu size={18} />}
               </button>
 
-              {/* Back button — PMC Head / Manager on projects dashboard */}
-              {isProjectsTab && user.role !== UserRole.TEAM_LEAD && (
-                <button
-                  onClick={() => setActiveTab("dashboard")}
-                  className={`flex items-center gap-1.5 h-9 px-3 border rounded-xl text-xs font-bold transition-all shrink-0 ${themeClasses.buttonSecondary} ${themeClasses.border}`}
-                >
-                  <Icons.ChevronRight size={15} className="rotate-180" />
-                  <span className="hidden sm:inline">Back</span>
-                </button>
-              )}
-
-              {/* Back to overview — Team Leader full project view */}
+              {/* Back — Team Leader nested full project view */}
               {isProjectsTab &&
                 user.role === UserRole.TEAM_LEAD &&
                 teamLeaderProjectsView === 'full' && (
@@ -831,6 +840,26 @@ const Layout: React.FC<LayoutProps> = ({
                   >
                     <Icons.ChevronRight size={15} className="rotate-180" />
                     <span className="hidden sm:inline">Back to Overview</span>
+                    <span className="sm:hidden">Back</span>
+                  </button>
+                )}
+
+              {/* Back — return to connected overview / previous section (all roles) */}
+              {navReturn &&
+                navReturn.tab !== activeTab &&
+                !(
+                  isProjectsTab &&
+                  user.role === UserRole.TEAM_LEAD &&
+                  teamLeaderProjectsView === 'full'
+                ) && (
+                  <button
+                    type="button"
+                    onClick={() => onNavBack?.()}
+                    className={`flex h-9 shrink-0 items-center gap-1.5 rounded-xl border px-3 text-xs font-bold transition-all ${themeClasses.buttonSecondary} ${themeClasses.border}`}
+                    title={`Back to ${navReturnLabel(navReturn)}`}
+                  >
+                    <Icons.ChevronRight size={15} className="rotate-180" />
+                    <span className="hidden sm:inline">Back to {navReturnLabel(navReturn)}</span>
                     <span className="sm:hidden">Back</span>
                   </button>
                 )}

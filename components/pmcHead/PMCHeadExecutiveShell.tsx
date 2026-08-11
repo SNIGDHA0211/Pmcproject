@@ -393,11 +393,11 @@ const PMCHeadExecutiveShell: React.FC<PMCHeadExecutiveShellProps> = ({
 
       <header className={ex.shellHeader}>
         <div className="flex flex-col gap-2 p-3 sm:flex-row sm:items-center sm:justify-between sm:px-4 sm:py-2.5">
-          <div className="min-w-0 flex-1 sm:max-w-md lg:max-w-lg">
+          <div className="min-w-0 flex-1 sm:max-w-lg lg:max-w-2xl">
             <h1 className={ex.shellTitle}>
               PMC Executive Project Review
             </h1>
-            <div className="relative mt-1 max-w-full">
+            <div className="relative mt-1.5 max-w-full">
               <label htmlFor="pmc-exec-project-select" className="sr-only">
                 Select project
               </label>
@@ -406,10 +406,15 @@ const PMCHeadExecutiveShell: React.FC<PMCHeadExecutiveShellProps> = ({
                 value={selectedProjectId}
                 disabled={Boolean(projectSwitch)}
                 onChange={(e) => handleProjectSelect(e.target.value)}
+                title={
+                  projects.find((p) => p.id === selectedProjectId)?.title ??
+                  'Select project'
+                }
+                style={{ colorScheme: ex.isDark ? 'dark' : 'light' }}
                 className={ex.shellSelect}
               >
                 {projects.map((p) => (
-                  <option key={p.id} value={p.id} className="text-slate-900">
+                  <option key={p.id} value={p.id} className={ex.shellSelectOption}>
                     {p.title}
                   </option>
                 ))}
@@ -484,6 +489,38 @@ const PMCHeadExecutiveShell: React.FC<PMCHeadExecutiveShellProps> = ({
             );
           })}
         </nav>
+
+        {activeTabAlert.count > 0 && (
+          <div className={ex.shellUpdates} role="status">
+            <span className={ex.shellUpdatesLabel}>
+              Updates
+              <span className={ex.shellUpdatesCount}>{activeTabAlert.count}</span>
+            </span>
+            <span className={ex.shellUpdatesDivider} aria-hidden />
+            <ul className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5">
+              {activeTabAlert.lookHere.map((item) => (
+                <li key={item.id}>
+                  <button
+                    type="button"
+                    onClick={() => handleLookHere(item)}
+                    title={item.hint}
+                    className={`${ex.shellUpdatePill} ${
+                      item.severity === 'critical' ? ex.shellUpdatePillCritical : ex.shellUpdatePillWatch
+                    }`}
+                  >
+                    <span className={ex.shellUpdateText}>
+                      {item.label}
+                      <span className={ex.shellUpdateHint}>
+                        {' · '}
+                        {item.hint}
+                      </span>
+                    </span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
       </header>
 
       {briefToast && (
@@ -496,38 +533,6 @@ const PMCHeadExecutiveShell: React.FC<PMCHeadExecutiveShellProps> = ({
           role="status"
         >
           {briefToast}
-        </div>
-      )}
-
-      {activeTabAlert.count > 0 && (
-        <div className={ex.shellUpdates} role="status">
-          <span className={ex.shellUpdatesLabel}>
-            Updates
-            <span className={ex.shellUpdatesCount}>{activeTabAlert.count}</span>
-          </span>
-          <span className={ex.shellUpdatesDivider} aria-hidden />
-          <ul className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5">
-            {activeTabAlert.lookHere.map((item) => (
-              <li key={item.id}>
-                <button
-                  type="button"
-                  onClick={() => handleLookHere(item)}
-                  title={item.hint}
-                  className={`${ex.shellUpdatePill} ${
-                    item.severity === 'critical' ? ex.shellUpdatePillCritical : ex.shellUpdatePillWatch
-                  }`}
-                >
-                  <span className={ex.shellUpdateText}>
-                    {item.label}
-                    <span className={ex.shellUpdateHint}>
-                      {' · '}
-                      {item.hint}
-                    </span>
-                  </span>
-                </button>
-              </li>
-            ))}
-          </ul>
         </div>
       )}
 

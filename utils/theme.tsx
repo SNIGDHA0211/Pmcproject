@@ -35,21 +35,27 @@ export const useEffectiveTheme = () => {
   };
 };
 
-// Theme utility functions
+// Theme utility functions — palette from night construction site (navy + amber glow)
 export const getThemeClasses = (isDark: boolean) => ({
   glassCard: isDark ? 'glass-card' : 'glass-card-light',
-  textPrimary: isDark ? 'text-contrast' : 'text-slate-900',
-  textSecondary: isDark ? 'muted' : 'text-slate-600',
-  textMuted: isDark ? 'text-white/60' : 'text-slate-500',
-  textInverse: isDark ? 'text-gray-900' : 'text-white',
-  bgPrimary: isDark ? 'bg-[#0b1d36]' : 'bg-white',
-  bgSecondary: isDark ? 'bg-white/5' : 'bg-slate-50',
-  bgHover: isDark ? 'hover:bg-white/10' : 'hover:bg-slate-100',
-  border: isDark ? 'border-white/10' : 'border-slate-300',
-  input: isDark ? 'glass-input' : 'bg-white border border-slate-300 focus:border-indigo-500 shadow-sm',
-  buttonSecondary: isDark ? 'text-white/70 hover:bg-white/10' : 'text-slate-600 hover:bg-slate-100',
-  buttonPrimary: isDark ? 'bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white' : 'bg-gradient-to-r from-blue-500 to-indigo-500 hover:from-blue-600 hover:to-indigo-600 text-white',
-  accent: isDark ? 'text-blue-400' : 'text-blue-600',
+  textPrimary: isDark ? 'text-contrast' : 'text-[#1a2332]',
+  textSecondary: isDark ? 'muted' : 'text-[#4a5563]',
+  textMuted: isDark ? 'text-white/55' : 'text-[#6b7280]',
+  textInverse: isDark ? 'text-[#1a2332]' : 'text-white',
+  bgPrimary: isDark ? 'bg-[#121a24]' : 'bg-white',
+  bgSecondary: isDark ? 'bg-white/5' : 'bg-[#eef6fb]',
+  bgHover: isDark ? 'hover:bg-white/10' : 'hover:bg-[#e0f0fa]',
+  border: isDark ? 'border-white/12' : 'border-[#b8cfe0]',
+  input: isDark
+    ? 'glass-input'
+    : 'bg-white border border-[#b8cfe0] focus:border-amber-500 shadow-sm',
+  buttonSecondary: isDark
+    ? 'text-white/75 hover:bg-white/10'
+    : 'text-[#334155] hover:bg-[#e0f0fa]',
+  buttonPrimary: isDark
+    ? 'bg-gradient-to-r from-[#e68a00] to-[#f59e0b] hover:from-[#d97706] hover:to-[#e68a00] text-white'
+    : 'bg-gradient-to-r from-[#1e3a5f] to-[#2563a8] hover:from-[#16304f] hover:to-[#1e88e5] text-white',
+  accent: isDark ? 'text-amber-300' : 'text-[#c2410c]',
   warning: isDark ? 'text-amber-400' : 'text-amber-600',
   danger: isDark ? 'text-rose-400' : 'text-rose-600',
   success: isDark ? 'text-emerald-400' : 'text-emerald-600',
@@ -58,7 +64,7 @@ export const getThemeClasses = (isDark: boolean) => ({
 
 /** Primary title on dashboard summary / KPI cards (Project Dates style) */
 export const DASHBOARD_CARD_TITLE_CLASS =
-  'truncate text-lg font-black uppercase leading-tight tracking-wide text-blue-600 sm:text-xl';
+  'truncate text-lg font-black uppercase leading-tight tracking-wide text-[#1e3a5f] sm:text-xl';
 
 /** Correspondence card title — same scale, tighter professional tracking */
 export const DASHBOARD_CORRESPONDENCE_TITLE_CLASS =

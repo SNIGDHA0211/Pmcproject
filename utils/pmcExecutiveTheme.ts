@@ -6,9 +6,7 @@ export function getPmcExecutiveTheme(isDark: boolean) {
   return {
     isDark,
 
-    pageShell: isDark
-      ? 'sm:rounded-2xl sm:bg-[#071428]/35 sm:px-3 sm:py-2 md:px-4 sm:backdrop-blur-md'
-      : 'sm:rounded-2xl sm:bg-white/35 sm:px-3 sm:py-2 md:px-4 sm:backdrop-blur-md',
+    pageShell: 'space-y-2 sm:space-y-3',
 
     detailFrame: [
       'pmc-executive-detail rounded-xl border p-2 shadow-sm sm:space-y-3 sm:p-3 md:space-y-4 md:p-4 space-y-3',
@@ -16,31 +14,31 @@ export function getPmcExecutiveTheme(isDark: boolean) {
       '[&_h3]:tracking-tight',
       '[&_.graphs-analytics-section]:space-y-4 sm:[&_.graphs-analytics-section]:space-y-5',
       isDark
-        ? 'pmc360-glass-panel-dark [&_.joyride-target-stable]:border-cyan-400/20 [&_.joyride-target-stable]:shadow-[0_4px_24px_rgba(0,0,0,0.28)]'
-        : 'pmc360-glass-panel-light [&_.joyride-target-stable]:border-cyan-200/60 [&_.joyride-target-stable]:shadow-[0_4px_24px_rgba(15,23,42,0.06)]',
+        ? 'border-white/12 bg-[#121a24]/95 text-white shadow-[0_8px_28px_rgba(0,0,0,0.35)]'
+        : 'border-slate-200/90 bg-white text-slate-900 shadow-[0_6px_20px_rgba(15,23,42,0.06)]',
     ].join(' '),
 
     contextBanner: isDark
-      ? 'rounded-xl border border-cyan-400/20 bg-white/8 px-4 py-2.5 text-center shadow-sm backdrop-blur-md'
-      : 'rounded-xl border border-cyan-200/50 bg-white/55 px-4 py-2.5 text-center shadow-sm backdrop-blur-md',
+      ? 'rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-center'
+      : 'rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-center',
     contextBannerText: isDark
       ? 'text-xs font-semibold text-slate-300 sm:text-sm'
       : 'text-xs font-semibold text-slate-600 sm:text-sm',
     contextBannerAccent: isDark ? 'text-cyan-300' : 'text-cyan-800',
 
     panel: isDark
-      ? 'overflow-hidden rounded-2xl pmc360-glass-panel-dark'
-      : 'overflow-hidden rounded-2xl pmc360-glass-panel-light',
+      ? 'overflow-hidden rounded-xl border border-white/12 bg-[#121a24]/95'
+      : 'overflow-hidden rounded-xl border border-slate-200/90 bg-white shadow-sm',
     panelHeader: isDark
-      ? 'border-b border-cyan-400/15 bg-gradient-to-r from-cyan-500/10 via-transparent to-transparent px-4 py-3.5 sm:px-5 sm:py-4'
-      : 'border-b border-cyan-200/40 bg-gradient-to-r from-cyan-50/50 via-transparent to-transparent px-4 py-3.5 sm:px-5 sm:py-4',
-    panelTitle: `text-sm font-black uppercase tracking-wide sm:text-base ${isDark ? 'text-cyan-300' : 'text-cyan-900'}`,
+      ? 'border-b border-white/10 bg-white/[0.03] px-4 py-3.5 sm:px-5 sm:py-4'
+      : 'border-b border-slate-100 bg-slate-50/90 px-4 py-3.5 sm:px-5 sm:py-4',
+    panelTitle: `text-sm font-black uppercase tracking-wide sm:text-base ${isDark ? 'text-slate-100' : 'text-slate-800'}`,
     panelSubtitle: `mt-0.5 text-xs font-medium sm:text-sm ${isDark ? 'text-slate-400' : 'text-slate-500'}`,
 
     surface: isDark
-      ? 'rounded-2xl pmc360-glass-dark'
-      : 'rounded-2xl pmc360-glass-light',
-    surfaceMuted: isDark ? 'bg-white/8' : 'bg-white/45',
+      ? 'rounded-xl border border-white/10 bg-white/[0.04]'
+      : 'rounded-xl border border-slate-200 bg-white',
+    surfaceMuted: isDark ? 'bg-white/8' : 'bg-slate-50',
 
     heading: isDark ? 'text-slate-100' : 'text-slate-800',
     headingStrong: isDark ? 'text-white' : 'text-slate-900',
@@ -50,35 +48,35 @@ export function getPmcExecutiveTheme(isDark: boolean) {
     link: isDark ? 'text-cyan-300 hover:text-cyan-200' : 'text-cyan-700 hover:underline',
 
     kpiCard: isDark
-      ? 'rounded-xl pmc360-glass-dark px-3 py-3 sm:px-3.5 sm:py-3.5'
-      : 'rounded-xl pmc360-glass-light px-3 py-3 sm:px-3.5 sm:py-3.5',
-    kpiLabel: 'text-[10px] font-bold uppercase tracking-wide text-slate-400 sm:text-[11px]',
+      ? 'rounded-xl border border-white/10 bg-white/[0.04] px-3 py-3 sm:px-3.5 sm:py-3.5'
+      : 'rounded-xl border border-slate-200 bg-white px-3 py-3 shadow-sm sm:px-3.5 sm:py-3.5',
+    kpiLabel: 'text-[10px] font-bold uppercase tracking-wide text-slate-500 sm:text-[11px]',
 
     tabActive: isDark
       ? 'bg-cyan-500/25 text-cyan-50 ring-1 ring-cyan-400/35 shadow-sm'
       : 'bg-[#1e3a5f] text-white shadow-sm',
     tabInactive: isDark
       ? 'bg-white/8 text-slate-300 ring-1 ring-white/12 hover:bg-white/12'
-      : 'bg-white/60 text-slate-600 ring-1 ring-slate-200/80 hover:bg-white/80 backdrop-blur-sm',
+      : 'bg-slate-100 text-slate-600 ring-1 ring-slate-200 hover:bg-slate-200/70',
 
     borderSubtle: isDark ? 'border-white/10' : 'border-slate-100',
-    borderDefault: isDark ? 'border-cyan-400/15' : 'border-cyan-200/50',
+    borderDefault: isDark ? 'border-white/12' : 'border-slate-200',
     divide: isDark ? 'divide-white/10' : 'divide-slate-100',
 
     pulseStrip: isDark
-      ? 'overflow-hidden rounded-2xl pmc360-glass-panel-dark'
-      : 'overflow-hidden rounded-2xl pmc360-glass-panel-light',
-    pulseCellBorder: isDark ? 'border-white/10' : 'border-cyan-100/60',
-    pulseIconBg: isDark ? 'bg-white/8' : 'bg-white/55',
+      ? 'overflow-hidden rounded-xl border border-white/12 bg-[#121a24]/95'
+      : 'overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm',
+    pulseCellBorder: isDark ? 'border-white/10' : 'border-slate-100',
+    pulseIconBg: isDark ? 'bg-white/8' : 'bg-slate-50',
 
-    toolbarBorder: isDark ? 'border-cyan-400/15' : 'border-cyan-200/40',
+    toolbarBorder: isDark ? 'border-white/10' : 'border-slate-200',
     toolbarBtn: isDark
-      ? 'inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-white/15 bg-white/8 px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-wide text-slate-300 backdrop-blur-sm transition hover:border-cyan-400/40 hover:bg-cyan-950/40 hover:text-cyan-200 sm:text-xs'
-      : 'inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-cyan-200/60 bg-white/65 px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-wide text-slate-600 backdrop-blur-sm transition hover:border-cyan-300 hover:bg-cyan-50/80 hover:text-cyan-800 sm:text-xs',
+      ? 'inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-white/15 bg-white/8 px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-wide text-slate-300 transition hover:bg-white/12 hover:text-white sm:text-xs'
+      : 'inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-wide text-slate-600 transition hover:bg-slate-50 hover:text-slate-800 sm:text-xs',
 
     emptyState: isDark
-      ? 'rounded-xl border border-dashed border-cyan-400/25 bg-white/5 text-slate-400 backdrop-blur-sm'
-      : 'rounded-xl border border-dashed border-cyan-300/50 bg-white/45 text-slate-500 backdrop-blur-sm',
+      ? 'rounded-xl border border-dashed border-white/20 bg-white/5 text-slate-400'
+      : 'rounded-xl border border-dashed border-slate-300 bg-slate-50 text-slate-500',
 
     tableHeader: 'bg-[#1e3a5f] text-white',
     tableRowEven: isDark ? 'bg-white/[0.03]' : 'bg-white/40',
@@ -216,26 +214,29 @@ export function getPmcExecutiveTheme(isDark: boolean) {
       ? 'h-px bg-gradient-to-r from-transparent via-cyan-400/20 to-transparent'
       : 'h-px bg-gradient-to-r from-transparent via-cyan-200/70 to-transparent',
 
-    /** Executive shell chrome (project switcher + tab strip + updates) */
+    /** Executive shell chrome (project switcher + tab strip + updates) — one solid card */
     shellHeader: isDark
-      ? 'overflow-hidden rounded-xl pmc360-glass-panel-dark text-white'
-      : 'overflow-hidden rounded-xl pmc360-glass-panel-light text-slate-900',
+      ? 'overflow-hidden rounded-xl border border-white/12 bg-[#121a24]/95 text-white shadow-[0_8px_24px_rgba(0,0,0,0.35)]'
+      : 'overflow-hidden rounded-xl border border-slate-200 bg-white text-slate-900 shadow-[0_6px_18px_rgba(15,23,42,0.06)]',
     shellTitle: isDark
       ? 'truncate text-base font-bold tracking-tight text-white sm:text-lg'
-      : 'truncate text-base font-bold tracking-tight text-[#0e7490] sm:text-lg',
+      : 'truncate text-base font-bold tracking-tight text-slate-900 sm:text-lg',
     shellSelect: isDark
-      ? 'w-full min-w-0 cursor-pointer appearance-none truncate rounded-lg pmc360-glass-input-dark py-1.5 pl-3 pr-8 text-xs font-semibold text-white outline-none transition hover:border-cyan-400/35 focus:ring-2 focus:ring-cyan-400/25 disabled:cursor-wait disabled:opacity-70 sm:text-sm'
-      : 'w-full min-w-0 cursor-pointer appearance-none truncate rounded-lg pmc360-glass-input-light py-1.5 pl-3 pr-8 text-xs font-semibold text-slate-800 outline-none transition hover:border-cyan-400/40 focus:ring-2 focus:ring-cyan-500/20 disabled:cursor-wait disabled:opacity-70 sm:text-sm',
-    shellSelectChevron: isDark ? 'text-white/60' : 'text-slate-400',
+      ? 'w-full min-w-0 cursor-pointer appearance-none truncate rounded-lg border border-cyan-300/35 bg-[#0b1522] py-2 pl-3 pr-9 text-xs font-semibold text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] outline-none transition hover:border-cyan-300/55 hover:bg-[#0f1c2c] focus:border-cyan-400/60 focus:ring-2 focus:ring-cyan-400/30 disabled:cursor-wait disabled:opacity-70 sm:text-sm'
+      : 'w-full min-w-0 cursor-pointer appearance-none truncate rounded-lg border border-slate-300 bg-white py-2 pl-3 pr-9 text-xs font-semibold text-slate-900 shadow-sm outline-none transition hover:border-slate-400 hover:bg-slate-50 focus:border-slate-400 focus:ring-2 focus:ring-slate-300/80 disabled:cursor-wait disabled:opacity-70 sm:text-sm',
+    shellSelectChevron: isDark ? 'text-cyan-200/80' : 'text-slate-500',
+    shellSelectOption: isDark
+      ? 'bg-[#0b1522] text-white'
+      : 'bg-white text-slate-900',
     shellNav: isDark
-      ? 'flex gap-1 overflow-x-auto border-t border-cyan-400/15 bg-black/15 px-2 py-1.5 scrollbar-thin sm:px-3'
-      : 'flex gap-1 overflow-x-auto border-t border-cyan-200/40 bg-white/35 px-2 py-1.5 scrollbar-thin sm:px-3',
+      ? 'flex gap-1 overflow-x-auto border-t border-white/10 bg-black/20 px-2 py-1.5 scrollbar-thin sm:px-3'
+      : 'flex gap-1 overflow-x-auto border-t border-slate-100 bg-slate-50 px-2 py-1.5 scrollbar-thin sm:px-3',
     shellTabActive: isDark
       ? 'bg-cyan-400/20 text-white ring-1 ring-cyan-300/35'
-      : 'bg-[#0e7490] text-white shadow-sm',
+      : 'bg-[#1e3a5f] text-white shadow-sm',
     shellTabInactive: isDark
       ? 'text-cyan-100/80 hover:bg-white/10 hover:text-white'
-      : 'text-slate-600 hover:bg-white/70 hover:text-slate-900 ring-1 ring-transparent hover:ring-cyan-200/60',
+      : 'text-slate-600 hover:bg-white hover:text-slate-900',
     shellTabBadgeCritical: isDark
       ? 'bg-rose-500/90 text-white ring-1 ring-white/25'
       : 'bg-rose-100 text-rose-700 ring-1 ring-rose-200',
@@ -243,26 +244,27 @@ export function getPmcExecutiveTheme(isDark: boolean) {
       ? 'bg-amber-400 text-[#1a1520] ring-1 ring-white/20'
       : 'bg-amber-100 text-amber-800 ring-1 ring-amber-200',
     shellBtnSecondary: isDark
-      ? 'inline-flex items-center justify-center gap-1.5 rounded-lg border border-white/20 bg-white/10 px-3 py-2 text-xs font-semibold text-white backdrop-blur-sm transition hover:bg-white/15 sm:text-sm'
-      : 'inline-flex items-center justify-center gap-1.5 rounded-lg pmc360-glass-input-light px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-white/80 sm:text-sm',
+      ? 'inline-flex items-center justify-center gap-1.5 rounded-lg border border-white/20 bg-white/10 px-3 py-2 text-xs font-semibold text-white transition hover:bg-white/15 sm:text-sm'
+      : 'inline-flex items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 sm:text-sm',
     shellBtnBrief: isDark
       ? 'inline-flex items-center justify-center gap-1.5 rounded-lg border border-cyan-300/30 bg-cyan-500/20 px-3 py-2 text-xs font-semibold text-cyan-50 transition hover:bg-cyan-500/30 sm:text-sm'
-      : 'inline-flex items-center justify-center gap-1.5 rounded-lg border border-cyan-200/70 bg-cyan-50/80 px-3 py-2 text-xs font-semibold text-cyan-800 backdrop-blur-sm transition hover:bg-cyan-100/90 sm:text-sm',
+      : 'inline-flex items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-800 transition hover:bg-slate-100 sm:text-sm',
     shellBtnEscalate:
       'inline-flex items-center justify-center gap-1.5 rounded-lg bg-amber-500 px-3 py-2 text-xs font-bold text-white shadow-sm transition hover:bg-amber-400 sm:text-sm',
+    /** Flat strip inside header — not a separate glass card */
     shellUpdates: isDark
-      ? 'flex flex-wrap items-center gap-x-2 gap-y-1.5 rounded-lg pmc360-glass-dark px-3 py-2'
-      : 'flex flex-wrap items-center gap-x-2 gap-y-1.5 rounded-lg pmc360-glass-light px-3 py-2',
+      ? 'flex flex-wrap items-center gap-x-2 gap-y-1.5 border-t border-white/10 bg-amber-500/10 px-3 py-2'
+      : 'flex flex-wrap items-center gap-x-2 gap-y-1.5 border-t border-amber-100 bg-amber-50/90 px-3 py-2',
     shellUpdatesLabel: isDark
-      ? 'text-[10px] font-bold uppercase tracking-wide text-slate-200'
-      : 'text-[10px] font-bold uppercase tracking-wide text-cyan-900',
+      ? 'text-[10px] font-bold uppercase tracking-wide text-amber-100'
+      : 'text-[10px] font-bold uppercase tracking-wide text-amber-900',
     shellUpdatesCount: isDark
-      ? 'ml-1.5 inline-flex h-4 min-w-[1rem] items-center justify-center rounded bg-slate-200 px-1 text-[9px] font-bold text-[#0f2744]'
-      : 'ml-1.5 inline-flex h-4 min-w-[1rem] items-center justify-center rounded bg-cyan-800 px-1 text-[9px] font-bold text-white',
-    shellUpdatesDivider: isDark ? 'hidden h-3.5 w-px bg-white/15 sm:block' : 'hidden h-3.5 w-px bg-cyan-200/70 sm:block',
+      ? 'ml-1.5 inline-flex h-4 min-w-[1rem] items-center justify-center rounded bg-amber-200 px-1 text-[9px] font-bold text-[#1a1520]'
+      : 'ml-1.5 inline-flex h-4 min-w-[1rem] items-center justify-center rounded bg-amber-800 px-1 text-[9px] font-bold text-white',
+    shellUpdatesDivider: isDark ? 'hidden h-3.5 w-px bg-white/20 sm:block' : 'hidden h-3.5 w-px bg-amber-200 sm:block',
     shellUpdatePill: isDark
-      ? 'inline-flex max-w-full items-center gap-1.5 rounded-md border border-white/10 bg-white/8 px-2.5 py-1 text-left backdrop-blur-sm transition hover:bg-white/12 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/30'
-      : 'inline-flex max-w-full items-center gap-1.5 rounded-md border border-cyan-100/70 bg-white/60 px-2.5 py-1 text-left backdrop-blur-sm transition hover:bg-white/80 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500/20',
+      ? 'inline-flex max-w-full items-center gap-1.5 rounded-md border border-white/10 bg-white/8 px-2.5 py-1 text-left transition hover:bg-white/12 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/30'
+      : 'inline-flex max-w-full items-center gap-1.5 rounded-md border border-amber-200/80 bg-white px-2.5 py-1 text-left transition hover:bg-amber-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-300/40',
     shellUpdatePillCritical: isDark ? 'border-l-2 border-l-rose-400' : 'border-l-2 border-l-rose-500',
     shellUpdatePillWatch: isDark ? 'border-l-2 border-l-amber-400' : 'border-l-2 border-l-amber-500',
     shellUpdateText: isDark ? 'truncate text-[11px] font-semibold text-slate-100' : 'truncate text-[11px] font-semibold text-slate-800',

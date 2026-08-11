@@ -11,6 +11,7 @@ import { useTheme, getThemeClasses } from '../utils/theme';
 import { sanitizeProjectDisplayName } from '../utils/hseSiteEngineerProjects';
 import { formatUserFacingError } from '../utils/formErrors';
 import TutorialVideosPanel from './tutorialVideos/TutorialVideosPanel';
+import TutorialWatchButton from './tutorialVideos/TutorialWatchButton';
 
 interface ProjectInitProps {
     user: User;
@@ -354,7 +355,7 @@ const ProjectInit: React.FC<ProjectInitProps> = ({ user, onProjectCreated }) => 
     return (
         <div className="space-y-8 animate-in fade-in duration-500">
             {/* Header */}
-            <div className="flex items-center justify-between">
+            <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
                     <h2 className={`text-2xl font-black uppercase tracking-tight ${themeClasses.textPrimary}`}>
                         Project Initialization
@@ -363,36 +364,12 @@ const ProjectInit: React.FC<ProjectInitProps> = ({ user, onProjectCreated }) => 
                         Configure new construction project
                     </p>
                 </div>
+                <TutorialWatchButton
+                    section="initialize_project"
+                    variant="panel"
+                    isDark={isDarkTheme}
+                />
             </div>
-
-            {/* Existing Projects Summary */}
-            {!isLoading && projects.length > 0 && (
-                <div className={`${themeClasses.glassCard} p-6 rounded-[2rem] border ${themeClasses.border}`}>
-                    <h3 className={`text-sm font-black uppercase tracking-widest mb-4 ${themeClasses.textPrimary}`}>Initialized Projects</h3>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                        {projects.slice(0, 6).map((project) => (
-                            <div key={project.id} className={`${themeClasses.bgSecondary} border ${themeClasses.border} rounded-xl p-4`}>
-                                <p className={`text-sm font-black ${themeClasses.textPrimary}`}>
-                                  {sanitizeProjectDisplayName(project.name)}
-                                </p>
-                                <p className={`text-[10px] font-bold uppercase mt-1 ${themeClasses.textSecondary}`}>{project.location}</p>
-                                <div className={`mt-3 pt-3 border-t ${themeClasses.border}`}>
-                                    <div className="flex justify-between text-[10px]">
-                                        <span className={`font-bold ${themeClasses.textSecondary}`}>Revised Value:</span>
-                                        <span className={`${themeClasses.success} font-black`}>₹{parseFloat(project.revised_contract_value || 0).toLocaleString()}</span>
-                                    </div>
-                                    {project.delay_days > 0 && (
-                                        <div className="flex justify-between text-[10px] mt-1">
-                                            <span className={`font-bold ${themeClasses.textSecondary}`}>Delay:</span>
-                                            <span className={`${themeClasses.danger} font-black`}>{project.delay_days} days</span>
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                </div>
-            )}
 
             {/* Project Initialization Form */}
             <div className={`${themeClasses.glassCard} p-8 rounded-[2rem] border ${themeClasses.border}`}>
@@ -598,7 +575,7 @@ const ProjectInit: React.FC<ProjectInitProps> = ({ user, onProjectCreated }) => 
                     </div>
                 </form>
 
-                <TutorialVideosPanel section="initialize_project" />
+                <TutorialVideosPanel section="initialize_project" hideWatchButton />
             </div>
         </div>
     );
