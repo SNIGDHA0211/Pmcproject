@@ -24,8 +24,10 @@ const PMC_HEAD_TABS = [
   'projects',
   'dpr_records',
   'wpr_records',
+  'mpr_records',
   'meeting_documents',
   'project_feedback',
+  'reminders',
   'alerts',
   PMC_HEAD_USER_MGMT_TAB,
 ] as const;
@@ -55,8 +57,10 @@ function teamLeadTabs(): string[] {
     'projects',
     'dpr_records',
     'wpr_records',
+    'mpr_records',
     'meeting_documents',
     'project_feedback',
+    'reminders',
     'alerts',
   ];
 }

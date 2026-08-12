@@ -18,7 +18,7 @@ import {
 import { formatUserFacingError } from "../utils/formErrors";
 import { handlePmcHeadMutationNotify } from "../utils/pmcHeadMutationNotify";
 import { stampActorOnRequest } from "../utils/stampActorOnRequest";
-import { installGetRequestCache } from "../utils/apiGetCache";
+import { installGetRequestCache, invalidateApiGetCache } from "../utils/apiGetCache";
 import {
   extractRecordId,
   formatFinancialMonthYear,
@@ -49,6 +49,7 @@ import type {
   CorrespondenceRecipientType,
   DrawingClientReportData,
   DrawingClientReportRow,
+  DrawingRegisterFile,
   DrawingRegisterRow,
   DrawingMonthlyRecord,
   DrawingProjectSummary,
@@ -5928,8 +5929,59 @@ export async function savePlannedEarnedByPeriod(
 
 // ─── Drawing Register (per-drawing client report) ─────────────────────────────
 
+function normalizeDrawingRegisterFile(file: unknown): DrawingRegisterFile {
+  const f = (file ?? {}) as Record<string, unknown>;
+  return {
+    id: f.id != null ? toNum(f.id) : undefined,
+    originalFilename: String(
+      f.original_filename ?? f.originalFilename ?? f.name ?? "",
+    ),
+    revision:
+      f.revision != null && f.revision !== "" ? toNum(f.revision) : undefined,
+    fileSize:
+      f.file_size != null || f.fileSize != null
+        ? toNum(f.file_size ?? f.fileSize)
+        : undefined,
+    contentType:
+      f.content_type != null || f.contentType != null
+        ? String(f.content_type ?? f.contentType)
+        : undefined,
+    fileUrl: String(
+      f.file_url ?? f.fileUrl ?? f.url ?? f.download_url ?? "",
+    ),
+    createdAt:
+      f.created_at != null
+        ? String(f.created_at)
+        : f.createdAt != null
+          ? String(f.createdAt)
+          : undefined,
+  };
+}
+
+function extractDrawingRegisterFiles(
+  r: Record<string, unknown>,
+): DrawingRegisterFile[] | undefined {
+  const raw =
+    r.drawings ??
+    r.drawing_files ??
+    r.drawingFiles ??
+    r.files ??
+    r.attachments;
+  if (!Array.isArray(raw)) return undefined;
+  const files = raw
+    .map(normalizeDrawingRegisterFile)
+    .filter((file) => file.id != null || file.fileUrl || file.originalFilename);
+  return files.length ? files : undefined;
+}
+
 function normalizeDrawingClientReportRow(row: unknown): DrawingClientReportRow {
   const r = (row ?? {}) as Record<string, unknown>;
+  const drawings = extractDrawingRegisterFiles(r);
+  const drawingFileCount =
+    r.drawing_file_count != null || r.drawingFileCount != null
+      ? toNum(r.drawing_file_count ?? r.drawingFileCount)
+      : drawings?.length;
+
   return {
     id: r.id != null ? toNum(r.id) : undefined,
     srNo: toNum(r.sr_no ?? r.srNo),
@@ -5965,6 +6017,10 @@ function normalizeDrawingClientReportRow(row: unknown): DrawingClientReportRow {
       | string
       | null,
     projectName: String(r.project_name ?? r.projectName ?? ""),
+    ...(drawingFileCount != null && drawingFileCount > 0
+      ? { drawingFileCount }
+      : {}),
+    ...(drawings?.length ? { drawings } : {}),
   };
 }
 
@@ -6077,9 +6133,190 @@ export type DrawingRegisterClientReportParams = {
   contractor?: string;
   status?: string;
   search?: string;
+  /** Bypass GET cache — use after create/update/delete. */
+  fresh?: boolean;
   /** Abort in-flight report fetch when filters/search change. */
   signal?: AbortSignal;
 };
+
+function drawingRegisterAxiosConfig(
+  params: DrawingRegisterClientReportParams,
+  extra?: Record<string, unknown>,
+) {
+  return {
+    ...(params.signal ? { signal: params.signal } : {}),
+    ...(params.fresh ? { skipGetCache: true } : {}),
+    ...extra,
+  } as import("axios").InternalAxiosRequestConfig & {
+    skipGetCache?: boolean;
+  };
+}
+
+function drawingRegisterSkipCacheConfig() {
+  return { skipGetCache: true } as import("axios").InternalAxiosRequestConfig & {
+    skipGetCache?: boolean;
+  };
+}
+
+function invalidateDrawingRegisterCache(): void {
+  invalidateApiGetCache([
+    "/drawings/register",
+    "/drawings/summary",
+    "/drawings/",
+  ]);
+}
+
+export function registerRowToClientReportRow(
+  row: DrawingRegisterRow,
+): DrawingClientReportRow {
+  const fromClient = row.clientRow;
+  const base: DrawingClientReportRow = fromClient
+    ? { ...fromClient }
+    : {
+        id: row.id,
+        srNo: row.srNo ?? 0,
+        designAndDrawing: row.drawingName,
+        submissionByContractor: row.submittedDate ?? null,
+        consultantCommentsDate: row.consultantCommentsDate ?? null,
+        resubmissionDate: row.resubmittedDate ?? null,
+        approvedByConsultant: row.approvedDate ?? null,
+        remarks: row.remarks ?? "",
+        revision: row.revision ?? null,
+        contractorName: row.contractorName ?? null,
+        projectName: row.projectName,
+      };
+  if (row.drawings?.length) {
+    return {
+      ...base,
+      drawings: row.drawings,
+      drawingFileCount: row.drawings.length,
+    };
+  }
+  return base;
+}
+
+/** Client report rows omit `drawings`; merge from full register list by id/name. */
+export function mergeDrawingFilesIntoClientReportRows(
+  clientRows: DrawingClientReportRow[],
+  registerRows: DrawingRegisterRow[],
+): DrawingClientReportRow[] {
+  const byId = new Map<number, DrawingRegisterRow>();
+  const byKey = new Map<string, DrawingRegisterRow>();
+  for (const row of registerRows) {
+    if (row.id != null) byId.set(row.id, row);
+    const key = [
+      row.drawingName.trim().toLowerCase(),
+      row.revision ?? "",
+      String(row.contractorName ?? "").trim().toLowerCase(),
+    ].join("::");
+    byKey.set(key, row);
+  }
+
+  return clientRows.map((row) => {
+    const key = [
+      row.designAndDrawing.trim().toLowerCase(),
+      row.revision ?? "",
+      String(row.contractorName ?? "").trim().toLowerCase(),
+    ].join("::");
+    const byIdRow = row.id != null ? byId.get(row.id) : undefined;
+    const byKeyRow = byKey.get(key);
+    const drawings =
+      byIdRow?.drawings?.length
+        ? byIdRow.drawings
+        : byKeyRow?.drawings?.length
+          ? byKeyRow.drawings
+          : undefined;
+    if (!drawings?.length) return row;
+    return {
+      ...row,
+      drawings,
+      drawingFileCount: drawings.length,
+    };
+  });
+}
+
+/** Append register rows missing from client report (backend client shape can lag). */
+export function supplementClientReportRows(
+  clientRows: DrawingClientReportRow[],
+  registerRows: DrawingRegisterRow[],
+): DrawingClientReportRow[] {
+  const merged = mergeDrawingFilesIntoClientReportRows(clientRows, registerRows);
+  const knownIds = new Set(
+    merged.map((row) => row.id).filter((id): id is number => id != null),
+  );
+  const extras = registerRows
+    .filter((row) => row.id != null && !knownIds.has(row.id))
+    .map(registerRowToClientReportRow);
+  if (!extras.length) return merged;
+  return [...merged, ...extras].sort(
+    (a, b) => (a.srNo ?? 0) - (b.srNo ?? 0),
+  );
+}
+
+function drawingRegisterListParams(
+  params: DrawingRegisterClientReportParams,
+): Record<string, string | number> {
+  return {
+    project_name: params.projectName,
+    month: params.month,
+    year: params.year,
+    view: params.view,
+    ...(params.contractor ? { contractor: params.contractor } : {}),
+    ...(params.status ? { status: params.status } : {}),
+    ...(params.search ? { search: params.search } : {}),
+  };
+}
+
+async function fetchDrawingRegisterRowsWithFiles(
+  params: DrawingRegisterClientReportParams,
+) {
+  return api.get(
+    API_ENDPOINTS.DRAWINGS.REGISTER_LIST,
+    drawingRegisterAxiosConfig(params, {
+      params: drawingRegisterListParams(params),
+    }),
+  );
+}
+
+async function enrichClientRowsWithDetailFiles(
+  rows: DrawingClientReportRow[],
+): Promise<DrawingClientReportRow[]> {
+  const missing = rows.filter((row) => row.id != null && !row.drawings?.length);
+  if (!missing.length) return rows;
+
+  const detailMap = new Map<number, DrawingRegisterFile[]>();
+  await Promise.all(
+    missing.map(async (row) => {
+      if (row.id == null) return;
+      try {
+        const res = await api.get(
+          API_ENDPOINTS.DRAWINGS.REGISTER_DETAIL(row.id),
+          drawingRegisterSkipCacheConfig(),
+        );
+        const normalized = normalizeDrawingRegisterRow(
+          unwrapDrawingApiEnvelope(res.data, "Failed to load drawing record"),
+        );
+        if (normalized.drawings?.length) {
+          detailMap.set(row.id, normalized.drawings);
+        }
+      } catch {
+        // Per-row detail fetch is best-effort.
+      }
+    }),
+  );
+
+  if (!detailMap.size) return rows;
+  return rows.map((row) => {
+    if (row.id == null || row.drawings?.length) return row;
+    const drawings = detailMap.get(row.id);
+    if (!drawings?.length) return row;
+    return {
+      ...row,
+      drawings,
+      drawingFileCount: drawings.length,
+    };
+  });
+}
 
 function drawingRegisterReportParams(
   params: DrawingRegisterClientReportParams,
@@ -6114,13 +6351,12 @@ async function fetchDrawingRegisterClientReport(
   options?: DrawingRegisterRequestOptions,
 ) {
   const queryParams = drawingRegisterReportParams(params, options);
-  const axiosConfig = {
+  const axiosConfig = drawingRegisterAxiosConfig(params, {
     params: queryParams,
-    ...(params.signal ? { signal: params.signal } : {}),
     ...(options?.responseType === "blob"
       ? { responseType: "blob" as const }
       : {}),
-  };
+  });
 
   const endpoints = [
     API_ENDPOINTS.DRAWINGS.REGISTER_LIST,
@@ -6155,7 +6391,8 @@ export type DrawingRegisterCreatePayload = {
   consultantCommentsDate?: string;
   resubmittedDate?: string;
   approvedDate?: string;
-  workflowEvents?: { action: string; eventDate: string }[];
+  workflowEvents?: { action: string; eventDate: string; notes?: string }[];
+  files?: File[];
 };
 
 export type DrawingRegisterUpdatePayload = {
@@ -6166,7 +6403,25 @@ export type DrawingRegisterUpdatePayload = {
   approvedDate?: string;
   contractorName?: string;
   revision?: number;
+  workflowEvents?: { action: string; eventDate: string; notes?: string }[];
+  files?: File[];
 };
+
+type DrawingRegisterWorkflowBody = {
+  action: string;
+  event_date: string;
+  notes?: string;
+};
+
+function toDrawingRegisterWorkflowBody(
+  events: { action: string; eventDate: string; notes?: string }[],
+): DrawingRegisterWorkflowBody[] {
+  return events.map((event) => ({
+    action: event.action,
+    event_date: event.eventDate,
+    ...(event.notes?.trim() ? { notes: event.notes.trim() } : {}),
+  }));
+}
 
 function toDrawingRegisterCreateBody(
   data: DrawingRegisterCreatePayload,
@@ -6179,10 +6434,7 @@ function toDrawingRegisterCreateBody(
   if (data.revision !== undefined) body.revision = data.revision;
   if (data.remarks) body.remarks = data.remarks;
   if (data.workflowEvents?.length) {
-    body.workflow_events = data.workflowEvents.map((event) => ({
-      action: event.action,
-      event_date: event.eventDate,
-    }));
+    body.workflow_events = toDrawingRegisterWorkflowBody(data.workflowEvents);
   } else {
     if (data.submittedDate) body.submitted_date = data.submittedDate;
     if (data.consultantCommentsDate)
@@ -6208,7 +6460,66 @@ function toDrawingRegisterUpdateBody(
   if (data.contractorName !== undefined)
     body.contractor_name = data.contractorName;
   if (data.revision !== undefined) body.revision = data.revision;
+  if (data.workflowEvents?.length) {
+    body.workflow_events = toDrawingRegisterWorkflowBody(data.workflowEvents);
+  }
   return body;
+}
+
+function drawingRegisterMultipartConfig() {
+  return {
+    headers: { "Content-Type": undefined as unknown as string },
+    transformRequest: [
+      (data: unknown, headers: Record<string, string>) => {
+        if (data instanceof FormData) {
+          delete headers["Content-Type"];
+          delete headers["content-type"];
+        }
+        return data;
+      },
+    ],
+    skipActorStamp: true,
+  } as import("axios").AxiosRequestConfig & { skipActorStamp?: boolean };
+}
+
+function buildDrawingRegisterFormData(
+  body: Record<string, unknown>,
+  files: File[],
+): FormData {
+  const form = new FormData();
+  for (const [key, value] of Object.entries(body)) {
+    if (value === undefined) continue;
+    if (key === "workflow_events" && Array.isArray(value)) {
+      form.append(key, JSON.stringify(value));
+      continue;
+    }
+    if (value === null) {
+      form.append(key, "");
+      continue;
+    }
+    form.append(key, String(value));
+  }
+  for (const file of files) {
+    form.append("drawings", file);
+  }
+  return form;
+}
+
+async function submitDrawingRegisterRow(
+  method: "post" | "patch",
+  url: string,
+  body: Record<string, unknown>,
+  files?: File[],
+) {
+  if (files?.length) {
+    const form = buildDrawingRegisterFormData(body, files);
+    return method === "post"
+      ? api.post(url, form, drawingRegisterMultipartConfig())
+      : api.patch(url, form, drawingRegisterMultipartConfig());
+  }
+  return method === "post"
+    ? api.post(url, body)
+    : api.patch(url, body);
 }
 
 export function normalizeDrawingRegisterRow(
@@ -6241,6 +6552,8 @@ export function normalizeDrawingRegisterRow(
       ? normalizeDrawingClientReport({ rows: [clientRowRaw] }).rows[0]
       : undefined;
 
+  const drawings = extractDrawingRegisterFiles(r);
+
   return {
     id: r.id != null ? toNum(r.id) : undefined,
     srNo:
@@ -6270,6 +6583,7 @@ export function normalizeDrawingRegisterRow(
       | null,
     approvedDate: (r.approved_date ?? r.approvedDate ?? null) as string | null,
     workflowEvents,
+    ...(drawings?.length ? { drawings } : {}),
     clientRow,
     createdAt:
       r.created_at != null
@@ -6286,30 +6600,27 @@ export function normalizeDrawingRegisterRow(
   };
 }
 
+function extractDrawingRegisterListItems(raw: unknown): unknown[] {
+  if (Array.isArray(raw)) return raw;
+  if (!raw || typeof raw !== "object") return [];
+  const obj = raw as Record<string, unknown>;
+  if (obj.data && typeof obj.data === "object") {
+    const inner = obj.data as Record<string, unknown>;
+    if (Array.isArray(inner.results)) return inner.results;
+    if (Array.isArray(inner.rows)) return inner.rows;
+    if (Array.isArray(inner.register_rows)) return inner.register_rows;
+  }
+  if (Array.isArray(obj.results)) return obj.results;
+  if (Array.isArray(obj.rows)) return obj.rows;
+  if (Array.isArray(obj.register_rows)) return obj.register_rows;
+  return unwrapList(raw);
+}
+
 export function normalizeDrawingRegisterList(
   raw: unknown,
   projectName = "",
 ): DrawingRegisterRow[] {
-  if (Array.isArray(raw)) {
-    return raw.map((row) => normalizeDrawingRegisterRow(row, projectName));
-  }
-  if (raw && typeof raw === "object") {
-    const obj = raw as Record<string, unknown>;
-    if (obj.data && typeof obj.data === "object") {
-      const inner = obj.data as Record<string, unknown>;
-      if (Array.isArray(inner.results)) {
-        return inner.results.map((row) =>
-          normalizeDrawingRegisterRow(row, projectName),
-        );
-      }
-    }
-    if (Array.isArray(obj.results)) {
-      return obj.results.map((row) =>
-        normalizeDrawingRegisterRow(row, projectName),
-      );
-    }
-  }
-  return unwrapList(raw).map((row) =>
+  return extractDrawingRegisterListItems(raw).map((row) =>
     normalizeDrawingRegisterRow(row, projectName),
   );
 }
@@ -6384,19 +6695,67 @@ export async function parseDrawingRegisterCsvBlob(
 export const drawingRegisterApi = {
   /** Client report table — tries /drawings/summary/, /drawings/register/, then project summary */
   getClientReport: async (params: DrawingRegisterClientReportParams) => {
-    const res = await fetchDrawingRegisterClientReport(params);
+    const [clientRes, registerRes] = await Promise.all([
+      fetchDrawingRegisterClientReport(params),
+      fetchDrawingRegisterRowsWithFiles(params).catch(() => null),
+    ]);
+
     const payload = unwrapDrawingApiEnvelope(
-      res.data,
+      clientRes.data,
       "Failed to load drawing register",
     );
+    let report = normalizeDrawingClientReport(payload, {
+      projectName: params.projectName,
+      month: params.month,
+      year: params.year,
+      view: params.view,
+    });
+
+    try {
+      const registerRows = registerRes
+        ? normalizeDrawingRegisterList(
+            unwrapDrawingApiEnvelope(
+              registerRes.data,
+              "Failed to load register rows",
+            ),
+            params.projectName,
+          )
+        : [];
+
+      let rows =
+        registerRows.length > 0
+          ? supplementClientReportRows(report.rows, registerRows)
+          : report.rows;
+
+      if (!rows.length && registerRows.length > 0) {
+        rows = registerRows
+          .map(registerRowToClientReportRow)
+          .sort((a, b) => (a.srNo ?? 0) - (b.srNo ?? 0));
+      }
+
+      rows = await enrichClientRowsWithDetailFiles(rows);
+      report = { ...report, rows };
+    } catch (enrichError) {
+      if (!axios.isAxiosError(enrichError)) {
+        console.warn("[DrawingRegister] File enrichment failed:", enrichError);
+      } else {
+        const status = enrichError.response?.status;
+        if (status !== 404 && status !== 405) {
+          console.warn(
+            "[DrawingRegister] File enrichment failed:",
+            enrichError,
+          );
+        }
+      }
+      report = {
+        ...report,
+        rows: await enrichClientRowsWithDetailFiles(report.rows),
+      };
+    }
+
     return {
-      ...res,
-      data: normalizeDrawingClientReport(payload, {
-        projectName: params.projectName,
-        month: params.month,
-        year: params.year,
-        view: params.view,
-      }),
+      ...clientRes,
+      data: report,
     };
   },
 
@@ -6421,9 +6780,19 @@ export const drawingRegisterApi = {
   },
 
   /** Raw register rows — GET /drawings/register/?project_name=... */
-  listRegisterRows: async (projectName: string) => {
+  listRegisterRows: async (
+    projectName: string,
+    params?: Omit<DrawingRegisterClientReportParams, "projectName">,
+  ) => {
     const res = await api.get(API_ENDPOINTS.DRAWINGS.REGISTER_LIST, {
-      params: { project_name: projectName },
+      params: {
+        project_name: projectName,
+        ...(params
+          ? drawingRegisterListParams({ ...params, projectName })
+          : {}),
+      },
+      ...(params?.signal ? { signal: params.signal } : {}),
+      ...(params?.fresh ? drawingRegisterSkipCacheConfig() : {}),
     });
     return {
       ...res,
@@ -6435,16 +6804,35 @@ export const drawingRegisterApi = {
   },
 
   createRegisterRow: async (data: DrawingRegisterCreatePayload) => {
-    const res = await api.post(
+    const body = toDrawingRegisterCreateBody(data);
+    const res = await submitDrawingRegisterRow(
+      "post",
       API_ENDPOINTS.DRAWINGS.REGISTER_CREATE,
-      toDrawingRegisterCreateBody(data),
+      body,
+      data.files,
     );
+    invalidateDrawingRegisterCache();
+    let row = normalizeDrawingRegisterRow(
+      unwrapDrawingApiEnvelope(res.data, "Failed to create drawing record"),
+      data.projectName,
+    );
+    if (data.files?.length && !row.drawings?.length && row.id != null) {
+      try {
+        const detailRes = await api.get(
+          API_ENDPOINTS.DRAWINGS.REGISTER_DETAIL(row.id),
+          drawingRegisterSkipCacheConfig(),
+        );
+        row = normalizeDrawingRegisterRow(
+          unwrapDrawingApiEnvelope(detailRes.data, "Failed to load drawing record"),
+          data.projectName,
+        );
+      } catch {
+        // Detail re-fetch is best-effort after create.
+      }
+    }
     return {
       ...res,
-      data: normalizeDrawingRegisterRow(
-        unwrapDrawingApiEnvelope(res.data, "Failed to create drawing record"),
-        data.projectName,
-      ),
+      data: row,
     };
   },
 
@@ -6452,20 +6840,53 @@ export const drawingRegisterApi = {
     id: string | number,
     data: DrawingRegisterUpdatePayload,
   ) => {
-    const res = await api.patch(
+    const body = toDrawingRegisterUpdateBody(data);
+    const res = await submitDrawingRegisterRow(
+      "patch",
       API_ENDPOINTS.DRAWINGS.REGISTER_UPDATE(id),
-      toDrawingRegisterUpdateBody(data),
+      body,
+      data.files,
     );
+    invalidateDrawingRegisterCache();
+    let row = normalizeDrawingRegisterRow(
+      unwrapDrawingApiEnvelope(res.data, "Failed to update drawing record"),
+    );
+    if (data.files?.length && !row.drawings?.length) {
+      try {
+        const detailRes = await api.get(
+          API_ENDPOINTS.DRAWINGS.REGISTER_DETAIL(id),
+          drawingRegisterSkipCacheConfig(),
+        );
+        row = normalizeDrawingRegisterRow(
+          unwrapDrawingApiEnvelope(detailRes.data, "Failed to update drawing record"),
+        );
+      } catch {
+        // Detail re-fetch is best-effort after update.
+      }
+    }
     return {
       ...res,
-      data: normalizeDrawingRegisterRow(
-        unwrapDrawingApiEnvelope(res.data, "Failed to update drawing record"),
-      ),
+      data: row,
     };
+  },
+
+  deleteRegisterFile: async (fileId: string | number) => {
+    const res = await api.delete(
+      API_ENDPOINTS.DRAWINGS.REGISTER_FILE_DELETE(fileId),
+    );
+    invalidateDrawingRegisterCache();
+    if (res.data && typeof res.data === "object") {
+      const obj = res.data as Record<string, unknown>;
+      if (obj.success === false) {
+        throw new Error(String(obj.message ?? "Failed to delete drawing file"));
+      }
+    }
+    return res;
   },
 
   deleteRegisterRow: async (id: string | number) => {
     const res = await api.delete(API_ENDPOINTS.DRAWINGS.REGISTER_DELETE(id));
+    invalidateDrawingRegisterCache();
     if (res.data && typeof res.data === "object") {
       const obj = res.data as Record<string, unknown>;
       if (obj.success === false) {

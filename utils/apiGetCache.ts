@@ -54,10 +54,14 @@ function ttlForPath(path: string): number {
   if (path.includes('/projects-data/projects')) return 45_000;
   if (path.includes('/dpr')) return 20_000;
   if (path.includes('/alerts')) return 15_000;
+  if (path.includes('/reminders')) return 5_000;
   if (path.includes('/available-users')) return 120_000;
   if (path.includes('/overview')) return 30_000;
   if (path.includes('/cost-performance') || path.includes('/project-progress')) {
     return 25_000;
+  }
+  if (path.includes('/drawings/register') || path.includes('/drawings/summary')) {
+    return 5_000;
   }
   return DEFAULT_TTL_MS;
 }
@@ -140,6 +144,7 @@ function invalidateFromMutation(config: AxiosRequestConfig): void {
   if (path.includes('/monthly-scope')) fragments.push('/monthly-scope');
   if (path.includes('/cost-performance')) fragments.push('/cost-performance');
   if (path.includes('/project-progress')) fragments.push('/project-progress');
+  if (path.includes('/drawings')) fragments.push('/drawings/register', '/drawings/summary', '/drawings/');
 
   invalidateApiGetCache(fragments);
 }

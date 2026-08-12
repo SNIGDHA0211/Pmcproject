@@ -285,6 +285,16 @@ export interface DrawingWorkflowEvent {
   createdAt?: string;
 }
 
+export interface DrawingRegisterFile {
+  id?: number;
+  originalFilename: string;
+  revision?: number;
+  fileSize?: number;
+  contentType?: string;
+  fileUrl: string;
+  createdAt?: string;
+}
+
 export interface DrawingRegisterRow {
   id?: number;
   srNo?: number;
@@ -298,6 +308,7 @@ export interface DrawingRegisterRow {
   resubmittedDate?: string | null;
   approvedDate?: string | null;
   workflowEvents?: DrawingWorkflowEvent[];
+  drawings?: DrawingRegisterFile[];
   clientRow?: DrawingClientReportRow;
   createdAt?: string;
   updatedAt?: string;
@@ -315,6 +326,8 @@ export interface DrawingClientReportRow {
   revision?: number | null;
   contractorName?: string | null;
   projectName: string;
+  drawingFileCount?: number;
+  drawings?: DrawingRegisterFile[];
 }
 
 export interface DrawingClientReportSummary {

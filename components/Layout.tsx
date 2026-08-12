@@ -25,7 +25,7 @@ const SIDEBAR_SECTION_META: Record<string, { title: string; hint: string }> = {
   Field: { title: 'On site', hint: 'Progress, photos, and field work' },
   Reviews: { title: 'Reviews', hint: 'Portfolio and report checks' },
   Meetings: { title: 'Meetings', hint: 'MOM and meeting files' },
-  Support: { title: 'Alerts', hint: 'Notifications and support' },
+  Support: { title: 'Support', hint: 'Reminders, alerts, and help' },
 };
 
 interface LayoutProps {
@@ -45,6 +45,8 @@ interface LayoutProps {
   onRequestNotifications?: () => void;
   onNavigateToAlerts?: () => void;
   onNotificationClick?: (notification: AppNotification) => void;
+  /** Overdue + due-today reminder count for sidebar badge */
+  reminderBadgeCount?: number;
   projects?: Project[];
   selectedProjectId?: string | null;
   onSelectProject?: (id: string | null) => void;
@@ -69,6 +71,7 @@ const Layout: React.FC<LayoutProps> = ({
   onRequestNotifications,
   onNavigateToAlerts,
   onNotificationClick,
+  reminderBadgeCount = 0,
   isOnboardingTourActive = false,
   onOnboardingTourStateChange,
   isAnyTourRunning = false,
@@ -183,6 +186,7 @@ const Layout: React.FC<LayoutProps> = ({
       projects: "portfolio-menu",
       dpr_records: "dpr-menu",
       wpr_records: "wpr-menu",
+      mpr_records: "mpr-menu",
       documents: "vault-menu",
     };
     return classMap[id] || "";
@@ -331,11 +335,37 @@ const Layout: React.FC<LayoutProps> = ({
       ],
     },
     {
+      id: "mpr_records",
+      label: "MPR Review",
+      icon: Icons.Document,
+      section: "Reviews",
+      roles: [
+        UserRole.PMC_HEAD,
+        UserRole.PMC_HEAD_OFFICE,
+        UserRole.TEAM_LEAD,
+        UserRole.SITE_ENGINEER,
+        UserRole.COORDINATOR,
+      ],
+    },
+    {
       id: "meeting_documents",
       label: "Meeting Documents",
       icon: Icons.ClipboardList,
       section: "Meetings",
       roles: [UserRole.PMC_HEAD, UserRole.PMC_HEAD_OFFICE, UserRole.TEAM_LEAD, UserRole.COORDINATOR],
+    },
+    {
+      id: "reminders",
+      label: "Reminders",
+      icon: Icons.Clock,
+      section: "Support",
+      roles: [
+        UserRole.TEAM_LEAD,
+        UserRole.PMC_HEAD,
+        UserRole.PMC_HEAD_OFFICE,
+        UserRole.COORDINATOR,
+        UserRole.SITE_ENGINEER,
+      ],
     },
     {
       id: "alerts",
@@ -619,6 +649,7 @@ const Layout: React.FC<LayoutProps> = ({
                     : undefined;
                 const showSectionHeader = Boolean(sectionLabel && sectionLabel !== previousSection);
                 const showAlertBadge = item.id === 'alerts' && unreadCount > 0;
+                const showReminderBadge = item.id === 'reminders' && reminderBadgeCount > 0;
                 const sectionMeta = sectionLabel
                   ? SIDEBAR_SECTION_META[sectionLabel] ?? {
                       title: sectionLabel,
@@ -723,6 +754,11 @@ const Layout: React.FC<LayoutProps> = ({
                         {showAlertBadge && (
                           <span className="sidebar-alert-badge inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded-md px-1.5 text-[10px] font-black tabular-nums">
                             {unreadCount > 99 ? '99+' : unreadCount}
+                          </span>
+                        )}
+                        {showReminderBadge && (
+                          <span className="sidebar-alert-badge inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded-md bg-amber-500 px-1.5 text-[10px] font-black tabular-nums text-white">
+                            {reminderBadgeCount > 99 ? '99+' : reminderBadgeCount}
                           </span>
                         )}
                         {isActive && (

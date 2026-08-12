@@ -364,11 +364,17 @@ const MODULE_NAV_MAP: Record<string, AlertNavigationTarget> = {
   'quality status': { tab: 'team_projects' },
   'monthly scope': { tab: 'monthly_scope', returnTab: 'team_projects' },
   'manpower management': { tab: 'manpower_management', returnTab: 'team_projects' },
+  reminders: { tab: 'reminders', returnTab: 'alerts' },
+  reminder: { tab: 'reminders', returnTab: 'alerts' },
 };
 
 export function resolveAlertNavigation(
   notification: AppNotification,
 ): AlertNavigationTarget | null {
+  const type = (notification.notificationType || '').trim().toUpperCase();
+  if (type === 'REMINDER_DUE' || (notification.actionType || '').toUpperCase() === 'REMINDER_DUE') {
+    return { tab: 'reminders', returnTab: 'alerts' };
+  }
   const key = (notification.moduleName || '').trim().toLowerCase();
   if (!key) return null;
   return MODULE_NAV_MAP[key] ?? null;

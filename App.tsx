@@ -50,6 +50,15 @@ import { makeNavReturn, type NavReturnContext } from "./utils/navReturn";
 import { useAuth } from "./contexts/AuthContext";
 import { websocketService, NotificationData } from "./services/websocket";
 import { alertsApi, fetchAllAlerts } from "./services/alertsApi";
+import { fetchReminderBadgeCounts, listReminders } from "./services/remindersApi";
+import {
+  buildReminderDueNotification,
+  claimReminderDueToasts,
+  isReminderDueNotification,
+} from "./utils/reminderNotifications";
+import { isReminderAlarmTimeReached, REMINDER_REFRESH_MS } from "./utils/reminderHelpers";
+import { canUserHearReminderAudio, clearAllReminderAlarmStops, primeReminderAlarmAudio } from "./utils/reminderAlarm";
+import ReminderAlarmEngine from "./components/reminders/ReminderAlarmEngine";
 import {
   normalizeAlertRecord,
   normalizeWsAlertPayload,
@@ -109,6 +118,7 @@ const ProjectDetails = lazy(() => import("./components/ProjectDetails"));
 const DPRRecords = lazy(() => import("./components/DPRRecords"));
 const DPRReviewDashboard = lazy(() => import("./components/DPRReviewDashboard"));
 const WPRReviewDashboard = lazy(() => import("./components/WPRReviewDashboard"));
+const MPRReviewDashboard = lazy(() => import("./components/mpr/MPRReviewDashboard"));
 const Projects = lazy(() => import("./components/Projects"));
 const SiteEngineerDashboard = lazy(() => import("./components/SiteEngineerDashboard"));
 const ProjectInit = lazy(() => import("./components/ProjectInit"));
@@ -121,6 +131,7 @@ const TestingPhotosPage = lazy(() => import("./components/testingPhotos/TestingP
 const ProjectFeedbackPage = lazy(() => import("./components/projectFeedback/ProjectFeedbackPage"));
 const UserManagementPage = lazy(() => import("./components/userManagement/UserManagementPage"));
 const AlertsPage = lazy(() => import("./components/AlertsPage"));
+const RemindersPage = lazy(() => import("./components/reminders/RemindersPage"));
 const MeetingDocumentsPage = lazy(() => import("./components/meetingDocuments/MeetingDocumentsPage"));
 
 const TabSuspenseFallback: React.FC = () => (
@@ -171,6 +182,8 @@ const App: React.FC = () => {
   const [navReturn, setNavReturn] = useState<NavReturnContext | null>(null);
   const [financialInitialProjectId, setFinancialInitialProjectId] = useState<string | null>(null);
   const [testingPhotosInitialProjectId, setTestingPhotosInitialProjectId] = useState<string | null>(null);
+  const [remindersInitialProjectId, setRemindersInitialProjectId] = useState<string | null>(null);
+  const [reminderBadgeCount, setReminderBadgeCount] = useState(0);
   const [alertsLoading, setAlertsLoading] = useState(false);
   const [alertsRefreshing, setAlertsRefreshing] = useState(false);
   const [pendingUpdates, setPendingUpdates] = useState<PendingUpdatesSummary | null>(null);
@@ -651,7 +664,7 @@ const App: React.FC = () => {
             .filter((n) => isSyntheticActivityNotification(n.id) && n.isRead)
             .map((n) => n.id),
         );
-        // When refreshing without activity, preserve previously loaded synthetic activity rows.
+        const reminderDuePrev = prev.filter((n) => isReminderDueNotification(n.id));
         let next = merged;
         if (!includeActivity && activityHydratedRef.current) {
           const syntheticPrev = prev.filter((n) => isSyntheticActivityNotification(n.id));
@@ -659,11 +672,22 @@ const App: React.FC = () => {
             next = mergeActivityNotifications(merged, syntheticPrev);
           }
         }
+        if (reminderDuePrev.length > 0) {
+          const serverIds = new Set(next.map((n) => n.id));
+          const keepReminders = reminderDuePrev.filter((n) => !serverIds.has(n.id));
+          if (keepReminders.length > 0) {
+            next = [...keepReminders, ...next];
+          }
+        }
         const sorted = sortNotificationsDesc(next);
-        if (readSyntheticIds.size === 0) return sorted;
-        return sorted.map((n) =>
-          readSyntheticIds.has(n.id) ? { ...n, isRead: true } : n,
-        );
+        const finalList =
+          readSyntheticIds.size === 0
+            ? sorted
+            : sorted.map((n) =>
+                readSyntheticIds.has(n.id) ? { ...n, isRead: true } : n,
+              );
+
+        return finalList;
       });
       alertsHydratedRef.current = true;
     } catch (error) {
@@ -686,6 +710,22 @@ const App: React.FC = () => {
       notification.projectId || resolveProjectIdByName(notification.projectName);
     if (projectId) {
       setSelectedProjectId(projectId);
+    }
+
+    const isReminderDue =
+      (notification.notificationType || '').toUpperCase() === 'REMINDER_DUE' ||
+      (notification.actionType || '').toUpperCase() === 'REMINDER_DUE' ||
+      (notification.moduleName || '').trim().toLowerCase() === 'reminders';
+
+    if (isReminderDue && isTabAllowedForRole('reminders', currentUser!.role, currentUser!.username, currentUser)) {
+      setRemindersInitialProjectId(projectId || null);
+      setNavReturn(makeNavReturn('alerts'));
+      setActiveTab('reminders');
+      const remindersPath = TAB_PATHS.reminders;
+      if (remindersPath && getAppRoutePath() !== remindersPath) {
+        syncAppRoutePath(remindersPath, 'push');
+      }
+      return;
     }
 
     if (isPmcHeadEquivalent(currentUser)) {
@@ -840,6 +880,140 @@ const App: React.FC = () => {
       includeActivity: false,
     });
   }, [currentUser?.id, fetchAlerts]);
+
+  const navigateToReminders = React.useCallback(() => {
+    if (!currentUser) return;
+    if (!isTabAllowedForRole('reminders', currentUser.role, currentUser.username, currentUser)) {
+      return;
+    }
+    setRemindersInitialProjectId(null);
+    setActiveTab('reminders');
+    const remindersPath = TAB_PATHS.reminders;
+    if (remindersPath && getAppRoutePath() !== remindersPath) {
+      syncAppRoutePath(remindersPath, 'push');
+    }
+  }, [currentUser]);
+
+  const refreshReminderBadge = React.useCallback(async () => {
+    if (!currentUser) {
+      setReminderBadgeCount(0);
+      return;
+    }
+    if (!isTabAllowedForRole('reminders', currentUser.role, currentUser.username, currentUser)) {
+      setReminderBadgeCount(0);
+      return;
+    }
+    try {
+      const counts = await fetchReminderBadgeCounts();
+      setReminderBadgeCount(counts.total);
+    } catch {
+      // Keep last known count on transient API errors
+    }
+  }, [currentUser]);
+
+  /** Prime alarm audio after any user gesture (browser autoplay policy). */
+  useEffect(() => {
+    if (!currentUser) {
+      clearAllReminderAlarmStops();
+      return;
+    }
+    const unlock = () => void primeReminderAlarmAudio();
+    window.addEventListener('pointerdown', unlock);
+    window.addEventListener('keydown', unlock);
+    return () => {
+      window.removeEventListener('pointerdown', unlock);
+      window.removeEventListener('keydown', unlock);
+    };
+  }, [currentUser?.id]);
+
+  useEffect(() => {
+    if (!currentUser) return;
+    void refreshReminderBadge();
+    const timer = window.setInterval(() => {
+      void refreshReminderBadge();
+    }, 60_000);
+    return () => window.clearInterval(timer);
+  }, [currentUser?.id, currentUser?.role, refreshReminderBadge]);
+
+  /** Poll due reminders for the logged-in assignee and push Alerts/bell + toast + audio. */
+  useEffect(() => {
+    if (!currentUser) return;
+    if (!isTabAllowedForRole('reminders', currentUser.role, currentUser.username, currentUser)) {
+      return;
+    }
+
+    let cancelled = false;
+
+    const syncDueReminderAlerts = async () => {
+      const user = currentUserRef.current;
+      if (!user) return;
+      try {
+        const mine = await listReminders({
+          scope: 'mine',
+          page_size: 100,
+          ordering: 'due_at',
+          skipCache: true,
+        });
+        if (cancelled) return;
+
+        const dueRows = mine.results.filter((row) => {
+          const status = (row.status || '').toLowerCase();
+          return status !== 'completed' && status !== 'dismissed';
+        });
+        const alarmDueRows = dueRows.filter((row) => isReminderAlarmTimeReached(row));
+        const dueNotifs = alarmDueRows.map((row) => buildReminderDueNotification(row, user.id));
+        const dueIds = new Set(dueNotifs.map((n) => n.id));
+
+        setNotifications((prev) => {
+          const kept = prev.filter((n) => {
+            if (!isReminderDueNotification(n.id)) return true;
+            return dueIds.has(n.id);
+          });
+          const existingIds = new Set(kept.map((n) => n.id));
+          const additions = dueNotifs.filter((n) => !existingIds.has(n.id));
+          if (additions.length === 0 && kept.length === prev.length) {
+            return sortNotificationsDesc(
+              kept.map((n) => {
+                if (!isReminderDueNotification(n.id)) return n;
+                const newer = dueNotifs.find((d) => d.id === n.id);
+                return newer ? { ...newer, isRead: n.isRead } : n;
+              }),
+            );
+          }
+          const merged = [
+            ...kept.map((n) => {
+              if (!isReminderDueNotification(n.id)) return n;
+              const newer = dueNotifs.find((d) => d.id === n.id);
+              return newer ? { ...newer, isRead: n.isRead } : n;
+            }),
+            ...additions,
+          ];
+          return sortNotificationsDesc(merged);
+        });
+
+        const freshToastIds = claimReminderDueToasts(alarmDueRows.map((r) => r.id));
+        for (const notifId of freshToastIds) {
+          const notif = dueNotifs.find((n) => n.id === notifId);
+          if (!notif) continue;
+          showAlertToast(notif.title, notif.message);
+          showBrowserNotification(notif.title, notif.message);
+        }
+
+        void refreshReminderBadge();
+      } catch (error) {
+        console.warn('Failed to sync due reminder alerts:', error);
+      }
+    };
+
+    void syncDueReminderAlerts();
+    const timer = window.setInterval(() => {
+      void syncDueReminderAlerts();
+    }, REMINDER_REFRESH_MS);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [currentUser?.id, currentUser?.role, currentUser?.username]);
 
   const handleCreateProject = async (projectData: Partial<Project>, initialDocs: Partial<Document>[], documentationFile?: File) => {
     try {
@@ -1865,6 +2039,7 @@ const App: React.FC = () => {
           if (nextTab !== "testing_photos") {
             setTestingPhotosInitialProjectId(null);
           }
+          setRemindersInitialProjectId(null);
           setSelectedProjectId(null);
           setProjectFilter("all");
         }}
@@ -1880,6 +2055,7 @@ const App: React.FC = () => {
           }
         }}
         onNotificationClick={handleAlertNavigation}
+        reminderBadgeCount={reminderBadgeCount}
         projects={projects}
         selectedProjectId={selectedProjectId}
         onSelectProject={(id) => {
@@ -2360,10 +2536,23 @@ const App: React.FC = () => {
             onMarkRead={handleMarkRead}
             onNavigate={handleAlertNavigation}
           />
+        ) : activeTab === "reminders" ? (
+          <RemindersPage
+            projects={projects}
+            currentUser={currentUser}
+            initialProjectId={remindersInitialProjectId}
+            onBadgeCountsChange={() => void refreshReminderBadge()}
+          />
         ) : activeTab === "meeting_documents" ? (
           <MeetingDocumentsPage projects={projects} />
         ) : activeTab === "wpr_records" ? (
           <WPRReviewDashboard
+            projects={projects}
+            currentUser={currentUser}
+            selectedProjectId={selectedProjectId}
+          />
+        ) : activeTab === "mpr_records" ? (
+          <MPRReviewDashboard
             projects={projects}
             currentUser={currentUser}
             selectedProjectId={selectedProjectId}
@@ -2384,6 +2573,12 @@ const App: React.FC = () => {
         )}
         </Suspense>
         <NotificationAlertToastStack toasts={alertToasts} />
+        {currentUser && canUserHearReminderAudio(currentUser) ? (
+          <ReminderAlarmEngine
+            user={currentUser}
+            onNavigateToReminders={navigateToReminders}
+          />
+        ) : null}
         {isCreateModalOpen && (
           <CreateProjectModal
             onClose={() => setIsCreateModalOpen(false)}

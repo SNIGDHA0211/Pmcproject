@@ -26,6 +26,7 @@ import CompleteProjectDialog, {
 import CompleteBillingDialog from './CompleteBillingDialog';
 import DashboardToastStack, { type DashboardToastItem } from './DashboardToastStack';
 import ProjectEotSection from './projectEot/ProjectEotSection';
+import ProjectRemindersPanel from './reminders/ProjectRemindersPanel';
 import UserAvatar from './UserAvatar';
 import {
   buildExecutionTeamRoster,
@@ -58,7 +59,7 @@ const ProjectDetails: React.FC<ProjectDetailsProps> = ({ project, currentUser, o
   const { isDarkTheme } = useTheme();
   const themeClasses = getThemeClasses(isDarkTheme);
 
-  const [activeTab, setActiveTab] = useState<'workflow' | 'docs' | 'tasks' | 'audit'>('workflow');
+  const [activeTab, setActiveTab] = useState<'workflow' | 'docs' | 'tasks' | 'reminders' | 'audit'>('workflow');
   const [comment, setComment] = useState('');
   const [showRejectModal, setShowRejectModal] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -1219,6 +1220,7 @@ const ProjectDetails: React.FC<ProjectDetailsProps> = ({ project, currentUser, o
           { id: 'workflow', label: 'Workflow', shortLabel: 'Workflow', icon: Icons.History },
           { id: 'docs', label: 'Vault', shortLabel: 'Vault', icon: Icons.Document },
           { id: 'tasks', label: 'Site Execution', shortLabel: 'Site', icon: Icons.Task },
+          { id: 'reminders', label: 'Reminders', shortLabel: 'Remind', icon: Icons.Clock },
           { id: 'audit', label: 'Audit Trail', shortLabel: 'Audit', icon: Icons.Comment },
         ].map((tab) => (
           <button
@@ -1249,6 +1251,12 @@ const ProjectDetails: React.FC<ProjectDetailsProps> = ({ project, currentUser, o
       <div className="flex flex-col gap-4 pb-16 sm:gap-5 sm:pb-20">
         {/* Tab panels — always full width (no empty side column) */}
         <div className="min-w-0 w-full">
+          {activeTab === 'reminders' && (
+            <div className={`${themeClasses.glassCard} rounded-2xl border p-4 sm:p-6 ${themeClasses.border}`}>
+              <ProjectRemindersPanel project={project} currentUser={currentUser} />
+            </div>
+          )}
+
           {activeTab === 'audit' && (
             <div className={`${themeClasses.glassCard} rounded-2xl border p-4 sm:p-6 ${themeClasses.border}`}>
               <div className="mb-4 flex flex-wrap items-center justify-between gap-2 sm:mb-6">

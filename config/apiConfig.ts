@@ -111,6 +111,17 @@ export const API_ENDPOINTS = {
     LIST: '/wpr/',
   },
 
+  // MPR (Monthly Progress Reports)
+  MPR: {
+    PROJECT_LIST: (projectId: string | number) => `/mpr/projects/${projectId}/`,
+    PREVIEW: (projectId: string | number) => `/mpr/projects/${projectId}/preview/`,
+    GENERATE: (projectId: string | number) => `/mpr/projects/${projectId}/generate/`,
+    DETAIL: (mprId: string | number) => `/mpr/${mprId}/`,
+    REGENERATE: (mprId: string | number) => `/mpr/${mprId}/regenerate/`,
+    PDF: (mprId: string | number) => `/mpr/${mprId}/pdf/`,
+    EXCEL: (mprId: string | number) => `/mpr/${mprId}/excel/`,
+  },
+
   // Health, Safety & Environment (HSE)
   HEALTH_SAFETY: {
     LIST: '/health-safety/',
@@ -307,6 +318,8 @@ export const API_ENDPOINTS = {
     REGISTER_DETAIL: (id: string | number) => `/drawings/register/${id}/`,
     REGISTER_UPDATE: (id: string | number) => `/drawings/register/${id}/`,
     REGISTER_DELETE: (id: string | number) => `/drawings/register/${id}/`,
+    REGISTER_FILE_DELETE: (fileId: string | number) =>
+      `/drawings/files/${fileId}/`,
   },
 
   // Budget Performance
@@ -387,6 +400,15 @@ export const API_ENDPOINTS = {
   ALERTS: {
     LIST: '/alerts/',
     DETAIL: (id: string | number) => `/alerts/${id}/`,
+  },
+
+  // Reminders (PO-31) — dedicated module, not Alerts/Tasks
+  REMINDERS: {
+    LIST: '/reminders/',
+    DETAIL: (id: string | number) => `/reminders/${id}/`,
+    COMPLETE: (id: string | number) => `/reminders/${id}/complete/`,
+    DISMISS: (id: string | number) => `/reminders/${id}/dismiss/`,
+    SNOOZE: (id: string | number) => `/reminders/${id}/snooze/`,
   },
 
   // Frequency Chart (Material Testing)

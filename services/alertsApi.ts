@@ -41,6 +41,10 @@ export interface CreateAlertPayload {
   sender_username?: string;
   sender_role?: string;
   notify_role?: string;
+  /** Target a specific user (Reminders assignee) when backend supports it */
+  notify_user_id?: number | string;
+  user_id?: number | string;
+  assigned_to_id?: number | string;
 }
 
 export const alertsApi = {
