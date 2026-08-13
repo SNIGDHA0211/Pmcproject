@@ -551,7 +551,7 @@ const PMCHeadExecutiveShell: React.FC<PMCHeadExecutiveShellProps> = ({
                 key={tab.id}
                 type="button"
                 onClick={() => onTabChange(tab.id)}
-                className={`relative shrink-0 rounded-full px-3 py-1.5 pr-3 text-[10px] font-bold uppercase tracking-wide transition sm:px-3.5 sm:pr-3.5 sm:text-xs ${
+                className={`relative shrink-0 rounded-full px-3 py-1.5 pr-3 pmc-type-nav transition sm:px-3.5 sm:pr-3.5 ${
                   activeTab === tab.id ? ex.shellTabActive : ex.shellTabInactive
                 }`}
                 aria-label={

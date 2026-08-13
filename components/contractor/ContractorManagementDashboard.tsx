@@ -174,7 +174,7 @@ const ContractorManagementDashboard: React.FC<ContractorManagementDashboardProps
   ) : null;
 
   return (
-    <div className={`contractor-management-dashboard font-[Inter,system-ui,sans-serif] ${theme.root}`}>
+    <div className={`contractor-management-dashboard ${theme.root}`}>
       {projectDatesSection}
 
       {showFinancial && (

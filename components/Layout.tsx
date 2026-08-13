@@ -12,12 +12,14 @@ import TeamLeaderSidebarTour, {
   type TeamLeaderSidebarTourHandle,
 } from './tours/TeamLeaderSidebarTour';
 import UserAvatar from './UserAvatar';
+import HeaderSearch from './HeaderSearch';
 import AlertNotificationItem from './alerts/AlertNotificationItem';
 import { isTabAllowedForRole } from '../utils/roleRouting';
 import { isPmcHeadEquivalent } from '../utils/pmcRoleAccess';
 import { canAccessUserManagement } from '../utils/userManagementAccess';
 import type { NavReturnContext } from '../utils/navReturn';
 import { navReturnLabel } from '../utils/navReturn';
+import '../styles/pmc-app-typography.css';
 
 /** Client-friendly section titles + one-line hints (UX only — ids/routes unchanged). */
 const SIDEBAR_SECTION_META: Record<string, { title: string; hint: string }> = {
@@ -498,6 +500,17 @@ const Layout: React.FC<LayoutProps> = ({
     return item ? resolveNavLabel(item) : 'Overview';
   }, [visibleNavigation, activeTab, resolveNavLabel]);
 
+  const headerSearchItems = useMemo(
+    () =>
+      visibleNavigation.map((item) => ({
+        id: item.id,
+        label: resolveNavLabel(item),
+        section: item.section,
+        icon: item.icon,
+      })),
+    [resolveNavLabel, visibleNavigation],
+  );
+
   // Keep the section that holds the active page open
   useEffect(() => {
     const item = visibleNavigation.find((n) => n.id === activeTab);
@@ -516,7 +529,7 @@ const Layout: React.FC<LayoutProps> = ({
   }, [activeTab, visibleNavigation]);
 
   return (
-    <div className={`relative h-screen overflow-hidden ${isDarkTheme ? 'bg-[#0a1420]' : 'bg-[#e8f4fb]'}`}>
+    <div className={`pmc-app relative h-screen overflow-hidden ${isDarkTheme ? 'bg-[#0a1420]' : 'bg-[#e8f4fb]'}`}>
       {/* Shared construction panorama — opacity + overlays tuned per theme */}
       <div
         className={`absolute inset-0 bg-cover bg-no-repeat ${
@@ -606,7 +619,7 @@ const Layout: React.FC<LayoutProps> = ({
                 )}
               </div>
               <div
-                className={`sidebar-role-badge sidebar-chrome mt-2 inline-flex max-w-full items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.12em] ${
+                className={`sidebar-role-badge sidebar-chrome mt-2 inline-flex max-w-full items-center gap-1.5 rounded-full px-2.5 py-1 ${
                   isDarkTheme ? 'sidebar-role-badge-dark' : 'sidebar-role-badge-light'
                 }`}
               >
@@ -620,14 +633,14 @@ const Layout: React.FC<LayoutProps> = ({
                 title={`You are viewing ${activeNavLabel}`}
               >
                 <p
-                  className={`text-[9px] font-bold uppercase tracking-[0.14em] ${
+                  className={`pmc-type-brand-sub ${
                     isDarkTheme ? 'text-cyan-300/70' : 'text-cyan-700/70'
                   }`}
                 >
                   You are here
                 </p>
                 <p
-                  className={`truncate text-[12px] font-bold leading-tight ${
+                  className={`truncate pmc-type-card-title ${
                     isDarkTheme ? 'text-slate-100' : 'text-slate-800'
                   }`}
                 >
@@ -690,7 +703,7 @@ const Layout: React.FC<LayoutProps> = ({
                         >
                           <span className="min-w-0 flex-1">
                             <span
-                              className={`sidebar-section-label block text-[10px] font-black uppercase tracking-[0.14em] ${
+                              className={`sidebar-section-label block ${
                                 isDarkTheme ? 'text-cyan-300/65' : 'text-cyan-800/55'
                               }`}
                             >
@@ -698,7 +711,7 @@ const Layout: React.FC<LayoutProps> = ({
                             </span>
                             {sectionMeta.hint ? (
                               <span
-                                className={`mt-0.5 block text-[10px] font-medium leading-snug ${
+                                className={`mt-0.5 block pmc-type-helper ${
                                   isDarkTheme ? 'text-slate-500' : 'text-slate-400'
                                 }`}
                               >
@@ -745,7 +758,7 @@ const Layout: React.FC<LayoutProps> = ({
                           <Icon size={17} strokeWidth={isActive ? 2.25 : 1.85} />
                         </span>
                         <span
-                          className={`sidebar-chrome min-w-0 flex-1 truncate text-[13px] leading-tight transition-transform duration-200 ${
+                          className={`sidebar-chrome min-w-0 flex-1 truncate leading-tight transition-transform duration-200 ${
                             isActive ? 'font-bold text-inherit' : 'font-semibold'
                           }`}
                         >
@@ -793,11 +806,11 @@ const Layout: React.FC<LayoutProps> = ({
                     isDarkTheme={isDarkTheme}
                   />
                   <div className="sidebar-chrome min-w-0 flex-1 overflow-hidden">
-                    <p className={`truncate text-[13px] font-bold leading-tight ${themeClasses.textPrimary}`}>
+                    <p className={`truncate pmc-type-card-title ${themeClasses.textPrimary}`}>
                       {user.name}
                     </p>
                     <p
-                      className={`truncate text-[10px] font-semibold leading-tight tracking-wide ${themeClasses.textSecondary}`}
+                      className={`truncate pmc-type-caption ${themeClasses.textSecondary}`}
                     >
                       {ROLE_LABELS[user.role] ?? user.role}
                     </p>
@@ -808,7 +821,7 @@ const Layout: React.FC<LayoutProps> = ({
                   onClick={onLogout}
                   title="Logout"
                   aria-label="Logout"
-                  className={`sidebar-logout-row sidebar-nav-item flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-left text-[13px] font-semibold ${
+                  className={`sidebar-logout-row sidebar-nav-item flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-left font-semibold ${
                     isDarkTheme ? 'sidebar-logout-row-dark' : 'sidebar-logout-row-light'
                   }`}
                 >
@@ -827,7 +840,7 @@ const Layout: React.FC<LayoutProps> = ({
             className={`flex h-14 shrink-0 items-center justify-between gap-2 border-b px-3 sm:h-16 sm:px-5 md:px-8 ${themeClasses.glassCard} ${themeClasses.border} z-30`}
           >
             {/* ── LEFT SIDE ── */}
-            <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-3">
+            <div className="flex shrink-0 items-center gap-2 sm:gap-3">
 
               {/* Desktop — expand / collapse icon rail (all roles) */}
               <button
@@ -902,7 +915,18 @@ const Layout: React.FC<LayoutProps> = ({
 
             </div>
 
-            <div className="relative z-[110] flex items-center gap-4">
+            <HeaderSearch
+              items={headerSearchItems}
+              isDarkTheme={isDarkTheme}
+              notificationsOpen={showNotifications}
+              onNavigate={(tabId) => {
+                setShowNotifications(false);
+                setActiveTab(tabId);
+              }}
+              onOpen={() => setShowNotifications(false)}
+            />
+
+            <div className="relative z-[110] flex shrink-0 items-center gap-2 sm:gap-4">
               {user.role === UserRole.TEAM_LEAD && (
                 <button
                   type="button"
@@ -941,7 +965,7 @@ const Layout: React.FC<LayoutProps> = ({
                 aria-label={unreadCount > 0 ? `Alerts (${unreadCount})` : 'Alerts'}
               >
                 <Icons.Notification size={18} />
-                <span className={`hidden text-[10px] font-black uppercase tracking-wider sm:inline ${themeClasses.textSecondary}`}>
+                <span className={`hidden pmc-type-nav sm:inline ${themeClasses.textSecondary}`}>
                   Alerts{unreadCount > 0 ? ` (${unreadCount})` : ''}
                 </span>
                 {unreadCount > 0 && (

@@ -64,11 +64,11 @@ export const getThemeClasses = (isDark: boolean) => ({
 
 /** Primary title on dashboard summary / KPI cards (Project Dates style) */
 export const DASHBOARD_CARD_TITLE_CLASS =
-  'truncate text-lg font-black uppercase leading-tight tracking-wide text-[#1e3a5f] sm:text-xl';
+  'pmc-type-card-title truncate text-[#1e3a5f]';
 
 /** Correspondence card title — same scale, tighter professional tracking */
 export const DASHBOARD_CORRESPONDENCE_TITLE_CLASS =
-  'truncate text-base font-black uppercase leading-tight tracking-wide text-blue-600 sm:text-lg md:text-xl';
+  'pmc-type-card-title truncate text-blue-600';
 
 /** Internal padding for correspondence dashboard card */
 export const DASHBOARD_CORRESPONDENCE_CARD_PADDING = 'px-3 py-4 sm:px-5 sm:py-[18px]';
@@ -79,31 +79,31 @@ export const DASHBOARD_GROUP_CARD_TITLE_CLASS = (_isDark?: boolean) => DASHBOARD
 /** In-card section titles (FullScreenCard bodies, analytics charts) */
 export const DASHBOARD_SECTION_TITLE_CLASS = (_isDark?: boolean) => DASHBOARD_CARD_TITLE_CLASS;
 
-/** Financial group card titles — 22px tablet, 24px desktop */
+/** Financial group card titles */
 export const DASHBOARD_FINANCIAL_GROUP_TITLE_CLASS =
-  'truncate text-[22px] font-black uppercase leading-tight tracking-wide text-blue-600 sm:text-2xl';
+  'pmc-type-card-title truncate text-blue-600';
 
-/** Tertiary subtitle under financial group titles — 12px */
+/** Tertiary subtitle under financial group titles */
 export const DASHBOARD_FINANCIAL_GROUP_SUBTITLE_CLASS = (isDark: boolean) =>
-  `mt-0.5 text-xs font-medium uppercase tracking-wide line-clamp-1 ${isDark ? 'text-slate-400' : 'text-slate-500'}`;
+  `pmc-type-caption mt-0.5 line-clamp-1 ${isDark ? 'text-slate-400' : 'text-slate-500'}`;
 
-/** KPI metric labels on financial tiles — 13px mobile, 14px desktop */
+/** KPI metric labels on financial tiles */
 export const DASHBOARD_FINANCIAL_KPI_LABEL_CLASS =
-  'min-w-0 text-[13px] sm:text-sm font-semibold uppercase tracking-wide leading-snug line-clamp-2';
+  'pmc-type-eyebrow min-w-0 leading-snug line-clamp-2';
 
 /** Internal padding for financial group cards */
 export const DASHBOARD_FINANCIAL_CARD_PADDING = 'px-5 py-[18px]';
 
-/** Status card titles (HSE, Quality, Drawings) — slightly smaller, tighter tracking */
+/** Status card titles (HSE, Quality, Drawings) */
 export const DASHBOARD_STATUS_CARD_TITLE_CLASS =
-  'truncate text-base font-black uppercase leading-tight tracking-wide text-blue-600 sm:text-lg';
+  'pmc-type-card-title truncate text-blue-600';
 
 /** Internal padding for status / analytics dashboard cards */
 export const DASHBOARD_STATUS_CARD_PADDING = 'px-5 py-[18px]';
 
 /** Metric tile labels on quality, drawing, and similar KPI grids */
 export const DASHBOARD_METRIC_KPI_LABEL_CLASS =
-  'min-w-0 text-[13px] font-semibold uppercase tracking-wide leading-snug line-clamp-2';
+  'pmc-type-eyebrow min-w-0 leading-snug line-clamp-2';
 
 /** Labels on HSE / Quality / Drawings metric KPI cards */
 export const DASHBOARD_STATUS_METRIC_LABEL_CLASS = (isDark: boolean) =>
@@ -115,7 +115,7 @@ export const DASHBOARD_METRIC_SECONDARY_VALUE_CLASS = (isDark: boolean) =>
 
 /** Client / Contractor party titles within correspondence dashboards */
 export const DASHBOARD_CORRESPONDENCE_PARTY_TITLE_CLASS =
-  'text-sm font-semibold uppercase tracking-wide text-blue-600';
+  'pmc-type-card-title text-blue-600';
 
 /** Correspondence documents table column headers — improved contrast */
 export const DASHBOARD_CORRESPONDENCE_TABLE_HEADER_CLASS = (isDark: boolean) =>

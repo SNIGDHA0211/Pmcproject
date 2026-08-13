@@ -1,0 +1,354 @@
+/* PMC Portal post-login typography — matches landing tokens. Scoped to .pmc-app. */
+
+.pmc-app {
+  --pmc-font-display: "Archivo", "Source Sans 3", system-ui, sans-serif;
+  --pmc-font-body: "Source Sans 3", system-ui, sans-serif;
+  --pmc-font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --pmc-type-h1: clamp(1.6rem, 3.2vw, 2.35rem);
+  --pmc-type-h2: clamp(1.35rem, 2.9vw, 1.9rem);
+  --pmc-type-card: 1.1rem;
+  --pmc-type-body: 1.05rem;
+  --pmc-type-compact: 0.94rem;
+  --pmc-type-button: 0.9375rem;
+  --pmc-type-nav: 0.82rem;
+  --pmc-type-cell: 0.875rem;
+  --pmc-type-label: 0.7rem;
+  --pmc-type-caption: 0.72rem;
+  --pmc-type-micro: 0.64rem;
+  --pmc-type-kpi: 1.5rem;
+  --pmc-type-brand: 1.1rem;
+  --pmc-type-input: 1rem;
+  --pmc-kicker: #e68a00;
+  --pmc-kicker-bright: #ffb366;
+
+  font-family: var(--pmc-font-body);
+  font-size: var(--pmc-type-body);
+  font-weight: 400;
+  line-height: 1.55;
+  letter-spacing: normal;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.pmc-app code,
+.pmc-app kbd,
+.pmc-app samp,
+.pmc-app pre,
+.pmc-app .font-mono,
+.pmc-app [class*="font-mono"] {
+  font-family: var(--pmc-font-mono);
+}
+
+/* Semantic roles */
+.pmc-type-display,
+.pmc-font-display {
+  font-family: var(--pmc-font-display) !important;
+}
+
+.pmc-type-body,
+.pmc-font-body {
+  font-family: var(--pmc-font-body) !important;
+}
+
+.pmc-type-h1 {
+  font-family: var(--pmc-font-display) !important;
+  font-size: var(--pmc-type-h1) !important;
+  font-weight: 700 !important;
+  letter-spacing: -0.025em !important;
+  line-height: 1.15 !important;
+  text-transform: none !important;
+}
+
+.pmc-type-h2 {
+  font-family: var(--pmc-font-display) !important;
+  font-size: var(--pmc-type-h2) !important;
+  font-weight: 600 !important;
+  letter-spacing: -0.02em !important;
+  line-height: 1.22 !important;
+  text-transform: none !important;
+}
+
+.pmc-type-card-title {
+  font-family: var(--pmc-font-display) !important;
+  font-size: var(--pmc-type-card) !important;
+  font-weight: 700 !important;
+  letter-spacing: -0.02em !important;
+  line-height: 1.2 !important;
+  text-transform: none !important;
+}
+
+.pmc-type-eyebrow {
+  font-family: var(--pmc-font-body) !important;
+  font-size: var(--pmc-type-label) !important;
+  font-weight: 800 !important;
+  letter-spacing: 0.16em !important;
+  line-height: 1.2 !important;
+  text-transform: uppercase !important;
+}
+
+.pmc-type-brand {
+  font-family: var(--pmc-font-display) !important;
+  font-size: var(--pmc-type-brand) !important;
+  font-weight: 800 !important;
+  letter-spacing: -0.02em !important;
+  line-height: 1.1 !important;
+  text-transform: none !important;
+}
+
+.pmc-type-brand-sub {
+  font-family: var(--pmc-font-body) !important;
+  font-size: 0.64rem !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.1em !important;
+  line-height: 1.1 !important;
+  text-transform: uppercase !important;
+}
+
+.pmc-app header nav button,
+.pmc-app .pmc-type-nav {
+  font-family: var(--pmc-font-body) !important;
+  font-size: var(--pmc-type-nav) !important;
+  font-weight: 600 !important;
+  letter-spacing: 0.06em !important;
+  line-height: 1.2 !important;
+  text-transform: uppercase !important;
+}
+
+.pmc-type-button {
+  font-family: var(--pmc-font-body) !important;
+  font-size: var(--pmc-type-button) !important;
+  font-weight: 700 !important;
+  letter-spacing: normal !important;
+  line-height: 1 !important;
+  text-transform: none !important;
+}
+
+.pmc-type-label {
+  font-family: var(--pmc-font-body) !important;
+  font-size: var(--pmc-type-label) !important;
+  font-weight: 800 !important;
+  letter-spacing: 0.1em !important;
+  line-height: 1.2 !important;
+  text-transform: uppercase !important;
+}
+
+.pmc-type-caption {
+  font-family: var(--pmc-font-body) !important;
+  font-size: var(--pmc-type-caption) !important;
+  font-weight: 600 !important;
+  letter-spacing: 0.06em !important;
+  line-height: 1.3 !important;
+}
+
+.pmc-type-micro {
+  font-family: var(--pmc-font-body) !important;
+  font-size: var(--pmc-type-micro) !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.1em !important;
+  line-height: 1.2 !important;
+  text-transform: uppercase !important;
+}
+
+.pmc-type-kpi {
+  font-family: var(--pmc-font-display) !important;
+  font-size: var(--pmc-type-kpi) !important;
+  font-weight: 800 !important;
+  letter-spacing: -0.02em !important;
+  line-height: 1.1 !important;
+  text-transform: none !important;
+}
+
+.pmc-type-table-head {
+  font-family: var(--pmc-font-body) !important;
+  font-size: var(--pmc-type-caption) !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.08em !important;
+  line-height: 1.2 !important;
+  text-transform: uppercase !important;
+}
+
+.pmc-type-table-cell {
+  font-family: var(--pmc-font-body) !important;
+  font-size: var(--pmc-type-cell) !important;
+  font-weight: 500 !important;
+  letter-spacing: normal !important;
+  line-height: 1.4 !important;
+  text-transform: none !important;
+}
+
+.pmc-type-helper {
+  font-family: var(--pmc-font-body) !important;
+  font-size: 0.75rem !important;
+  font-weight: 400 !important;
+  letter-spacing: normal !important;
+  line-height: 1.45 !important;
+}
+
+/* Headings */
+.pmc-app h1 {
+  font-family: var(--pmc-font-display) !important;
+  font-size: var(--pmc-type-h1) !important;
+  font-weight: 700 !important;
+  letter-spacing: -0.025em !important;
+  line-height: 1.15 !important;
+  text-transform: none !important;
+}
+
+.pmc-app h2 {
+  font-family: var(--pmc-font-display) !important;
+  font-size: var(--pmc-type-h2) !important;
+  font-weight: 600 !important;
+  letter-spacing: -0.02em !important;
+  line-height: 1.22 !important;
+  text-transform: none !important;
+}
+
+.pmc-app h3,
+.pmc-app h4 {
+  font-family: var(--pmc-font-display) !important;
+  font-size: var(--pmc-type-card) !important;
+  font-weight: 700 !important;
+  letter-spacing: -0.02em !important;
+  line-height: 1.2 !important;
+  text-transform: none !important;
+}
+
+/* Buttons — exclude sidebar + tab nav */
+.pmc-app button:not(.sidebar-nav-item):not(.sidebar-section-toggle):not(.sidebar-icon-btn):not(.pmc-type-nav):not(.pmc-header-search-hit) {
+  font-family: var(--pmc-font-body) !important;
+  font-size: var(--pmc-type-button) !important;
+  font-weight: 700 !important;
+  letter-spacing: normal !important;
+  line-height: 1 !important;
+}
+
+/* Forms */
+.pmc-app label:not(.sr-only) {
+  font-family: var(--pmc-font-body);
+  font-size: var(--pmc-type-label);
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  line-height: 1.2;
+  text-transform: uppercase;
+}
+
+.pmc-app input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]),
+.pmc-app select,
+.pmc-app textarea {
+  font-family: var(--pmc-font-body);
+  font-size: max(16px, var(--pmc-type-input));
+  font-weight: 600;
+  letter-spacing: normal;
+  line-height: 1.4;
+}
+
+@media (min-width: 640px) {
+  .pmc-app input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]),
+  .pmc-app select,
+  .pmc-app textarea {
+    font-size: var(--pmc-type-input);
+  }
+}
+
+/* Tables */
+.pmc-app table th,
+.pmc-app thead td {
+  font-family: var(--pmc-font-body) !important;
+  font-size: var(--pmc-type-caption) !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.08em !important;
+  line-height: 1.2 !important;
+  text-transform: uppercase !important;
+}
+
+.pmc-app table td {
+  font-family: var(--pmc-font-body) !important;
+  font-size: var(--pmc-type-cell) !important;
+  font-weight: 500 !important;
+  letter-spacing: normal !important;
+  line-height: 1.4 !important;
+}
+
+/* Sidebar */
+.pmc-app .sidebar-nav-item,
+.pmc-app .sidebar-nav-item .sidebar-chrome {
+  font-family: var(--pmc-font-body) !important;
+  font-size: var(--pmc-type-nav) !important;
+  font-weight: 600 !important;
+  letter-spacing: 0.06em !important;
+  line-height: 1.2 !important;
+  text-transform: uppercase !important;
+}
+
+.pmc-app .sidebar-section-label {
+  font-family: var(--pmc-font-body) !important;
+  font-size: var(--pmc-type-label) !important;
+  font-weight: 800 !important;
+  letter-spacing: 0.16em !important;
+  line-height: 1.2 !important;
+  text-transform: uppercase !important;
+}
+
+.pmc-app .sidebar-role-badge {
+  font-family: var(--pmc-font-body) !important;
+  font-size: var(--pmc-type-micro) !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.1em !important;
+  text-transform: uppercase !important;
+}
+
+.pmc-app .sidebar-here-chip p:first-child {
+  font-family: var(--pmc-font-body) !important;
+  font-size: var(--pmc-type-micro) !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.1em !important;
+  text-transform: uppercase !important;
+}
+
+.pmc-app .sidebar-here-chip p:last-child {
+  font-family: var(--pmc-font-display) !important;
+  font-size: 0.95rem !important;
+  font-weight: 700 !important;
+  letter-spacing: -0.02em !important;
+  text-transform: none !important;
+}
+
+/* Badges / chips / toasts — micro floor */
+.pmc-app .sidebar-alert-badge,
+.pmc-app .pmc-tab-alert-badge {
+  font-family: var(--pmc-font-body) !important;
+  font-size: var(--pmc-type-micro) !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.08em !important;
+}
+
+/* Charts */
+.pmc-app .recharts-text,
+.pmc-app .recharts-legend-item-text,
+.pmc-app .recharts-cartesian-axis-tick-value,
+.pmc-app .recharts-label,
+.pmc-app .recharts-legend-wrapper {
+  font-family: var(--pmc-font-body) !important;
+  font-size: 0.75rem !important;
+  font-weight: 600 !important;
+  letter-spacing: 0.02em !important;
+}
+
+/* Joyride inherits app fonts */
+.react-joyride__tooltip,
+.react-joyride__tooltip * {
+  font-family: var(--pmc-font-body) !important;
+}
+
+/* Floor: never smaller than landing micro / table cell */
+.pmc-app [class*="text-[8px]"],
+.pmc-app [class*="text-[9px]"] {
+  font-size: max(0.62rem, 10px) !important;
+}
+
+.pmc-app table [class*="text-[8px]"],
+.pmc-app table [class*="text-[9px]"],
+.pmc-app table [class*="text-[10px]"],
+.pmc-app table .text-xs {
+  font-size: var(--pmc-type-cell) !important;
+}

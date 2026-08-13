@@ -1040,11 +1040,11 @@ const PMCHead360Dashboard: React.FC<PMCHead360DashboardProps> = ({
           <TutorialWatchButton section="overview" variant="hero" isDark={isDarkTheme} />
         </div>
         <div className="min-w-0 pr-[8.5rem] sm:pr-44">
-          <p className={`text-[10px] font-black uppercase tracking-[0.2em] ${ex.isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+          <p className={`pmc-type-eyebrow ${ex.isDark ? 'text-slate-400' : 'text-slate-500'}`}>
             {ROLE_LABELS[user.role] || 'PMC Head'}
           </p>
           <div className="mt-1 flex flex-wrap items-center gap-2">
-            <h1 className={`text-xl font-black tracking-tight sm:text-2xl ${ex.headingStrong}`}>
+            <h1 className={`pmc-type-h1 ${ex.headingStrong}`}>
               Project 360° Overview
             </h1>
             <span

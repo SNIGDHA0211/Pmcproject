@@ -10,10 +10,26 @@
     <link rel="icon" href="/favicon.ico" sizes="any">
     <link rel="icon" type="image/png" href="/images/pmc-favicon.png?v=20260526-v3" sizes="512x512">
     <link rel="apple-touch-icon" href="/images/pmc-favicon-180.png?v=20260526-v3" sizes="180x180">
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            fontFamily: {
+              sans: ['"Source Sans 3"', 'system-ui', 'sans-serif'],
+              display: ['Archivo', '"Source Sans 3"', 'system-ui', 'sans-serif'],
+              mono: ['ui-monospace', 'SFMono-Regular', 'Menlo', 'Consolas', 'monospace'],
+            },
+          },
+        },
+      };
+    </script>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800&family=Inter:wght@300;400;500;600;700&family=Source+Sans+3:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800&family=Source+Sans+3:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400&display=swap" rel="stylesheet">
     <style>
         :root {
+            --pmc-font-display: "Archivo", "Source Sans 3", system-ui, sans-serif;
+            --pmc-font-body: "Source Sans 3", system-ui, sans-serif;
+            --pmc-font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
             /* Theme backgrounds: light = sunset cranes, dark = night site */
             --dashboard-bg-url-dark: url('/images/construction-bg.jpg');
             --dashboard-bg-url-light: url('/images/construction-cranes-bg.jpg');
@@ -44,9 +60,11 @@
             background-color: var(--pmc-navy-950);
         }
         body {
-            font-family: 'Inter', sans-serif;
+            font-family: var(--pmc-font-body);
             background-color: transparent;
             color: #8aa0b2;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
         }
         html {
             background-color: var(--pmc-navy-950);

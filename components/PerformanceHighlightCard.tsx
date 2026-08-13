@@ -149,7 +149,7 @@ const PerformanceHighlightCard: React.FC<PerformanceHighlightCardProps> = ({
 
   return (
     <div
-      className={`${className} relative font-['Inter',sans-serif] p-0 rounded-2xl border overflow-hidden flex flex-col h-full min-h-[320px] ${
+      className={`${className} relative p-0 rounded-2xl border overflow-hidden flex flex-col h-full min-h-[320px] ${
         isDarkTheme
           ? `${themeClasses.glassCard} ${themeClasses.border} shadow-sm`
           : 'bg-white border-slate-200 shadow-[0_6px_20px_rgba(15,23,42,0.06)]'

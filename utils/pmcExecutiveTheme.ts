@@ -32,8 +32,8 @@ export function getPmcExecutiveTheme(isDark: boolean) {
     panelHeader: isDark
       ? 'border-b border-white/10 bg-white/[0.03] px-4 py-3.5 sm:px-5 sm:py-4'
       : 'border-b border-slate-100 bg-slate-50/90 px-4 py-3.5 sm:px-5 sm:py-4',
-    panelTitle: `text-sm font-black uppercase tracking-wide sm:text-base ${isDark ? 'text-slate-100' : 'text-slate-800'}`,
-    panelSubtitle: `mt-0.5 text-xs font-medium sm:text-sm ${isDark ? 'text-slate-400' : 'text-slate-500'}`,
+    panelTitle: `pmc-type-card-title ${isDark ? 'text-slate-100' : 'text-slate-800'}`,
+    panelSubtitle: `pmc-type-caption mt-0.5 ${isDark ? 'text-slate-400' : 'text-slate-500'}`,
 
     surface: isDark
       ? 'rounded-xl border border-white/10 bg-white/[0.04]'
@@ -50,7 +50,7 @@ export function getPmcExecutiveTheme(isDark: boolean) {
     kpiCard: isDark
       ? 'rounded-xl border border-white/10 bg-white/[0.04] px-3 py-3 sm:px-3.5 sm:py-3.5'
       : 'rounded-xl border border-slate-200 bg-white px-3 py-3 shadow-sm sm:px-3.5 sm:py-3.5',
-    kpiLabel: 'text-[10px] font-bold uppercase tracking-wide text-slate-500 sm:text-[11px]',
+    kpiLabel: 'pmc-type-eyebrow text-slate-500',
 
     tabActive: isDark
       ? 'bg-cyan-500/25 text-cyan-50 ring-1 ring-cyan-400/35 shadow-sm'
@@ -71,8 +71,8 @@ export function getPmcExecutiveTheme(isDark: boolean) {
 
     toolbarBorder: isDark ? 'border-white/10' : 'border-slate-200',
     toolbarBtn: isDark
-      ? 'inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-white/15 bg-white/8 px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-wide text-slate-300 transition hover:bg-white/12 hover:text-white sm:text-xs'
-      : 'inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-wide text-slate-600 transition hover:bg-slate-50 hover:text-slate-800 sm:text-xs',
+      ? 'inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-white/15 bg-white/8 px-2.5 py-1.5 pmc-type-button text-slate-300 transition hover:bg-white/12 hover:text-white'
+      : 'inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 pmc-type-button text-slate-600 transition hover:bg-slate-50 hover:text-slate-800',
 
     emptyState: isDark
       ? 'rounded-xl border border-dashed border-white/20 bg-white/5 text-slate-400'
@@ -219,8 +219,8 @@ export function getPmcExecutiveTheme(isDark: boolean) {
       ? 'overflow-hidden rounded-xl border border-white/12 bg-[#121a24]/95 text-white shadow-[0_8px_24px_rgba(0,0,0,0.35)]'
       : 'overflow-hidden rounded-xl border border-slate-200 bg-white text-slate-900 shadow-[0_6px_18px_rgba(15,23,42,0.06)]',
     shellTitle: isDark
-      ? 'truncate text-base font-bold tracking-tight text-white sm:text-lg'
-      : 'truncate text-base font-bold tracking-tight text-slate-900 sm:text-lg',
+      ? 'pmc-type-h1 truncate text-white'
+      : 'pmc-type-h1 truncate text-slate-900',
     shellSelect: isDark
       ? 'w-full min-w-0 cursor-pointer appearance-none truncate rounded-lg border border-cyan-300/35 bg-[#0b1522] py-2 pl-3 pr-9 text-xs font-semibold text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] outline-none transition hover:border-cyan-300/55 hover:bg-[#0f1c2c] focus:border-cyan-400/60 focus:ring-2 focus:ring-cyan-400/30 disabled:cursor-wait disabled:opacity-70 sm:text-sm'
       : 'w-full min-w-0 cursor-pointer appearance-none truncate rounded-lg border border-slate-300 bg-white py-2 pl-3 pr-9 text-xs font-semibold text-slate-900 shadow-sm outline-none transition hover:border-slate-400 hover:bg-slate-50 focus:border-slate-400 focus:ring-2 focus:ring-slate-300/80 disabled:cursor-wait disabled:opacity-70 sm:text-sm',
@@ -244,23 +244,23 @@ export function getPmcExecutiveTheme(isDark: boolean) {
       ? 'bg-amber-400 text-[#1a1520] ring-1 ring-white/20'
       : 'bg-amber-100 text-amber-800 ring-1 ring-amber-200',
     shellBtnSecondary: isDark
-      ? 'inline-flex items-center justify-center gap-1.5 rounded-lg border border-white/20 bg-white/10 px-3 py-2 text-xs font-semibold text-white transition hover:bg-white/15 sm:text-sm'
-      : 'inline-flex items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 sm:text-sm',
+      ? 'inline-flex items-center justify-center gap-1.5 rounded-lg border border-white/20 bg-white/10 px-3 py-2 pmc-type-button text-white transition hover:bg-white/15'
+      : 'inline-flex items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 pmc-type-button text-slate-700 transition hover:bg-slate-50',
     shellBtnBrief: isDark
-      ? 'inline-flex items-center justify-center gap-1.5 rounded-lg border border-cyan-300/30 bg-cyan-500/20 px-3 py-2 text-xs font-semibold text-cyan-50 transition hover:bg-cyan-500/30 sm:text-sm'
-      : 'inline-flex items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-800 transition hover:bg-slate-100 sm:text-sm',
+      ? 'inline-flex items-center justify-center gap-1.5 rounded-lg border border-cyan-300/30 bg-cyan-500/20 px-3 py-2 pmc-type-button text-cyan-50 transition hover:bg-cyan-500/30'
+      : 'inline-flex items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 pmc-type-button text-slate-800 transition hover:bg-slate-100',
     shellBtnEscalate:
-      'inline-flex items-center justify-center gap-1.5 rounded-lg bg-amber-500 px-3 py-2 text-xs font-bold text-white shadow-sm transition hover:bg-amber-400 sm:text-sm',
+      'inline-flex items-center justify-center gap-1.5 rounded-lg bg-amber-500 px-3 py-2 pmc-type-button text-white shadow-sm transition hover:bg-amber-400',
     /** Flat strip inside header — not a separate glass card */
     shellUpdates: isDark
       ? 'flex flex-wrap items-center gap-x-2 gap-y-1.5 border-t border-white/10 bg-amber-500/10 px-3 py-2'
       : 'flex flex-wrap items-center gap-x-2 gap-y-1.5 border-t border-amber-100 bg-amber-50/90 px-3 py-2',
     shellUpdatesLabel: isDark
-      ? 'text-[10px] font-bold uppercase tracking-wide text-amber-100'
-      : 'text-[10px] font-bold uppercase tracking-wide text-amber-900',
+      ? 'pmc-type-eyebrow text-amber-100'
+      : 'pmc-type-eyebrow text-amber-900',
     shellUpdatesCount: isDark
-      ? 'ml-1.5 inline-flex h-4 min-w-[1rem] items-center justify-center rounded bg-amber-200 px-1 text-[9px] font-bold text-[#1a1520]'
-      : 'ml-1.5 inline-flex h-4 min-w-[1rem] items-center justify-center rounded bg-amber-800 px-1 text-[9px] font-bold text-white',
+      ? 'ml-1.5 inline-flex h-4 min-w-[1rem] items-center justify-center rounded bg-amber-200 px-1 pmc-type-micro text-[#1a1520]'
+      : 'ml-1.5 inline-flex h-4 min-w-[1rem] items-center justify-center rounded bg-amber-800 px-1 pmc-type-micro text-white',
     shellUpdatesDivider: isDark ? 'hidden h-3.5 w-px bg-white/20 sm:block' : 'hidden h-3.5 w-px bg-amber-200 sm:block',
     shellUpdatePill: isDark
       ? 'inline-flex max-w-full items-center gap-1.5 rounded-md border border-white/10 bg-white/8 px-2.5 py-1 text-left transition hover:bg-white/12 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/30'
