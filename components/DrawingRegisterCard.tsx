@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { drawingRegisterApi, getApiErrorMessage, registerRowToClientReportRow } from '../services/api';
 import { useDebouncedValue } from '../hooks/useDebouncedValue';
 import { isAbortError } from '../utils/isAbortError';
@@ -325,92 +325,115 @@ function SummaryKPIs({
 
 // ─── Desktop Table ─────────────────────────────────────────────────────────────
 
+function stickyHead(extra = '') {
+  return `sticky z-20 bg-[#6333c5] ${extra}`;
+}
+
+function stickyBody(isDarkTheme: boolean, stripe: boolean, extra = '') {
+  const bg = stripe
+    ? (isDarkTheme ? 'bg-[#1a2332]' : 'bg-slate-50')
+    : (isDarkTheme ? 'bg-[#0f172a]' : 'bg-white');
+  return `sticky z-[5] ${bg} ${extra}`;
+}
+
 function DesktopTable({
-  rows, isDarkTheme, onEdit, onDelete,
+  rows, isDarkTheme, onEdit, onDelete, scrollRef,
 }: {
   rows: DrawingClientReportRow[];
   isDarkTheme: boolean;
   onEdit: (row: DrawingClientReportRow) => void;
   onDelete: (id: number, label: string) => void;
+  scrollRef?: React.RefObject<HTMLDivElement | null>;
 }) {
   const tc = getThemeClasses(isDarkTheme);
   const TH = 'px-2.5 py-2.5 text-[10px] font-black uppercase tracking-wider text-white whitespace-nowrap';
   const TD = `px-2.5 py-2.5 align-middle text-xs ${tc.textPrimary}`;
 
   return (
-    <div className="hidden lg:block overflow-x-auto rounded-2xl border max-h-[min(70vh,720px)] overflow-y-auto" style={{ borderColor: isDarkTheme ? 'rgba(255,255,255,0.1)' : '#e2e8f0' }}>
-      <table className="w-full min-w-[1200px] text-sm border-collapse">
-        <thead className="sticky top-0 z-10">
-          <tr className="bg-gradient-to-r from-indigo-600 to-purple-600 shadow-sm">
-            <th className={`${TH} text-center w-12`}>Sr.</th>
-            <th className={`${TH} text-left min-w-[140px]`}>Design &amp; Drawing</th>
-            <th className={`${TH} text-left min-w-[100px]`}>Contractor</th>
-            <th className={`${TH} text-center w-12`}>Rev.</th>
-            <th className={`${TH} text-center`}>Submitted</th>
-            <th className={`${TH} text-center`}>Consultant</th>
-            <th className={`${TH} text-center`}>Resubmitted</th>
-            <th className={`${TH} text-center`}>Approved</th>
-            <th className={`${TH} text-center w-24`}>Status</th>
-            <th className={`${TH} text-left min-w-[88px]`}>Remarks</th>
-            <th className={`${TH} text-center min-w-[150px]`}>Files</th>
-            <th className={`${TH} text-center w-20`}>Actions</th>
-          </tr>
-        </thead>
-        <tbody className={`divide-y ${isDarkTheme ? 'divide-white/10' : 'divide-slate-100'}`}>
-          {rows.map((row, i) => {
-            const approved = isDrawingRowApproved(row);
-            const stripe = i % 2 === 1 ? (isDarkTheme ? 'bg-white/[0.02]' : 'bg-slate-50/70') : '';
-
-            return (
-              <tr key={row.id ?? i} className={`transition-colors ${stripe} ${isDarkTheme ? 'hover:bg-white/5' : 'hover:bg-indigo-50/40'}`}>
-                <td className={`${TD} text-center font-bold ${tc.textSecondary}`}>{row.srNo}</td>
-                <td className={`${TD} font-semibold`}>
-                  <div className="truncate max-w-[180px]" title={row.designAndDrawing || undefined}>{row.designAndDrawing || '—'}</div>
-                </td>
-                <td className={`${TD} ${tc.textSecondary}`}>
-                  <div className="truncate max-w-[120px]" title={row.contractorName || undefined}>{row.contractorName || '—'}</div>
-                </td>
-                <td className={`${TD} text-center ${tc.textSecondary}`}>{row.revision ?? '—'}</td>
-                <td className={`${TD} text-center whitespace-nowrap tabular-nums`}>{fmtDate(row.submissionByContractor)}</td>
-                <td className={`${TD} text-center whitespace-nowrap tabular-nums ${tc.textSecondary}`}>{fmtDate(row.consultantCommentsDate)}</td>
-                <td className={`${TD} text-center whitespace-nowrap tabular-nums ${tc.textSecondary}`}>{fmtDate(row.resubmissionDate)}</td>
-                <td className={`${TD} text-center whitespace-nowrap tabular-nums font-medium ${approved ? (isDarkTheme ? 'text-emerald-400' : 'text-emerald-700') : tc.textMuted}`}>
-                  {fmtDate(row.approvedByConsultant)}
-                </td>
-                <td className={`${TD} text-center`}>
-                  <DrawingStatusBadge row={row} isDarkTheme={isDarkTheme} />
-                </td>
-                <td className={`${TD} ${tc.textMuted}`}>
-                  <div className="truncate max-w-[100px]" title={row.remarks || undefined}>{row.remarks || '—'}</div>
-                </td>
-                <td className={`${TD} text-center`}>
-                  <DrawingFilesCell files={row.drawings} isDarkTheme={isDarkTheme} />
-                </td>
-                <td className={`${TD} text-center`}>
-                  <div className="flex items-center justify-center gap-1">
-                    <button
-                      onClick={() => onEdit(row)}
-                      title="Edit"
-                      className={`rounded-lg p-1.5 transition-colors ${isDarkTheme ? 'hover:bg-white/10 text-blue-400' : 'hover:bg-blue-50 text-blue-600'}`}
-                    >
-                      <Icons.Edit size={13} />
-                    </button>
-                    {row.id != null && (
-                      <button
-                        onClick={() => onDelete(row.id!, `${row.designAndDrawing} (#${row.srNo})`)}
-                        title="Delete"
-                        className={`rounded-lg p-1.5 transition-colors ${isDarkTheme ? 'hover:bg-white/10 text-rose-400' : 'hover:bg-red-50 text-rose-600'}`}
-                      >
-                        <Icons.Reject size={13} />
-                      </button>
-                    )}
-                  </div>
-                </td>
+    <div className="hidden md:block w-full min-w-0">
+      <div
+        ref={scrollRef}
+        className="w-full min-w-0 overflow-x-auto overscroll-x-contain rounded-xl border shadow-sm"
+        style={{ borderColor: isDarkTheme ? 'rgba(255,255,255,0.1)' : '#e2e8f0' }}
+      >
+        <div className="max-h-[min(65vh,640px)] overflow-y-auto">
+          <table className="w-full min-w-[1080px] text-sm border-collapse">
+            <thead className="sticky top-0 z-30">
+              <tr className="bg-[#6333c5] shadow-sm">
+                <th className={`${TH} ${stickyHead('left-0 text-center w-12 shadow-[4px_0_8px_-4px_rgba(0,0,0,0.2)]')}`}>Sr.</th>
+                <th className={`${TH} ${stickyHead('left-12 text-left min-w-[140px] shadow-[4px_0_8px_-4px_rgba(0,0,0,0.2)]')}`}>Design &amp; Drawing</th>
+                <th className={`${TH} text-left min-w-[100px]`}>Contractor</th>
+                <th className={`${TH} text-center w-12`}>Rev.</th>
+                <th className={`${TH} text-center`}>Submitted</th>
+                <th className={`${TH} text-center`}>Consultant</th>
+                <th className={`${TH} text-center`}>Resubmitted</th>
+                <th className={`${TH} text-center`}>Approved</th>
+                <th className={`${TH} text-center w-24`}>Status</th>
+                <th className={`${TH} text-left min-w-[88px]`}>Remarks</th>
+                <th className={`${TH} text-center min-w-[150px]`}>Files</th>
+                <th className={`${TH} ${stickyHead('right-0 text-center w-20 shadow-[-4px_0_8px_-4px_rgba(0,0,0,0.2)]')}`}>Actions</th>
               </tr>
-            );
-          })}
-        </tbody>
-      </table>
+            </thead>
+            <tbody className={`divide-y ${isDarkTheme ? 'divide-white/10' : 'divide-slate-100'}`}>
+              {rows.map((row, i) => {
+                const approved = isDrawingRowApproved(row);
+                const stripe = i % 2 === 1;
+                const rowBg = stripe
+                  ? (isDarkTheme ? 'bg-white/[0.02]' : 'bg-slate-50/70')
+                  : (isDarkTheme ? 'bg-[#0f172a]' : 'bg-white');
+
+                return (
+                  <tr key={row.id ?? i} className={`transition-colors ${rowBg} ${isDarkTheme ? 'hover:bg-white/5' : 'hover:bg-indigo-50/40'}`}>
+                    <td className={`${TD} ${stickyBody(isDarkTheme, stripe, 'left-0 text-center font-bold shadow-[4px_0_8px_-4px_rgba(0,0,0,0.06)]')} ${tc.textSecondary}`}>{row.srNo}</td>
+                    <td className={`${TD} ${stickyBody(isDarkTheme, stripe, 'left-12 font-semibold shadow-[4px_0_8px_-4px_rgba(0,0,0,0.06)]')}`}>
+                      <div className="truncate max-w-[180px]" title={row.designAndDrawing || undefined}>{row.designAndDrawing || '—'}</div>
+                    </td>
+                    <td className={`${TD} ${tc.textSecondary}`}>
+                      <div className="truncate max-w-[120px]" title={row.contractorName || undefined}>{row.contractorName || '—'}</div>
+                    </td>
+                    <td className={`${TD} text-center ${tc.textSecondary}`}>{row.revision ?? '—'}</td>
+                    <td className={`${TD} text-center whitespace-nowrap tabular-nums`}>{fmtDate(row.submissionByContractor)}</td>
+                    <td className={`${TD} text-center whitespace-nowrap tabular-nums ${tc.textSecondary}`}>{fmtDate(row.consultantCommentsDate)}</td>
+                    <td className={`${TD} text-center whitespace-nowrap tabular-nums ${tc.textSecondary}`}>{fmtDate(row.resubmissionDate)}</td>
+                    <td className={`${TD} text-center whitespace-nowrap tabular-nums font-medium ${approved ? (isDarkTheme ? 'text-emerald-400' : 'text-emerald-700') : tc.textMuted}`}>
+                      {fmtDate(row.approvedByConsultant)}
+                    </td>
+                    <td className={`${TD} text-center`}>
+                      <DrawingStatusBadge row={row} isDarkTheme={isDarkTheme} />
+                    </td>
+                    <td className={`${TD} ${tc.textMuted}`}>
+                      <div className="truncate max-w-[100px]" title={row.remarks || undefined}>{row.remarks || '—'}</div>
+                    </td>
+                    <td className={`${TD} text-center`}>
+                      <DrawingFilesCell files={row.drawings} isDarkTheme={isDarkTheme} />
+                    </td>
+                    <td className={`${TD} ${stickyBody(isDarkTheme, stripe, 'right-0 text-center shadow-[-4px_0_8px_-4px_rgba(0,0,0,0.06)]')}`}>
+                      <div className="flex items-center justify-center gap-1">
+                        <button
+                          onClick={() => onEdit(row)}
+                          title="Edit"
+                          className={`rounded-lg p-1.5 transition-colors ${isDarkTheme ? 'hover:bg-white/10 text-blue-400' : 'hover:bg-blue-50 text-blue-600'}`}
+                        >
+                          <Icons.Edit size={13} />
+                        </button>
+                        {row.id != null && (
+                          <button
+                            onClick={() => onDelete(row.id!, `${row.designAndDrawing} (#${row.srNo})`)}
+                            title="Delete"
+                            className={`rounded-lg p-1.5 transition-colors ${isDarkTheme ? 'hover:bg-white/10 text-rose-400' : 'hover:bg-red-50 text-rose-600'}`}
+                          >
+                            <Icons.Reject size={13} />
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
     </div>
   );
 }
@@ -429,7 +452,7 @@ function MobileCards({
   const tc = getThemeClasses(isDarkTheme);
 
   return (
-    <div className={`lg:hidden rounded-2xl border overflow-hidden divide-y ${isDarkTheme ? 'border-white/10 divide-white/10' : 'border-slate-200 divide-slate-100'}`}>
+    <div className={`md:hidden rounded-2xl border overflow-hidden divide-y ${isDarkTheme ? 'border-white/10 divide-white/10' : 'border-slate-200 divide-slate-100'}`}>
       {rows.map((row, i) => {
         const isOpen = expanded === (row.id ?? i);
 
@@ -978,15 +1001,19 @@ interface DrawingRegisterCardProps {
   project: Project;
   selectedContractorName?: string | null;
   syncContractorFromDashboard?: boolean;
+  /** When false (hidden tab), card stays mounted but inactive. */
+  isActive?: boolean;
 }
 
 export default function DrawingRegisterCard({
   project,
   selectedContractorName = null,
   syncContractorFromDashboard = false,
+  isActive = true,
 }: DrawingRegisterCardProps) {
   const { isDarkTheme } = useTheme();
   const tc = getThemeClasses(isDarkTheme);
+  const tableScrollRef = useRef<HTMLDivElement | null>(null);
 
   const now = new Date();
   const [selMonth, setSelMonth] = useState(now.getMonth() + 1);
@@ -1014,6 +1041,13 @@ export default function DrawingRegisterCard({
   const [deleting, setDeleting] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
   const [showDrawingTable, setShowDrawingTable] = useState(true);
+
+  // Always restore Image-1 framing when this section becomes visible again.
+  useEffect(() => {
+    if (!isActive) return;
+    setShowDrawingTable(true);
+    tableScrollRef.current?.scrollTo({ left: 0, top: 0 });
+  }, [isActive]);
 
   const loadData = useCallback(async (signal?: AbortSignal, fresh = false) => {
     if (!project?.title) return;
@@ -1106,7 +1140,7 @@ export default function DrawingRegisterCard({
   const periodLabel = view === 'cumulative' ? `Jan – ${MONTH_NAME} ${selYear}` : `${MONTH_NAME} ${selYear}`;
 
   return (
-    <div className={`w-full rounded-2xl border shadow-md overflow-hidden ${tc.bgPrimary} ${tc.border}`}>
+    <div className={`w-full min-w-0 max-w-full rounded-2xl border shadow-md ${tc.bgPrimary} ${tc.border}`}>
       <DashboardCardTopAccent />
 
       {/* Header */}
@@ -1177,7 +1211,7 @@ export default function DrawingRegisterCard({
       </div>
 
       {/* Body */}
-      <div className="p-4 sm:p-6 space-y-4">
+      <div className="p-4 sm:p-6 space-y-4 min-w-0">
 
         {/* Filters panel */}
         {showFilters && (
@@ -1264,10 +1298,11 @@ export default function DrawingRegisterCard({
                 </div>
 
                 {showDrawingTable && (
-                  <div className="space-y-3">
+                  <div className="space-y-3 min-w-0">
                     <DesktopTable
                       rows={reportData.rows}
                       isDarkTheme={isDarkTheme}
+                      scrollRef={tableScrollRef}
                       onEdit={row => { setEditRow(row); setModalOpen(true); }}
                       onDelete={(id, label) => setDeleteConfirm({ id, label })}
                     />

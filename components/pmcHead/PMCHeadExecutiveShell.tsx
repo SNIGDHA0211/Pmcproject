@@ -266,7 +266,18 @@ const PMCHeadExecutiveShell: React.FC<PMCHeadExecutiveShellProps> = ({
   );
 
   useEffect(() => {
-    if (activeTab === 'overview' || activeTabAlert.count === 0) return;
+    if (activeTab === 'overview') return;
+
+    // Compliance must always open on Drawing Register (full card), never jump to
+    // Correspondence — that was clipping the header/KPIs and looking "broken".
+    if (activeTab === 'compliance') {
+      const t = window.setTimeout(() => {
+        flashExecutiveSection('exec-section-drawings', { block: 'start' });
+      }, 180);
+      return () => window.clearTimeout(t);
+    }
+
+    if (activeTabAlert.count === 0) return;
     const first = activeTabAlert.lookHere.find((i) => i.sectionId);
     if (!first?.sectionId) return;
     const t = window.setTimeout(() => flashExecutiveSection(first.sectionId!), 220);

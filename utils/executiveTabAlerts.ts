@@ -279,10 +279,26 @@ export function buildExecutiveTabAlerts(args: BuildArgs): ExecutiveTabAlertsMap 
 }
 
 /** Briefly highlight a section so the user can see where to look. */
-export function flashExecutiveSection(sectionId: string): void {
+export function flashExecutiveSection(
+  sectionId: string,
+  options?: { block?: ScrollLogicalPosition; behavior?: ScrollBehavior },
+): void {
   const el = document.getElementById(sectionId);
   if (!el) return;
-  el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  const mainScroll = document.querySelector('.app-main-scroll') as HTMLElement | null;
+  const block = options?.block ?? 'start';
+  const behavior = options?.behavior ?? 'smooth';
+
+  if (mainScroll) {
+    const mainRect = mainScroll.getBoundingClientRect();
+    const elRect = el.getBoundingClientRect();
+    const offset = 12;
+    const nextTop = mainScroll.scrollTop + (elRect.top - mainRect.top) - offset;
+    mainScroll.scrollTo({ top: Math.max(0, nextTop), behavior });
+  } else {
+    el.scrollIntoView({ behavior, block });
+  }
+
   el.classList.add('pmc-look-here-flash');
   window.setTimeout(() => el.classList.remove('pmc-look-here-flash'), 2600);
 }

@@ -470,6 +470,7 @@ const Projects: React.FC<ProjectsProps> = ({
     );
   }, [isPMCHead, projects]);
   const [execTab, setExecTab] = useState<PMCExecutiveTab>('overview');
+  const [complianceSectionMounted, setComplianceSectionMounted] = useState(false);
   const [tlOverviewCache, setTlOverviewCache] = useState<TeamLeaderOverviewCachePayload | null>(null);
   const tlOverviewCacheSavedRef = useRef<string | null>(null);
 
@@ -2774,6 +2775,14 @@ const Projects: React.FC<ProjectsProps> = ({
   const tabVisible = (tab: PMCExecutiveTab) => !isPMCHead || execTab === tab;
   const showProjectSections =
     (isPMCHead ? execTab !== 'overview' : isPmcTeamLead ? teamLeaderView === 'full' : true);
+  const showComplianceSection = tabVisible('compliance') || (isPMCHead && complianceSectionMounted);
+  const complianceSectionActive = tabVisible('compliance');
+
+  // Keep Compliance mounted after first open so Drawing Register layout does not remount/break.
+  useEffect(() => {
+    if (!isPMCHead || execTab !== 'compliance') return;
+    setComplianceSectionMounted(true);
+  }, [isPMCHead, execTab]);
 
   useEffect(() => {
     if (!isPmcTeamLead || teamLeaderView !== 'full' || !teamLeaderScrollSection) return;
@@ -3361,15 +3370,19 @@ const Projects: React.FC<ProjectsProps> = ({
                 ) : null
               )}
 
-              {tabVisible('compliance') && (
-                <>
+              {showComplianceSection && (
+                <div
+                  className={`space-y-6 md:space-y-8 ${complianceSectionActive ? '' : 'hidden'}`}
+                  aria-hidden={!complianceSectionActive}
+                >
                   {/* Drawing Register — Client Report — full width (replaces old DrawingSummaryCard) */}
                   {selectedProject && (
-                    <div id="exec-section-drawings" className="tl-section-drawings w-full min-w-0">
+                    <div id="exec-section-drawings" className="tl-section-drawings w-full min-w-0 scroll-mt-6">
                       <DrawingRegisterCard
                         project={selectedProject}
                         selectedContractorName={selectedContractorName}
                         syncContractorFromDashboard={useGlobalContractorFilter}
+                        isActive={complianceSectionActive}
                       />
                     </div>
                   )}
@@ -3410,7 +3423,7 @@ const Projects: React.FC<ProjectsProps> = ({
                       />
                     </div>
                   )}
-                </>
+                </div>
               )}
 
               {tabVisible('schedule') && !isPMCHead && (

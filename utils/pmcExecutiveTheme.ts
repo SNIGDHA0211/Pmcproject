@@ -9,7 +9,7 @@ export function getPmcExecutiveTheme(isDark: boolean) {
     pageShell: 'space-y-2 sm:space-y-3',
 
     detailFrame: [
-      'pmc-executive-detail rounded-xl border p-2 shadow-sm sm:space-y-3 sm:p-3 md:space-y-4 md:p-4 space-y-3',
+      'pmc-executive-detail rounded-xl border p-2 shadow-sm sm:space-y-3 sm:p-3 md:space-y-4 md:p-4 space-y-3 min-w-0 max-w-full',
       '[&_section]:space-y-3 sm:[&_section]:space-y-4',
       '[&_h3]:tracking-tight',
       '[&_.graphs-analytics-section]:space-y-4 sm:[&_.graphs-analytics-section]:space-y-5',
