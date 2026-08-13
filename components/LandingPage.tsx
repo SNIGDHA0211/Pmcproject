@@ -11,9 +11,8 @@ import {
   SceneSiteToBoard,
 } from './landing/LandingMocks';
 import LandingOfficeMap, { OFFICE } from './landing/LandingOfficeMap';
+import { LANDING_PROJECT_HIGHLIGHTS } from './landing/landingProjects';
 import './landing/landing.css';
-
-const DEMO_SECTION_ID = 'demo';
 
 const CONTACT = {
   phoneDisplay: '+91-22-2784 4440 / 3305 / 4199 / 0751',
@@ -21,39 +20,12 @@ const CONTACT = {
   email: 'scplvashi@gmail.com',
 } as const;
 
-/** Request demo opens email to Shrikhande contact. */
-const DEMO_HREF = `mailto:${CONTACT.email}?subject=${encodeURIComponent('PMC Portal — Request demo')}`;
-
 /** Real under-construction site photography only (no office/coding stock). */
 const HERO_SLIDES = [
   '/images/construction-panorama-bg.png',
   '/images/construction-cranes-bg.jpg',
   '/images/construction-bg.jpg',
   '/images/construction-skyline.jpg',
-] as const;
-
-/** Labeled by PMC Portal vitals / modules — site photos only. */
-const SITE_GALLERY = [
-  {
-    src: '/images/construction-cranes-bg.jpg',
-    label: 'Time',
-    caption: 'Schedule & Dates · DPR / WPR / MPR',
-  },
-  {
-    src: '/images/construction-skyline.jpg',
-    label: 'Cost',
-    caption: 'Financial · SCL + Contractor tracks',
-  },
-  {
-    src: '/images/construction-panorama-bg.png',
-    label: 'Quality',
-    caption: 'Drawing Register · Testing Photos',
-  },
-  {
-    src: '/images/construction-crane-b.jpg',
-    label: 'Safety',
-    caption: 'HSE · Incidents & monthly posture',
-  },
 ] as const;
 
 const TRUST_ITEMS = [
@@ -322,15 +294,9 @@ const LandingPage: React.FC = () => {
               </p>
 
               <div className="pmc-landing__cta-group">
-                <a
-                  className="pmc-landing__btn pmc-landing__btn--primary"
-                  href={DEMO_HREF}
-                >
-                  Request demo
-                </a>
                 <button
                   type="button"
-                  className="pmc-landing__btn pmc-landing__btn--secondary"
+                  className="pmc-landing__btn pmc-landing__btn--primary"
                   onClick={enterPortal}
                 >
                   Login
@@ -369,7 +335,7 @@ const LandingPage: React.FC = () => {
           </div>
         </aside>
 
-        {/* Projects gallery — Time · Cost · Quality · Safety */}
+        {/* Projects gallery — selected civil portfolio */}
         <section
           id="projects"
           className="pmc-landing__section pmc-landing__gallery"
@@ -377,30 +343,42 @@ const LandingPage: React.FC = () => {
         >
           <div className="pmc-landing__section-inner">
             <div className="pmc-landing__reveal">
-              <p className="pmc-landing__eyebrow">Civil project vitals</p>
+              <p className="pmc-landing__eyebrow">Selected civil works</p>
               <h2 id="gallery-heading" className="pmc-landing__h2">
-                Time. Cost. Quality. Safety — in one command view.
+                PMC supervision across India.
               </h2>
               <p className="pmc-landing__lede">
-                Built for construction PMC work on site. Spot Critical / At Risk / On Track, then
-                drill into the modules that move the job.
+                A snapshot of live Shrikhande portfolios — metro, highways, flyovers, and urban
+                buildings. Hover a card for a short public scope summary.
               </p>
             </div>
 
-            <div className="pmc-landing__gallery-grid">
-              {SITE_GALLERY.map((item, index) => (
+            <div className="pmc-landing__gallery-grid pmc-landing__gallery-grid--projects">
+              {LANDING_PROJECT_HIGHLIGHTS.map((project, index) => (
                 <figure
-                  key={item.label}
+                  key={project.title}
                   className="pmc-landing__gallery-card"
                   style={{ transitionDelay: `${index * 90}ms` }}
+                  tabIndex={0}
+                  aria-label={`${project.title} — ${project.location}`}
                 >
                   <div className="pmc-landing__gallery-media">
-                    <img src={item.src} alt="" loading="lazy" decoding="async" />
-                    <div className="pmc-landing__gallery-shade" />
+                    <img
+                      src={project.image}
+                      alt=""
+                      loading="lazy"
+                      decoding="async"
+                      style={{ objectPosition: project.imagePosition ?? 'center' }}
+                    />
+                    <div className="pmc-landing__gallery-shade" aria-hidden="true" />
+                    <div className="pmc-landing__gallery-hover" aria-hidden="true">
+                      <p className="pmc-landing__gallery-hover-title">{project.title}</p>
+                      <p className="pmc-landing__gallery-hover-scope">{project.scope}</p>
+                    </div>
                   </div>
                   <figcaption>
-                    <span className="pmc-landing__gallery-label">{item.label}</span>
-                    <span className="pmc-landing__gallery-caption">{item.caption}</span>
+                    <span className="pmc-landing__gallery-label">{project.title}</span>
+                    <span className="pmc-landing__gallery-caption">{project.location}</span>
                   </figcaption>
                 </figure>
               ))}
@@ -675,7 +653,7 @@ const LandingPage: React.FC = () => {
             </h2>
             <p className="pmc-landing__lede">
               See Time, Cost, Quality, and Safety in one place — then brief, export, and escalate
-              with confidence. Request a demo or speak with our team.
+              with confidence. Speak with our team or log in to the portal.
             </p>
 
             <div className="pmc-landing__contact-layout">
@@ -702,12 +680,9 @@ const LandingPage: React.FC = () => {
                 </div>
 
                 <div className="pmc-landing__cta-group pmc-landing__cta-group--contact">
-                  <a className="pmc-landing__btn pmc-landing__btn--primary" href={DEMO_HREF}>
-                    Request demo
-                  </a>
                   <button
                     type="button"
-                    className="pmc-landing__btn pmc-landing__btn--secondary"
+                    className="pmc-landing__btn pmc-landing__btn--primary"
                     onClick={enterPortal}
                   >
                     Login
