@@ -2,6 +2,8 @@ import { UserRole, type User } from '../types';
 import { SITE_ENGINEER_NAV_IDS } from './siteEngineerProjects';
 import {
   getAppRoutePath,
+  isLandingRoutePath,
+  LANDING_ROUTE,
   LOGIN_ROUTE,
   syncAppRoutePath,
   tabFromRoutePath,
@@ -9,7 +11,7 @@ import {
 } from './appRouting';
 import { canAccessUserManagement } from './userManagementAccess';
 
-export { LOGIN_ROUTE };
+export { isLandingRoutePath, LANDING_ROUTE, LOGIN_ROUTE };
 
 /** Tabs shared by PMC Head / Head Office (includes User Management). */
 const PMC_HEAD_USER_MGMT_TAB = 'user_management' as const;
@@ -149,11 +151,7 @@ export function navigateToTab(tab: string, method: 'push' | 'replace' = 'replace
 }
 
 export function clearAppRouteOnLogout(): void {
-  const base = `${window.location.origin}${window.location.pathname}`;
-  const nextUrl = `${base}#${LOGIN_ROUTE}`;
-  if (window.location.hash !== `#${LOGIN_ROUTE}`) {
-    window.history.replaceState(null, '', nextUrl);
-  }
+  syncAppRoutePath(LOGIN_ROUTE, 'replace');
 }
 
 /**
@@ -167,7 +165,7 @@ export function syncAuthenticatedNavigation(
   const { honorCurrentUrl = true, method = 'replace' } = options;
   const currentPath = getAppRoutePath();
 
-  if (currentPath === LOGIN_ROUTE) {
+  if (currentPath === LOGIN_ROUTE || isLandingRoutePath(currentPath)) {
     const home = getDefaultTabForRole(user.role);
     navigateToTab(home, method);
     return home;
@@ -187,7 +185,7 @@ export function syncAuthenticatedNavigation(
 /** Browser back/forward: resolve hash to a tab the current user may view. */
 export function tabFromRouteForUser(user: User): string {
   const currentPath = getAppRoutePath();
-  if (currentPath === LOGIN_ROUTE) {
+  if (currentPath === LOGIN_ROUTE || isLandingRoutePath(currentPath)) {
     return getDefaultTabForRole(user.role);
   }
   const urlTab = tabFromRoutePath(currentPath);

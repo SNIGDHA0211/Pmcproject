@@ -3,8 +3,13 @@
  * never send display labels like "Meeting Documents".
  */
 
+import { UserRole } from '../types';
+
 export const TUTORIAL_SECTIONS = {
+  /** PMC Head / PMC HO / PMC Manager (Coordinator) Overview dashboard */
   overview: 'Overview',
+  /** Team Leader Overview — must stay separate from PMC Head `overview` */
+  tl_overview: 'Overview',
   projects: 'Projects',
   initialize_project: 'Initialize Project',
   user_management: 'User Management',
@@ -56,9 +61,23 @@ export function resolveTutorialSectionForTab(
   options?: { teamLeadOverview?: boolean },
 ): TutorialSectionKey | null {
   if (activeTab === 'team_projects' && options?.teamLeadOverview) {
-    return 'overview';
+    return 'tl_overview';
   }
   return APP_TAB_TO_TUTORIAL_SECTION[activeTab] ?? null;
+}
+
+/**
+ * Resolve which tutorial section a role should use for a named screen.
+ * Keeps overlapping UI (e.g. Overview) from sharing videos across roles.
+ */
+export function resolveTutorialSectionForRole(
+  screen: 'overview' | 'projects',
+  role: UserRole,
+): TutorialSectionKey {
+  if (screen === 'overview') {
+    return role === UserRole.TEAM_LEAD ? 'tl_overview' : 'overview';
+  }
+  return 'projects';
 }
 
 export type TutorialOrdering =

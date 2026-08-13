@@ -1,111 +1,428 @@
-
-import React from 'react';
+/**
+ * PMC Portal Terms & Conditions — Shrikhande Consultants Limited
+ */
+import React, { useEffect } from 'react';
 import { Icons } from './Icons';
+import { OFFICE } from './landing/LandingOfficeMap';
 
 interface TermsAndConditionsProps {
   onClose: () => void;
 }
 
+const CONTACT = {
+  phoneDisplay: '+91-22-2784 4440 / 3305 / 4199 / 0751',
+  email: 'scplvashi@gmail.com',
+} as const;
+
+const TERMS_VERSION = '1.0';
+const LAST_UPDATED = 'August 2026';
+const COPYRIGHT_YEAR = 2026;
+
 const TermsAndConditions: React.FC<TermsAndConditionsProps> = ({ onClose }) => {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', onKey);
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      document.body.style.overflow = prev;
+    };
+  }, [onClose]);
+
   return (
-    <div className="fixed inset-0 z-[120] bg-slate-950/90 backdrop-blur-md flex items-center justify-center p-4 md:p-10">
-      <div className="bg-slate-900 w-full max-w-4xl h-full max-h-[85vh] rounded-[3rem] shadow-2xl overflow-hidden flex flex-col border border-white/10 animate-in zoom-in-95 duration-300">
-        
-        {/* Header */}
-        <div className="px-10 py-8 border-b border-white/10 flex items-center justify-between bg-white/5">
-          <div className="flex items-center gap-4">
-            <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center text-contrast">
-              <Icons.Safety size={24} />
-            </div>
-            <div>
-              <h2 className="text-2xl font-black text-contrast uppercase tracking-tight">Legal & Compliance</h2>
-              <p className="text-[10px] font-bold muted uppercase tracking-widest">Standard Terms of Operations // Version 4.2.0</p>
-            </div>
+    <div
+      className="pmc-terms"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="pmc-terms-title"
+    >
+      <button type="button" className="pmc-terms__backdrop" aria-label="Close" onClick={onClose} />
+
+      <div className="pmc-terms__dialog">
+        <header className="pmc-terms__header">
+          <div className="pmc-terms__header-copy">
+            <p className="pmc-terms__eyebrow">PMC Portal · Legal</p>
+            <h2 id="pmc-terms-title" className="pmc-terms__title">
+              Terms &amp; Conditions
+            </h2>
+            <p className="pmc-terms__meta">
+              Version {TERMS_VERSION} · Last updated {LAST_UPDATED}
+            </p>
           </div>
-          <button onClick={onClose} className="p-3 bg-white/5 border border-white/10 text-white/40 hover:text-rose-500 rounded-2xl transition-all shadow-sm">
-            <Icons.Reject size={24} />
+          <button type="button" className="pmc-terms__close" onClick={onClose} aria-label="Close">
+            <Icons.Reject size={20} />
           </button>
-        </div>
+        </header>
 
-        {/* Content Area */}
-        <div className="flex-1 overflow-y-auto p-10 space-y-10 font-sans leading-relaxed text-contrast/70">
-          
-          <section className="space-y-4">
-            <h3 className="text-lg font-black text-contrast uppercase tracking-tight flex items-center gap-2">
-              <span className="w-6 h-6 rounded-full bg-indigo-500/20 text-indigo-400 flex items-center justify-center text-[10px]">01</span>
-              Acceptance of Digital Governance
-            </h3>
-            <p className="text-sm font-medium">
-              By accessing the PMC Portal, users acknowledge that they are operating within a high-security enterprise environment. All actions, including project initiations, DPR submissions, and document uploads, are cryptographically logged and bound by the <span className="text-indigo-400 font-bold">Indian Information Technology Act, 2000</span> and subsequent amendments.
-            </p>
-          </section>
-
-          <section className="space-y-4">
-            <h3 className="text-lg font-black text-contrast uppercase tracking-tight flex items-center gap-2">
-              <span className="w-6 h-6 rounded-full bg-indigo-500/20 text-indigo-400 flex items-center justify-center text-[10px]">02</span>
-              Intellectual Property & Site Data
-            </h3>
-            <p className="text-sm font-medium">
-              All architectural drawings, GFC (Good for Construction) files, structural audit reports, and proprietary site data stored in the <span className="italic">Vault</span> remain the exclusive intellectual property of the Client and Lead PMC Consultant. Unauthorized replication or external transmission of these artifacts is strictly prohibited and subject to legal prosecution.
-            </p>
-          </section>
-
-          <section className="space-y-4">
-            <h3 className="text-lg font-black text-contrast uppercase tracking-tight flex items-center gap-2">
-              <span className="w-6 h-6 rounded-full bg-indigo-500/20 text-indigo-400 flex items-center justify-center text-[10px]">03</span>
-              Daily Progress Reporting (DPR) Integrity
-            </h3>
-            <p className="text-sm font-medium">
-              Site Engineers are legally bound to submit accurate, real-time data regarding manpower deployment and physical activity progress. Falsification of resource counts or completion percentages constitutes a breach of contract and will result in immediate system suspension and notification to the PMC Head.
-            </p>
-          </section>
-
-          <section className="space-y-4">
-            <h3 className="text-lg font-black text-contrast uppercase tracking-tight flex items-center gap-2">
-              <span className="w-6 h-6 rounded-full bg-indigo-500/20 text-indigo-400 flex items-center justify-center text-[10px]">04</span>
-              HSE & Safety Compliance Monitoring
-            </h3>
-            <p className="text-sm font-medium">
-              The Portal acts as a primary record for Health, Safety, and Environment (HSE) statistics. Significant accidents, fatalities, or near-misses must be logged within 2 hours of occurrence. Failure to report safety incidents via the digital workflow may result in site shutdown orders.
-            </p>
-          </section>
-
-          <section className="space-y-4">
-            <h3 className="text-lg font-black text-contrast uppercase tracking-tight flex items-center gap-2">
-              <span className="w-6 h-6 rounded-full bg-indigo-500/20 text-indigo-400 flex items-center justify-center text-[10px]">05</span>
-              Audit Trails & Verification
-            </h3>
-            <p className="text-sm font-medium">
-              The <span className="font-bold">Immutable Audit Ledger</span> tracks every status change from "CREATED" to "APPROVED". These records are acceptable as primary evidence for financial reconciliation, billing disputes, and judicial proceedings relating to project execution delays.
-            </p>
-          </section>
-
-          <div className="p-6 bg-white/5 rounded-[2rem] border border-white/10 text-contrast">
-            <div className="flex items-start gap-4">
-              <Icons.Issue className="text-amber-400 mt-1" size={24} />
-              <div>
-                <h4 className="text-sm font-black uppercase tracking-widest text-indigo-400 mb-2">Notice of Confidentiality</h4>
-                <p className="text-xs text-contrast/60 font-medium leading-relaxed">
-                  The information contained in generated reports (Monthly/Final) is intended solely for the use of the individual or entity to whom they are addressed. If you have received a report in error, please notify the Project Manager immediately.
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Footer */}
-        <div className="px-10 py-8 border-t border-white/10 bg-white/5 flex items-center justify-between">
-          <p className="text-[10px] font-black muted uppercase tracking-widest">
-            Last Updated: Jan 2025 // Nexus PMC Solutions
+        <div className="pmc-terms__body">
+          <p className="pmc-terms__intro">
+            These Terms &amp; Conditions govern access to and use of the <strong>PMC Portal</strong>{' '}
+            operated by <strong>{OFFICE.company}</strong> (“Shrikhande”, “we”, “us”). By signing in
+            or using the Portal, you agree to these terms on behalf of yourself and, where
+            applicable, your employer or project party.
           </p>
-          <button 
-            onClick={onClose}
-            className="px-12 py-4 bg-indigo-600 text-contrast font-black text-xs uppercase tracking-widest rounded-2xl shadow-xl shadow-indigo-500/20 hover:bg-indigo-500 transition-all"
-          >
-            Acknowledge Terms
-          </button>
+
+          <section className="pmc-terms__section">
+            <h3>1. Operator &amp; contact</h3>
+            <p>
+              The Portal is provided for authorised personnel of Shrikhande Consultants Limited and
+              approved project stakeholders for civil / construction PMC delivery.
+            </p>
+            <address className="pmc-terms__address">
+              <span className="pmc-terms__address-label">{OFFICE.title}</span>
+              <strong>{OFFICE.company}</strong>
+              {OFFICE.lines.map((line) => (
+                <span key={line}>{line}</span>
+              ))}
+              <span>
+                Phone:{' '}
+                <a href={`tel:+912227844440`}>{CONTACT.phoneDisplay}</a>
+              </span>
+              <span>
+                Email:{' '}
+                <a href={`mailto:${CONTACT.email}`}>{CONTACT.email}</a>
+              </span>
+            </address>
+          </section>
+
+          <section className="pmc-terms__section">
+            <h3>2. Authorised access</h3>
+            <p>
+              Access is limited to credentials issued by Shrikhande. You must keep your username and
+              password confidential, and you are responsible for activity under your account.
+              Role-based permissions (for example PMC Head, Team Lead, Site Engineer, Billing) define
+              what you may view or update. Sharing accounts or attempting to access another role’s
+              data without authorisation is prohibited.
+            </p>
+          </section>
+
+          <section className="pmc-terms__section">
+            <h3>3. Acceptable use of the Portal</h3>
+            <p>
+              You may use the Portal only for legitimate project management, reporting, and PMC
+              governance purposes, including (as applicable) project registry, schedule and dates,
+              DPR / WPR / MPR, financial and contract tracks, drawing register, correspondence,
+              HSE / quality records, site and testing photos, meeting documents, reminders, and
+              alerts. You must not misuse the system, upload unlawful content, or interfere with
+              Portal security or integrity.
+            </p>
+          </section>
+
+          <section className="pmc-terms__section">
+            <h3>4. Accuracy of submitted data</h3>
+            <p>
+              Users who submit or approve site progress, manpower, plant &amp; machinery, financial
+              figures, drawings, correspondence status, HSE incidents, or other project records must
+              ensure the information is accurate and timely to the best of their knowledge.
+              Deliberate falsification or material omission may lead to account suspension and
+              escalation to project leadership.
+            </p>
+          </section>
+
+          <section className="pmc-terms__section">
+            <h3>5. Confidentiality &amp; intellectual property</h3>
+            <p>
+              Project data, drawings, reports, commercial information, and other materials in the
+              Portal are confidential. They remain the property of the respective client, contractor,
+              or Shrikhande as applicable under project agreements. You may not copy, export, or
+              disclose Portal content except as required for your authorised role or as permitted by
+              Shrikhande / the project owner.
+            </p>
+            <p>
+              The PMC Portal software, branding, and related materials are protected by copyright and
+              other intellectual property rights belonging to Shrikhande Consultants Limited and/or
+              its licensors. © {COPYRIGHT_YEAR} Shrikhande Consultants Limited. All rights reserved.
+            </p>
+          </section>
+
+          <section className="pmc-terms__section">
+            <h3>6. HSE &amp; compliance records</h3>
+            <p>
+              Where HSE or quality modules are used, significant incidents and required monthly
+              safety / quality updates should be recorded through the Portal as directed by project
+              procedures. Portal entries support governance and may be used in reviews; they do not
+              replace statutory reporting obligations under applicable Indian law.
+            </p>
+          </section>
+
+          <section className="pmc-terms__section">
+            <h3>7. Audit &amp; monitoring</h3>
+            <p>
+              Actions in the Portal (including submissions, approvals, and status changes) may be
+              logged for security, audit, billing reconciliation, and project governance. Use of the
+              Portal constitutes acknowledgement that such records may be reviewed by authorised
+              Shrikhande personnel and, where required, by clients or regulators.
+            </p>
+          </section>
+
+          <section className="pmc-terms__section">
+            <h3>8. Availability &amp; liability</h3>
+            <p>
+              The Portal is provided for business use on an “as available” basis. Shrikhande does
+              not warrant uninterrupted or error-free operation. To the extent permitted by law,
+              Shrikhande is not liable for indirect or consequential loss arising from use of, or
+              inability to use, the Portal. Nothing in these terms excludes liability that cannot be
+              excluded under applicable law.
+            </p>
+          </section>
+
+          <section className="pmc-terms__section">
+            <h3>9. Governing law</h3>
+            <p>
+              These terms are governed by the laws of India. Subject to mandatory legal provisions,
+              disputes shall be subject to the exclusive jurisdiction of the courts at Navi Mumbai /
+              Mumbai, Maharashtra. Electronic records and communications related to the Portal are
+              also subject to the Information Technology Act, 2000 and applicable rules.
+            </p>
+          </section>
+
+          <section className="pmc-terms__section">
+            <h3>10. Changes</h3>
+            <p>
+              Shrikhande may update these Terms &amp; Conditions from time to time. The version and
+              “Last updated” date shown above apply to the current text. Continued use of the Portal
+              after changes constitutes acceptance of the updated terms.
+            </p>
+          </section>
+
+          <div className="pmc-terms__notice">
+            <Icons.Issue className="pmc-terms__notice-icon" size={20} />
+            <div>
+              <h4>Confidentiality notice</h4>
+              <p>
+                Reports and exports generated from the Portal are intended solely for authorised
+                recipients. If you receive information in error, please notify your Project Manager
+                or contact {CONTACT.email} and delete the material.
+              </p>
+            </div>
+          </div>
         </div>
+
+        <footer className="pmc-terms__footer">
+          <p className="pmc-terms__copyright">
+            © {COPYRIGHT_YEAR} Shrikhande Consultants Limited. All rights reserved.
+            <span className="pmc-terms__copyright-sub">
+              PMC Portal · Enterprise Workflow · {OFFICE.lines[OFFICE.lines.length - 1]}
+            </span>
+          </p>
+          <button type="button" className="pmc-terms__ack" onClick={onClose}>
+            I understand
+          </button>
+        </footer>
       </div>
+
+      <style>{`
+        .pmc-terms {
+          position: fixed;
+          inset: 0;
+          z-index: 120;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          padding: 1rem;
+          font-family: "Source Sans 3", "Segoe UI", sans-serif;
+        }
+        .pmc-terms__backdrop {
+          position: absolute;
+          inset: 0;
+          border: none;
+          background: rgba(6, 12, 20, 0.88);
+          backdrop-filter: blur(8px);
+          cursor: pointer;
+        }
+        .pmc-terms__dialog {
+          position: relative;
+          z-index: 1;
+          display: flex;
+          flex-direction: column;
+          width: min(100%, 44rem);
+          max-height: min(88vh, 52rem);
+          overflow: hidden;
+          border-radius: 0.5rem;
+          border: 1px solid rgba(255, 255, 255, 0.12);
+          background: #0f1720;
+          box-shadow: 0 24px 64px rgba(0, 0, 0, 0.5);
+        }
+        .pmc-terms__header {
+          display: flex;
+          align-items: flex-start;
+          justify-content: space-between;
+          gap: 1rem;
+          padding: 1.25rem 1.35rem;
+          border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+          background: rgba(18, 26, 36, 0.95);
+        }
+        .pmc-terms__eyebrow {
+          margin: 0 0 0.35rem;
+          font-size: 0.65rem;
+          font-weight: 800;
+          letter-spacing: 0.12em;
+          text-transform: uppercase;
+          color: #ffb366;
+        }
+        .pmc-terms__title {
+          margin: 0;
+          font-family: Archivo, "Segoe UI", sans-serif;
+          font-size: 1.35rem;
+          font-weight: 800;
+          color: #fff;
+        }
+        .pmc-terms__meta {
+          margin: 0.35rem 0 0;
+          font-size: 0.75rem;
+          color: #94a3b8;
+        }
+        .pmc-terms__close {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          width: 2.35rem;
+          height: 2.35rem;
+          border-radius: 0.4rem;
+          border: 1px solid rgba(255, 255, 255, 0.12);
+          background: rgba(255, 255, 255, 0.04);
+          color: #94a3b8;
+          cursor: pointer;
+        }
+        .pmc-terms__close:hover {
+          color: #fff;
+          border-color: rgba(245, 158, 11, 0.4);
+        }
+        .pmc-terms__body {
+          flex: 1;
+          overflow: auto;
+          padding: 1.25rem 1.35rem 1.5rem;
+          color: rgba(203, 213, 225, 0.92);
+          font-size: 0.9rem;
+          line-height: 1.55;
+        }
+        .pmc-terms__intro {
+          margin: 0 0 1.25rem;
+        }
+        .pmc-terms__intro strong {
+          color: #fff;
+          font-weight: 700;
+        }
+        .pmc-terms__section {
+          margin-bottom: 1.15rem;
+        }
+        .pmc-terms__section h3 {
+          margin: 0 0 0.4rem;
+          font-family: Archivo, "Segoe UI", sans-serif;
+          font-size: 0.95rem;
+          font-weight: 800;
+          color: #fff;
+        }
+        .pmc-terms__section p {
+          margin: 0 0 0.55rem;
+        }
+        .pmc-terms__address {
+          display: grid;
+          gap: 0.15rem;
+          margin: 0.65rem 0 0;
+          padding: 0.85rem 1rem;
+          border-radius: 0.4rem;
+          border: 1px solid rgba(245, 158, 11, 0.22);
+          background: rgba(245, 158, 11, 0.06);
+          font-style: normal;
+          font-size: 0.84rem;
+          color: rgba(226, 232, 240, 0.9);
+        }
+        .pmc-terms__address-label {
+          font-size: 0.62rem;
+          font-weight: 800;
+          letter-spacing: 0.1em;
+          text-transform: uppercase;
+          color: #ffb366;
+          margin-bottom: 0.2rem;
+        }
+        .pmc-terms__address a {
+          color: #ffb366;
+          text-decoration: underline;
+          text-underline-offset: 2px;
+        }
+        .pmc-terms__notice {
+          display: flex;
+          gap: 0.75rem;
+          margin-top: 0.5rem;
+          padding: 0.95rem 1rem;
+          border-radius: 0.4rem;
+          border: 1px solid rgba(255, 255, 255, 0.1);
+          background: rgba(255, 255, 255, 0.04);
+        }
+        .pmc-terms__notice-icon {
+          flex-shrink: 0;
+          color: #f59e0b;
+          margin-top: 0.1rem;
+        }
+        .pmc-terms__notice h4 {
+          margin: 0 0 0.3rem;
+          font-size: 0.72rem;
+          font-weight: 800;
+          letter-spacing: 0.08em;
+          text-transform: uppercase;
+          color: #ffb366;
+        }
+        .pmc-terms__notice p {
+          margin: 0;
+          font-size: 0.8rem;
+          color: #94a3b8;
+        }
+        .pmc-terms__footer {
+          display: flex;
+          flex-wrap: wrap;
+          align-items: center;
+          justify-content: space-between;
+          gap: 0.85rem;
+          padding: 1rem 1.35rem;
+          border-top: 1px solid rgba(255, 255, 255, 0.08);
+          background: rgba(18, 26, 36, 0.95);
+        }
+        .pmc-terms__copyright {
+          margin: 0;
+          display: grid;
+          gap: 0.2rem;
+          font-size: 0.72rem;
+          font-weight: 600;
+          color: #94a3b8;
+          max-width: 28rem;
+        }
+        .pmc-terms__copyright-sub {
+          font-weight: 500;
+          color: rgba(148, 163, 184, 0.8);
+        }
+        .pmc-terms__ack {
+          border: none;
+          border-radius: 0.4rem;
+          padding: 0.75rem 1.25rem;
+          font-family: inherit;
+          font-size: 0.8rem;
+          font-weight: 800;
+          letter-spacing: 0.04em;
+          text-transform: uppercase;
+          color: #0a1420;
+          background: linear-gradient(135deg, #ffb020, #f59e0b);
+          cursor: pointer;
+          box-shadow: 0 8px 20px rgba(230, 138, 0, 0.28);
+        }
+        .pmc-terms__ack:hover {
+          filter: brightness(1.04);
+        }
+        @media (min-width: 640px) {
+          .pmc-terms {
+            padding: 1.5rem;
+          }
+          .pmc-terms__header,
+          .pmc-terms__body,
+          .pmc-terms__footer {
+            padding-left: 1.75rem;
+            padding-right: 1.75rem;
+          }
+        }
+      `}</style>
     </div>
   );
 };

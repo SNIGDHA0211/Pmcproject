@@ -97,6 +97,9 @@ import {
   clearAppRouteOnLogout,
   getDefaultTabForRole,
   isTabAllowedForRole,
+  isLandingRoutePath,
+  LANDING_ROUTE,
+  LOGIN_ROUTE,
   navigateToTab,
   syncAuthenticatedNavigation,
   tabFromRouteForUser,
@@ -109,6 +112,8 @@ import {
   syncAppRoutePath,
   tabFromRoutePath,
 } from "./utils/appRouting";
+import LandingPage from "./components/LandingPage";
+import LoginPage from "./components/LoginPage";
 
 /** Lazy tab screens — splits the initial JS payload without changing UI/behavior. */
 const Dashboard = lazy(() => import("./components/Dashboard"));
@@ -207,6 +212,8 @@ const App: React.FC = () => {
 
   // Modal States
   const [showTCModal, setShowTCModal] = useState(false);
+  /** Public hash while logged out: `#/welcome` (landing) or `#/login`. */
+  const [unauthPath, setUnauthPath] = useState(() => getAppRoutePath());
 
   // Login Form States
   const [email, setEmail] = useState("");
@@ -374,18 +381,37 @@ const App: React.FC = () => {
     if (authLoading) return;
 
     if (!currentUser) {
-      clearAppRouteOnLogout();
       setActiveTab("dashboard");
       setSelectedProjectId(null);
       setFinancialSectionLocked(false);
       setNavReturn(null);
       setProjectFilter("all");
+      const path = getAppRoutePath();
+      if (!isLandingRoutePath(path) && path !== LOGIN_ROUTE) {
+        syncAppRoutePath(LOGIN_ROUTE, "replace");
+        setUnauthPath(LOGIN_ROUTE);
+      } else {
+        setUnauthPath(isLandingRoutePath(path) ? LANDING_ROUTE : path);
+      }
       return;
     }
 
     const tab = syncAuthenticatedNavigation(currentUser, { honorCurrentUrl: true });
     setActiveTab(tab);
   }, [currentUser?.id, currentUser?.role, authLoading]);
+
+  useEffect(() => {
+    if (currentUser || authLoading) return;
+    return subscribeAppRoutePath(() => {
+      const path = getAppRoutePath();
+      if (!isLandingRoutePath(path) && path !== LOGIN_ROUTE) {
+        syncAppRoutePath(LOGIN_ROUTE, "replace");
+        setUnauthPath(LOGIN_ROUTE);
+      } else {
+        setUnauthPath(isLandingRoutePath(path) ? LANDING_ROUTE : path);
+      }
+    });
+  }, [currentUser, authLoading]);
 
   useEffect(() => {
     return subscribeAppRoutePath(() => {
@@ -1419,6 +1445,11 @@ const App: React.FC = () => {
     };
   }, [currentUser?.id]);
 
+  const goToLandingPage = () => {
+    syncAppRoutePath(LANDING_ROUTE, "push");
+    setUnauthPath(LANDING_ROUTE);
+  };
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoginError("");
@@ -1451,250 +1482,30 @@ const App: React.FC = () => {
   }
 
   if (!currentUser) {
-    return (
-      <div className="min-h-screen w-full relative font-['Inter'] selection:bg-indigo-500 selection:text-white overflow-hidden">
-
-        {/* Background — login-only night construction site (app shell keeps panorama) */}
-        <div
-          className="absolute inset-0 bg-cover bg-no-repeat opacity-[0.62] saturate-[1.08]"
-          style={{
-            backgroundImage: 'url(/images/construction-bg.jpg)',
-            backgroundPosition: 'center center',
-          }}
+    if (unauthPath === LOGIN_ROUTE) {
+      return (
+        <LoginPage
+          username={username}
+          password={password}
+          showPassword={showPassword}
+          loginError={loginError}
+          isLoginSubmitting={isLoginSubmitting}
+          onUsernameChange={setUsername}
+          onPasswordChange={setPassword}
+          onTogglePassword={() => setShowPassword((prev) => !prev)}
+          onSubmit={handleLogin}
+          onOpenTerms={() => setShowTCModal(true)}
+          onGoToLanding={goToLandingPage}
+          termsModal={
+            showTCModal ? (
+              <TermsAndConditions onClose={() => setShowTCModal(false)} />
+            ) : null
+          }
         />
+      );
+    }
 
-        {/* Overlay — navy + warm site-light glow for login readability */}
-        <div className="absolute inset-0 bg-gradient-to-br from-[#0a1420]/88 via-[#121a24]/72 to-[#1a2332]/82" />
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_72%_32%,rgba(230,168,40,0.22)_0%,transparent_52%)]" />
-
-        {/* Center Container */}
-        <div className="relative z-10 flex min-h-screen items-center justify-center px-4 py-6 sm:px-6 lg:px-8">
-
-          {/* Login Card */}
-          <div
-            className="
-            w-full
-            max-w-sm
-            sm:max-w-md
-            lg:max-w-xl
-            rounded-3xl
-            border border-white/10
-            bg-white/5
-            backdrop-blur-xl
-            shadow-2xl
-            p-6
-            sm:p-8
-            md:p-10
-            lg:p-12
-            animate-in
-            zoom-in-95
-            duration-500
-          "
-          >
-            {/* Logo */}
-            <div className="flex justify-center mb-6 sm:mb-8">
-              <img
-                src="/images/Shrikhande-logo-bgremove.png"
-                alt="Shrikhande"
-                className="
-                h-12
-                sm:h-14
-                md:h-16
-                lg:h-20
-                w-auto
-                object-contain
-              "
-              />
-            </div>
-
-            {/* Heading */}
-            <div className="text-center mb-6 sm:mb-8">
-              <h2
-                className="
-                text-2xl
-                sm:text-3xl
-                md:text-4xl
-                font-semibold
-                text-white
-                mb-2
-              "
-              >
-                Welcome Back
-              </h2>
-
-              <p className="text-white/60 text-xs sm:text-sm">
-                Please enter your username and password
-              </p>
-            </div>
-
-            <form onSubmit={handleLogin} className="space-y-5">
-
-              {/* Error */}
-              {loginError && (
-                <div className="p-3 sm:p-4 bg-red-500/10 text-red-300 text-sm rounded-xl border border-red-500/30">
-                  {loginError}
-                </div>
-              )}
-
-              {/* Username */}
-              <div className="relative">
-                <input
-                  type="text"
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
-                  disabled={isLoginSubmitting}
-                  placeholder="Username"
-                  className="
-                  w-full
-                  h-12
-                  sm:h-14
-                  pl-11
-                  pr-4
-                  rounded-2xl
-                  bg-white/5
-                  border border-white/10
-                  text-white
-                  text-sm
-                  font-medium
-                  placeholder-white/40
-                  outline-none
-                  focus:ring-2
-                  focus:ring-white/20
-                  transition-all
-                  disabled:opacity-60
-                "
-                />
-
-                <div className="absolute left-4 top-1/2 -translate-y-1/2 text-white/40">
-                  <Icons.User size={18} />
-                </div>
-              </div>
-
-              {/* Password */}
-              <div className="relative">
-                <input
-                  type={showPassword ? "text" : "password"}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  disabled={isLoginSubmitting}
-                  placeholder="Password"
-                  className="
-                  w-full
-                  h-12
-                  sm:h-14
-                  pl-11
-                  pr-12
-                  rounded-2xl
-                  bg-white/5
-                  border border-white/10
-                  text-white
-                  text-sm
-                  font-medium
-                  placeholder-white/40
-                  outline-none
-                  focus:ring-2
-                  focus:ring-white/20
-                  transition-all
-                  disabled:opacity-60
-                "
-                />
-
-                <div className="absolute left-4 top-1/2 -translate-y-1/2 text-white/40">
-                  <Icons.Lock size={18} />
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  disabled={isLoginSubmitting}
-                  className="
-                  absolute
-                  right-4
-                  top-1/2
-                  -translate-y-1/2
-                  text-white/40
-                  hover:text-white/70
-                  transition-colors
-                "
-                >
-                  {showPassword ? (
-                    <Icons.EyeOff size={18} />
-                  ) : (
-                    <Icons.Eye size={18} />
-                  )}
-                </button>
-              </div>
-
-              {/* Footer */}
-              <div className="pt-2 flex flex-col gap-4">
-
-                <p className="text-[11px] sm:text-xs text-white/60 text-center leading-relaxed">
-                  By login, you agree to our{" "}
-                  <button
-                    type="button"
-                    onClick={() => setShowTCModal(true)}
-                    disabled={isLoginSubmitting}
-                    className="underline hover:text-white"
-                  >
-                    Terms & Conditions
-                  </button>
-                </p>
-
-                <button
-                  type="submit"
-                  disabled={isLoginSubmitting}
-                  className="
-                  w-full
-                  h-12
-                  sm:h-14
-                  rounded-xl
-                  font-semibold
-                  text-white
-                  bg-gradient-to-r
-                  from-orange-500
-                  to-amber-500
-                  hover:from-orange-600
-                  hover:to-amber-600
-                  shadow-lg
-                  shadow-orange-500/25
-                  transition-all
-                  flex
-                  items-center
-                  justify-center
-                  gap-2
-                  disabled:opacity-70
-                "
-                >
-                  {isLoginSubmitting ? (
-                    <>
-                      <Icons.History
-                        size={16}
-                        className="animate-spin"
-                      />
-                      Logging in...
-                    </>
-                  ) : (
-                    <>
-                      Login
-                      <Icons.ArrowRight
-                        size={16}
-                        strokeWidth={2.5}
-                      />
-                    </>
-                  )}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-
-        {showTCModal && (
-          <TermsAndConditions
-            onClose={() => setShowTCModal(false)}
-          />
-        )}
-      </div>
-    );
+    return <LandingPage />;
   }
 
   const selectedProject = projects.find((p) => p.id === selectedProjectId);
@@ -2212,7 +2023,7 @@ const App: React.FC = () => {
             currentUser={currentUser}
             selectedProjectId={selectedProjectId}
             tutorialSection={
-              currentUser.role === UserRole.TEAM_LEAD ? 'overview' : 'projects'
+              currentUser.role === UserRole.TEAM_LEAD ? 'tl_overview' : 'projects'
             }
             onViewProject={(id) => {
               setSelectedProjectId(id);

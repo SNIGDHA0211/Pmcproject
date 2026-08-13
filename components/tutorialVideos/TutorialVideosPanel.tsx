@@ -68,7 +68,7 @@ const TutorialVideosPanel: React.FC<TutorialVideosPanelProps> = ({
   const { user } = useAuth();
   const { isDarkTheme } = useTheme();
   const themeClasses = getThemeClasses(isDarkTheme);
-  const canManage = canManageTutorialVideos(user);
+  const canManage = canManageTutorialVideos(user, section);
 
   const [videos, setVideos] = useState<TutorialVideo[]>([]);
   const [count, setCount] = useState(0);

@@ -6,6 +6,7 @@ import { clearProjectRowCache } from './pmcHeadExecutiveProjects';
 import { invalidateFinancialCache } from './financialDataCache';
 import { clearApiGetCache } from './apiGetCache';
 import { clearOverviewBootstrap } from './dashboardBootstrap';
+import { clearTutorialVideoBrowserCache } from './tutorialVideoBrowserCache';
 import { projectStore } from '../stores/projectStore';
 
 export const ACCESS_TOKEN_KEY = 'access_token';
@@ -66,6 +67,7 @@ export function clearAppDataCaches(): void {
   clearApiGetCache();
   clearOverviewBootstrap();
   projectStore.clearStore();
+  void clearTutorialVideoBrowserCache();
 }
 
 export function clearLegacyBasicAuth(): void {

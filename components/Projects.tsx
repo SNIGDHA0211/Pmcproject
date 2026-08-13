@@ -8,6 +8,7 @@ import type {
 } from '../types';
 import DashboardCardTopAccent from './DashboardCardTopAccent';
 import TutorialVideosPanel from './tutorialVideos/TutorialVideosPanel';
+import type { TutorialSectionKey } from '../utils/tutorialVideosSections';
 import { Icons } from './Icons';
 import { FullScreenCard, FullScreenHeaderToolbar, useFullScreenExpand } from './FullScreenCard';
 import DashboardChartShell from './DashboardChartShell';
@@ -190,7 +191,7 @@ interface ProjectsProps {
   teamLeaderScrollSection?: TeamLeaderOverviewSection | null;
   onTeamLeaderScrollSectionConsumed?: () => void;
   /** Tutorial Videos section key for this page instance */
-  tutorialSection?: 'overview' | 'projects';
+  tutorialSection?: TutorialSectionKey;
 }
 
 const CONTRACT_VALUE_TYPES: ContractValueType[] = ['SCL', 'Contractor'];

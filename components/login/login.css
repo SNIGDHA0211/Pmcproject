@@ -1,0 +1,522 @@
+/* PMC Portal — enterprise login (navy / amber, aligned with landing) */
+
+.pmc-login {
+  --login-navy: #0a1420;
+  --login-navy-900: #121a24;
+  --login-panel: rgba(10, 18, 28, 0.88);
+  --login-amber: #f59e0b;
+  --login-amber-bright: #ffb020;
+  --login-steel: #94a3b8;
+  --login-display: "Archivo", "Segoe UI", sans-serif;
+  --login-body: "Source Sans 3", "Segoe UI", sans-serif;
+  --login-ease: cubic-bezier(0.22, 1, 0.36, 1);
+
+  position: relative;
+  isolation: isolate;
+  min-height: 100vh;
+  min-height: 100dvh;
+  overflow: hidden;
+  font-family: var(--login-body);
+  color: #e8edf2;
+  background: var(--login-navy);
+  selection-background-color: rgba(245, 158, 11, 0.35);
+}
+
+.pmc-login::selection,
+.pmc-login *::selection {
+  background: rgba(245, 158, 11, 0.35);
+  color: #fff;
+}
+
+.pmc-login__bg {
+  position: absolute;
+  inset: 0;
+  z-index: -3;
+  background:
+    url("/images/construction-bg.jpg") center / cover no-repeat;
+  opacity: 0.48;
+  filter: saturate(1.05) brightness(0.72);
+}
+
+.pmc-login__wash {
+  position: absolute;
+  inset: 0;
+  z-index: -2;
+  background:
+    linear-gradient(
+      115deg,
+      rgba(6, 12, 20, 0.94) 0%,
+      rgba(8, 16, 26, 0.88) 42%,
+      rgba(10, 20, 32, 0.72) 72%,
+      rgba(10, 20, 32, 0.55) 100%
+    ),
+    radial-gradient(ellipse 50% 40% at 78% 18%, rgba(230, 138, 0, 0.2), transparent 60%);
+}
+
+.pmc-login__top {
+  position: relative;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1rem 1.25rem 0;
+}
+
+@media (min-width: 768px) {
+  .pmc-login__top {
+    padding: 1.25rem 2rem 0;
+  }
+}
+
+.pmc-login__back {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(10, 20, 32, 0.55);
+  color: rgba(232, 237, 242, 0.92);
+  font-family: var(--login-body);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  border-radius: 0.4rem;
+  padding: 0.55rem 0.9rem;
+  cursor: pointer;
+  backdrop-filter: blur(10px);
+  transition: border-color 0.2s ease, background 0.2s ease, color 0.2s ease;
+}
+
+.pmc-login__back:hover:not(:disabled) {
+  border-color: rgba(245, 158, 11, 0.45);
+  background: rgba(10, 20, 32, 0.78);
+  color: #fff;
+}
+
+.pmc-login__back:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.pmc-login__back-icon {
+  transform: rotate(180deg);
+}
+
+.pmc-login__top-meta {
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgba(148, 163, 184, 0.85);
+}
+
+.pmc-login__shell {
+  position: relative;
+  z-index: 2;
+  display: grid;
+  width: min(100% - 2rem, 58rem);
+  margin: 1.25rem auto 2rem;
+  min-height: calc(100vh - 5.5rem);
+  min-height: calc(100dvh - 5.5rem);
+  align-items: stretch;
+  border-radius: 0.55rem;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow:
+    0 24px 64px rgba(0, 0, 0, 0.45),
+    inset 0 0 0 1px rgba(245, 158, 11, 0.06);
+  background: rgba(8, 14, 22, 0.55);
+  backdrop-filter: blur(16px);
+}
+
+@media (min-width: 900px) {
+  .pmc-login__shell {
+    grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
+    margin: 1.5rem auto 2.5rem;
+    min-height: min(36rem, calc(100dvh - 6rem));
+  }
+}
+
+.pmc-login__brand {
+  display: none;
+  position: relative;
+  padding: 2.25rem 2rem;
+  background:
+    linear-gradient(160deg, rgba(10, 20, 32, 0.35) 0%, rgba(6, 12, 20, 0.72) 100%),
+    url("/images/construction-panorama-bg.png") center / cover no-repeat;
+}
+
+.pmc-login__brand::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(180deg, rgba(6, 12, 20, 0.35) 0%, rgba(6, 12, 20, 0.82) 100%),
+    linear-gradient(90deg, rgba(6, 12, 20, 0.2), transparent 55%);
+}
+
+@media (min-width: 900px) {
+  .pmc-login__brand {
+    display: flex;
+    align-items: flex-end;
+  }
+}
+
+.pmc-login__brand-inner {
+  position: relative;
+  z-index: 1;
+  max-width: 22rem;
+}
+
+.pmc-login__brand-logo {
+  height: 2.75rem;
+  width: auto;
+  object-fit: contain;
+  margin-bottom: 1.35rem;
+  filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.35));
+}
+
+.pmc-login__brand-kicker {
+  margin: 0 0 0.55rem;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #ffb366;
+}
+
+.pmc-login__brand-title {
+  margin: 0 0 0.75rem;
+  font-family: var(--login-display);
+  font-size: clamp(2rem, 3vw, 2.55rem);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+  color: #fff;
+}
+
+.pmc-login__brand-copy {
+  margin: 0 0 1.35rem;
+  font-size: 0.92rem;
+  line-height: 1.55;
+  color: rgba(203, 213, 225, 0.88);
+}
+
+.pmc-login__brand-points {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 0.45rem;
+}
+
+.pmc-login__brand-points li {
+  position: relative;
+  padding-left: 0.95rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: rgba(226, 232, 240, 0.82);
+}
+
+.pmc-login__brand-points li::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0.45em;
+  width: 0.35rem;
+  height: 0.35rem;
+  border-radius: 50%;
+  background: var(--login-amber);
+}
+
+.pmc-login__panel {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 1.75rem 1.35rem 1.85rem;
+  background: var(--login-panel);
+}
+
+@media (min-width: 640px) {
+  .pmc-login__panel {
+    padding: 2.25rem 2rem 2.35rem;
+  }
+}
+
+@media (min-width: 900px) {
+  .pmc-login__panel {
+    padding: 2.5rem 2.35rem;
+    border-left: 1px solid rgba(255, 255, 255, 0.06);
+  }
+}
+
+.pmc-login__panel-head {
+  margin-bottom: 1.5rem;
+}
+
+.pmc-login__panel-logo {
+  display: block;
+  height: 2.5rem;
+  width: auto;
+  object-fit: contain;
+  margin: 0 auto 1.1rem;
+}
+
+@media (min-width: 900px) {
+  .pmc-login__panel-logo {
+    display: none;
+  }
+}
+
+.pmc-login__heading {
+  margin: 0 0 0.4rem;
+  font-family: var(--login-display);
+  font-size: 1.65rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: #fff;
+  text-align: left;
+}
+
+.pmc-login__subhead {
+  margin: 0;
+  font-size: 0.9rem;
+  line-height: 1.45;
+  color: var(--login-steel);
+}
+
+.pmc-login__form {
+  display: grid;
+  gap: 1rem;
+}
+
+.pmc-login__error {
+  padding: 0.75rem 0.9rem;
+  border-radius: 0.4rem;
+  border: 1px solid rgba(248, 113, 113, 0.35);
+  background: rgba(127, 29, 29, 0.28);
+  color: #fecaca;
+  font-size: 0.84rem;
+  line-height: 1.4;
+}
+
+.pmc-login__field {
+  display: grid;
+  gap: 0.4rem;
+}
+
+.pmc-login__label {
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: rgba(255, 179, 102, 0.92);
+}
+
+.pmc-login__control {
+  position: relative;
+  display: block;
+}
+
+.pmc-login__field-icon {
+  position: absolute;
+  left: 0.95rem;
+  top: 50%;
+  transform: translateY(-50%);
+  color: rgba(148, 163, 184, 0.85);
+  pointer-events: none;
+}
+
+.pmc-login__control input {
+  width: 100%;
+  height: 3rem;
+  padding: 0 2.75rem 0 2.65rem;
+  border-radius: 0.4rem;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.04);
+  color: #fff;
+  font-family: var(--login-body);
+  font-size: 0.95rem;
+  font-weight: 600;
+  outline: none;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+}
+
+.pmc-login__control input::placeholder {
+  color: rgba(148, 163, 184, 0.65);
+  font-weight: 500;
+}
+
+.pmc-login__control input:hover:not(:disabled) {
+  border-color: rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.055);
+}
+
+.pmc-login__control input:focus {
+  border-color: rgba(245, 158, 11, 0.55);
+  box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.18);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.pmc-login__control input:disabled {
+  opacity: 0.6;
+}
+
+.pmc-login__reveal {
+  position: absolute;
+  right: 0.65rem;
+  top: 50%;
+  transform: translateY(-50%);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  border: none;
+  border-radius: 0.3rem;
+  background: transparent;
+  color: rgba(148, 163, 184, 0.9);
+  cursor: pointer;
+  transition: color 0.2s ease, background 0.2s ease;
+}
+
+.pmc-login__reveal:hover:not(:disabled) {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.pmc-login__reveal:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.pmc-login__legal {
+  margin: 0.15rem 0 0;
+  font-size: 0.75rem;
+  line-height: 1.45;
+  color: rgba(148, 163, 184, 0.92);
+}
+
+.pmc-login__legal button {
+  border: none;
+  background: none;
+  padding: 0;
+  color: #ffb366;
+  font: inherit;
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+.pmc-login__legal button:hover:not(:disabled) {
+  color: #ffc04d;
+}
+
+.pmc-login__legal button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.pmc-login__submit {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  width: 100%;
+  height: 3.05rem;
+  margin-top: 0.15rem;
+  border: none;
+  border-radius: 0.4rem;
+  font-family: var(--login-body);
+  font-size: 0.95rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  color: #0a1420;
+  cursor: pointer;
+  background: linear-gradient(135deg, var(--login-amber-bright) 0%, var(--login-amber) 100%);
+  box-shadow: 0 12px 28px rgba(230, 138, 0, 0.32);
+  transition: transform 0.2s ease, box-shadow 0.2s ease, filter 0.2s ease;
+}
+
+.pmc-login__submit:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 14px 32px rgba(230, 138, 0, 0.42);
+  filter: brightness(1.03);
+}
+
+.pmc-login__submit:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.pmc-login__submit:disabled {
+  opacity: 0.72;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.pmc-login__spin {
+  animation: pmc-login-spin 0.85s linear infinite;
+}
+
+@keyframes pmc-login-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.pmc-login__footer-link {
+  margin: 1.25rem 0 0;
+  text-align: center;
+  font-size: 0.78rem;
+  color: rgba(148, 163, 184, 0.9);
+}
+
+.pmc-login__footer-link button {
+  border: none;
+  background: none;
+  padding: 0;
+  color: #ffb366;
+  font: inherit;
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+.pmc-login__footer-link button:hover:not(:disabled) {
+  color: #ffc04d;
+}
+
+.pmc-login__footer-link button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.pmc-login__copyright {
+  margin: 1rem 0 0;
+  text-align: center;
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: rgba(148, 163, 184, 0.72);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pmc-login__submit,
+  .pmc-login__back,
+  .pmc-login__control input {
+    transition: none;
+  }
+
+  .pmc-login__spin {
+    animation: none;
+  }
+
+  .pmc-login__submit:hover:not(:disabled) {
+    transform: none;
+  }
+}

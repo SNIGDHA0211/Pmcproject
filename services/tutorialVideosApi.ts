@@ -2,6 +2,14 @@ import api, { getApiErrorMessage, toNum } from './api';
 import { API_ENDPOINTS } from '../config/apiConfig';
 import { invalidateApiGetCache } from '../utils/apiGetCache';
 import {
+  clearTutorialVideoBrowserCache,
+  deleteTutorialVideoBlobFromCache,
+  getTutorialVideoObjectUrl,
+  readTutorialVideoBlobFromCache,
+  rememberTutorialVideoObjectUrl,
+  resolveTutorialVideoPlaybackUrl,
+} from '../utils/tutorialVideoBrowserCache';
+import {
   isTutorialSectionKey,
   type TutorialOrdering,
   type TutorialSectionKey,
@@ -72,11 +80,11 @@ const multipartUploadConfig = {
   headers: { 'Content-Type': undefined as unknown as string },
 } as const;
 
-/** In-memory playback URL cache for the current session (not localStorage). */
-const playbackUrlCache = new Map<number, string>();
-
 /** Collapse concurrent detail GETs for the same id (polling must not stampede). */
 const detailInflight = new Map<number, Promise<TutorialVideo>>();
+
+/** Collapse concurrent playback resolves for the same id. */
+const playbackInflight = new Map<number, Promise<TutorialVideoPlayback>>();
 
 function str(v: unknown, fallback = ''): string {
   if (v == null) return fallback;
@@ -192,18 +200,18 @@ export function invalidateTutorialVideoDetail(id: number | string): void {
 
 export function clearTutorialPlaybackCache(id?: number): void {
   if (id == null) {
-    playbackUrlCache.clear();
+    void clearTutorialVideoBrowserCache();
     return;
   }
-  playbackUrlCache.delete(id);
+  void deleteTutorialVideoBlobFromCache(id);
 }
 
 export function getCachedTutorialPlaybackUrl(id: number): string | null {
-  return playbackUrlCache.get(id) ?? null;
+  return getTutorialVideoObjectUrl(id);
 }
 
 export function cacheTutorialPlaybackUrl(id: number, url: string): void {
-  if (id && url) playbackUrlCache.set(id, url);
+  rememberTutorialVideoObjectUrl(id, url);
 }
 
 export function getTutorialVideosErrorMessage(
@@ -271,22 +279,57 @@ export const tutorialVideosApi = {
 
   async getTutorialVideoPlaybackUrl(id: number | string): Promise<TutorialVideoPlayback> {
     const numericId = toNum(id);
-    if (numericId) {
-      const cached = getCachedTutorialPlaybackUrl(numericId);
-      if (cached) {
-        return { id: numericId, title: '', video_url: cached };
-      }
-    }
-
-    const res = await api.get(API_ENDPOINTS.TUTORIAL_VIDEOS.VIEW(id), {
-      skipGetCache: true,
-    } as never);
-    const playback = normalizeTutorialVideoPlayback(res.data);
-    if (!playback) {
+    if (!numericId) {
       throw new Error('Unable to open tutorial video.');
     }
-    cacheTutorialPlaybackUrl(playback.id, playback.video_url);
-    return playback;
+
+    const pending = playbackInflight.get(numericId);
+    if (pending) return pending;
+
+    const request = (async (): Promise<TutorialVideoPlayback> => {
+      // 1) In-memory blob:/url from this session
+      const hot = getCachedTutorialPlaybackUrl(numericId);
+      if (hot) {
+        return { id: numericId, title: '', video_url: hot };
+      }
+
+      // 2) Browser Cache API — no VIEW API call
+      const cachedBlob = await readTutorialVideoBlobFromCache(numericId);
+      if (cachedBlob) {
+        const objectUrl = URL.createObjectURL(cachedBlob);
+        cacheTutorialPlaybackUrl(numericId, objectUrl);
+        return { id: numericId, title: '', video_url: objectUrl };
+      }
+
+      // 3) First play: resolve signed URL, then store video bytes in Cache API
+      const res = await api.get(API_ENDPOINTS.TUTORIAL_VIDEOS.VIEW(numericId), {
+        skipGetCache: true,
+      } as never);
+      const playback = normalizeTutorialVideoPlayback(res.data);
+      if (!playback) {
+        throw new Error('Unable to open tutorial video.');
+      }
+
+      const playableUrl = await resolveTutorialVideoPlaybackUrl(
+        playback.id,
+        playback.video_url,
+      );
+      cacheTutorialPlaybackUrl(playback.id, playableUrl);
+      return {
+        id: playback.id,
+        title: playback.title,
+        video_url: playableUrl,
+      };
+    })();
+
+    playbackInflight.set(numericId, request);
+    request.finally(() => {
+      if (playbackInflight.get(numericId) === request) {
+        playbackInflight.delete(numericId);
+      }
+    });
+
+    return request;
   },
 
   async uploadTutorialVideo(input: TutorialVideoUploadInput): Promise<TutorialVideo> {
