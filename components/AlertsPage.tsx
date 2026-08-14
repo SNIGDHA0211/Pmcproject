@@ -127,6 +127,7 @@ const AlertsPage: React.FC<AlertsPageProps> = ({
             Refresh
           </button>
         </div>
+      </div>
 
       <div className={`flex flex-wrap gap-2 ${cardCls} !py-3`}>
         {filters.map(({ key, label }) => {
