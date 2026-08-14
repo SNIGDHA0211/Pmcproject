@@ -11,7 +11,25 @@
     <link rel="icon" type="image/png" href="/images/pmc-favicon.png?v=20260526-v3" sizes="512x512">
     <link rel="apple-touch-icon" href="/images/pmc-favicon-180.png?v=20260526-v3" sizes="180x180">
     <script>
+      (function () {
+        try {
+          var saved = localStorage.getItem('theme');
+          var isDark = saved !== 'light';
+          document.documentElement.dataset.theme = isDark ? 'dark' : 'light';
+          document.documentElement.style.backgroundColor = isDark ? '#0a1420' : '#e8f4fb';
+          document.documentElement.style.colorScheme = isDark ? 'dark' : 'light';
+          document.documentElement.classList.toggle('dark', isDark);
+        } catch (e) {
+          document.documentElement.dataset.theme = 'dark';
+          document.documentElement.style.backgroundColor = '#0a1420';
+          document.documentElement.style.colorScheme = 'dark';
+          document.documentElement.classList.add('dark');
+        }
+      })();
+    </script>
+    <script>
       tailwind.config = {
+        darkMode: 'class',
         theme: {
           extend: {
             fontFamily: {
@@ -51,13 +69,15 @@
             --pmc-mist-100: #f3f5f7;
             --pmc-warm-wash: #ffe8cc;
         }
-        html[data-theme='light'] {
-            --dashboard-bg-url: var(--dashboard-bg-url-light);
-            background-color: var(--pmc-sky-50);
-        }
         html[data-theme='dark'] {
             --dashboard-bg-url: var(--dashboard-bg-url-dark);
             background-color: var(--pmc-navy-950);
+            color-scheme: dark;
+        }
+        html[data-theme='light'] {
+            --dashboard-bg-url: var(--dashboard-bg-url-light);
+            background-color: var(--pmc-sky-50);
+            color-scheme: light;
         }
         body {
             font-family: var(--pmc-font-body);
@@ -66,8 +86,31 @@
             -webkit-font-smoothing: antialiased;
             -moz-osx-font-smoothing: grayscale;
         }
-        html {
-            background-color: var(--pmc-navy-950);
+        html[data-theme='dark'] select,
+        html[data-theme='dark'] input[type='date'],
+        html[data-theme='dark'] input[type='time'],
+        html[data-theme='dark'] input[type='datetime-local'],
+        html[data-theme='dark'] input[type='month'],
+        html[data-theme='dark'] input[type='week'] {
+            color-scheme: dark;
+        }
+        html[data-theme='light'] select,
+        html[data-theme='light'] input[type='date'],
+        html[data-theme='light'] input[type='time'],
+        html[data-theme='light'] input[type='datetime-local'],
+        html[data-theme='light'] input[type='month'],
+        html[data-theme='light'] input[type='week'] {
+            color-scheme: light;
+        }
+        html[data-theme='dark'] option,
+        html[data-theme='dark'] optgroup {
+            background-color: #121a24;
+            color: #e8edf2;
+        }
+        html[data-theme='light'] option,
+        html[data-theme='light'] optgroup {
+            background-color: #ffffff;
+            color: #0f172a;
         }
         .theme-dark-bg {
             background:
@@ -125,15 +168,15 @@
         }
         /* Command-center sidebar — frosted glass, matches 360 overview */
         .nav-dark {
-            background:
-              linear-gradient(175deg, rgba(15, 39, 68, 0.92) 0%, rgba(11, 29, 54, 0.88) 48%, rgba(7, 20, 40, 0.9) 100%);
-            backdrop-filter: blur(22px) saturate(1.3);
-            -webkit-backdrop-filter: blur(22px) saturate(1.3);
-            border-right: 1px solid rgba(103, 232, 249, 0.2);
+            background-color: #0a1420;
+            background-image: linear-gradient(175deg, rgba(10, 20, 32, 0.97) 0%, rgba(18, 26, 36, 0.95) 48%, rgba(10, 20, 32, 0.97) 100%);
+            backdrop-filter: blur(22px) saturate(1.05);
+            -webkit-backdrop-filter: blur(22px) saturate(1.05);
+            border-right: 1px solid rgba(255, 255, 255, 0.10);
             box-shadow:
-              10px 0 36px rgba(0, 0, 0, 0.28),
-              inset -1px 0 0 rgba(103, 232, 249, 0.08),
-              inset 0 1px 0 rgba(255, 255, 255, 0.06);
+              10px 0 36px rgba(0, 0, 0, 0.35),
+              inset -1px 0 0 rgba(255, 255, 255, 0.04),
+              inset 0 1px 0 rgba(255, 255, 255, 0.05);
         }
         .nav-light {
             background:
@@ -152,20 +195,20 @@
             box-shadow: 0 0 22px rgba(34, 211, 238, 0.16);
         }
         .active-pill-light {
-            background: linear-gradient(135deg, rgba(236, 254, 255, 0.95) 0%, rgba(224, 242, 254, 0.9) 55%, rgba(209, 250, 229, 0.75) 100%) !important;
-            color: #0e7490 !important;
-            border: 1px solid rgba(103, 232, 249, 0.55) !important;
+            background: linear-gradient(90deg, rgba(14, 116, 144, 0.16) 0%, rgba(14, 165, 233, 0.10) 50%, rgba(255, 255, 255, 0.82) 100%) !important;
+            color: #155e75 !important;
+            border: 1px solid rgba(14, 116, 144, 0.28) !important;
         }
-        /* Sidebar active — clear “you are here” without noisy glow */
+        /* Light sidebar — selected section (Overview, DPR, etc.) */
         button.sidebar-nav-item.sidebar-nav-active-light,
         button.sidebar-nav-item.active-pill-light {
-            background: linear-gradient(90deg, rgba(6, 182, 212, 0.18) 0%, rgba(255, 255, 255, 0.55) 100%) !important;
-            color: #0e7490 !important;
-            border: 1px solid rgba(6, 182, 212, 0.32) !important;
-            border-left: 3px solid #06b6d4 !important;
+            background: linear-gradient(90deg, rgba(14, 116, 144, 0.18) 0%, rgba(56, 189, 248, 0.12) 42%, rgba(255, 255, 255, 0.88) 100%) !important;
+            color: #155e75 !important;
+            border: 1px solid rgba(14, 116, 144, 0.30) !important;
+            border-left: 3px solid #0e7490 !important;
             box-shadow:
-              0 6px 16px rgba(6, 182, 212, 0.12),
-              inset 0 1px 0 rgba(255, 255, 255, 0.65);
+              0 8px 18px rgba(14, 116, 144, 0.12),
+              inset 0 1px 0 rgba(255, 255, 255, 0.9);
             backdrop-filter: blur(10px);
             -webkit-backdrop-filter: blur(10px);
         }
@@ -201,8 +244,8 @@
             50% { box-shadow: 0 0 20px rgba(34, 211, 238, 0.18); }
         }
         @keyframes sidebarActiveSoftLight {
-            0%, 100% { box-shadow: 0 3px 10px rgba(6, 182, 212, 0.1); }
-            50% { box-shadow: 0 4px 14px rgba(6, 182, 212, 0.16); }
+            0%, 100% { box-shadow: 0 8px 16px rgba(14, 116, 144, 0.10), inset 0 1px 0 rgba(255, 255, 255, 0.9); }
+            50% { box-shadow: 0 10px 20px rgba(14, 116, 144, 0.16), inset 0 1px 0 rgba(255, 255, 255, 0.95); }
         }
         .app-sidebar {
             transition:
@@ -230,8 +273,8 @@
             -webkit-backdrop-filter: blur(12px);
         }
         .sidebar-here-chip-dark {
-            background: linear-gradient(145deg, rgba(34, 211, 238, 0.12), rgba(15, 39, 68, 0.45));
-            border: 1px solid rgba(34, 211, 238, 0.22);
+            background: linear-gradient(145deg, rgba(18, 26, 36, 0.95), rgba(10, 20, 32, 0.9));
+            border: 1px solid rgba(255, 255, 255, 0.10);
             box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
             backdrop-filter: blur(12px);
             -webkit-backdrop-filter: blur(12px);
@@ -428,8 +471,13 @@
             color: #22d3ee;
             filter: drop-shadow(0 0 6px rgba(34, 211, 238, 0.45));
         }
+        button.sidebar-nav-item.sidebar-nav-active-light .sidebar-nav-icon,
+        button.sidebar-nav-item.sidebar-nav-active-light .sidebar-chrome,
+        button.sidebar-nav-item.sidebar-nav-active-light .sidebar-active-chevron {
+            color: #0e7490;
+        }
         button.sidebar-nav-item.sidebar-nav-active-light .sidebar-nav-icon {
-            color: #0891b2;
+            filter: none;
         }
         .sidebar-nav-item:active:not(.sidebar-nav-active-light):not(.sidebar-nav-active-dark):not(.active-pill):not(.active-pill-light) {
             transform: translateX(1px) scale(0.99);
@@ -442,9 +490,9 @@
             letter-spacing: 0.12em;
         }
         .sidebar-role-badge-dark {
-            background: linear-gradient(135deg, rgba(34, 211, 238, 0.12), rgba(15, 39, 68, 0.5));
-            border: 1px solid rgba(34, 211, 238, 0.26);
-            color: rgba(224, 247, 255, 0.95);
+            background: linear-gradient(135deg, rgba(18, 26, 36, 0.95), rgba(10, 20, 32, 0.88));
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            color: rgba(226, 232, 240, 0.95);
             box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
             backdrop-filter: blur(10px);
             -webkit-backdrop-filter: blur(10px);
@@ -481,8 +529,8 @@
             border-color: rgba(6, 182, 212, 0.35);
         }
         .sidebar-profile-card-dark {
-            background: linear-gradient(145deg, rgba(15, 39, 68, 0.75), rgba(8, 47, 73, 0.55));
-            border: 1px solid rgba(103, 232, 249, 0.2);
+            background: linear-gradient(145deg, rgba(18, 26, 36, 0.96), rgba(10, 20, 32, 0.92));
+            border: 1px solid rgba(255, 255, 255, 0.10);
             box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
             backdrop-filter: blur(12px);
             -webkit-backdrop-filter: blur(12px);
@@ -612,31 +660,34 @@
             background:
               linear-gradient(115deg, rgba(10,20,32,0.78) 0%, rgba(18,26,36,0.55) 52%, rgba(230,138,0,0.18) 100%);
         }
-        /* Frosted glass cards — clearer visibility, still translucent */
+        /* Frosted glass cards — opaque enough to stay readable over the site photo */
         .pmc360-glass-light {
-            background: linear-gradient(155deg, rgba(255,255,255,0.92) 0%, rgba(232,244,251,0.86) 50%, rgba(255,248,235,0.82) 100%);
-            border: 1px solid rgba(30, 58, 95, 0.14);
+            background-color: #f4f8fb;
+            background-image: linear-gradient(155deg, rgba(255,255,255,0.97) 0%, rgba(232,244,251,0.95) 50%, rgba(255,248,235,0.94) 100%);
+            border: 1px solid rgba(30, 58, 95, 0.16);
             box-shadow:
-              0 10px 30px rgba(30, 58, 95, 0.08),
-              inset 0 1px 0 rgba(255, 255, 255, 0.9);
+              0 10px 30px rgba(30, 58, 95, 0.10),
+              inset 0 1px 0 rgba(255, 255, 255, 0.95);
             backdrop-filter: blur(18px) saturate(1.15);
             -webkit-backdrop-filter: blur(18px) saturate(1.15);
         }
         .pmc360-glass-dark {
-            background: linear-gradient(155deg, rgba(18, 26, 36, 0.86) 0%, rgba(10, 20, 32, 0.8) 60%, rgba(26, 35, 50, 0.72) 100%);
-            border: 1px solid rgba(255, 179, 102, 0.16);
+            background-color: #121a24;
+            background-image: linear-gradient(155deg, rgba(22, 32, 44, 0.97) 0%, rgba(12, 20, 32, 0.96) 60%, rgba(18, 26, 36, 0.95) 100%);
+            border: 1px solid rgba(255, 179, 102, 0.22);
             box-shadow:
-              0 12px 34px rgba(0, 0, 0, 0.4),
-              inset 0 1px 0 rgba(255, 255, 255, 0.08);
-            backdrop-filter: blur(20px) saturate(1.2);
-            -webkit-backdrop-filter: blur(20px) saturate(1.2);
+              0 12px 34px rgba(0, 0, 0, 0.5),
+              inset 0 1px 0 rgba(255, 255, 255, 0.10);
+            backdrop-filter: blur(20px) saturate(1.15);
+            -webkit-backdrop-filter: blur(20px) saturate(1.15);
         }
         .pmc360-glass-light:hover,
         .pmc360-glass-dark:hover {
             border-color: rgba(230, 138, 0, 0.42);
         }
         .pmc360-glass-panel-light {
-            background: linear-gradient(160deg, rgba(255,255,255,0.92) 0%, rgba(243,245,247,0.86) 100%);
+            background-color: #f7fafc;
+            background-image: linear-gradient(160deg, rgba(255,255,255,0.97) 0%, rgba(243,245,247,0.94) 100%);
             border: 1px solid rgba(26, 35, 50, 0.14);
             box-shadow:
               0 14px 40px rgba(26, 35, 50, 0.09),
@@ -645,13 +696,14 @@
             -webkit-backdrop-filter: blur(22px) saturate(1.25);
         }
         .pmc360-glass-panel-dark {
-            background: linear-gradient(160deg, rgba(18, 26, 36, 0.9) 0%, rgba(10, 20, 32, 0.82) 100%);
-            border: 1px solid rgba(255, 179, 102, 0.18);
+            background-color: #121a24;
+            background-image: linear-gradient(160deg, rgba(22, 32, 44, 0.97) 0%, rgba(10, 20, 32, 0.95) 100%);
+            border: 1px solid rgba(255, 179, 102, 0.22);
             box-shadow:
-              0 16px 44px rgba(0, 0, 0, 0.45),
-              inset 0 1px 0 rgba(255, 255, 255, 0.08);
-            backdrop-filter: blur(24px) saturate(1.2);
-            -webkit-backdrop-filter: blur(24px) saturate(1.2);
+              0 16px 44px rgba(0, 0, 0, 0.5),
+              inset 0 1px 0 rgba(255, 255, 255, 0.10);
+            backdrop-filter: blur(24px) saturate(1.15);
+            -webkit-backdrop-filter: blur(24px) saturate(1.15);
         }
         /* Executive detail frame — soft looping highlight to draw focus */
         @keyframes pmc-exec-highlight-sweep {

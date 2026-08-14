@@ -19,6 +19,7 @@ import {
   getWprTy,
 } from "../utils/wprReviewTypography";
 import TutorialVideosPanel from "./tutorialVideos/TutorialVideosPanel";
+import TutorialWatchButton from "./tutorialVideos/TutorialWatchButton";
 import { useTheme, getThemeClasses } from "../utils/theme";
 import {
   strVal,
@@ -509,23 +510,26 @@ const WPRReviewDashboard: React.FC<WPRReviewDashboardProps> = ({
               Weekly progress reports — review and summary
             </p>
           </div>
-          <button
-            type="button"
-            onClick={() => setIsExpanded(!isExpanded)}
-            className={`flex w-full shrink-0 items-center justify-center gap-2 rounded-xl border px-4 py-2.5 text-xs font-bold transition-all sm:w-auto ${themeClasses.buttonSecondary} ${themeClasses.border}`}
-          >
-            {isExpanded ? (
-              <>
-                <Icons.ChevronRight size={16} />
-                Collapse View
-              </>
-            ) : (
-              <>
-                <Icons.Expand size={16} />
-                Expand View
-              </>
-            )}
-          </button>
+          <div className="flex w-full shrink-0 flex-wrap items-center justify-end gap-2 sm:w-auto">
+            <TutorialWatchButton section="wpr_review" variant="panel" isDark={isDarkTheme} />
+            <button
+              type="button"
+              onClick={() => setIsExpanded(!isExpanded)}
+              className={`flex w-full shrink-0 items-center justify-center gap-2 rounded-xl border px-4 py-2.5 text-xs font-bold transition-all sm:w-auto ${themeClasses.buttonSecondary} ${themeClasses.border}`}
+            >
+              {isExpanded ? (
+                <>
+                  <Icons.ChevronRight size={16} />
+                  Collapse View
+                </>
+              ) : (
+                <>
+                  <Icons.Expand size={16} />
+                  Expand View
+                </>
+              )}
+            </button>
+          </div>
         </div>
 
         {/* Filters */}

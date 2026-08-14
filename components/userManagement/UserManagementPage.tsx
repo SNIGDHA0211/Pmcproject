@@ -37,6 +37,7 @@ import { projectStore } from '../../stores/projectStore';
 import { ModalPortal } from '../ModalPortal';
 import DashboardToastStack, { type DashboardToastItem } from '../DashboardToastStack';
 import TutorialVideosPanel from '../tutorialVideos/TutorialVideosPanel';
+import TutorialWatchButton from '../tutorialVideos/TutorialWatchButton';
 import { getThemeClasses, useTheme } from '../../utils/theme';
 import { useDebouncedValue } from '../../hooks/useDebouncedValue';
 import { isAbortError } from '../../utils/isAbortError';
@@ -688,14 +689,17 @@ const UserManagementPage: React.FC<UserManagementPageProps> = ({
             Create and manage Team Leaders and site engineers
           </p>
         </div>
-        <button
-          type="button"
-          onClick={openCreate}
-          className="inline-flex items-center gap-1.5 rounded-xl bg-indigo-600 px-3.5 py-2 text-xs font-bold text-white hover:bg-indigo-500"
-        >
+        <div className="flex shrink-0 flex-wrap items-center gap-2">
+          <TutorialWatchButton section="user_management" variant="panel" isDark={isDarkTheme} />
+          <button
+            type="button"
+            onClick={openCreate}
+            className="inline-flex items-center gap-1.5 rounded-xl bg-indigo-600 px-3.5 py-2 text-xs font-bold text-white hover:bg-indigo-500"
+          >
           <Plus size={14} />
           New User
-        </button>
+          </button>
+        </div>
       </header>
 
       <section className={`${cardCls} p-4 sm:p-5`}>

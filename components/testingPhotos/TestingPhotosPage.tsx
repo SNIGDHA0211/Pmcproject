@@ -26,6 +26,7 @@ import {
 } from '../../utils/testingDocumentsAccess';
 import { ModalPortal } from '../ModalPortal';
 import TutorialVideosPanel from '../tutorialVideos/TutorialVideosPanel';
+import TutorialWatchButton from '../tutorialVideos/TutorialWatchButton';
 import { getThemeClasses, useTheme } from '../../utils/theme';
 
 interface TestingPhotosPageProps {
@@ -373,7 +374,9 @@ const TestingPhotosPage: React.FC<TestingPhotosPageProps> = ({
             Upload and manage material testing documents, photos &amp; videos
           </p>
         </div>
-        {canEdit && (
+        <div className="flex shrink-0 flex-wrap items-center gap-2">
+          <TutorialWatchButton section="testing_photos" variant="panel" isDark={isDarkTheme} />
+          {canEdit && (
           <button
             type="button"
             onClick={openUpload}
@@ -383,7 +386,8 @@ const TestingPhotosPage: React.FC<TestingPhotosPageProps> = ({
             <Plus size={14} />
             Upload Testing Photo
           </button>
-        )}
+          )}
+        </div>
       </header>
 
       <section className={`${cardCls} p-4 sm:p-5`}>

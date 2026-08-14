@@ -3,7 +3,7 @@ import React, { useState, useEffect, useRef, useCallback, useMemo, Fragment } fr
 import { Icons } from './Icons';
 import { User, UserRole, AppNotification, Project } from '../types';
 import { ROLE_LABELS } from '../constants';
-import { useTheme, getThemeClasses } from '../utils/theme';
+import { useTheme, getThemeClasses, applyDocumentTheme } from '../utils/theme';
 import {
   SITE_ENGINEER_NAV_IDS,
   SITE_ENGINEER_NAV_LABELS,
@@ -13,12 +13,14 @@ import TeamLeaderSidebarTour, {
 } from './tours/TeamLeaderSidebarTour';
 import UserAvatar from './UserAvatar';
 import HeaderSearch from './HeaderSearch';
+import type { HeaderSearchNavItem } from './HeaderSearch';
 import AlertNotificationItem from './alerts/AlertNotificationItem';
 import { isTabAllowedForRole } from '../utils/roleRouting';
 import { isPmcHeadEquivalent } from '../utils/pmcRoleAccess';
 import { canAccessUserManagement } from '../utils/userManagementAccess';
 import type { NavReturnContext } from '../utils/navReturn';
 import { navReturnLabel } from '../utils/navReturn';
+import { HEADER_SEARCH_DEEP_LINKS, queueHeaderSearchJump } from '../utils/headerSearchDeepLinks';
 import '../styles/pmc-app-typography.css';
 
 /** Client-friendly section titles + one-line hints (UX only — ids/routes unchanged). */
@@ -82,15 +84,7 @@ const Layout: React.FC<LayoutProps> = ({
   const { isDarkTheme, setIsDarkTheme } = useTheme();
 
   useEffect(() => {
-    // Update HTML background for a seamless theme experience
-    const html = document.documentElement;
-    if (isDarkTheme) {
-      html.style.backgroundColor = '#0a1420';
-      html.dataset.theme = 'dark';
-    } else {
-      html.style.backgroundColor = '#e8f4fb';
-      html.dataset.theme = 'light';
-    }
+    applyDocumentTheme(isDarkTheme);
   }, [isDarkTheme]);
   const themeClasses = getThemeClasses(isDarkTheme);
   const [showNotifications, setShowNotifications] = useState(false);
@@ -500,16 +494,37 @@ const Layout: React.FC<LayoutProps> = ({
     return item ? resolveNavLabel(item) : 'Overview';
   }, [visibleNavigation, activeTab, resolveNavLabel]);
 
-  const headerSearchItems = useMemo(
-    () =>
-      visibleNavigation.map((item) => ({
-        id: item.id,
-        label: resolveNavLabel(item),
-        section: item.section,
-        icon: item.icon,
-      })),
-    [resolveNavLabel, visibleNavigation],
-  );
+  const headerSearchItems = useMemo((): HeaderSearchNavItem[] => {
+    const navItems: HeaderSearchNavItem[] = visibleNavigation.map((item) => ({
+      id: item.id,
+      label: resolveNavLabel(item),
+      section: item.section,
+      icon: item.icon,
+    }));
+    const visibleIds = new Set(visibleNavigation.map((item) => item.id));
+    const parentIcon = Object.fromEntries(
+      visibleNavigation.map((item) => [item.id, item.icon]),
+    ) as Record<string, HeaderSearchNavItem['icon']>;
+
+    const deepItems: HeaderSearchNavItem[] = HEADER_SEARCH_DEEP_LINKS.filter((link) => {
+      if (!visibleIds.has(link.requiresTab)) return false;
+      if (link.roles && !link.roles.includes(user.role)) return false;
+      return true;
+    }).map((link) => ({
+      id: link.id,
+      label: link.label,
+      section: link.section,
+      hint: link.hint,
+      keywords: link.keywords,
+      jump: link.jump,
+      icon:
+        (Icons as Record<string, HeaderSearchNavItem['icon']>)[link.icon] ??
+        parentIcon[link.requiresTab] ??
+        Icons.Search,
+    }));
+
+    return [...navItems, ...deepItems];
+  }, [resolveNavLabel, user.role, visibleNavigation]);
 
   // Keep the section that holds the active page open
   useEffect(() => {
@@ -580,7 +595,7 @@ const Layout: React.FC<LayoutProps> = ({
           >
             <div
               className={`sidebar-header border-b px-3 pb-2.5 pt-3 ${
-                isDarkTheme ? 'border-cyan-400/15' : 'border-cyan-200/50'
+                isDarkTheme ? 'border-white/10' : 'border-cyan-200/50'
               }`}
             >
               <div className="flex items-center justify-between gap-2">
@@ -682,7 +697,7 @@ const Layout: React.FC<LayoutProps> = ({
                       >
                         {index > 0 && (
                           <div
-                            className={`mb-2 h-px w-full ${isDarkTheme ? 'bg-cyan-400/15' : 'bg-cyan-200/60'}`}
+                            className={`mb-2 h-px w-full ${isDarkTheme ? 'bg-white/10' : 'bg-cyan-200/60'}`}
                             aria-hidden
                           />
                         )}
@@ -789,7 +804,7 @@ const Layout: React.FC<LayoutProps> = ({
 
             <div
               className={`sidebar-footer mt-auto border-t ${
-                isDarkTheme ? 'border-cyan-400/15' : 'border-cyan-200/50'
+                isDarkTheme ? 'border-white/10' : 'border-cyan-200/50'
               }`}
             >
               <div className="sidebar-footer-inner flex flex-col gap-1.5 p-2.5">
@@ -919,9 +934,11 @@ const Layout: React.FC<LayoutProps> = ({
               items={headerSearchItems}
               isDarkTheme={isDarkTheme}
               notificationsOpen={showNotifications}
-              onNavigate={(tabId) => {
+              onNavigate={(item) => {
                 setShowNotifications(false);
-                setActiveTab(tabId);
+                const jump = item.jump ?? { tab: item.id };
+                queueHeaderSearchJump(jump);
+                setActiveTab(jump.tab);
               }}
               onOpen={() => setShowNotifications(false)}
             />

@@ -36,6 +36,7 @@ import { MONTH_OPTIONS } from '../../utils/healthSafety';
 import { ModalPortal } from '../ModalPortal';
 import DashboardToastStack, { type DashboardToastItem } from '../DashboardToastStack';
 import TutorialVideosPanel from '../tutorialVideos/TutorialVideosPanel';
+import TutorialWatchButton from '../tutorialVideos/TutorialWatchButton';
 import { getThemeClasses, useTheme } from '../../utils/theme';
 import { useDebouncedValue } from '../../hooks/useDebouncedValue';
 import { isAbortError } from '../../utils/isAbortError';
@@ -473,7 +474,9 @@ const ProjectFeedbackPage: React.FC<ProjectFeedbackPageProps> = ({
             Raise, track and resolve project issues
           </p>
         </div>
-        {canCreate && (
+        <div className="flex shrink-0 flex-wrap items-center gap-2">
+          <TutorialWatchButton section="project_feedback" variant="panel" isDark={isDarkTheme} />
+          {canCreate && (
           <button
             type="button"
             onClick={openCreate}
@@ -482,7 +485,8 @@ const ProjectFeedbackPage: React.FC<ProjectFeedbackPageProps> = ({
             <Plus size={14} />
             New Feedback
           </button>
-        )}
+          )}
+        </div>
       </header>
 
       {/* Filters */}

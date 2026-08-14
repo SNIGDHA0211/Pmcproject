@@ -256,10 +256,10 @@ const KpiStatCard: React.FC<{
   delayMs?: number;
 }> = ({ label, value, hint, color, isDark, delayMs = 0 }) => (
   <div
-    className={`group flex min-h-[7rem] flex-col justify-between rounded-2xl p-4 transition-all duration-500 hover:-translate-y-1 animate-in fade-in slide-in-from-bottom-2 ${
+    className={`group flex min-h-[7rem] flex-col justify-between rounded-2xl p-4 transition-all duration-500 hover:-translate-y-1 animate-fade-in ${
       isDark ? 'pmc360-glass-dark' : 'pmc360-glass-light'
     }`}
-    style={{ animationDelay: `${delayMs}ms`, animationFillMode: 'both' }}
+    style={{ animationDelay: `${delayMs}ms` }}
   >
     <p className={`text-[10px] font-black uppercase tracking-widest ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
       {label}
@@ -354,7 +354,6 @@ const ProjectGridCard: React.FC<{
   card: ProjectVitalsCard;
   selected: boolean;
   isDark: boolean;
-  index: number;
   onOpen: () => void;
   onToggleCompare: () => void;
   compareDisabled: boolean;
@@ -364,7 +363,6 @@ const ProjectGridCard: React.FC<{
   card,
   selected,
   isDark,
-  index,
   onOpen,
   onToggleCompare,
   compareDisabled,
@@ -390,12 +388,10 @@ const ProjectGridCard: React.FC<{
 
   return (
     <article
-      className={`group relative flex h-full flex-col overflow-hidden rounded-2xl transition-all duration-300 hover:-translate-y-0.5 animate-in fade-in slide-in-from-bottom-2 ${
+      className={`group relative flex h-full flex-col overflow-hidden rounded-2xl transition-transform duration-300 hover:-translate-y-0.5 ${
         isDark ? 'pmc360-glass-dark' : 'pmc360-glass-light'
       } ${selected ? (isDark ? 'ring-2 ring-cyan-400/50' : 'ring-2 ring-cyan-500/35 ring-offset-1 ring-offset-transparent') : ''}`}
       style={{
-        animationDelay: `${Math.min(index, 12) * 35}ms`,
-        animationFillMode: 'both',
         borderTopWidth: 3,
         borderTopColor: tone,
       }}
@@ -1492,11 +1488,10 @@ const PMCHead360Dashboard: React.FC<PMCHead360DashboardProps> = ({
               </p>
             )}
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
-              {filteredCards.map((card, index) => (
+              {filteredCards.map((card) => (
                 <ProjectGridCard
                   key={card.projectId}
                   card={card}
-                  index={index}
                   isDark={isDarkTheme}
                   selected={compareIds.includes(card.projectId)}
                   compareDisabled={compareIds.length >= 4}

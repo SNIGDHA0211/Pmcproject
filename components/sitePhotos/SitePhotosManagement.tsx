@@ -12,6 +12,7 @@ import DashboardCardTopAccent from '../DashboardCardTopAccent';
 import { Icons } from '../Icons';
 import SitePhotoDeleteDialog from './SitePhotoDeleteDialog';
 import TutorialVideosPanel from '../tutorialVideos/TutorialVideosPanel';
+import TutorialWatchButton from '../tutorialVideos/TutorialWatchButton';
 import SitePhotoFilters from './SitePhotoFilters';
 import SitePhotoGalleryGrid from './SitePhotoGalleryGrid';
 import SitePhotoGallerySkeleton from './SitePhotoGallerySkeleton';
@@ -196,14 +197,17 @@ const SitePhotosManagement: React.FC<SitePhotosManagementProps> = ({ projects = 
             Monthly construction progress gallery
           </p>
         </div>
-        <button
-          type="button"
-          onClick={refresh}
-          disabled={isLoading || !projectName}
-          className={`rounded-xl border px-3 py-2 text-[10px] font-black uppercase tracking-widest ${themeClasses.buttonSecondary} ${themeClasses.border}`}
-        >
-          Refresh
-        </button>
+        <div className="flex shrink-0 flex-wrap items-center gap-2">
+          <TutorialWatchButton section="site_photos" variant="panel" isDark={isDarkTheme} />
+          <button
+            type="button"
+            onClick={refresh}
+            disabled={isLoading || !projectName}
+            className={`rounded-xl border px-3 py-2 text-[10px] font-black uppercase tracking-widest ${themeClasses.buttonSecondary} ${themeClasses.border}`}
+          >
+            Refresh
+          </button>
+        </div>
       </div>
 
       <div

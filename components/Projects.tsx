@@ -116,6 +116,12 @@ import {
   teamLeaderSectionElementId,
   type ExecutiveOverviewAnchor,
 } from '../utils/executiveOverviewNavigation';
+import { flashExecutiveSection } from '../utils/executiveTabAlerts';
+import {
+  HEADER_SEARCH_JUMP_EVENT,
+  takePendingExecSearchJump,
+  type HeaderSearchJump,
+} from '../utils/headerSearchDeepLinks';
 import { aggregateCorrespondenceCumulativePeriod } from '../utils/correspondence';
 import { PMCExecutiveDetailFrame } from './pmcHead/PMCExecutiveDetailFrame';
 import PMCHeadScheduleSection, { PMCExecutivePanel } from './pmcHead/PMCHeadScheduleSection';
@@ -472,6 +478,25 @@ const Projects: React.FC<ProjectsProps> = ({
   }, [isPMCHead, projects]);
   const [execTab, setExecTab] = useState<PMCExecutiveTab>('overview');
   const [complianceSectionMounted, setComplianceSectionMounted] = useState(false);
+
+  useEffect(() => {
+    const applyJump = (jump: HeaderSearchJump | null) => {
+      if (!jump?.execTab && !jump?.sectionId) return;
+      takePendingExecSearchJump();
+      if (jump.execTab) setExecTab(jump.execTab);
+      const sectionId = jump.sectionId;
+      if (sectionId) {
+        window.setTimeout(() => flashExecutiveSection(sectionId, { block: 'start' }), 320);
+      }
+    };
+
+    applyJump(takePendingExecSearchJump());
+    const onJump = (event: Event) => {
+      applyJump((event as CustomEvent<HeaderSearchJump>).detail);
+    };
+    window.addEventListener(HEADER_SEARCH_JUMP_EVENT, onJump);
+    return () => window.removeEventListener(HEADER_SEARCH_JUMP_EVENT, onJump);
+  }, []);
   const [tlOverviewCache, setTlOverviewCache] = useState<TeamLeaderOverviewCachePayload | null>(null);
   const tlOverviewCacheSavedRef = useRef<string | null>(null);
 

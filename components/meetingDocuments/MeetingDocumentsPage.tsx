@@ -31,6 +31,7 @@ import { getThemeClasses, useTheme } from '../../utils/theme';
 import { useDebouncedValue, SEARCH_DEBOUNCE_MS } from '../../hooks/useDebouncedValue';
 import { isAbortError } from '../../utils/isAbortError';
 import TutorialVideosPanel from '../tutorialVideos/TutorialVideosPanel';
+import TutorialWatchButton from '../tutorialVideos/TutorialWatchButton';
 
 interface MeetingDocumentsPageProps {
   projects: Project[];
@@ -321,14 +322,17 @@ const MeetingDocumentsPage: React.FC<MeetingDocumentsPageProps> = ({ projects })
             Meeting Documents
           </h1>
         </div>
-        <button
-          type="button"
-          onClick={() => openModal('upload')}
-          className="inline-flex items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-bold text-white shadow-sm hover:bg-indigo-500"
-        >
-          <Icons.Upload size={16} />
-          Upload Document
-        </button>
+        <div className="flex shrink-0 flex-wrap items-center gap-2">
+          <TutorialWatchButton section="meeting_documents" variant="panel" isDark={isDarkTheme} />
+          <button
+            type="button"
+            onClick={() => openModal('upload')}
+            className="inline-flex items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-bold text-white shadow-sm hover:bg-indigo-500"
+          >
+            <Icons.Upload size={16} />
+            Upload Document
+          </button>
+        </div>
       </div>
 
       <div className="grid grid-cols-2 gap-2 md:grid-cols-4 md:gap-3">

@@ -17,6 +17,7 @@ import { Icons } from './Icons';
 import { getThemeClasses, useTheme } from '../utils/theme';
 import type { PendingUpdatesSummary } from '../utils/pmcHeadPendingUpdates';
 import TutorialVideosPanel from './tutorialVideos/TutorialVideosPanel';
+import TutorialWatchButton from './tutorialVideos/TutorialWatchButton';
 
 interface AlertsPageProps {
   notifications: AppNotification[];
@@ -114,16 +115,18 @@ const AlertsPage: React.FC<AlertsPageProps> = ({
               : 'Billing updates and system notifications'}
           </p>
         </div>
-        <button
-          type="button"
-          onClick={onRefresh}
-          disabled={refreshing}
-          className={`inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-xs font-bold ${themeClasses.buttonSecondary} ${themeClasses.border}`}
-        >
-          <RefreshCw size={14} className={refreshing ? 'animate-spin' : ''} />
-          Refresh
-        </button>
-      </div>
+        <div className="flex shrink-0 flex-wrap items-center gap-2">
+          <TutorialWatchButton section="alerts" variant="panel" isDark={isDarkTheme} />
+          <button
+            type="button"
+            onClick={onRefresh}
+            disabled={refreshing}
+            className={`inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-xs font-bold ${themeClasses.buttonSecondary} ${themeClasses.border}`}
+          >
+            <RefreshCw size={14} className={refreshing ? 'animate-spin' : ''} />
+            Refresh
+          </button>
+        </div>
 
       <div className={`flex flex-wrap gap-2 ${cardCls} !py-3`}>
         {filters.map(({ key, label }) => {

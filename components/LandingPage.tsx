@@ -720,6 +720,9 @@ const LandingPage: React.FC = () => {
             <a href={`mailto:${CONTACT.email}`}>{CONTACT.email}</a>
           </div>
         </div>
+        <p className="pmc-landing__footer-copy">
+          © 2026 Shrikhande Consultants Limited. All rights reserved.
+        </p>
       </footer>
     </div>
   );

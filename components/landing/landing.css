@@ -1692,6 +1692,12 @@
 .pmc-landing__map-marker {
   background: transparent !important;
   border: none !important;
+  overflow: visible !important;
+}
+
+.pmc-landing__map .leaflet-marker-icon,
+.pmc-landing__map .leaflet-div-icon {
+  overflow: visible !important;
 }
 
 .pmc-landing__map-place {
@@ -1708,15 +1714,28 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  position: relative;
   width: 2.35rem;
   height: 2.35rem;
   border-radius: 999px;
-  color: #fff;
-  background: linear-gradient(160deg, #ef4444 0%, #b91c1c 100%);
+  color: #0a1420;
+  background: linear-gradient(135deg, var(--lp-amber-bright) 0%, var(--lp-amber) 100%);
   border: 2px solid rgba(255, 255, 255, 0.95);
   box-shadow:
-    0 0 0 3px rgba(185, 28, 28, 0.35),
-    0 8px 20px rgba(0, 0, 0, 0.55);
+    0 0 0 3px rgba(230, 138, 0, 0.35),
+    0 12px 32px rgba(230, 138, 0, 0.35);
+  animation: pmc-lp-map-blink 1.35s ease-in-out infinite;
+  will-change: opacity, box-shadow, transform;
+}
+
+.pmc-landing__map-badge::after {
+  content: "";
+  position: absolute;
+  inset: -4px;
+  border-radius: 999px;
+  border: 2px solid rgba(245, 158, 11, 0.85);
+  animation: pmc-lp-map-ping 1.35s ease-out infinite;
+  pointer-events: none;
 }
 
 .pmc-landing__map-badge-icon {
@@ -1746,6 +1765,20 @@
   color: var(--lp-steel);
   border-top: 1px solid rgba(255, 255, 255, 0.05);
   background: var(--lp-navy-950);
+}
+
+.pmc-landing__footer-copy {
+  max-width: 72rem;
+  margin: 1.5rem auto 0;
+  padding-top: 1.15rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  text-align: center;
+  font-family: var(--lp-body);
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  line-height: 1.45;
+  color: var(--lp-steel);
 }
 
 .pmc-landing__footer-inner {
@@ -2284,6 +2317,35 @@
   }
 }
 
+@keyframes pmc-lp-map-blink {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+    box-shadow:
+      0 0 0 3px rgba(230, 138, 0, 0.45),
+      0 12px 32px rgba(230, 138, 0, 0.45);
+  }
+  50% {
+    opacity: 0.35;
+    transform: scale(0.92);
+    box-shadow:
+      0 0 0 1px rgba(230, 138, 0, 0.12),
+      0 4px 12px rgba(230, 138, 0, 0.15);
+  }
+}
+
+@keyframes pmc-lp-map-ping {
+  0% {
+    transform: scale(1);
+    opacity: 0.85;
+  }
+  100% {
+    transform: scale(2.15);
+    opacity: 0;
+  }
+}
+
 @keyframes pmc-lp-accent-pulse {
   0%,
   100% {
@@ -2346,7 +2408,9 @@
   .pmc-landing__hero-slide,
   .pmc-landing__problem-frame img,
   .pmc-landing__final-bg,
-  .pmc-landing__hero-accent {
+  .pmc-landing__hero-accent,
+  .pmc-landing__map-badge,
+  .pmc-landing__map-badge::after {
     animation: none !important;
     opacity: 1 !important;
     transform: none !important;

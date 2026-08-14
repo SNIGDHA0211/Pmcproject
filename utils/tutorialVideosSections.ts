@@ -28,6 +28,38 @@ export type TutorialSectionKey = keyof typeof TUTORIAL_SECTIONS;
 
 export const TUTORIAL_SECTION_KEYS = Object.keys(TUTORIAL_SECTIONS) as TutorialSectionKey[];
 
+/**
+ * Tutorial Videos upload/list panel (bottom of a page).
+ * Uncomment ONE key when you have videos for that module.
+ * Watch Tutorial in the page header still appears automatically
+ * whenever a ready video exists for that section.
+ *
+ * Example — show the panel only on Overview:
+ *   overview: true,
+ */
+export const TUTORIAL_VIDEOS_PANEL_ENABLED_SECTIONS: Partial<
+  Record<TutorialSectionKey, true>
+> = {
+  // overview: true,
+  // tl_overview: true,
+  // projects: true,
+  // initialize_project: true,
+  // user_management: true,
+  // site_progress: true,
+  // site_photos: true,
+  // testing_photos: true,
+  // project_feedback: true,
+  // portfolio: true,
+  // dpr_review: true,
+  // wpr_review: true,
+  // meeting_documents: true,
+  // alerts: true,
+};
+
+export function isTutorialVideosPanelEnabled(section: TutorialSectionKey): boolean {
+  return TUTORIAL_VIDEOS_PANEL_ENABLED_SECTIONS[section] === true;
+}
+
 export function isTutorialSectionKey(value: string): value is TutorialSectionKey {
   return value in TUTORIAL_SECTIONS;
 }

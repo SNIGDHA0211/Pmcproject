@@ -19,6 +19,7 @@ import { isAbortError } from '../../utils/isAbortError';
 import { useDebouncedValue, SEARCH_DEBOUNCE_MS } from '../../hooks/useDebouncedValue';
 import { getThemeClasses, useTheme } from '../../utils/theme';
 import {
+  isTutorialVideosPanelEnabled,
   tutorialSectionLabel,
   TUTORIAL_DEFAULT_ORDERING,
   TUTORIAL_DEFAULT_PAGE_SIZE,
@@ -60,7 +61,7 @@ function mergeTutorialVideoRows(
   return Array.from(byId.values());
 }
 
-const TutorialVideosPanel: React.FC<TutorialVideosPanelProps> = ({
+const TutorialVideosPanelInner: React.FC<TutorialVideosPanelProps> = ({
   section,
   className = '',
   hideWatchButton = false,
@@ -569,6 +570,13 @@ const TutorialVideosPanel: React.FC<TutorialVideosPanelProps> = ({
       />
     </section>
   );
+};
+
+const TutorialVideosPanel: React.FC<TutorialVideosPanelProps> = (props) => {
+  if (!isTutorialVideosPanelEnabled(props.section)) {
+    return null;
+  }
+  return <TutorialVideosPanelInner {...props} />;
 };
 
 export default React.memo(TutorialVideosPanel);

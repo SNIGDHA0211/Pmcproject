@@ -1,7 +1,13 @@
 import React, { useState, useEffect, lazy, Suspense } from "react";
 import Layout from "./components/Layout";
 
-import { ThemeContext, getThemeClasses } from "./utils/theme";
+import {
+  ThemeContext,
+  getThemeClasses,
+  readStoredIsDarkTheme,
+  persistThemePreference,
+  applyDocumentTheme,
+} from "./utils/theme";
 import CreateProjectModal from "./components/CreateProjectModal";
 import ProjectModal from "./components/ProjectModal";
 import TermsAndConditions from "./components/TermsAndConditions";
@@ -32,6 +38,7 @@ import CompleteProjectDialog, {
 import CompleteBillingDialog from "./components/CompleteBillingDialog";
 import DashboardToastStack, { type DashboardToastItem } from "./components/DashboardToastStack";
 import TutorialVideosPanel from "./components/tutorialVideos/TutorialVideosPanel";
+import TutorialWatchButton from "./components/tutorialVideos/TutorialWatchButton";
 import { parseSiteDeleteDependencies } from "./components/ProjectSiteList";
 import { STATUS_COLORS } from "./constants";
 import { projectApi, operationsApi, dprApi, notificationApi, getApiErrorMessage, unwrapList } from "./services/api";
@@ -112,6 +119,8 @@ import {
   syncAppRoutePath,
   tabFromRoutePath,
 } from "./utils/appRouting";
+import { peekHeaderSearchJump, consumeHeaderSearchJump } from "./utils/headerSearchDeepLinks";
+import { resolveTeamLeaderOverviewSection } from "./utils/executiveOverviewNavigation";
 import LandingPage from "./components/LandingPage";
 import LoginPage from "./components/LoginPage";
 
@@ -223,17 +232,23 @@ const App: React.FC = () => {
   const [loginError, setLoginError] = useState("");
   const [isLoginSubmitting, setIsLoginSubmitting] = useState(false);
 
-  // Theme State
+  // Theme State — first visit defaults to dark
   const [isDarkTheme, setIsDarkTheme] = useState(() => {
-    const saved = localStorage.getItem('theme');
-    return saved ? saved === 'dark' : true;
+    const isDark = readStoredIsDarkTheme();
+    persistThemePreference(isDark);
+    applyDocumentTheme(isDark);
+    return isDark;
   });
 
-  // Save theme preference
   const handleThemeChange = (isDark: boolean) => {
     setIsDarkTheme(isDark);
-    localStorage.setItem('theme', isDark ? 'dark' : 'light');
+    persistThemePreference(isDark);
+    applyDocumentTheme(isDark);
   };
+
+  useEffect(() => {
+    applyDocumentTheme(isDarkTheme);
+  }, [isDarkTheme]);
 
   useEffect(() => {
     migratePathnameToHashRoute();
@@ -1833,10 +1848,20 @@ const App: React.FC = () => {
           }
         }}
         setActiveTab={(tab) => {
+          const jump = peekHeaderSearchJump();
           const nextTab = isTabAllowedForRole(tab, currentUser.role, currentUser.username, currentUser)
             ? tab
             : getDefaultTabForRole(currentUser.role);
-          if (nextTab === 'team_projects' && activeTab === 'team_projects') {
+          if (jump?.financialSubTab) {
+            setFinancialSection(normalizeFinancialSubTab(jump.financialSubTab));
+            setFinancialSectionLocked(false);
+          }
+          if (jump?.execTab && nextTab === 'team_projects') {
+            setTeamLeaderProjectsView('full');
+            setTeamLeaderScrollSection(
+              resolveTeamLeaderOverviewSection(jump.execTab, jump.anchor),
+            );
+          } else if (nextTab === 'team_projects' && activeTab === 'team_projects') {
             setTeamLeaderProjectsView('overview');
             setTeamLeaderScrollSection(null);
           }
@@ -1851,8 +1876,11 @@ const App: React.FC = () => {
             setTestingPhotosInitialProjectId(null);
           }
           setRemindersInitialProjectId(null);
-          setSelectedProjectId(null);
+          if (!jump?.execTab) {
+            setSelectedProjectId(null);
+          }
           setProjectFilter("all");
+          consumeHeaderSearchJump();
         }}
         notifications={notifications}
         onMarkRead={handleMarkRead}
@@ -2083,7 +2111,8 @@ const App: React.FC = () => {
                   Live Project Registry · completed projects stay listed below
                 </p>
               </div>
-              <div className="flex shrink-0 gap-3">
+              <div className="flex shrink-0 flex-wrap items-center gap-3">
+                <TutorialWatchButton section="portfolio" variant="panel" isDark={isDarkTheme} />
                 {isPmcHeadEquivalent(currentUser) && (
                   <button
                     onClick={() => setIsCreateModalOpen(true)}

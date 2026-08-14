@@ -7,18 +7,22 @@ import {
   HEADER_SEARCH_SECTION_LABEL,
   scoreHeaderSearchHit,
 } from '../utils/headerSearchCatalog';
+import type { HeaderSearchJump } from '../utils/headerSearchDeepLinks';
 
 export type HeaderSearchNavItem = {
   id: string;
   label: string;
   section: string;
   icon: React.ComponentType<{ size?: number; className?: string; strokeWidth?: number }>;
+  hint?: string;
+  keywords?: string[];
+  jump?: HeaderSearchJump;
 };
 
 type HeaderSearchProps = {
   items: HeaderSearchNavItem[];
   isDarkTheme: boolean;
-  onNavigate: (tabId: string) => void;
+  onNavigate: (item: HeaderSearchNavItem) => void;
   onOpen?: () => void;
   notificationsOpen?: boolean;
 };
@@ -44,13 +48,13 @@ export default function HeaderSearch({
   const results = useMemo(() => {
     const q = debouncedQuery.trim();
     if (!q) {
-      return items.slice(0, 8).map((item) => ({ item, score: 1 }));
+      return items.map((item) => ({ item, score: 1 }));
     }
     return items
       .map((item) => ({ item, score: scoreHeaderSearchHit(q, item) }))
       .filter((row) => row.score > 0)
       .sort((a, b) => b.score - a.score || a.item.label.localeCompare(b.item.label))
-      .slice(0, 8);
+      .slice(0, 16);
   }, [debouncedQuery, items]);
 
   const grouped = useMemo(() => {
@@ -75,8 +79,8 @@ export default function HeaderSearch({
   }, []);
 
   const goTo = useCallback(
-    (tabId: string) => {
-      onNavigate(tabId);
+    (item: HeaderSearchNavItem) => {
+      onNavigate(item);
       setQuery('');
       close();
     },
@@ -142,7 +146,7 @@ export default function HeaderSearch({
     } else if (event.key === 'Enter') {
       event.preventDefault();
       const target = flat[activeIndex];
-      if (target) goTo(target.id);
+      if (target) goTo(target);
     }
   };
 
@@ -171,7 +175,7 @@ export default function HeaderSearch({
           type="search"
           autoComplete="off"
           spellCheck={false}
-          placeholder="Search DPR, MPR, photos, finance…"
+          placeholder="Search drawings, DPR, finance…"
           value={query}
           onChange={(e) => {
             setQuery(e.target.value);
@@ -249,7 +253,7 @@ export default function HeaderSearch({
               <div className="px-3 py-8 text-center">
                 <p className="pmc-type-card-title">No matching section</p>
                 <p className={`mt-1 pmc-type-helper ${tc.textMuted}`}>
-                  Try “DPR”, “MPR”, “photos”, or “finance”.
+                  Try “drawing”, “DPR”, “photos”, or “finance”.
                 </p>
               </div>
             ) : (
@@ -263,7 +267,8 @@ export default function HeaderSearch({
                       const flatIndex = flat.findIndex((row) => row.id === item.id);
                       const active = flatIndex === activeIndex;
                       const Icon = item.icon;
-                      const hint = HEADER_SEARCH_META[item.id]?.hint ?? 'Open this workspace section';
+                      const hint =
+                        item.hint ?? HEADER_SEARCH_META[item.id]?.hint ?? 'Open this workspace section';
                       return (
                         <button
                           key={item.id}
@@ -271,7 +276,7 @@ export default function HeaderSearch({
                           role="option"
                           aria-selected={active}
                           onMouseEnter={() => setActiveIndex(Math.max(0, flatIndex))}
-                          onClick={() => goTo(item.id)}
+                          onClick={() => goTo(item)}
                           className={`pmc-header-search-hit flex min-h-[4.5rem] items-start gap-3 rounded-xl border px-3 py-2.5 text-left transition ${
                             active
                               ? isDarkTheme

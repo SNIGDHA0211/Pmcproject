@@ -1,6 +1,36 @@
 import { createContext, useContext, type ReactNode } from 'react';
 
-// Theme Context
+export const THEME_STORAGE_KEY = 'theme';
+
+/** First-time visitors (no saved preference) always start on dark. */
+export function readStoredIsDarkTheme(): boolean {
+  try {
+    const saved = localStorage.getItem(THEME_STORAGE_KEY);
+    if (saved === 'light') return false;
+    if (saved === 'dark') return true;
+  } catch {
+    /* ignore */
+  }
+  return true;
+}
+
+export function persistThemePreference(isDark: boolean): void {
+  try {
+    localStorage.setItem(THEME_STORAGE_KEY, isDark ? 'dark' : 'light');
+  } catch {
+    /* ignore */
+  }
+}
+
+export function applyDocumentTheme(isDark: boolean): void {
+  if (typeof document === 'undefined') return;
+  const html = document.documentElement;
+  html.dataset.theme = isDark ? 'dark' : 'light';
+  html.style.backgroundColor = isDark ? '#0a1420' : '#e8f4fb';
+  html.style.colorScheme = isDark ? 'dark' : 'light';
+  html.classList.toggle('dark', isDark);
+}
+
 interface ThemeContextType {
   isDarkTheme: boolean;
   setIsDarkTheme: (isDark: boolean) => void;

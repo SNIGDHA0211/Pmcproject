@@ -6,6 +6,8 @@ export const HEADER_SEARCH_SECTION_LABEL: Record<string, string> = {
   Reviews: 'Reviews',
   Meetings: 'Meetings',
   Support: 'Support',
+  Projects: 'Projects',
+  Finance: 'Finance',
 };
 
 export type HeaderSearchMeta = {
@@ -227,7 +229,13 @@ function scoreAgainstHay(q: string, hay: string): number {
 
 export function scoreHeaderSearchHit(
   query: string,
-  item: { id: string; label: string; section: string },
+  item: {
+    id: string;
+    label: string;
+    section: string;
+    hint?: string;
+    keywords?: string[];
+  },
 ): number {
   const q = query.trim().toLowerCase().replace(/\s+/g, ' ');
   if (!q) return 0;
@@ -235,9 +243,10 @@ export function scoreHeaderSearchHit(
   const meta = HEADER_SEARCH_META[item.id];
   const haystacks = [
     item.label,
-    item.id.replace(/_/g, ' '),
+    item.id.replace(/_/g, ' ').replace(/^dl /, ''),
     HEADER_SEARCH_SECTION_LABEL[item.section] ?? item.section,
-    meta?.hint ?? '',
+    item.hint ?? meta?.hint ?? '',
+    ...(item.keywords ?? []),
     ...(meta?.keywords ?? []),
   ].map((s) => s.toLowerCase());
 

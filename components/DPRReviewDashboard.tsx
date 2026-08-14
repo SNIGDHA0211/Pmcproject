@@ -8,6 +8,7 @@ import { monthlyScopeApi } from "../services/api";
 import DprReviewKpiCards from "./dprReview/DprReviewKpiCards";
 import { isPmcHeadEquivalent } from "../utils/pmcRoleAccess";
 import TutorialVideosPanel from "./tutorialVideos/TutorialVideosPanel";
+import TutorialWatchButton from "./tutorialVideos/TutorialWatchButton";
 import {
     countActivityStats,
     formatDprDateTime,
@@ -740,6 +741,7 @@ const DPRReviewDashboard: React.FC<DPRReviewDashboardProps> = ({
                         </p>
                     </div>
                     <div className="flex items-center gap-3">
+                        <TutorialWatchButton section="dpr_review" variant="panel" isDark={isDarkTheme} />
                         {user?.role === UserRole.SITE_ENGINEER && (
                             <button
                                 onClick={() => setShowSubmissionForm(true)}

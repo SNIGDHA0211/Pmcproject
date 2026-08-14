@@ -150,6 +150,7 @@ const ReminderModal: React.FC<ReminderModalProps> = ({
       ? 'border-white/10 bg-white/5 text-white placeholder:text-slate-500'
       : 'border-slate-200 bg-white text-slate-900 placeholder:text-slate-400'
   }`;
+  const optionCls = isDarkTheme ? 'bg-[#121a24] text-slate-100' : 'bg-white text-slate-900';
   const labelCls = `mb-1 block text-[10px] font-black uppercase tracking-wider ${themeClasses.textSecondary}`;
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -259,7 +260,11 @@ const ReminderModal: React.FC<ReminderModalProps> = ({
 
           <form onSubmit={handleSubmit} className="space-y-3 overflow-y-auto px-4 py-4 sm:px-5">
             {error && (
-              <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700 dark:border-rose-500/30 dark:bg-rose-500/10 dark:text-rose-300">
+              <div className={`rounded-xl border px-3 py-2 text-xs font-semibold ${
+                isDarkTheme
+                  ? 'border-rose-500/30 bg-rose-500/10 text-rose-300'
+                  : 'border-rose-200 bg-rose-50 text-rose-700'
+              }`}>
                 {error}
               </div>
             )}
@@ -296,9 +301,9 @@ const ReminderModal: React.FC<ReminderModalProps> = ({
                   setAssignedToId('');
                 }}
               >
-                <option value="">Select project</option>
+                <option value="" className={optionCls}>Select project</option>
                 {projectOptions.map((p) => (
-                  <option key={p.id} value={p.id}>
+                  <option key={p.id} value={p.id} className={optionCls}>
                     {p.name}
                   </option>
                 ))}
@@ -313,7 +318,7 @@ const ReminderModal: React.FC<ReminderModalProps> = ({
                 onChange={(e) => setAssignedToId(e.target.value)}
                 disabled={loadingUsers || !projectId}
               >
-                <option value="">
+                <option value="" className={optionCls}>
                   {!projectId
                     ? 'Select a project first'
                     : loadingUsers
@@ -323,7 +328,7 @@ const ReminderModal: React.FC<ReminderModalProps> = ({
                         : 'Select assignee'}
                 </option>
                 {assignees.map((u) => (
-                  <option key={u.id} value={u.id}>
+                  <option key={u.id} value={u.id} className={optionCls}>
                     {u.label}
                   </option>
                 ))}

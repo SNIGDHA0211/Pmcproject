@@ -4,6 +4,7 @@ import { Icons } from './Icons';
 import { useTheme, getThemeClasses } from '../utils/theme';
 import { fetchProjectProgressChart } from '../services/financialDataService';
 import TutorialVideosPanel from './tutorialVideos/TutorialVideosPanel';
+import TutorialWatchButton from './tutorialVideos/TutorialWatchButton';
 
 interface SiteExecutionProps {
   projects: Project[];
@@ -59,13 +60,16 @@ const SiteExecution: React.FC<SiteExecutionProps> = ({ projects, onViewProject }
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
       {/* Header */}
-      <div>
-        <h2 className={`text-xl font-black uppercase tracking-tight sm:text-2xl ${themeClasses.textPrimary}`}>
-          Site Execution Overview
-        </h2>
-        <p className={`text-[10px] font-black uppercase tracking-widest ${themeClasses.textSecondary}`}>
-          Live progress of all active construction sites
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h2 className={`text-xl font-black uppercase tracking-tight sm:text-2xl ${themeClasses.textPrimary}`}>
+            Site Execution Overview
+          </h2>
+          <p className={`text-[10px] font-black uppercase tracking-widest ${themeClasses.textSecondary}`}>
+            Live progress of all active construction sites
+          </p>
+        </div>
+        <TutorialWatchButton section="site_progress" variant="panel" isDark={isDarkTheme} />
       </div>
 
       {/* Cards Grid */}
