@@ -9,7 +9,13 @@ import { DASHBOARD_CARD_TITLE_CLASS, getThemeClasses, useTheme } from '../utils/
 import { getSiteImageDisplayTitle } from '../utils/siteImages';
 
 const MAX_ROW_PREVIEW = 6;
-const LOADING_PLACEHOLDERS = 4;
+const LOADING_PLACEHOLDERS = 6;
+
+/** Responsive thumbnail grid — one cell per image, no full-width stretch for a single photo. */
+const PREVIEW_GRID_CLASS =
+  'grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6';
+const PREVIEW_GRID_EMBEDDED_CLASS =
+  'grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-5';
 
 type SitePhotosCardProps = {
   className?: string;
@@ -45,21 +51,22 @@ export const SitePhotosCard: React.FC<SitePhotosCardProps> = ({
 
   const countLabel = projectName ? ` (${images.length})` : '';
   const previewImages = images.slice(0, MAX_ROW_PREVIEW);
-  const columnCount = Math.max(previewImages.length, 1);
+  const remainingCount = Math.max(0, images.length - MAX_ROW_PREVIEW);
+  const previewGridClass = embedded ? PREVIEW_GRID_EMBEDDED_CLASS : PREVIEW_GRID_CLASS;
 
   const openLightbox = (index: number) => {
     setLightboxIndex(index);
     setLightboxOpen(true);
   };
 
-  const renderPreviewImage = (image: SiteImageRecord, index: number) => {
+  const renderPreviewImage = (image: SiteImageRecord, index: number, showMoreOverlay = false) => {
     const displayTitle = getSiteImageDisplayTitle(image.title);
     return (
     <button
       key={image.id}
       type="button"
-      onClick={() => openLightbox(index)}
-      className={`group relative aspect-[4/3] min-h-[140px] w-full overflow-hidden rounded-lg border text-left transition-shadow duration-300 hover:shadow-md sm:min-h-[180px] ${
+      onClick={() => (showMoreOverlay && onViewAll ? onViewAll() : openLightbox(index))}
+      className={`group relative aspect-[4/3] w-full overflow-hidden rounded-lg border text-left transition-shadow duration-300 hover:shadow-md ${
         isDarkTheme
           ? 'border-white/10 bg-slate-900/40 hover:ring-1 hover:ring-white/15'
           : 'border-slate-200 bg-slate-100 hover:ring-1 hover:ring-slate-300/80'
@@ -72,11 +79,18 @@ export const SitePhotosCard: React.FC<SitePhotosCardProps> = ({
         decoding="async"
         className="block h-full w-full object-cover object-center transition-transform duration-500 group-hover:scale-[1.03]"
       />
-      <span className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent px-1.5 pb-1.5 pt-6">
-        <span className="line-clamp-1 text-[9px] font-bold text-white" title={image.title || undefined}>
-          {displayTitle}
+      {showMoreOverlay ? (
+        <span className="absolute inset-0 flex flex-col items-center justify-center bg-black/55 backdrop-blur-[1px]">
+          <span className="text-lg font-black tabular-nums text-white">+{remainingCount}</span>
+          <span className="mt-0.5 text-[8px] font-bold uppercase tracking-widest text-white/90">View all</span>
         </span>
-      </span>
+      ) : (
+        <span className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent px-1.5 pb-1 pt-5">
+          <span className="line-clamp-1 text-[9px] font-bold text-white" title={image.title || undefined}>
+            {displayTitle}
+          </span>
+        </span>
+      )}
     </button>
     );
   };
@@ -144,26 +158,23 @@ export const SitePhotosCard: React.FC<SitePhotosCardProps> = ({
         <div className="min-w-0">
           {!projectName ? (
             <div
-              className={`flex min-h-[140px] flex-col items-center justify-center rounded-lg border border-dashed px-3 py-6 text-center sm:min-h-[180px] ${themeClasses.border}`}
+              className={`flex flex-col items-center justify-center rounded-lg border border-dashed px-3 py-8 text-center ${themeClasses.border}`}
             >
               <p className={`text-[10px] font-bold uppercase tracking-widest ${themeClasses.textMuted}`}>
                 Select a project
               </p>
             </div>
           ) : isLoading ? (
-            <div
-              className="grid gap-3"
-              style={{ gridTemplateColumns: `repeat(${LOADING_PLACEHOLDERS}, minmax(0, 1fr))` }}
-            >
+            <div className={previewGridClass}>
               {Array.from({ length: LOADING_PLACEHOLDERS }).map((_, i) => (
                 <div
                   key={i}
-                  className={`aspect-[4/3] min-h-[140px] animate-pulse rounded-lg sm:min-h-[180px] ${themeClasses.bgSecondary}`}
+                  className={`aspect-[4/3] w-full animate-pulse rounded-lg ${themeClasses.bgSecondary}`}
                 />
               ))}
             </div>
           ) : error ? (
-            <div className="flex min-h-[140px] flex-col items-center justify-center gap-2 px-2 text-center sm:min-h-[180px]">
+            <div className="flex flex-col items-center justify-center gap-2 px-2 py-8 text-center">
               <p className="text-[10px] font-bold text-rose-500">{error}</p>
               <button type="button" onClick={refresh} className="text-[9px] font-black uppercase text-blue-600">
                 Retry
@@ -171,7 +182,7 @@ export const SitePhotosCard: React.FC<SitePhotosCardProps> = ({
             </div>
           ) : images.length === 0 ? (
             <div
-              className={`flex min-h-[140px] flex-col items-center justify-center gap-2 rounded-lg border border-dashed px-3 py-6 text-center sm:min-h-[180px] ${themeClasses.border}`}
+              className={`flex flex-col items-center justify-center gap-2 rounded-lg border border-dashed px-3 py-8 text-center ${themeClasses.border}`}
             >
               <ImageIcon size={22} className={themeClasses.textMuted} />
               <p className={`text-[9px] font-bold uppercase leading-snug tracking-wide ${themeClasses.textMuted}`}>
@@ -179,18 +190,21 @@ export const SitePhotosCard: React.FC<SitePhotosCardProps> = ({
               </p>
             </div>
           ) : (
-            <div
-              className="grid gap-3"
-              style={{ gridTemplateColumns: `repeat(${columnCount}, minmax(0, 1fr))` }}
-            >
-              {previewImages.map((image, index) => renderPreviewImage(image, index))}
+            <div className={previewGridClass}>
+              {previewImages.map((image, index) =>
+                renderPreviewImage(
+                  image,
+                  index,
+                  remainingCount > 0 && index === previewImages.length - 1,
+                ),
+              )}
             </div>
           )}
         </div>
 
-        {images.length > MAX_ROW_PREVIEW && (
+        {remainingCount > 0 && (
           <p className={`mt-2 shrink-0 text-center text-[9px] font-bold uppercase tracking-widest ${themeClasses.textMuted}`}>
-            +{images.length - MAX_ROW_PREVIEW} more · View all for full gallery
+            Showing {previewImages.length} of {images.length} · View all for full gallery
           </p>
         )}
       </div>

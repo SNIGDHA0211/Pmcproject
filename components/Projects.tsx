@@ -169,6 +169,7 @@ import {
   chartTooltipStyle,
   chartXAxisMonthProps,
   chartXAxisMonthPropsExecutive,
+  chartXAxisMonthPropsSparse,
   DASHBOARD_CHART_MIN_HEIGHT,
   DASHBOARD_CHART_MIN_HEIGHT_BAR,
   DASHBOARD_CHART_MIN_HEIGHT_EXPANDED,
@@ -176,6 +177,7 @@ import {
   dashboardChartShellBorder,
   formatChartCountAxisTick,
   formatChartCurrencyAxisTick,
+  getChartNumericYMax,
 } from '../utils/dashboardCharts';
 import {
   ProgressCurveTooltip,
@@ -262,9 +264,132 @@ function useExpandedChartMetrics() {
   };
 }
 
+const FINANCIAL_PROGRESS_LEGEND = [
+  { label: 'BCWS', color: '#4f46e5' },
+  { label: 'BCWP', color: '#f59e0b' },
+  { label: 'ACWP', color: '#ef4444' },
+  { label: 'FCST', color: '#10b981', variant: 'dashed' as const },
+];
+
 const FinancialProgressChartPlot: React.FC<{
   isDarkTheme: boolean;
   data: { month: string; bcws: number; bcwp: number; acwp: number; fcst: number }[];
+  hideLegend?: boolean;
+}> = ({ isDarkTheme, data, hideLegend = false }) => {
+  const chart = useExpandedChartMetrics();
+  const axisTick = chartAxisTick(isDarkTheme, chart.tickFontSize);
+  const isSparse = data.length <= 3;
+  const margin = hideLegend ? chartPlotMarginExecutive : chartLineBarMargin(chart.isExpanded);
+  const xAxisProps = isSparse
+    ? chartXAxisMonthPropsSparse
+    : hideLegend
+      ? chartXAxisMonthPropsExecutive
+      : chartXAxisMonthProps;
+  const lineDot = isSparse ? { r: 5, strokeWidth: 0 } : false;
+
+  const yMax = useMemo(
+    () =>
+      getChartNumericYMax(
+        data.flatMap((row) => [row.bcws, row.bcwp, row.acwp, row.fcst].map((v) => Number(v) || 0)),
+      ),
+    [data],
+  );
+
+  const plot = (
+    <ResponsiveContainer width="100%" height="100%" minHeight={chart.minHeight}>
+      <LineChart data={data} margin={margin}>
+        <CartesianGrid strokeDasharray="4 6" stroke={chartGridStroke(isDarkTheme)} vertical={false} />
+        <XAxis
+          dataKey="month"
+          tick={axisTick}
+          axisLine={{ stroke: chartAxisStroke(isDarkTheme) }}
+          tickLine={{ stroke: chartAxisStroke(isDarkTheme) }}
+          {...xAxisProps}
+        />
+        <YAxis
+          width={58}
+          tick={axisTick}
+          tickFormatter={formatChartCurrencyAxisTick}
+          domain={yMax != null ? [0, yMax] : [0, 'auto']}
+          axisLine={{ stroke: chartAxisStroke(isDarkTheme) }}
+          tickLine={{ stroke: chartAxisStroke(isDarkTheme) }}
+        />
+        <Tooltip contentStyle={chartTooltipStyle(isDarkTheme)} />
+        {!hideLegend && <Legend {...chartLegendProps(chart.legendFontSize, isDarkTheme)} />}
+        <Line type="monotone" dataKey="bcws" stroke="#4f46e5" strokeWidth={2} name="BCWS" dot={lineDot} activeDot={chartActiveDot} isAnimationActive={false} />
+        <Line type="monotone" dataKey="bcwp" stroke="#f59e0b" strokeWidth={2} name="BCWP" dot={lineDot} activeDot={chartActiveDot} isAnimationActive={false} />
+        <Line type="monotone" dataKey="acwp" stroke="#ef4444" strokeWidth={2} name="ACWP" dot={lineDot} activeDot={chartActiveDot} isAnimationActive={false} />
+        <Line
+          type="monotone"
+          dataKey="fcst"
+          stroke="#10b981"
+          strokeWidth={2}
+          strokeDasharray="6 4"
+          name="FCST"
+          dot={lineDot}
+          activeDot={chartActiveDot}
+          isAnimationActive={false}
+        />
+      </LineChart>
+    </ResponsiveContainer>
+  );
+
+  if (isSparse && !chart.isExpanded) {
+    return <div className="mx-auto w-full max-w-xl">{plot}</div>;
+  }
+
+  return plot;
+};
+
+const FinancialProgressChartCard: React.FC<{
+  isDarkTheme: boolean;
+  isLoading: boolean;
+  data: { month: string; bcws: number; bcwp: number; acwp: number; fcst: number }[];
+  onEdit?: () => void;
+}> = ({ isDarkTheme, isLoading, data, onEdit }) => {
+  const chart = useExpandedChartMetrics();
+
+  return (
+    <FullScreenCard
+      title="Financial Progress"
+      expandSize="fullWidth"
+      className="cost-performance-card joyride-target-stable min-h-0"
+      onEdit={onEdit}
+      editTitle="Edit in Financial Management"
+    >
+      <DashboardChartShell
+        title="FINANCIAL PROGRESS"
+        headerActions={<FormulaInfoButton {...DASHBOARD_FORMULAS.projectCostPerformance} />}
+        isLoading={isLoading}
+        loadingMessage="Loading financial progress data..."
+        hasData={data.length > 0}
+        emptyMessage="No financial progress data available for this project"
+        borderless
+      >
+        <ExecutiveChartWithLegend height={chart.minHeight} legend={FINANCIAL_PROGRESS_LEGEND} borderless>
+          <FinancialProgressChartPlot isDarkTheme={isDarkTheme} data={data} hideLegend />
+        </ExecutiveChartWithLegend>
+      </DashboardChartShell>
+    </FullScreenCard>
+  );
+};
+
+const PROGRESS_CURVE_LEGEND = [
+  { label: 'Monthly Planned', color: '#3B82F6' },
+  { label: 'Monthly Actual', color: '#10B981' },
+  { label: 'Cumulative Planned', color: '#F59E0B', variant: 'dashed' as const },
+  { label: 'Cumulative Actual', color: '#EF4444' },
+];
+
+const PhysicalProgressChartPlot: React.FC<{
+  isDarkTheme: boolean;
+  data: {
+    month: string;
+    monthlyPlanned: number;
+    monthlyActual: number;
+    planned: number;
+    actual: number;
+  }[];
   hideLegend?: boolean;
 }> = ({ isDarkTheme, data, hideLegend = false }) => {
   const chart = useExpandedChartMetrics();
@@ -284,57 +409,75 @@ const FinancialProgressChartPlot: React.FC<{
           {...xAxisProps}
         />
         <YAxis
-          width={58}
+          width={40}
           tick={axisTick}
-          tickFormatter={formatChartCurrencyAxisTick}
+          tickFormatter={(v) => `${v}%`}
+          domain={[0, 100]}
+          ticks={[0, 25, 50, 75, 100]}
+          allowDataOverflow
           axisLine={{ stroke: chartAxisStroke(isDarkTheme) }}
           tickLine={{ stroke: chartAxisStroke(isDarkTheme) }}
         />
-        <Tooltip contentStyle={chartTooltipStyle(isDarkTheme)} />
+        <Tooltip content={<ProgressCurveTooltip isDark={isDarkTheme} showMonthly />} />
         {!hideLegend && <Legend {...chartLegendProps(chart.legendFontSize, isDarkTheme)} />}
-        <Line type="monotone" dataKey="bcws" stroke="#4f46e5" strokeWidth={2} name="BCWS" dot={false} activeDot={chartActiveDot} />
-        <Line type="monotone" dataKey="bcwp" stroke="#f59e0b" strokeWidth={2} name="BCWP" dot={false} activeDot={chartActiveDot} />
-        <Line type="monotone" dataKey="acwp" stroke="#ef4444" strokeWidth={2} name="ACWP" dot={false} activeDot={chartActiveDot} />
-        <Line
-          type="monotone"
-          dataKey="fcst"
-          stroke="#10b981"
-          strokeWidth={2}
-          strokeDasharray="6 4"
-          name="FCST"
-          dot={false}
-          activeDot={chartActiveDot}
-        />
+        <Line type="monotone" dataKey="monthlyPlanned" stroke="#3B82F6" strokeWidth={2} name="Monthly Planned" dot={false} activeDot={chartActiveDot} isAnimationActive={false} />
+        <Line type="monotone" dataKey="monthlyActual" stroke="#10B981" strokeWidth={2} name="Monthly Actual" dot={false} activeDot={chartActiveDot} isAnimationActive={false} />
+        <Line type="monotone" dataKey="planned" stroke="#F59E0B" strokeWidth={2.5} strokeDasharray="6 4" name="Cumulative Planned" dot={false} activeDot={chartActiveDot} isAnimationActive={false} />
+        <Line type="monotone" dataKey="actual" stroke="#EF4444" strokeWidth={2.5} name="Cumulative Actual" dot={false} activeDot={chartActiveDot} isAnimationActive={false} />
       </LineChart>
     </ResponsiveContainer>
   );
 };
 
-const FinancialProgressChartCard: React.FC<{
+const PhysicalProgressChartCard: React.FC<{
   isDarkTheme: boolean;
   isLoading: boolean;
-  data: { month: string; bcws: number; bcwp: number; acwp: number; fcst: number }[];
+  data: {
+    month: string;
+    monthlyPlanned: number;
+    monthlyActual: number;
+    planned: number;
+    actual: number;
+  }[];
+  latestPoint: { planned: number; actual: number; month: string } | null;
   onEdit?: () => void;
-}> = ({ isDarkTheme, isLoading, data, onEdit }) => (
-  <FullScreenCard
-    title="Financial Progress"
-    expandSize="fullWidth"
-    className="cost-performance-card joyride-target-stable min-h-0"
-    onEdit={onEdit}
-    editTitle="Edit in Financial Management"
-  >
-    <DashboardChartShell
-      title="FINANCIAL PROGRESS"
-      headerActions={<FormulaInfoButton {...DASHBOARD_FORMULAS.projectCostPerformance} />}
-      isLoading={isLoading}
-      loadingMessage="Loading financial progress data..."
-      hasData={data.length > 0}
-      emptyMessage="No financial progress data available for this project"
+}> = ({ isDarkTheme, isLoading, data, latestPoint, onEdit }) => {
+  const chart = useExpandedChartMetrics();
+
+  return (
+    <FullScreenCard
+      title="Physical Progress Status"
+      className="progress-curve-card joyride-target-stable min-h-0"
+      onEdit={onEdit}
+      editTitle="Edit in Financial Management"
     >
-      <FinancialProgressChartPlot isDarkTheme={isDarkTheme} data={data} />
-    </DashboardChartShell>
-  </FullScreenCard>
-);
+      <DashboardChartShell
+        title="PHYSICAL PROGRESS STATUS"
+        isLoading={isLoading}
+        loadingMessage="Loading physical progress data..."
+        hasData={data.length > 0}
+        emptyMessage="No physical progress data available for this project"
+        borderless
+      >
+        <div className="flex min-h-0 flex-col">
+          <ExecutiveChartWithLegend height={chart.minHeight} legend={PROGRESS_CURVE_LEGEND} borderless>
+            <PhysicalProgressChartPlot isDarkTheme={isDarkTheme} data={data} hideLegend />
+          </ExecutiveChartWithLegend>
+          {latestPoint && (
+            <div className="mt-1.5 shrink-0">
+              <ProgressDifferenceSummaryChip
+                planned={Number(latestPoint.planned) || 0}
+                actual={Number(latestPoint.actual) || 0}
+                isDark={isDarkTheme}
+                periodLabel={String(latestPoint.month)}
+              />
+            </div>
+          )}
+        </div>
+      </DashboardChartShell>
+    </FullScreenCard>
+  );
+};
 
 const ManpowerHistogramChartPlot: React.FC<{
   isDarkTheme: boolean;
@@ -564,6 +707,9 @@ const Projects: React.FC<ProjectsProps> = ({
   const [contractorDashboardRevision, setContractorDashboardRevision] = useState(0);
   const [isSavingProjectDates, setIsSavingProjectDates] = useState(false);
   const [projectDatesFormError, setProjectDatesFormError] = useState<string | null>(null);
+  const [projectDatesFieldErrors, setProjectDatesFieldErrors] = useState<Record<string, string>>(
+    {},
+  );
   const [newContractorMasterName, setNewContractorMasterName] = useState('');
   const [isCreatingContractorMaster, setIsCreatingContractorMaster] = useState(false);
   // BG Status modal state
@@ -858,7 +1004,7 @@ const Projects: React.FC<ProjectsProps> = ({
     } catch (error) {
       console.error('Failed to save HSE data:', error);
       setHealthSafetyFormError(getApiErrorMessage(error, 'Failed to save Health & Safety data.'));
-      return false;
+      throw error;
     } finally {
       setIsSavingHealthSafety(false);
     }
@@ -936,6 +1082,7 @@ const Projects: React.FC<ProjectsProps> = ({
       eot_date: toDateInputValue(scl?.eot_date),
     });
     setProjectDatesFormError(null);
+    setProjectDatesFieldErrors({});
   };
 
   const loadProjectDatesFormContractor = (
@@ -967,6 +1114,7 @@ const Projects: React.FC<ProjectsProps> = ({
       eot_date: toDateInputValue(record?.eot_date),
     });
     setProjectDatesFormError(null);
+    setProjectDatesFieldErrors({});
   };
 
   const openEditSclModal = (sclOverride?: ProjectDatesApiRecord | null) => {
@@ -987,12 +1135,18 @@ const Projects: React.FC<ProjectsProps> = ({
 
   const handleCreateContractorMaster = async () => {
     if (!selectedProject?.title || !newContractorMasterName.trim()) {
+      setProjectDatesFieldErrors({ contractor_name: 'Contractor name is required.' });
       setProjectDatesFormError('Enter a contractor name.');
       return;
     }
 
     setIsCreatingContractorMaster(true);
     setProjectDatesFormError(null);
+    setProjectDatesFieldErrors((prev) => {
+      const next = { ...prev };
+      delete next.contractor_name;
+      return next;
+    });
     try {
       const record = await contractorMasterApi.create(selectedProject.title, {
         contractor_name: newContractorMasterName.trim(),
@@ -1101,14 +1255,30 @@ const Projects: React.FC<ProjectsProps> = ({
 
     const { project_start, contract_finish, forecast_finish, eot_date, contractor_id } =
       projectDatesForm;
-    if (!project_start || !contract_finish || !forecast_finish || !eot_date) {
-      setProjectDatesFormError('All four dates are required.');
-      return;
+    const nextErrors: Record<string, string> = {};
+    const isScl = projectDatesModalMode === 'edit_scl';
+
+    if (!isScl && contractor_id == null) {
+      nextErrors.contractor_id = 'Select a contractor.';
+    }
+    if (!project_start) nextErrors.project_start = 'Project start is required.';
+    if (!contract_finish) nextErrors.contract_finish = 'Contract finish is required.';
+    if (!forecast_finish) nextErrors.forecast_finish = 'Forecast finish is required.';
+    if (!eot_date) nextErrors.eot_date = 'EOT date is required.';
+
+    if (project_start && contract_finish && contract_finish < project_start) {
+      nextErrors.contract_finish = 'Contract finish must be on or after project start.';
+    }
+    if (project_start && forecast_finish && forecast_finish < project_start) {
+      nextErrors.forecast_finish = 'Forecast finish must be on or after project start.';
+    }
+    if (project_start && eot_date && eot_date < project_start) {
+      nextErrors.eot_date = 'EOT date must be on or after project start.';
     }
 
-    const isScl = projectDatesModalMode === 'edit_scl';
-    if (!isScl && contractor_id == null) {
-      setProjectDatesFormError('Select a contractor from Contractor Master.');
+    if (Object.keys(nextErrors).length > 0) {
+      setProjectDatesFieldErrors(nextErrors);
+      setProjectDatesFormError([...new Set(Object.values(nextErrors))].join(' '));
       return;
     }
 
@@ -1134,6 +1304,7 @@ const Projects: React.FC<ProjectsProps> = ({
 
     setIsSavingProjectDates(true);
     setProjectDatesFormError(null);
+    setProjectDatesFieldErrors({});
     try {
       let savedContractorId: number | undefined;
 
@@ -1697,7 +1868,7 @@ const Projects: React.FC<ProjectsProps> = ({
     } catch (error) {
       console.error('Failed to save correspondence document:', error);
       setCorrespondenceFormError(getApiErrorMessage(error, 'Failed to save correspondence document.'));
-      return null;
+      throw error;
     } finally {
       setIsSavingCorrespondence(false);
     }
@@ -3191,7 +3362,12 @@ const Projects: React.FC<ProjectsProps> = ({
                 showProjectDates
                 showFinancial
                 onNavigateFinancial={(section) =>
-                  onNavigate?.({ tab: 'financial_management', section, returnTab: 'team_projects' })
+                  onNavigate?.({
+                    tab: 'financial_management',
+                    section,
+                    returnTab: 'team_projects',
+                    projectId: selectedProject.id,
+                  })
                 }
                 onEditSclDates={openEditSclModal}
                 onEditContractorDates={openEditContractorModal}
@@ -3497,7 +3673,7 @@ const Projects: React.FC<ProjectsProps> = ({
                       {projectDatesModalMode !== 'edit_scl' && (
                         <div>
                           <label className={`mb-1 block text-[10px] font-black uppercase tracking-widest ${themeClasses.textSecondary}`}>
-                            Contractor (from Master)
+                            Contractor (from Master) <span className="text-rose-400">*</span>
                           </label>
                           {projectDatesModalMode === 'edit_contractor' ? (
                             <div
@@ -3511,14 +3687,23 @@ const Projects: React.FC<ProjectsProps> = ({
                           ) : availableContractorMasters.length > 0 ? (
                             <select
                               value={projectDatesForm.contractor_id ?? ''}
-                              onChange={(e) =>
+                              onChange={(e) => {
+                                setProjectDatesFieldErrors((prev) => {
+                                  const next = { ...prev };
+                                  delete next.contractor_id;
+                                  return next;
+                                });
+                                setProjectDatesFormError(null);
                                 setProjectDatesForm((prev) => ({
                                   ...prev,
                                   contractor_id: Number(e.target.value),
-                                }))
-                              }
-                              required
-                              className={`w-full rounded-2xl border px-4 py-3 text-sm font-bold outline-none ${themeClasses.input} ${themeClasses.border}`}
+                                }));
+                              }}
+                              className={`w-full rounded-2xl border px-4 py-3 text-sm font-bold outline-none ${themeClasses.input} ${
+                                projectDatesFieldErrors.contractor_id
+                                  ? 'border-rose-500 ring-2 ring-rose-500/30'
+                                  : themeClasses.border
+                              }`}
                             >
                               <option value="" disabled>
                                 Select contractor
@@ -3538,20 +3723,42 @@ const Projects: React.FC<ProjectsProps> = ({
                                 <input
                                   type="text"
                                   value={newContractorMasterName}
-                                  onChange={(e) => setNewContractorMasterName(e.target.value)}
+                                  onChange={(e) => {
+                                    setNewContractorMasterName(e.target.value);
+                                    setProjectDatesFieldErrors((prev) => {
+                                      const next = { ...prev };
+                                      delete next.contractor_name;
+                                      return next;
+                                    });
+                                    setProjectDatesFormError(null);
+                                  }}
                                   placeholder="Contractor name"
-                                  className={`min-w-0 flex-1 rounded-xl border px-3 py-2.5 text-sm font-bold outline-none ${themeClasses.input} ${themeClasses.border}`}
+                                  className={`min-w-0 flex-1 rounded-xl border px-3 py-2.5 text-sm font-bold outline-none ${themeClasses.input} ${
+                                    projectDatesFieldErrors.contractor_name
+                                      ? 'border-rose-500 ring-2 ring-rose-500/30'
+                                      : themeClasses.border
+                                  }`}
                                 />
                                 <button
                                   type="button"
                                   onClick={() => void handleCreateContractorMaster()}
-                                  disabled={isCreatingContractorMaster || !newContractorMasterName.trim()}
+                                  disabled={isCreatingContractorMaster}
                                   className="shrink-0 rounded-xl bg-emerald-600 px-4 py-2.5 text-xs font-black uppercase tracking-widest text-white hover:bg-emerald-500 disabled:opacity-60"
                                 >
                                   {isCreatingContractorMaster ? 'Adding…' : 'Add to Master'}
                                 </button>
                               </div>
+                              {projectDatesFieldErrors.contractor_name && (
+                                <p className="text-xs font-semibold text-rose-500">
+                                  {projectDatesFieldErrors.contractor_name}
+                                </p>
+                              )}
                             </div>
+                          )}
+                          {projectDatesFieldErrors.contractor_id && (
+                            <p className="mt-1 text-xs font-semibold text-rose-500">
+                              {projectDatesFieldErrors.contractor_id}
+                            </p>
                           )}
                           {projectDatesModalMode === 'add_contractor' &&
                             availableContractorMasters.length === 0 &&
@@ -3572,23 +3779,42 @@ const Projects: React.FC<ProjectsProps> = ({
                         ] as const).map(([field, label]) => (
                           <div key={field}>
                             <label className={`mb-1 block text-[10px] font-black uppercase tracking-widest ${themeClasses.textSecondary}`}>
-                              {label}
+                              {label} <span className="text-rose-400">*</span>
                             </label>
                             <input
                               type="date"
                               value={projectDatesForm[field]}
-                              onChange={(e) =>
-                                setProjectDatesForm((prev) => ({ ...prev, [field]: e.target.value }))
-                              }
-                              required
-                              className={`w-full rounded-2xl border px-4 py-3 text-sm font-bold outline-none ${themeClasses.input} ${themeClasses.border}`}
+                              onChange={(e) => {
+                                setProjectDatesFieldErrors((prev) => {
+                                  const next = { ...prev };
+                                  delete next[field];
+                                  return next;
+                                });
+                                setProjectDatesFormError(null);
+                                setProjectDatesForm((prev) => ({ ...prev, [field]: e.target.value }));
+                              }}
+                              className={`w-full rounded-2xl border px-4 py-3 text-sm font-bold outline-none ${themeClasses.input} ${
+                                projectDatesFieldErrors[field]
+                                  ? 'border-rose-500 ring-2 ring-rose-500/30'
+                                  : themeClasses.border
+                              }`}
                             />
+                            {projectDatesFieldErrors[field] && (
+                              <p className="mt-1 text-xs font-semibold text-rose-500">
+                                {projectDatesFieldErrors[field]}
+                              </p>
+                            )}
                           </div>
                         ))}
                       </div>
 
                       {projectDatesFormError && (
-                        <p className="text-[11px] font-bold text-rose-500">{projectDatesFormError}</p>
+                        <div
+                          role="alert"
+                          className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700 dark:border-rose-500/30 dark:bg-rose-500/10 dark:text-rose-300"
+                        >
+                          {projectDatesFormError}
+                        </div>
                       )}
 
                       <div className="mt-2 flex flex-col gap-3 sm:flex-row">
@@ -3649,43 +3875,12 @@ const Projects: React.FC<ProjectsProps> = ({
                         <>
                         <ExecutiveChartWithLegend
                           height={DASHBOARD_CHART_MIN_HEIGHT}
-                          legend={[
-                            { label: 'Monthly Planned', color: '#3B82F6' },
-                            { label: 'Monthly Actual', color: '#10B981' },
-                            { label: 'Cumulative Planned', color: '#F59E0B', variant: 'dashed' },
-                            { label: 'Cumulative Actual', color: '#EF4444' },
-                          ]}
+                          legend={PROGRESS_CURVE_LEGEND}
                         >
-                          <ResponsiveContainer width="100%" height="100%">
-                            <LineChart data={progressSCurveData} margin={chartPlotMarginExecutive}>
-                              <CartesianGrid strokeDasharray="4 6" stroke={chartGridStroke(isDarkTheme)} vertical={false} />
-                              <XAxis
-                                dataKey="month"
-                                tick={chartAxisTick(isDarkTheme, 12)}
-                                axisLine={{ stroke: chartAxisStroke(isDarkTheme) }}
-                                tickLine={{ stroke: chartAxisStroke(isDarkTheme) }}
-                                {...chartXAxisMonthPropsExecutive}
-                              />
-                              <YAxis
-                                width={40}
-                                tick={chartAxisTick(isDarkTheme, 12)}
-                                tickFormatter={(v) => `${v}%`}
-                                domain={[0, 100]}
-                                ticks={[0, 25, 50, 75, 100]}
-                                allowDataOverflow
-                                axisLine={{ stroke: chartAxisStroke(isDarkTheme) }}
-                                tickLine={{ stroke: chartAxisStroke(isDarkTheme) }}
-                              />
-                              <Tooltip content={<ProgressCurveTooltip isDark={isDarkTheme} showMonthly />} />
-                              <Line type="monotone" dataKey="monthlyPlanned" stroke="#3B82F6" strokeWidth={2} name="Monthly Planned" dot={false} activeDot={chartActiveDot} isAnimationActive={false} />
-                              <Line type="monotone" dataKey="monthlyActual" stroke="#10B981" strokeWidth={2} name="Monthly Actual" dot={false} activeDot={chartActiveDot} isAnimationActive={false} />
-                              <Line type="monotone" dataKey="planned" stroke="#F59E0B" strokeWidth={2.5} strokeDasharray="6 4" name="Cumulative Planned" dot={false} activeDot={chartActiveDot} isAnimationActive={false} />
-                              <Line type="monotone" dataKey="actual" stroke="#EF4444" strokeWidth={2.5} name="Cumulative Actual" dot={false} activeDot={chartActiveDot} isAnimationActive={false} />
-                            </LineChart>
-                          </ResponsiveContainer>
+                          <PhysicalProgressChartPlot isDarkTheme={isDarkTheme} data={progressSCurveData} hideLegend />
                         </ExecutiveChartWithLegend>
                         {latestProgressCurvePoint && (
-                          <div className="mt-2 px-1">
+                          <div className="mt-1.5 px-1">
                             <ProgressDifferenceSummaryChip
                               planned={Number(latestProgressCurvePoint.planned) || 0}
                               actual={Number(latestProgressCurvePoint.actual) || 0}
@@ -3703,73 +3898,13 @@ const Projects: React.FC<ProjectsProps> = ({
                     </div>
                   </PMCExecutivePanel>
                 ) : (
-                  <FullScreenCard
-                    title="Physical Progress Status"
-                    className="progress-curve-card joyride-target-stable min-h-[420px]"
+                  <PhysicalProgressChartCard
+                    isDarkTheme={isDarkTheme}
+                    isLoading={isLoadingProjectProgress}
+                    data={progressSCurveData}
+                    latestPoint={latestProgressCurvePoint}
                     onEdit={() => onNavigate?.({ tab: 'financial_management', section: 'progress' })}
-                    editTitle="Edit in Financial Management"
-                  >
-                    <div className={`relative flex h-full flex-col overflow-hidden rounded-xl border ${DASHBOARD_CHART_SHELL_PADDING} ${dashboardChartShellBorder(isDarkTheme)} ${themeClasses.glassCard}`}>
-                      <DashboardCardTopAccent />
-                      <div className={`mb-4 flex items-center justify-between gap-3 border-b pb-3.5 pt-0.5 ${themeClasses.border}`}>
-                        <div className="min-w-0 flex-1">
-                          <h3 className={typo.sectionTitle(isDarkTheme)}>PHYSICAL PROGRESS STATUS</h3>
-                          <h4 className={`mt-2 ${typo.chartSubtitle} ${themeClasses.textSecondary}`}>PROGRESS S-CURVE</h4>
-                        </div>
-                        <FullScreenHeaderToolbar />
-                      </div>
-                      {isLoadingProjectProgress ? (
-                        <div className="flex items-center justify-center" style={{ height: DASHBOARD_CHART_MIN_HEIGHT }}>
-                          <div className={`${typo.muted} ${themeClasses.textMuted}`}>Loading physical progress data...</div>
-                        </div>
-                      ) : progressSCurveData.length > 0 ? (
-                        <div className="min-h-0">
-                          <ResponsiveContainer width="100%" height={DASHBOARD_CHART_MIN_HEIGHT}>
-                            <LineChart data={progressSCurveData} margin={chartLineBarMargin(false)}>
-                              <CartesianGrid strokeDasharray="4 6" stroke={chartGridStroke(isDarkTheme)} vertical={false} />
-                              <XAxis
-                                dataKey="month"
-                                tick={chartAxisTick(isDarkTheme, 12)}
-                                axisLine={{ stroke: chartAxisStroke(isDarkTheme) }}
-                                tickLine={{ stroke: chartAxisStroke(isDarkTheme) }}
-                                {...chartXAxisMonthProps}
-                              />
-                              <YAxis
-                                width={40}
-                                tick={chartAxisTick(isDarkTheme, 12)}
-                                tickFormatter={(v) => `${v}%`}
-                                domain={[0, 100]}
-                                ticks={[0, 25, 50, 75, 100]}
-                                allowDataOverflow
-                                axisLine={{ stroke: chartAxisStroke(isDarkTheme) }}
-                                tickLine={{ stroke: chartAxisStroke(isDarkTheme) }}
-                              />
-                              <Tooltip content={<ProgressCurveTooltip isDark={isDarkTheme} showMonthly />} />
-                              <Legend {...chartLegendProps(11, isDarkTheme)} />
-                              <Line type="monotone" dataKey="monthlyPlanned" stroke="#3B82F6" strokeWidth={2} name="Monthly Planned" dot={false} activeDot={chartActiveDot} isAnimationActive={false} />
-                              <Line type="monotone" dataKey="monthlyActual" stroke="#10B981" strokeWidth={2} name="Monthly Actual" dot={false} activeDot={chartActiveDot} isAnimationActive={false} />
-                              <Line type="monotone" dataKey="planned" stroke="#F59E0B" strokeWidth={2.5} strokeDasharray="6 4" name="Cumulative Planned" dot={false} activeDot={chartActiveDot} isAnimationActive={false} />
-                              <Line type="monotone" dataKey="actual" stroke="#EF4444" strokeWidth={2.5} name="Cumulative Actual" dot={false} activeDot={chartActiveDot} isAnimationActive={false} />
-                            </LineChart>
-                          </ResponsiveContainer>
-                          {latestProgressCurvePoint && (
-                            <div className="mt-2">
-                              <ProgressDifferenceSummaryChip
-                                planned={Number(latestProgressCurvePoint.planned) || 0}
-                                actual={Number(latestProgressCurvePoint.actual) || 0}
-                                isDark={isDarkTheme}
-                                periodLabel={String(latestProgressCurvePoint.month)}
-                              />
-                            </div>
-                          )}
-                        </div>
-                      ) : (
-                        <div className="flex items-center justify-center" style={{ height: DASHBOARD_CHART_MIN_HEIGHT }}>
-                          <div className={`${typo.muted} ${themeClasses.textMuted}`}>No physical progress data available for this project</div>
-                        </div>
-                      )}
-                    </div>
-                  </FullScreenCard>
+                  />
                 )
               )}
 
@@ -3784,12 +3919,7 @@ const Projects: React.FC<ProjectsProps> = ({
                       ) : costPerformanceData.length > 0 ? (
                         <ExecutiveChartWithLegend
                           height={DASHBOARD_CHART_MIN_HEIGHT}
-                          legend={[
-                            { label: 'BCWS', color: '#4f46e5' },
-                            { label: 'BCWP', color: '#f59e0b' },
-                            { label: 'ACWP', color: '#ef4444' },
-                            { label: 'FCST', color: '#10b981', variant: 'dashed' },
-                          ]}
+                          legend={FINANCIAL_PROGRESS_LEGEND}
                         >
                           <FinancialProgressChartPlot
                             isDarkTheme={isDarkTheme}

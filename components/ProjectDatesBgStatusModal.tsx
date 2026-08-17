@@ -89,6 +89,7 @@ const ProjectDatesBgStatusModal: React.FC<ProjectDatesBgStatusModalProps> = ({
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [formMode, setFormMode] = useState<FormMode | null>(null);
   const [editingEntry, setEditingEntry] = useState<BGEntry | null>(null);
   const [form, setForm] = useState<BgFormState>(emptyForm());
@@ -122,6 +123,7 @@ const ProjectDatesBgStatusModal: React.FC<ProjectDatesBgStatusModalProps> = ({
       setDeleteConfirmId(null);
       setExpandedSections({ SCL: false, CONTRACTOR: false });
       setForm(emptyForm());
+      setFieldErrors({});
       if (initialBundle) {
         setBundle(initialBundle);
       }
@@ -137,6 +139,18 @@ const ProjectDatesBgStatusModal: React.FC<ProjectDatesBgStatusModalProps> = ({
 
   const labelCls = `mb-1.5 flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest ${themeClasses.textSecondary}`;
   const inputCls = `w-full rounded-xl border px-3 py-2.5 text-sm font-semibold outline-none transition-all focus:ring-2 focus:ring-blue-500/40 ${themeClasses.input} ${themeClasses.border}`;
+  const fieldInputCls = (hasError?: boolean) =>
+    `${inputCls} ${hasError ? 'border-rose-500 ring-2 ring-rose-500/30 focus:ring-rose-500/40' : ''}`;
+
+  const clearFieldError = (key: string) => {
+    setFieldErrors((prev) => {
+      if (!prev[key]) return prev;
+      const next = { ...prev };
+      delete next[key];
+      return next;
+    });
+    setError(null);
+  };
   const sectionCls = `rounded-2xl border p-4 ${isDarkTheme ? 'border-white/10 bg-white/[0.03]' : 'border-slate-200 bg-slate-50/80'}`;
   const tableHeadCls = `text-left text-[10px] font-black uppercase tracking-widest ${themeClasses.textSecondary}`;
   const tableCellCls = `py-2.5 text-sm font-semibold ${themeClasses.textPrimary}`;
@@ -153,6 +167,7 @@ const ProjectDatesBgStatusModal: React.FC<ProjectDatesBgStatusModalProps> = ({
       ),
     );
     setError(null);
+    setFieldErrors({});
   };
 
   const openEditForm = (entry: BGEntry) => {
@@ -160,6 +175,7 @@ const ProjectDatesBgStatusModal: React.FC<ProjectDatesBgStatusModalProps> = ({
     setEditingEntry(entry);
     setForm(formFromEntry(entry));
     setError(null);
+    setFieldErrors({});
   };
 
   const closeForm = () => {
@@ -167,6 +183,7 @@ const ProjectDatesBgStatusModal: React.FC<ProjectDatesBgStatusModalProps> = ({
     setEditingEntry(null);
     setForm(emptyForm());
     setError(null);
+    setFieldErrors({});
   };
 
   const refreshAndNotify = async () => {
@@ -179,17 +196,23 @@ const ProjectDatesBgStatusModal: React.FC<ProjectDatesBgStatusModalProps> = ({
   const handleFormSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!projectName) return;
-    if (!form.bg_name.trim()) {
-      setError('BG Name is required.');
-      return;
+
+    const nextErrors: Record<string, string> = {};
+    if (!form.bg_name.trim()) nextErrors.bg_name = 'BG name is required.';
+    if (!form.due_date) nextErrors.due_date = 'Due date is required.';
+    if (form.bg_type === 'CONTRACTOR' && !form.contractor_name.trim()) {
+      nextErrors.contractor_name = 'Select a contractor.';
     }
-    if (!form.due_date) {
-      setError('Due Date is required.');
+
+    if (Object.keys(nextErrors).length > 0) {
+      setFieldErrors(nextErrors);
+      setError([...new Set(Object.values(nextErrors))].join(' '));
       return;
     }
 
     setSaving(true);
     setError(null);
+    setFieldErrors({});
     try {
       if (formMode === 'edit' && editingEntry) {
         const payload: UpdateBGPayload = {
@@ -239,6 +262,7 @@ const ProjectDatesBgStatusModal: React.FC<ProjectDatesBgStatusModalProps> = ({
     <form
       ref={formPanelRef}
       onSubmit={handleFormSubmit}
+      noValidate
       className={`rounded-2xl border p-4 sm:p-5 ${isDarkTheme ? 'border-blue-500/30 bg-blue-500/5' : 'border-blue-200 bg-blue-50/50'}`}
     >
       <p className={`mb-3 flex items-center gap-2 text-xs font-black uppercase tracking-wide ${themeClasses.textPrimary}`}>
@@ -273,27 +297,36 @@ const ProjectDatesBgStatusModal: React.FC<ProjectDatesBgStatusModalProps> = ({
           </select>
         </div>
         <div>
-          <label className={labelCls}>BG Name</label>
+          <label className={labelCls}>
+            BG Name <span className="text-rose-400">*</span>
+          </label>
           <input
             type="text"
             value={form.bg_name}
-            onChange={(e) => setForm((prev) => ({ ...prev, bg_name: e.target.value }))}
-            className={inputCls}
+            onChange={(e) => {
+              clearFieldError('bg_name');
+              setForm((prev) => ({ ...prev, bg_name: e.target.value }));
+            }}
+            className={fieldInputCls(Boolean(fieldErrors.bg_name))}
             placeholder="e.g. Performance BG"
-            required
           />
+          {fieldErrors.bg_name && (
+            <p className="mt-1 text-xs font-semibold text-rose-500">{fieldErrors.bg_name}</p>
+          )}
         </div>
         {form.bg_type === 'CONTRACTOR' && (
           <div>
-            <label className={labelCls}>Contractor</label>
+            <label className={labelCls}>
+              Contractor <span className="text-rose-400">*</span>
+            </label>
             {contractorOptions.length > 0 ? (
               <select
                 value={form.contractor_name}
-                onChange={(e) =>
-                  setForm((prev) => ({ ...prev, contractor_name: e.target.value }))
-                }
-                className={inputCls}
-                required
+                onChange={(e) => {
+                  clearFieldError('contractor_name');
+                  setForm((prev) => ({ ...prev, contractor_name: e.target.value }));
+                }}
+                className={fieldInputCls(Boolean(fieldErrors.contractor_name))}
                 disabled={formMode === 'edit'}
               >
                 <option value="">Select contractor</option>
@@ -307,26 +340,36 @@ const ProjectDatesBgStatusModal: React.FC<ProjectDatesBgStatusModalProps> = ({
               <input
                 type="text"
                 value={form.contractor_name}
-                onChange={(e) =>
-                  setForm((prev) => ({ ...prev, contractor_name: e.target.value }))
-                }
-                className={inputCls}
+                onChange={(e) => {
+                  clearFieldError('contractor_name');
+                  setForm((prev) => ({ ...prev, contractor_name: e.target.value }));
+                }}
+                className={fieldInputCls(Boolean(fieldErrors.contractor_name))}
                 placeholder="Contractor name"
-                required
                 disabled={formMode === 'edit' || scope.mode === 'CONTRACTOR'}
               />
+            )}
+            {fieldErrors.contractor_name && (
+              <p className="mt-1 text-xs font-semibold text-rose-500">{fieldErrors.contractor_name}</p>
             )}
           </div>
         )}
         <div>
-          <label className={labelCls}>Due Date</label>
+          <label className={labelCls}>
+            Due Date <span className="text-rose-400">*</span>
+          </label>
           <input
             type="date"
             value={form.due_date}
-            onChange={(e) => setForm((prev) => ({ ...prev, due_date: e.target.value }))}
-            className={inputCls}
-            required
+            onChange={(e) => {
+              clearFieldError('due_date');
+              setForm((prev) => ({ ...prev, due_date: e.target.value }));
+            }}
+            className={fieldInputCls(Boolean(fieldErrors.due_date))}
           />
+          {fieldErrors.due_date && (
+            <p className="mt-1 text-xs font-semibold text-rose-500">{fieldErrors.due_date}</p>
+          )}
         </div>
         <div>
           <label className={labelCls}>Updated Date (optional)</label>
@@ -348,6 +391,14 @@ const ProjectDatesBgStatusModal: React.FC<ProjectDatesBgStatusModalProps> = ({
           />
         </div>
       </div>
+      {error && formMode && (
+        <div
+          role="alert"
+          className="mt-3 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700 dark:border-rose-500/30 dark:bg-rose-500/10 dark:text-rose-300"
+        >
+          {error}
+        </div>
+      )}
       <div className="mt-3 flex flex-col gap-2 sm:flex-row">
         <button
           type="button"

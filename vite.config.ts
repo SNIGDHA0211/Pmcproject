@@ -1,5 +1,5 @@
 
-import { defineConfig } from 'vite';
+import { defineConfig } from 'vitest/config';
 import react from '@vitejs/plugin-react';
 import { copyFileSync } from 'node:fs';
 import { resolve } from 'node:path';
@@ -15,6 +15,10 @@ export default defineConfig({
       },
     },
   ],
+  test: {
+    environment: 'node',
+    include: ['**/*.{test,spec}.{ts,tsx}'],
+  },
   build: {
     outDir: 'dist',
     sourcemap: true,

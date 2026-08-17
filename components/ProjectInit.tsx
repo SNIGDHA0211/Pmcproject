@@ -123,6 +123,7 @@ const ProjectInit: React.FC<ProjectInitProps> = ({ user, onProjectCreated }) => 
     const [formData, setFormData] = useState<ProjectInitForm>({ ...EMPTY_FORM });
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [error, setError] = useState('');
+    const [fieldErrors, setFieldErrors] = useState<{ name?: string; location?: string }>({});
     const [success, setSuccess] = useState('');
     const [projects, setProjects] = useState<any[]>([]);
     const [isLoading, setIsLoading] = useState(true);
@@ -163,25 +164,62 @@ const ProjectInit: React.FC<ProjectInitProps> = ({ user, onProjectCreated }) => 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const { name, value } = e.target;
         setFormData((prev) => ({ ...prev, [name]: value }));
+        if (name === 'name' || name === 'location') {
+            setFieldErrors((prev) => ({ ...prev, [name]: undefined }));
+        }
         setError('');
         setSuccess('');
     };
 
+    const inputClass = (hasError?: boolean) =>
+        `w-full px-4 py-3 rounded-xl text-sm font-bold border outline-none focus:ring-2 ${
+            hasError
+                ? 'border-rose-500 ring-2 ring-rose-500/30 focus:ring-rose-500/40'
+                : themeClasses.border
+        } ${themeClasses.input} ${themeClasses.textPrimary} ${themeClasses.placeholder}`;
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         const projectName = formData.name.trim();
+        const location = formData.location.trim();
+        const nextFieldErrors: { name?: string; location?: string } = {};
+
         if (!projectName) {
-            setError('Project name is required.');
+            nextFieldErrors.name = 'Project name is required.';
+        }
+        if (!location) {
+            nextFieldErrors.location = 'Location is required.';
+        }
+
+        if (nextFieldErrors.name || nextFieldErrors.location) {
+            setFieldErrors(nextFieldErrors);
+            const missing = [
+                nextFieldErrors.name ? 'Project name' : '',
+                nextFieldErrors.location ? 'Location' : '',
+            ].filter(Boolean);
+            setError(`Fill the required fields: ${missing.join(' and ')}.`);
+            setSuccess('');
+            window.requestAnimationFrame(() => {
+                const first = document.querySelector<HTMLInputElement>(
+                    nextFieldErrors.name ? 'input[name="name"]' : 'input[name="location"]',
+                );
+                first?.focus();
+            });
             return;
         }
 
         const duplicate = projects.some((project) => matchesProjectName(project, projectName));
         if (duplicate) {
+            setFieldErrors({ name: 'This project name is already in use.' });
             setError(`A project named "${projectName}" already exists. Use a different name.`);
+            window.requestAnimationFrame(() => {
+                document.querySelector<HTMLInputElement>('input[name="name"]')?.focus();
+            });
             return;
         }
 
         setIsSubmitting(true);
+        setFieldErrors({});
         setError('');
         setSuccess('');
 
@@ -197,7 +235,7 @@ const ProjectInit: React.FC<ProjectInitProps> = ({ user, onProjectCreated }) => 
             // Payload = exactly the 11 form fields (no assigned_users or actor stamps).
             const projectData: Record<string, unknown> = {
                 name: projectName,
-                location: formData.location.trim() || '',
+                location,
                 project_start: projectStart || null,
                 contract_finish: contractFinish || null,
                 forecast_finish: forecastFinish || null,
@@ -381,44 +419,86 @@ const ProjectInit: React.FC<ProjectInitProps> = ({ user, onProjectCreated }) => 
                         </div>
                     )}
                     {error && (
-                        <div className="p-4 bg-rose-500/10 border border-rose-500/30 rounded-xl text-rose-400 text-sm font-bold">
+                        <div
+                            role="alert"
+                            className="p-4 bg-rose-500/10 border border-rose-500/30 rounded-xl text-rose-400 text-sm font-bold"
+                        >
                             {error}
                         </div>
                     )}
 
                     {/* Basic Information */}
                     <div>
-                        <h3 className={`text-xs font-black uppercase tracking-widest mb-4 ${themeClasses.textSecondary}`}>Basic Information</h3>
+                        <h3 className={`text-xs font-black uppercase tracking-widest mb-4 ${themeClasses.textSecondary}`}>
+                            Basic Information
+                            <span className="ml-2 font-bold normal-case tracking-normal text-rose-400">
+                                Project name and location are required
+                            </span>
+                        </h3>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div className="space-y-2">
-                                <label className={`text-[10px] font-black uppercase tracking-widest ${themeClasses.textSecondary}`}>Project Name *</label>
+                                <label
+                                    htmlFor="project-init-name"
+                                    className={`text-[10px] font-black uppercase tracking-widest ${
+                                        fieldErrors.name ? 'text-rose-400' : themeClasses.textSecondary
+                                    }`}
+                                >
+                                    Project Name <span className="text-rose-400">*</span>
+                                </label>
                                 <input
+                                    id="project-init-name"
                                     type="text"
                                     name="name"
                                     value={formData.name}
                                     onChange={handleChange}
-                                    required
-                                    className={`w-full px-4 py-3 rounded-xl text-sm font-bold border outline-none focus:ring-2 ${themeClasses.input} ${themeClasses.border} ${themeClasses.textPrimary} ${themeClasses.placeholder}`}
+                                    aria-invalid={Boolean(fieldErrors.name)}
+                                    aria-describedby={fieldErrors.name ? 'project-init-name-error' : undefined}
+                                    className={inputClass(Boolean(fieldErrors.name))}
                                     placeholder="Enter project name"
                                 />
+                                {fieldErrors.name && (
+                                    <p id="project-init-name-error" className="text-xs font-bold text-rose-400">
+                                        {fieldErrors.name}
+                                    </p>
+                                )}
                             </div>
                             <div className="space-y-2">
-                                <label className={`text-[10px] font-black uppercase tracking-widest ${themeClasses.textSecondary}`}>Location</label>
+                                <label
+                                    htmlFor="project-init-location"
+                                    className={`text-[10px] font-black uppercase tracking-widest ${
+                                        fieldErrors.location ? 'text-rose-400' : themeClasses.textSecondary
+                                    }`}
+                                >
+                                    Location <span className="text-rose-400">*</span>
+                                </label>
                                 <input
+                                    id="project-init-location"
                                     type="text"
                                     name="location"
                                     value={formData.location}
                                     onChange={handleChange}
-                                    className={`w-full px-4 py-3 rounded-xl text-sm font-bold border outline-none focus:ring-2 ${themeClasses.input} ${themeClasses.border} ${themeClasses.textPrimary} ${themeClasses.placeholder}`}
+                                    aria-invalid={Boolean(fieldErrors.location)}
+                                    aria-describedby={fieldErrors.location ? 'project-init-location-error' : undefined}
+                                    className={inputClass(Boolean(fieldErrors.location))}
                                     placeholder="Enter location"
                                 />
+                                {fieldErrors.location && (
+                                    <p id="project-init-location-error" className="text-xs font-bold text-rose-400">
+                                        {fieldErrors.location}
+                                    </p>
+                                )}
                             </div>
                         </div>
                     </div>
 
                     {/* Project Dates */}
                     <div>
-                        <h3 className={`text-xs font-black uppercase tracking-widest mb-4 ${themeClasses.textSecondary}`}>Project Dates</h3>
+                        <h3 className={`text-xs font-black uppercase tracking-widest mb-4 ${themeClasses.textSecondary}`}>
+                            Project Dates
+                            <span className={`ml-2 font-bold normal-case tracking-normal ${themeClasses.textMuted}`}>
+                                Optional
+                            </span>
+                        </h3>
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                             <div className="space-y-2">
                                 <label className={`text-[10px] font-black uppercase tracking-widest ${themeClasses.textSecondary}`}>Project Start</label>
@@ -463,7 +543,12 @@ const ProjectInit: React.FC<ProjectInitProps> = ({ user, onProjectCreated }) => 
 
                 {/* Contract Values */}
                 <div>
-                    <h3 className={`text-xs font-black uppercase tracking-widest mb-4 ${themeClasses.textSecondary}`}>Contract Values (₹)</h3>
+                    <h3 className={`text-xs font-black uppercase tracking-widest mb-4 ${themeClasses.textSecondary}`}>
+                        Contract Values (₹)
+                        <span className={`ml-2 font-bold normal-case tracking-normal ${themeClasses.textMuted}`}>
+                            Optional
+                        </span>
+                    </h3>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                         <div className="space-y-2">
                             <label className={`text-[10px] font-black uppercase tracking-widest ${themeClasses.textSecondary}`}>Original Contract Value</label>
@@ -514,7 +599,12 @@ const ProjectInit: React.FC<ProjectInitProps> = ({ user, onProjectCreated }) => 
 
                 {/* Budget */}
                 <div>
-                    <h3 className={`text-xs font-black uppercase tracking-widest mb-4 ${themeClasses.textSecondary}`}>Budget</h3>
+                    <h3 className={`text-xs font-black uppercase tracking-widest mb-4 ${themeClasses.textSecondary}`}>
+                        Budget
+                        <span className={`ml-2 font-bold normal-case tracking-normal ${themeClasses.textMuted}`}>
+                            Optional
+                        </span>
+                    </h3>
                     <div className="space-y-2">
                         <label className={`text-[10px] font-black uppercase tracking-widest ${themeClasses.textSecondary}`}>Budget at Completion (BAC)</label>
                         <input
@@ -531,7 +621,12 @@ const ProjectInit: React.FC<ProjectInitProps> = ({ user, onProjectCreated }) => 
 
                 {/* Work Configuration */}
                 <div>
-                    <h3 className={`text-xs font-black uppercase tracking-widest mb-4 ${themeClasses.textSecondary}`}>Work Configuration</h3>
+                    <h3 className={`text-xs font-black uppercase tracking-widest mb-4 ${themeClasses.textSecondary}`}>
+                        Work Configuration
+                        <span className={`ml-2 font-bold normal-case tracking-normal ${themeClasses.textMuted}`}>
+                            Optional
+                        </span>
+                    </h3>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div className="space-y-2">
                             <label className={`text-[10px] font-black uppercase tracking-widest ${themeClasses.textSecondary}`}>Working Hours/Day</label>
@@ -566,9 +661,10 @@ const ProjectInit: React.FC<ProjectInitProps> = ({ user, onProjectCreated }) => 
                     <div className="pt-4">
                         <button
                             type="submit"
-                            disabled={isSubmitting || !formData.name.trim()}
-                            className={`w-full py-4 bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 text-white font-bold rounded-2xl shadow-xl transition-all ${isSubmitting || !formData.name.trim() ? 'opacity-50 cursor-not-allowed' : ''
-                                }`}
+                            disabled={isSubmitting}
+                            className={`w-full py-4 bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 text-white font-bold rounded-2xl shadow-xl transition-all ${
+                                isSubmitting ? 'opacity-50 cursor-not-allowed' : ''
+                            }`}
                         >
                             {isSubmitting ? 'Initializing...' : 'Initialize Project'}
                         </button>

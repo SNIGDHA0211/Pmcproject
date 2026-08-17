@@ -4,6 +4,11 @@ import { findHealthSafetyRecordByPeriod } from '../services/api';
 import { ModalPortal } from './ModalPortal';
 import { getThemeClasses, useTheme } from '../utils/theme';
 import { MONTH_OPTIONS } from '../utils/healthSafety';
+import {
+  extractUserFacingFieldErrors,
+  formatUserFacingError,
+  simplifyFieldErrorMessage,
+} from '../utils/formErrors';
 
 export type HealthSafetyFormValues = {
   month: number;
@@ -126,6 +131,124 @@ export function healthSafetyPayloadFromForm(
 
 type NumberField = Exclude<keyof HealthSafetyFormValues, never>;
 
+const HSE_FORM_FIELDS: NumberField[] = [
+  'month',
+  'year',
+  'averageDailyManpower',
+  'workingDays',
+  'fatalities',
+  'significant',
+  'major',
+  'minor',
+  'nearMiss',
+  'reportableAccidentLti',
+  'dangerousOccurrences',
+  'firstAidCases',
+  'medicalTreatmentCases',
+  'utilityDamage',
+  'lossOfManhours',
+  'internalTrainingCount',
+  'internalTrainingHours',
+  'externalTrainingCount',
+  'externalTrainingHours',
+  'mockDrills',
+  'medicalCheckupWorkers',
+  'medicalCheckupStaff',
+];
+
+const HSE_FIELD_SET = new Set<string>(HSE_FORM_FIELDS);
+
+function toHseFormField(field: string): string {
+  if (HSE_FIELD_SET.has(field)) return field;
+  const camel = field.replace(/_([a-z])/g, (_, letter: string) => letter.toUpperCase());
+  return HSE_FIELD_SET.has(camel) ? camel : field;
+}
+
+function mapHealthSafetyApiFieldErrors(error: unknown): Record<string, string> {
+  const raw = extractUserFacingFieldErrors(error);
+  const out: Record<string, string> = {};
+  for (const [key, message] of Object.entries(raw)) {
+    if (key === 'non_field_errors' || key === 'detail' || key.startsWith('item_')) continue;
+    const mapped = toHseFormField(key);
+    if (!HSE_FIELD_SET.has(mapped)) continue;
+    out[mapped] = simplifyFieldErrorMessage(mapped, message);
+  }
+  return out;
+}
+
+function validateHealthSafetyForm(
+  values: HealthSafetyFormValues,
+  existingRecords: HSERecord[],
+  editingRecord?: HSERecord | null,
+): Record<string, string> {
+  const errors: Record<string, string> = {};
+
+  if (!values.month || values.month < 1 || values.month > 12) {
+    errors.month = 'Select a month.';
+  }
+  if (!values.year || values.year < 2000 || values.year > 2100) {
+    errors.year = 'Enter a valid year.';
+  }
+  if (!Number.isFinite(values.averageDailyManpower) || values.averageDailyManpower <= 0) {
+    errors.averageDailyManpower = 'Enter average daily manpower greater than 0.';
+  }
+  if (!Number.isFinite(values.workingDays) || values.workingDays < 1 || values.workingDays > 31) {
+    errors.workingDays = 'Working days must be between 1 and 31.';
+  }
+
+  const optionalCounts: NumberField[] = [
+    'fatalities',
+    'significant',
+    'major',
+    'minor',
+    'nearMiss',
+    'reportableAccidentLti',
+    'dangerousOccurrences',
+    'firstAidCases',
+    'medicalTreatmentCases',
+    'utilityDamage',
+    'lossOfManhours',
+    'internalTrainingCount',
+    'internalTrainingHours',
+    'externalTrainingCount',
+    'externalTrainingHours',
+    'mockDrills',
+    'medicalCheckupWorkers',
+    'medicalCheckupStaff',
+  ];
+  for (const field of optionalCounts) {
+    const n = values[field];
+    if (!Number.isFinite(n) || n < 0) {
+      errors[field] = 'Enter 0 or a positive number.';
+    }
+  }
+
+  const existingForPeriod = findHealthSafetyRecordByPeriod(
+    existingRecords,
+    values.month,
+    values.year,
+  );
+  const isSameRecord =
+    existingForPeriod &&
+    editingRecord &&
+    existingForPeriod.id != null &&
+    editingRecord.id != null &&
+    String(existingForPeriod.id) === String(editingRecord.id);
+  if (existingForPeriod && !isSameRecord && !editingRecord?.id) {
+    errors.month = 'A record for this month already exists. Pick another month or edit that record.';
+  } else if (existingForPeriod && editingRecord?.id && !isSameRecord) {
+    errors.month = 'A record for this month already exists. Pick another month.';
+  }
+
+  return errors;
+}
+
+function focusHseField(field: string) {
+  window.requestAnimationFrame(() => {
+    document.querySelector<HTMLElement>(`[data-hse-field="${field}"]`)?.focus();
+  });
+}
+
 const FieldInput: React.FC<{
   label: string;
   field: NumberField;
@@ -133,19 +256,37 @@ const FieldInput: React.FC<{
   onChange: (field: NumberField, raw: string) => void;
   themeClasses: ReturnType<typeof getThemeClasses>;
   step?: string;
-}> = ({ label, field, values, onChange, themeClasses, step = '1' }) => (
+  required?: boolean;
+  optional?: boolean;
+  error?: string;
+}> = ({ label, field, values, onChange, themeClasses, step = '1', required, optional, error }) => (
   <div>
-    <label className={`mb-0.5 block text-[9px] font-bold uppercase tracking-wide ${themeClasses.textSecondary}`}>
+    <label
+      className={`mb-0.5 block text-[9px] font-bold uppercase tracking-wide ${
+        error ? 'text-rose-400' : themeClasses.textSecondary
+      }`}
+    >
       {label}
+      {required ? <span className="text-rose-400"> *</span> : null}
+      {optional ? (
+        <span className={`ml-1 font-semibold normal-case tracking-normal ${themeClasses.textMuted}`}>
+          Optional
+        </span>
+      ) : null}
     </label>
     <input
       type="number"
       min="0"
       step={step}
+      data-hse-field={field}
+      aria-invalid={Boolean(error)}
       value={values[field]}
       onChange={(e) => onChange(field, e.target.value)}
-      className={`w-full rounded-lg px-2.5 py-1.5 text-xs font-medium outline-none ${themeClasses.input} ${themeClasses.placeholder}`}
+      className={`w-full rounded-lg px-2.5 py-1.5 text-xs font-medium outline-none ${themeClasses.input} ${
+        themeClasses.placeholder
+      } ${error ? 'border border-rose-500 ring-2 ring-rose-500/30' : ''}`}
     />
+    {error && <p className="mt-0.5 text-[10px] font-semibold text-rose-500">{error}</p>}
   </div>
 );
 
@@ -164,6 +305,7 @@ const HealthSafetyMonthlyForm: React.FC<HealthSafetyMonthlyFormProps> = ({
     record ? healthSafetyFormFromRecord(record) : defaultHealthSafetyFormValues(),
   );
   const [localError, setLocalError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
   const preview = useMemo(() => {
     const manDays = values.averageDailyManpower * values.workingDays;
@@ -178,32 +320,51 @@ const HealthSafetyMonthlyForm: React.FC<HealthSafetyMonthlyFormProps> = ({
       ...prev,
       [field]: Number.isFinite(parsed) && parsed >= 0 ? parsed : 0,
     }));
+    setFieldErrors((prev) => {
+      if (!prev[field]) return prev;
+      const next = { ...prev };
+      delete next[field];
+      return next;
+    });
+    setLocalError(null);
   };
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
-    if (values.month < 1 || values.month > 12) {
-      setLocalError('Month must be between 1 and 12.');
-      return;
-    }
-    if (!values.year) {
-      setLocalError('Year is required.');
-      return;
-    }
-    const negativeField = (Object.entries(values) as [NumberField, number][]).find(
-      ([, value]) => typeof value === 'number' && value < 0,
-    );
-    if (negativeField) {
-      setLocalError('Values cannot be negative.');
+    const nextErrors = validateHealthSafetyForm(values, existingRecords, record);
+    if (Object.keys(nextErrors).length > 0) {
+      setFieldErrors(nextErrors);
+      setLocalError('Fix the highlighted fields, then save.');
+      const order = ['month', 'year', 'averageDailyManpower', 'workingDays'] as const;
+      const first = order.find((key) => nextErrors[key]) ?? Object.keys(nextErrors)[0];
+      if (first) focusHseField(first);
       return;
     }
     setLocalError(null);
+    setFieldErrors({});
     const existingForPeriod = findHealthSafetyRecordByPeriod(existingRecords, values.month, values.year);
     const recordToSave =
       existingForPeriod ??
       (record?.month === values.month && record?.year === values.year ? record : null);
-    const saved = await onSubmit(values, recordToSave);
-    if (saved) onClose();
+    try {
+      const saved = await onSubmit(values, recordToSave);
+      if (saved) onClose();
+    } catch (err) {
+      const mapped = mapHealthSafetyApiFieldErrors(err);
+      if (Object.keys(mapped).length > 0) {
+        setFieldErrors(mapped);
+        setLocalError('Fix the highlighted fields, then save.');
+        const order = ['month', 'year', 'averageDailyManpower', 'workingDays'] as const;
+        const first = order.find((key) => mapped[key]) ?? Object.keys(mapped)[0];
+        if (first) focusHseField(first);
+      } else {
+        setLocalError(
+          formatUserFacingError(err, {
+            fallback: 'Unable to save this Health & Safety record. Check the form and try again.',
+          }),
+        );
+      }
+    }
   };
 
   const sectionClass = `rounded-xl border p-2.5 ${
@@ -243,20 +404,36 @@ const HealthSafetyMonthlyForm: React.FC<HealthSafetyMonthlyFormProps> = ({
             </button>
           </div>
 
-          <form onSubmit={submit} className="flex min-h-0 flex-1 flex-col">
+          <form onSubmit={submit} noValidate className="flex min-h-0 flex-1 flex-col">
             <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 py-3">
+              <p className={`text-[10px] font-semibold ${themeClasses.textMuted}`}>
+                Required: month, year, average daily manpower (greater than 0), and working days
+                (1–31). All other counts are optional — leave 0 if none.
+              </p>
               <div className="grid grid-cols-2 gap-2.5">
                 <div>
                   <label
-                    className={`mb-0.5 block text-[9px] font-bold uppercase tracking-wide ${themeClasses.textSecondary}`}
+                    className={`mb-0.5 block text-[9px] font-bold uppercase tracking-wide ${
+                      fieldErrors.month ? 'text-rose-400' : themeClasses.textSecondary
+                    }`}
                   >
-                    Month
+                    Month <span className="text-rose-400">*</span>
                   </label>
                   <select
+                    data-hse-field="month"
                     value={values.month}
-                    onChange={(e) => setValues((prev) => ({ ...prev, month: Number(e.target.value) }))}
-                    className={`w-full rounded-lg px-2.5 py-1.5 text-xs font-medium outline-none ${themeClasses.input}`}
-                    required
+                    onChange={(e) => {
+                      setValues((prev) => ({ ...prev, month: Number(e.target.value) }));
+                      setFieldErrors((prev) => {
+                        const next = { ...prev };
+                        delete next.month;
+                        return next;
+                      });
+                      setLocalError(null);
+                    }}
+                    className={`w-full rounded-lg px-2.5 py-1.5 text-xs font-medium outline-none ${themeClasses.input} ${
+                      fieldErrors.month ? 'border border-rose-500 ring-2 ring-rose-500/30' : ''
+                    }`}
                   >
                     {MONTH_OPTIONS.map((option) => (
                       <option key={option.value} value={option.value}>
@@ -264,27 +441,45 @@ const HealthSafetyMonthlyForm: React.FC<HealthSafetyMonthlyFormProps> = ({
                       </option>
                     ))}
                   </select>
+                  {fieldErrors.month && (
+                    <p className="mt-0.5 text-[10px] font-semibold text-rose-500">{fieldErrors.month}</p>
+                  )}
                 </div>
                 <div>
                   <label
-                    className={`mb-0.5 block text-[9px] font-bold uppercase tracking-wide ${themeClasses.textSecondary}`}
+                    className={`mb-0.5 block text-[9px] font-bold uppercase tracking-wide ${
+                      fieldErrors.year ? 'text-rose-400' : themeClasses.textSecondary
+                    }`}
                   >
-                    Year
+                    Year <span className="text-rose-400">*</span>
                   </label>
                   <input
                     type="number"
                     min="2000"
                     max="2100"
+                    data-hse-field="year"
                     value={values.year}
-                    onChange={(e) => setValues((prev) => ({ ...prev, year: Number(e.target.value) }))}
-                    className={`w-full rounded-lg px-2.5 py-1.5 text-xs font-medium outline-none ${themeClasses.input} ${themeClasses.placeholder}`}
-                    required
+                    onChange={(e) => {
+                      setValues((prev) => ({ ...prev, year: Number(e.target.value) }));
+                      setFieldErrors((prev) => {
+                        const next = { ...prev };
+                        delete next.year;
+                        return next;
+                      });
+                      setLocalError(null);
+                    }}
+                    className={`w-full rounded-lg px-2.5 py-1.5 text-xs font-medium outline-none ${themeClasses.input} ${
+                      themeClasses.placeholder
+                    } ${fieldErrors.year ? 'border border-rose-500 ring-2 ring-rose-500/30' : ''}`}
                   />
+                  {fieldErrors.year && (
+                    <p className="mt-0.5 text-[10px] font-semibold text-rose-500">{fieldErrors.year}</p>
+                  )}
                 </div>
               </div>
 
               <div className={sectionClass}>
-                {sectionTitle(isDarkTheme ? 'text-sky-300' : 'text-sky-700', '1–3 · Manpower (Workers + Staff)')}
+                {sectionTitle(isDarkTheme ? 'text-sky-300' : 'text-sky-700', '1–3 · Manpower (required)')}
                 <div className="grid grid-cols-2 gap-2 sm:grid-cols-2">
                   <FieldInput
                     label="1 · Avg Daily Manpower (Workers + Staff)"
@@ -293,13 +488,17 @@ const HealthSafetyMonthlyForm: React.FC<HealthSafetyMonthlyFormProps> = ({
                     onChange={handleNumberChange}
                     themeClasses={themeClasses}
                     step="0.01"
+                    required
+                    error={fieldErrors.averageDailyManpower}
                   />
                   <FieldInput
-                    label="2 · Working Days (for man days calc)"
+                    label="2 · Working Days"
                     field="workingDays"
                     values={values}
                     onChange={handleNumberChange}
                     themeClasses={themeClasses}
+                    required
+                    error={fieldErrors.workingDays}
                   />
                 </div>
                 <div
@@ -318,7 +517,7 @@ const HealthSafetyMonthlyForm: React.FC<HealthSafetyMonthlyFormProps> = ({
               </div>
 
               <div className={sectionClass}>
-                {sectionTitle(isDarkTheme ? 'text-rose-300' : 'text-rose-700', 'Incidents (4–8)')}
+                {sectionTitle(isDarkTheme ? 'text-rose-300' : 'text-rose-700', 'Incidents (4–8) · optional, use 0 if none')}
                 <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
                   {(
                     [
@@ -337,13 +536,15 @@ const HealthSafetyMonthlyForm: React.FC<HealthSafetyMonthlyFormProps> = ({
                       values={values}
                       onChange={handleNumberChange}
                       themeClasses={themeClasses}
+                      optional
+                      error={fieldErrors[field]}
                     />
                   ))}
                 </div>
               </div>
 
               <div className={sectionClass}>
-                {sectionTitle(isDarkTheme ? 'text-amber-300' : 'text-amber-700', 'Legacy pyramid')}
+                {sectionTitle(isDarkTheme ? 'text-amber-300' : 'text-amber-700', 'Legacy pyramid · optional, use 0 if none')}
                 <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                   {(
                     [
@@ -360,13 +561,15 @@ const HealthSafetyMonthlyForm: React.FC<HealthSafetyMonthlyFormProps> = ({
                       values={values}
                       onChange={handleNumberChange}
                       themeClasses={themeClasses}
+                      optional
+                      error={fieldErrors[field]}
                     />
                   ))}
                 </div>
               </div>
 
               <div className={sectionClass}>
-                {sectionTitle(isDarkTheme ? 'text-violet-300' : 'text-violet-700', 'Man hours lost (9)')}
+                {sectionTitle(isDarkTheme ? 'text-violet-300' : 'text-violet-700', 'Man hours lost (9) · optional')}
                 <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                   <FieldInput
                     label="9 · Man Hours Lost"
@@ -375,12 +578,14 @@ const HealthSafetyMonthlyForm: React.FC<HealthSafetyMonthlyFormProps> = ({
                     onChange={handleNumberChange}
                     themeClasses={themeClasses}
                     step="0.01"
+                    optional
+                    error={fieldErrors.lossOfManhours}
                   />
                 </div>
               </div>
 
               <div className={sectionClass}>
-                {sectionTitle(isDarkTheme ? 'text-emerald-300' : 'text-emerald-700', 'Training & drills (10–12)')}
+                {sectionTitle(isDarkTheme ? 'text-emerald-300' : 'text-emerald-700', 'Training & drills (10–12) · optional')}
                 <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
                   {(
                     [
@@ -399,13 +604,15 @@ const HealthSafetyMonthlyForm: React.FC<HealthSafetyMonthlyFormProps> = ({
                       onChange={handleNumberChange}
                       themeClasses={themeClasses}
                       step={field.includes('Hours') ? '0.01' : '1'}
+                      optional
+                      error={fieldErrors[field]}
                     />
                   ))}
                 </div>
               </div>
 
               <div className={sectionClass}>
-                {sectionTitle(isDarkTheme ? 'text-indigo-300' : 'text-indigo-700', 'Medical checkup (13)')}
+                {sectionTitle(isDarkTheme ? 'text-indigo-300' : 'text-indigo-700', 'Medical checkup (13) · optional')}
                 <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
                   <FieldInput
                     label="13 · Medical Checkup — Workers"
@@ -413,6 +620,8 @@ const HealthSafetyMonthlyForm: React.FC<HealthSafetyMonthlyFormProps> = ({
                     values={values}
                     onChange={handleNumberChange}
                     themeClasses={themeClasses}
+                    optional
+                    error={fieldErrors.medicalCheckupWorkers}
                   />
                   <FieldInput
                     label="13 · Medical Checkup — Staff"
@@ -420,6 +629,8 @@ const HealthSafetyMonthlyForm: React.FC<HealthSafetyMonthlyFormProps> = ({
                     values={values}
                     onChange={handleNumberChange}
                     themeClasses={themeClasses}
+                    optional
+                    error={fieldErrors.medicalCheckupStaff}
                   />
                   <div>
                     <label
@@ -439,7 +650,12 @@ const HealthSafetyMonthlyForm: React.FC<HealthSafetyMonthlyFormProps> = ({
               </div>
 
               {(localError || error) && (
-                <p className="text-xs font-semibold text-rose-500">{localError || error}</p>
+                <div
+                  role="alert"
+                  className="rounded-xl border border-rose-400/40 bg-rose-500/10 px-3 py-2 text-xs font-semibold text-rose-300"
+                >
+                  {localError || error}
+                </div>
               )}
             </div>
 

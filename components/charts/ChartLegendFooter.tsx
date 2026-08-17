@@ -11,16 +11,21 @@ export type ChartLegendItem = {
 export const ChartLegendFooter: React.FC<{
   items: ChartLegendItem[];
   className?: string;
-}> = ({ items, className = '' }) => {
+  borderless?: boolean;
+}> = ({ items, className = '', borderless = false }) => {
   const { isDarkTheme } = useTheme();
   const themeClasses = getThemeClasses(isDarkTheme);
 
   return (
     <div
-      className={`flex flex-wrap items-center justify-center gap-x-3 gap-y-2 border-t px-3 py-2.5 sm:gap-x-5 sm:px-4 sm:py-3 ${
-        isDarkTheme
-          ? 'border-white/10 bg-white/[0.03]'
-          : 'border-slate-100 bg-slate-50/90'
+      className={`flex flex-wrap items-center justify-center gap-x-3 gap-y-1.5 px-3 py-2 sm:gap-x-5 sm:px-4 sm:py-2 ${
+        borderless
+          ? ''
+          : `border-t ${
+              isDarkTheme
+                ? 'border-white/10 bg-white/[0.03]'
+                : 'border-slate-100 bg-slate-50/90'
+            }`
       } ${className}`}
       role="list"
       aria-label="Chart legend"
@@ -56,22 +61,27 @@ export const ExecutiveChartWithLegend: React.FC<{
   legend: ChartLegendItem[];
   children: React.ReactNode;
   className?: string;
-}> = ({ height, legend, children, className = '' }) => {
+  borderless?: boolean;
+}> = ({ height, legend, children, className = '', borderless = false }) => {
   const { isDarkTheme } = useTheme();
   const themeClasses = getThemeClasses(isDarkTheme);
 
   return (
     <div
-      className={`overflow-hidden rounded-xl border ${
-        isDarkTheme
-          ? `${themeClasses.border} bg-white/[0.02]`
-          : 'border-slate-100 bg-white'
-      } ${className}`}
+      className={
+        borderless
+          ? `overflow-hidden rounded-xl ${className}`
+          : `overflow-hidden rounded-xl border ${
+              isDarkTheme
+                ? `${themeClasses.border} bg-white/[0.02]`
+                : 'border-slate-100 bg-white'
+            } ${className}`
+      }
     >
       <div className="w-full min-w-0" style={{ height }}>
         {children}
       </div>
-      <ChartLegendFooter items={legend} />
+      <ChartLegendFooter items={legend} borderless={borderless} />
     </div>
   );
 };

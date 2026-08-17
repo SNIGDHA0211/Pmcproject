@@ -1,6 +1,7 @@
 import React, { useEffect, useId, useRef, useState } from 'react';
 import type { ContractorMasterRecord } from '../../types/contractorManagement';
 import type { PvaCreatePayload, PvaPartyType, PvaRecord } from '../../types/plannedVsActual';
+import { getPvaApiErrorMessage } from '../../services/plannedVsActualApi';
 import { getThemeClasses, useTheme } from '../../utils/theme';
 
 interface PvaFormsProps {
@@ -73,14 +74,64 @@ const reasonRequired = (planned: string, actual: string) => {
   return Number(planned) - Number(actual) > 0;
 };
 
-type FieldKey = 'planned_value' | 'actual_value' | 'collection' | 'reason' | 'remarks';
+type FieldKey =
+  | 'planned_value'
+  | 'actual_value'
+  | 'collection'
+  | 'reason'
+  | 'remarks'
+  | 'contractor_id';
 
-const inputClassFor = (isDark: boolean) =>
-  `w-full rounded-lg border px-3 py-2.5 text-sm outline-none transition-colors focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 disabled:cursor-not-allowed disabled:opacity-60 ${
-    isDark
-      ? 'border-white/15 bg-white/5 text-slate-100'
-      : 'border-slate-200 bg-white text-slate-900'
-  }`;
+const parseAmount = (value: string): number | null => {
+  if (isBlank(value)) return null;
+  const n = Number(value);
+  return Number.isFinite(n) ? n : Number.NaN;
+};
+
+const validatePartyForm = (
+  form: FormState,
+  partyType: PvaPartyType,
+): Record<string, string> => {
+  const errors: Record<string, string> = {};
+
+  if (partyType === 'CONTRACTOR' && !form.contractor_id) {
+    errors.contractor_id = 'Select a contractor.';
+  }
+
+  const planned = parseAmount(form.planned_value);
+  const actual = parseAmount(form.actual_value);
+  const collection = parseAmount(form.collection);
+
+  if (planned === null) errors.planned_value = 'Enter planned value.';
+  else if (Number.isNaN(planned) || planned < 0) {
+    errors.planned_value = 'Enter a valid amount (0 or more).';
+  }
+
+  if (actual === null) errors.actual_value = 'Enter actual value.';
+  else if (Number.isNaN(actual) || actual < 0) {
+    errors.actual_value = 'Enter a valid amount (0 or more).';
+  }
+
+  if (collection === null) errors.collection = 'Enter collection amount.';
+  else if (Number.isNaN(collection) || collection < 0) {
+    errors.collection = 'Enter a valid amount (0 or more).';
+  }
+
+  if (reasonRequired(form.planned_value, form.actual_value) && isBlank(form.reason)) {
+    errors.reason = 'Reason is required when planned is greater than actual.';
+  }
+
+  return errors;
+};
+
+const inputClassFor = (isDark: boolean, hasError = false) =>
+  `w-full rounded-xl border px-3 py-2.5 text-sm font-semibold outline-none transition ${
+    hasError
+      ? 'border-rose-500 ring-2 ring-rose-500/30'
+      : isDark
+        ? 'border-white/15 bg-white/5 text-slate-100 focus:border-indigo-400/70 focus:ring-2 focus:ring-indigo-500/25'
+        : 'border-slate-200 bg-white text-slate-900 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100'
+  } disabled:cursor-not-allowed disabled:opacity-60`;
 
 /** One independent form — never shares state with the other party. */
 const PartyFormCard: React.FC<{
@@ -120,11 +171,11 @@ const PartyFormCard: React.FC<{
   const { isDarkTheme } = useTheme();
   const themeClasses = getThemeClasses(isDarkTheme);
   const formDomId = useId();
-  const inputClass = inputClassFor(isDarkTheme);
 
   const [form, setForm] = useState<FormState>(emptyForm);
   const [localError, setLocalError] = useState<string | null>(null);
   const [localSuccess, setLocalSuccess] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
   const hydratedPeriod = useRef('');
   const hydratedContractor = useRef('');
@@ -138,6 +189,7 @@ const PartyFormCard: React.FC<{
     hydratedContractor.current = '';
     setLocalError(null);
     setLocalSuccess(null);
+    setFieldErrors({});
 
     if (partyType === 'SCL') {
       hydratedPeriod.current = periodKey;
@@ -188,6 +240,7 @@ const PartyFormCard: React.FC<{
     userEdited.current = false;
     setLocalError(null);
     setLocalSuccess(null);
+    setFieldErrors({});
     if (!contractorId) {
       setForm(emptyForm());
       return;
@@ -197,9 +250,20 @@ const PartyFormCard: React.FC<{
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [partyType, periodKey, selectedContractorId]);
 
+  const clearFieldError = (key: string) => {
+    setFieldErrors((prev) => {
+      if (!prev[key]) return prev;
+      const next = { ...prev };
+      delete next[key];
+      return next;
+    });
+    setLocalError(null);
+  };
+
   const updateField = (key: FieldKey, value: string) => {
     userEdited.current = true;
     setLocalSuccess(null);
+    clearFieldError(key);
     setForm((prev) => ({ ...prev, [key]: value }));
   };
 
@@ -208,27 +272,39 @@ const PartyFormCard: React.FC<{
     hydratedContractor.current = contractorId;
     setLocalError(null);
     setLocalSuccess(null);
+    setFieldErrors({});
     onContractorSelect?.(contractorId);
     const match = findContractorRecord(existingContractors, contractorId);
     setForm(recordToForm(match, contractorId));
   };
 
   const submit = async () => {
+    const nextErrors = validatePartyForm(form, partyType);
+    if (Object.keys(nextErrors).length > 0) {
+      setFieldErrors(nextErrors);
+      setLocalError([...new Set(Object.values(nextErrors))].join(' '));
+      setLocalSuccess(null);
+      const order: FieldKey[] = [
+        'contractor_id',
+        'planned_value',
+        'actual_value',
+        'collection',
+        'reason',
+      ];
+      const first = order.find((key) => nextErrors[key]);
+      if (first) {
+        window.requestAnimationFrame(() => {
+          document
+            .querySelector<HTMLElement>(`[data-pva-field="${formDomId}-${first}"]`)
+            ?.focus();
+        });
+      }
+      return;
+    }
+
     setLocalError(null);
     setLocalSuccess(null);
-
-    if (isBlank(form.planned_value) || isBlank(form.actual_value) || isBlank(form.collection)) {
-      setLocalError('Planned Value, Actual Value and Collection are required.');
-      return;
-    }
-    if (partyType === 'CONTRACTOR' && !form.contractor_id) {
-      setLocalError('Select a contractor before saving.');
-      return;
-    }
-    if (reasonRequired(form.planned_value, form.actual_value) && isBlank(form.reason)) {
-      setLocalError('Reason is mandatory when Planned exceeds Actual (difference > 0).');
-      return;
-    }
+    setFieldErrors({});
 
     const selected = contractors.find((c) => String(c.id) === form.contractor_id);
     const payload: PvaCreatePayload = {
@@ -285,17 +361,19 @@ const PartyFormCard: React.FC<{
       setLocalSuccess(
         partyType === 'SCL'
           ? action === 'updated'
-            ? 'SCL record saved (updated). Contractor form was not changed.'
-            : 'SCL record saved (created). Contractor form was not changed.'
+            ? 'SCL record saved.'
+            : 'SCL record created.'
           : action === 'updated'
-            ? 'Contractor record saved (updated). SCL form was not changed.'
-            : 'Contractor record saved (created). SCL form was not changed.',
+            ? 'Contractor record saved.'
+            : 'Contractor record created.',
       );
       if (partyType === 'CONTRACTOR' && form.contractor_id) {
         onContractorSelect?.(form.contractor_id);
       }
-    } catch {
-      if (globalError) setLocalError(globalError);
+    } catch (err) {
+      setLocalError(
+        globalError || getPvaApiErrorMessage(err, 'Could not save this record. Please try again.'),
+      );
     } finally {
       setSaving(false);
     }
@@ -307,90 +385,135 @@ const PartyFormCard: React.FC<{
       ? initialRecord?.id != null
       : findContractorRecord(existingContractors, form.contractor_id)?.id != null);
 
-  const field = (key: FieldKey, label: string, required = false, multiline = false) => {
+  const reasonNeeded = reasonRequired(form.planned_value, form.actual_value);
+  const plannedNum = parseAmount(form.planned_value);
+  const actualNum = parseAmount(form.actual_value);
+  const showGap =
+    plannedNum != null &&
+    actualNum != null &&
+    !Number.isNaN(plannedNum) &&
+    !Number.isNaN(actualNum);
+
+  const field = (
+    key: FieldKey,
+    label: string,
+    options?: { required?: boolean; multiline?: boolean; optional?: boolean; span2?: boolean },
+  ) => {
     const id = `${formDomId}-${partyType}-${key}`;
+    const required =
+      options?.required || (key === 'reason' && reasonNeeded);
+    const hasError = Boolean(fieldErrors[key]);
     return (
-      <label className={key === 'reason' || key === 'remarks' || key === 'collection' ? 'sm:col-span-2' : ''}>
-        <span className={`mb-1 block text-[10px] font-bold uppercase tracking-wide ${themeClasses.textMuted}`}>
+      <div className={options?.span2 || options?.multiline || key === 'reason' || key === 'remarks' || key === 'collection' ? 'sm:col-span-2' : ''}>
+        <label htmlFor={id} className={`mb-1 block text-[10px] font-black uppercase tracking-widest ${hasError ? 'text-rose-400' : themeClasses.textMuted}`}>
           {label}
-          {required || (key === 'reason' && reasonRequired(form.planned_value, form.actual_value))
-            ? ' *'
-            : ''}
-        </span>
-        {multiline ? (
+          {required ? <span className="text-rose-400"> *</span> : null}
+          {options?.optional ? (
+            <span className={`ml-1 font-semibold normal-case tracking-normal ${themeClasses.textMuted}`}>
+              Optional
+            </span>
+          ) : null}
+        </label>
+        {options?.multiline ? (
           <textarea
             id={id}
+            data-pva-field={`${formDomId}-${key}`}
             name={id}
             autoComplete="off"
             disabled={saving || !projectName}
-            className={`${inputClass} min-h-[72px] resize-y`}
+            aria-invalid={hasError}
+            className={`${inputClassFor(isDarkTheme, hasError)} min-h-[80px] resize-y font-medium`}
             value={form[key]}
             onChange={(e) => updateField(key, e.target.value)}
+            placeholder={
+              key === 'reason' && reasonNeeded
+                ? 'Required because planned is greater than actual'
+                : undefined
+            }
           />
         ) : (
           <input
             id={id}
+            data-pva-field={`${formDomId}-${key}`}
             name={id}
             type={key === 'reason' ? 'text' : 'number'}
             step="any"
+            min={key === 'reason' ? undefined : 0}
             autoComplete="off"
             disabled={saving || !projectName}
-            className={inputClass}
+            aria-invalid={hasError}
+            className={inputClassFor(isDarkTheme, hasError)}
             value={form[key]}
             onChange={(e) => updateField(key, e.target.value)}
-            placeholder={
-              key === 'reason' && reasonRequired(form.planned_value, form.actual_value)
-                ? 'Required when Planned > Actual'
-                : undefined
-            }
+            placeholder={key === 'reason' && reasonNeeded ? 'Explain the shortfall' : '0'}
           />
         )}
-      </label>
+        {hasError && (
+          <p className="mt-1 text-xs font-semibold text-rose-500">{fieldErrors[key]}</p>
+        )}
+      </div>
     );
   };
 
   return (
     <div
-      className={`flex h-full min-h-[420px] flex-col overflow-hidden rounded-2xl border bg-white shadow-sm dark:bg-white/[0.03] ${
-        isDarkTheme ? 'border-white/10' : 'border-slate-200'
-      }`}
+      className={`${themeClasses.glassCard} flex h-full min-h-[28rem] flex-col overflow-hidden rounded-2xl border shadow-sm ${themeClasses.border}`}
     >
-      <div className={`border-b px-4 py-3 ${accentClass} ${isDarkTheme ? 'border-white/10' : 'border-slate-100'}`}>
-        <h3 className={`text-sm font-black uppercase tracking-wide ${themeClasses.textPrimary}`}>
+      <div
+        className={`border-b px-5 py-4 ${accentClass} ${isDarkTheme ? 'border-white/10' : 'border-slate-100'}`}
+      >
+        <h3 className={`text-sm font-black uppercase tracking-widest ${themeClasses.textPrimary}`}>
           {title}
         </h3>
-        <p className={`mt-0.5 text-[11px] ${themeClasses.textMuted}`}>{subtitle}</p>
+        <p className={`mt-1 text-[11px] font-semibold ${themeClasses.textMuted}`}>{subtitle}</p>
       </div>
 
-      <div className="flex flex-1 flex-col gap-3 p-4">
-        {(localError || (saving ? null : null)) && localError && (
-          <p className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700">
+      <form
+        className="flex flex-1 flex-col gap-3 p-5"
+        onSubmit={(e) => {
+          e.preventDefault();
+          void submit();
+        }}
+        noValidate
+      >
+        {localError && (
+          <div
+            role="alert"
+            className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700 dark:border-rose-500/30 dark:bg-rose-500/10 dark:text-rose-300"
+          >
             {localError}
-          </p>
+          </div>
         )}
         {localSuccess && !localError && (
-          <p className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-700">
+          <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-300">
             {localSuccess}
-          </p>
+          </div>
         )}
 
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           {partyType === 'CONTRACTOR' && (
-            <label className="sm:col-span-2">
-              <span className={`mb-1 block text-[10px] font-bold uppercase tracking-wide ${themeClasses.textMuted}`}>
-                Contractor *
-              </span>
+            <div className="sm:col-span-2">
+              <label
+                htmlFor={`${formDomId}-contractor`}
+                className={`mb-1 block text-[10px] font-black uppercase tracking-widest ${
+                  fieldErrors.contractor_id ? 'text-rose-400' : themeClasses.textMuted
+                }`}
+              >
+                Contractor <span className="text-rose-400">*</span>
+              </label>
               <select
                 id={`${formDomId}-contractor`}
+                data-pva-field={`${formDomId}-contractor_id`}
                 name={`${formDomId}-contractor`}
-                className={inputClass}
+                className={inputClassFor(isDarkTheme, Boolean(fieldErrors.contractor_id))}
                 value={form.contractor_id}
                 disabled={saving || !projectName || contractors.length === 0}
                 autoComplete="off"
+                aria-invalid={Boolean(fieldErrors.contractor_id)}
                 onChange={(e) => pickContractor(e.target.value)}
               >
                 <option value="">
-                  {contractors.length === 0 ? 'No contractors available…' : 'Select contractor…'}
+                  {contractors.length === 0 ? 'No contractors available' : 'Select contractor'}
                 </option>
                 {contractors.map((c) => (
                   <option key={c.id} value={String(c.id)}>
@@ -398,34 +521,42 @@ const PartyFormCard: React.FC<{
                   </option>
                 ))}
               </select>
+              {fieldErrors.contractor_id && (
+                <p className="mt-1 text-xs font-semibold text-rose-500">{fieldErrors.contractor_id}</p>
+              )}
               {contractors.length === 0 && projectName && (
-                <p className="mt-1 text-[11px] font-semibold text-amber-700">
-                  Add contractors in Contractor Management, then Refresh.
+                <p className="mt-1 text-[11px] font-semibold text-amber-500">
+                  Add contractors in Contractor Management first, then refresh.
                 </p>
               )}
-            </label>
+            </div>
           )}
 
-          {field('planned_value', 'Planned Value', true)}
-          {field('actual_value', 'Actual Value', true)}
-          {field('collection', 'Collection', true)}
-          {field('reason', 'Reason for Difference')}
-          {field('remarks', 'Remarks', false, true)}
+          {field('planned_value', 'Planned Value', { required: true })}
+          {field('actual_value', 'Actual Value', { required: true })}
+          {field('collection', 'Collection', { required: true, span2: true })}
+          {field('reason', 'Reason for Difference', { multiline: true })}
+          {field('remarks', 'Remarks', { multiline: true, optional: true })}
         </div>
 
-        <div className="mt-auto pt-2">
+        {showGap && (
+          <p className={`text-[11px] font-semibold ${themeClasses.textMuted}`}>
+            Difference (planned − actual):{' '}
+            <span className={plannedNum! > actualNum! ? 'text-amber-400' : themeClasses.textPrimary}>
+              {(plannedNum! - actualNum!).toLocaleString('en-IN')}
+            </span>
+            {reasonNeeded ? ' · Reason is required' : ''}
+          </p>
+        )}
+
+        <div className="mt-auto pt-3">
           <button
-            type="button"
-            disabled={
-              saving ||
-              !projectName ||
-              (partyType === 'CONTRACTOR' && (!form.contractor_id || contractors.length === 0))
-            }
-            onClick={() => void submit()}
-            className={`w-full rounded-xl px-4 py-2.5 text-xs font-black uppercase tracking-wide text-white disabled:opacity-50 ${
+            type="submit"
+            disabled={saving || !projectName}
+            className={`w-full rounded-xl px-4 py-3 text-xs font-black uppercase tracking-widest text-white shadow-sm transition disabled:opacity-50 ${
               partyType === 'SCL'
-                ? 'bg-slate-800 hover:bg-slate-900'
-                : 'bg-indigo-600 hover:bg-indigo-700'
+                ? 'bg-slate-800 hover:bg-slate-700'
+                : 'bg-indigo-600 hover:bg-indigo-500'
             }`}
           >
             {saving
@@ -439,7 +570,7 @@ const PartyFormCard: React.FC<{
                   : 'Save Contractor Only'}
           </button>
         </div>
-      </div>
+      </form>
     </div>
   );
 };
@@ -463,23 +594,27 @@ const PvaForms: React.FC<PvaFormsProps> = ({
   return (
     <section className="space-y-3">
       <div>
-        <h2 className={`text-xs font-black uppercase tracking-widest ${themeClasses.textSecondary}`}>
+        <h2 className={`text-lg font-black uppercase tracking-tight ${themeClasses.textPrimary}`}>
           Update Records
         </h2>
-        <p className={`mt-1 text-[11px] ${themeClasses.textMuted}`}>
-          Separate forms · POST upsert (create or update) · Reason required when Planned &gt; Actual
+        <p className={`mt-1 text-[12px] font-semibold ${themeClasses.textMuted}`}>
+          Save SCL and contractor separately. Reason is required only when planned is greater than
+          actual.
         </p>
       </div>
 
       {error && (
-        <p className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700">
+        <div
+          role="alert"
+          className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700 dark:border-rose-500/30 dark:bg-rose-500/10 dark:text-rose-300"
+        >
           {error}
-        </p>
+        </div>
       )}
       {success && !error && (
-        <p className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-700">
+        <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-300">
           {success}
-        </p>
+        </div>
       )}
       {!projectName && (
         <p className={`text-sm ${themeClasses.textMuted}`}>

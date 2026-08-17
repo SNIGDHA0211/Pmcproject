@@ -50,6 +50,14 @@ export function formatChartCountAxisTick(value: number): string {
   return n.toLocaleString('en-IN', { maximumFractionDigits: 0 });
 }
 
+/** Fit Y-axis to data with headroom — avoids large empty bands on sparse charts. */
+export function getChartNumericYMax(values: number[], padRatio = 0.12): number | undefined {
+  const finite = values.filter((v) => Number.isFinite(v) && v > 0);
+  if (finite.length === 0) return undefined;
+  const max = Math.max(...finite);
+  return Math.ceil(max * (1 + padRatio));
+}
+
 export const chartXAxisMonthProps = {
   angle: -28,
   textAnchor: 'end' as const,
@@ -57,6 +65,16 @@ export const chartXAxisMonthProps = {
   tickMargin: 8,
   interval: 'preserveStartEnd' as const,
   minTickGap: 4,
+};
+
+/** Horizontal month labels for 1–3 data points (no slant, less vertical padding). */
+export const chartXAxisMonthPropsSparse = {
+  angle: 0,
+  textAnchor: 'middle' as const,
+  height: 28,
+  tickMargin: 6,
+  interval: 0 as const,
+  minTickGap: 0,
 };
 
 /** Wider tick spacing for dense executive dashboards */

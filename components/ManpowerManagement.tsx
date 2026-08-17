@@ -7,6 +7,11 @@ import { Project, User, UserRole } from '../types';
 import { formatReportPercent, formatReportTodayDate } from '../utils/csvReport';
 import { downloadSectionsExcel } from '../utils/projectReportExcel';
 import { useDebouncedValue } from '../hooks/useDebouncedValue';
+import {
+  extractUserFacingFieldErrors,
+  formatUserFacingError,
+  simplifyFieldErrorMessage,
+} from '../utils/formErrors';
 
 interface ManpowerRecord {
   id: number;
@@ -41,6 +46,122 @@ const MONTHS = [
 ];
 
 const TABLE_HEADERS = ['Sr', 'Project', 'Month-Year', 'Planned', 'Actual', 'Difference', 'Efficiency', 'Actions'] as const;
+
+type ManpowerFormValues = {
+  project_name: string;
+  month: string;
+  year: string;
+  planned_manpower: string;
+  actual_manpower: string;
+  remarks: string;
+};
+
+const MANPOWER_FORM_FIELDS = [
+  'project_name',
+  'month',
+  'year',
+  'planned_manpower',
+  'actual_manpower',
+  'remarks',
+] as const;
+
+const MANPOWER_FORM_FIELD_SET = new Set<string>(MANPOWER_FORM_FIELDS);
+
+const MANPOWER_FIELD_ALIASES: Record<string, string> = {
+  monthly_planned_manpower: 'planned_manpower',
+  month_year: 'month',
+  project: 'project_name',
+  name: 'project_name',
+};
+
+function toManpowerFormField(field: string): string {
+  if (MANPOWER_FIELD_ALIASES[field]) return MANPOWER_FIELD_ALIASES[field];
+  if (MANPOWER_FORM_FIELD_SET.has(field)) return field;
+  const camel = field.replace(/_([a-z])/g, (_, letter: string) => letter.toUpperCase());
+  return MANPOWER_FORM_FIELD_SET.has(camel) ? camel : field;
+}
+
+function mapManpowerApiFieldErrors(err: unknown): Record<string, string> {
+  const raw = extractUserFacingFieldErrors(err);
+  const out: Record<string, string> = {};
+  for (const [key, message] of Object.entries(raw)) {
+    if (key === 'non_field_errors' || key === 'detail' || key.startsWith('item_')) continue;
+    const mapped = toManpowerFormField(key);
+    if (!MANPOWER_FORM_FIELD_SET.has(mapped)) continue;
+    out[mapped] = simplifyFieldErrorMessage(mapped, message);
+  }
+  return out;
+}
+
+function parseManpowerCount(raw: string): number | null {
+  const trimmed = String(raw ?? '').trim();
+  if (trimmed === '') return null;
+  if (!/^\d+$/.test(trimmed)) return Number.NaN;
+  return Number(trimmed);
+}
+
+function validateManpowerForm(
+  values: ManpowerFormValues,
+  options: {
+    restrictToAssigned: boolean;
+    matchesAssignedProject: (name: string) => boolean;
+    existingRecords: ManpowerRecord[];
+    editingId: number | null;
+  },
+): Record<string, string> {
+  const errors: Record<string, string> = {};
+  const projectName = values.project_name.trim();
+
+  if (!projectName) {
+    errors.project_name = 'Select a project.';
+  } else if (options.restrictToAssigned && !options.matchesAssignedProject(projectName)) {
+    errors.project_name = 'You can only save manpower for an assigned project.';
+  }
+
+  if (!values.month || !MONTHS.includes(values.month)) {
+    errors.month = 'Select a month.';
+  }
+
+  const yearNum = Number(String(values.year ?? '').trim());
+  if (!Number.isInteger(yearNum) || yearNum < 2000 || yearNum > 2100) {
+    errors.year = 'Enter a valid year.';
+  }
+
+  const planned = parseManpowerCount(values.planned_manpower);
+  if (planned == null) {
+    errors.planned_manpower = 'Enter monthly planned manpower.';
+  } else if (!Number.isFinite(planned) || planned < 0) {
+    errors.planned_manpower = 'Enter a whole number (0 or more).';
+  }
+
+  const actual = parseManpowerCount(values.actual_manpower);
+  if (actual == null) {
+    errors.actual_manpower = 'Enter actual manpower.';
+  } else if (!Number.isFinite(actual) || actual < 0) {
+    errors.actual_manpower = 'Enter a whole number (0 or more).';
+  }
+
+  if (projectName && values.month && Number.isInteger(yearNum)) {
+    const period = `${values.month}-${yearNum}`;
+    const duplicate = options.existingRecords.find(
+      (row) =>
+        normalizeProjectKey(row.project_name) === normalizeProjectKey(projectName) &&
+        row.month_year === period &&
+        row.id !== options.editingId,
+    );
+    if (duplicate) {
+      errors.month = 'A record for this project and month already exists. Edit that record instead.';
+    }
+  }
+
+  return errors;
+}
+
+function focusManpowerField(field: string) {
+  window.requestAnimationFrame(() => {
+    document.querySelector<HTMLElement>(`[data-manpower-field="${field}"]`)?.focus();
+  });
+}
 
 function normalizeProjectKey(name: string): string {
   return name.trim().toLowerCase();
@@ -162,6 +283,8 @@ const ManpowerManagement: React.FC<ManpowerManagementProps> = ({ projects = [], 
   });
   const [editingId, setEditingId] = useState<number | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [formError, setFormError] = useState<string | null>(null);
 
   // Filters & search
   const [searchTerm, setSearchTerm] = useState("");
@@ -376,6 +499,11 @@ const ManpowerManagement: React.FC<ManpowerManagementProps> = ({ projects = [], 
       ? `${themeClasses.input} ${themeClasses.border}`
       : 'border-[#E2E8F0] bg-white text-[#1E293B] placeholder:text-[15px] placeholder:font-normal placeholder:text-[#94A3B8]'
   }`;
+  const invalidInputClass = isDarkTheme
+    ? 'border-rose-500 ring-2 ring-rose-500/30 focus:border-rose-500 focus:ring-rose-500/30'
+    : 'border-rose-400 ring-2 ring-rose-200 focus:border-rose-500 focus:ring-rose-200';
+  const errorTextClass = `mt-1.5 text-[12px] font-semibold ${isDarkTheme ? 'text-rose-400' : 'text-rose-600'}`;
+  const errorLabelClass = isDarkTheme ? 'text-rose-400' : 'text-rose-600';
   const secondaryBtnClass = `inline-flex h-11 items-center justify-center gap-2 rounded-xl border px-5 text-sm font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#2563EB]/30 focus-visible:ring-offset-2 disabled:opacity-60 ${
     isDarkTheme
       ? `${themeClasses.border} ${themeClasses.buttonSecondary}`
@@ -528,8 +656,15 @@ const ManpowerManagement: React.FC<ManpowerManagementProps> = ({ projects = [], 
       : projects.map((project) => project.title);
 
   // Form handlers
-  const handleInputChange = (field: string, value: string) => {
+  const handleInputChange = (field: keyof ManpowerFormValues, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
+    setFormError(null);
+    setFieldErrors((prev) => {
+      if (!prev[field]) return prev;
+      const next = { ...prev };
+      delete next[field];
+      return next;
+    });
   };
 
   const resetForm = () => {
@@ -542,6 +677,8 @@ const ManpowerManagement: React.FC<ManpowerManagementProps> = ({ projects = [], 
       remarks: "",
     });
     setEditingId(null);
+    setFieldErrors({});
+    setFormError(null);
   };
 
   const handleEdit = (record: ManpowerRecord) => {
@@ -555,44 +692,47 @@ const ManpowerManagement: React.FC<ManpowerManagementProps> = ({ projects = [], 
       remarks: "",
     });
     setEditingId(record.id);
-    // scroll to form
+    setFieldErrors({});
+    setFormError(null);
     window.scrollTo({ top: 120, behavior: "smooth" });
   };
 
   const handleSubmit = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
 
-    if (!formData.project_name.trim()) {
-      showToast("Project name is required", "error");
+    const nextErrors = validateManpowerForm(formData, {
+      restrictToAssigned: isTeamLead || isSiteEngineer,
+      matchesAssignedProject,
+      existingRecords: records,
+      editingId,
+    });
+    if (Object.keys(nextErrors).length > 0) {
+      setFieldErrors(nextErrors);
+      setFormError('Fix the highlighted fields, then save.');
+      const order: (keyof ManpowerFormValues)[] = [
+        'project_name',
+        'month',
+        'year',
+        'planned_manpower',
+        'actual_manpower',
+      ];
+      const first = order.find((key) => nextErrors[key]) ?? Object.keys(nextErrors)[0];
+      if (first) focusManpowerField(first);
       return;
     }
-    if (isTeamLead && !matchesAssignedProject(formData.project_name)) {
-      showToast("You can only manage manpower for your assigned project", "error");
-      return;
-    }
-    if (!formData.month || !formData.year) {
-      showToast("Month and Year are required", "error");
-      return;
-    }
-    const plannedNum = parseInt(formData.planned_manpower);
-    const actualNum = parseInt(formData.actual_manpower);
-    if (
-      isNaN(plannedNum) ||
-      plannedNum < 0 ||
-      isNaN(actualNum) ||
-      actualNum < 0
-    ) {
-      showToast(
-        "Planned and Actual manpower must be non-negative numbers",
-        "error",
-      );
+
+    const plannedNum = parseManpowerCount(formData.planned_manpower);
+    const actualNum = parseManpowerCount(formData.actual_manpower);
+    const yearNum = Number(String(formData.year).trim());
+    if (plannedNum == null || actualNum == null || !Number.isInteger(yearNum)) {
+      setFormError('Fix the highlighted fields, then save.');
       return;
     }
 
     const payload = {
       project_name: formData.project_name.trim(),
       month: formData.month,
-      year: parseInt(formData.year, 10),
+      year: yearNum,
       planned_manpower: plannedNum,
       actual_manpower: actualNum,
       working_hours_per_day: 8,
@@ -600,21 +740,65 @@ const ManpowerManagement: React.FC<ManpowerManagementProps> = ({ projects = [], 
     };
 
     setIsSubmitting(true);
+    setFormError(null);
+    setFieldErrors({});
     try {
-      if (editingId) {
-        await manpowerApi.updateManpower(editingId, payload);
-        showToast("Manpower record updated successfully!");
-      } else {
-        await manpowerApi.createManpower(payload);
-        showToast("Manpower record created successfully!");
+      const response = editingId
+        ? await manpowerApi.updateManpower(editingId, payload)
+        : await manpowerApi.createManpower(payload);
+      const env = response?.data as Record<string, unknown> | undefined;
+      if (env && typeof env === 'object' && env.success === false) {
+        const mapped = mapManpowerApiFieldErrors({ response: { data: env } });
+        if (Object.keys(mapped).length > 0) {
+          setFieldErrors(mapped);
+          setFormError('Fix the highlighted fields, then save.');
+          const order: (keyof ManpowerFormValues)[] = [
+            'project_name',
+            'month',
+            'year',
+            'planned_manpower',
+            'actual_manpower',
+            'remarks',
+          ];
+          const first = order.find((key) => mapped[key]) ?? Object.keys(mapped)[0];
+          if (first) focusManpowerField(first);
+        } else {
+          setFormError(
+            formatUserFacingError(
+              { response: { data: env } },
+              { fallback: 'Unable to save this manpower record. Check the form and try again.' },
+            ),
+          );
+        }
+        return;
       }
+      showToast(
+        editingId ? 'Manpower record updated successfully!' : 'Manpower record created successfully!',
+      );
       resetForm();
       await fetchRecords();
-    } catch (err: any) {
-      const msg = err?.response?.data
-        ? JSON.stringify(err.response.data)
-        : err.message || "Unknown error";
-      showToast(`Save failed: ${msg}`, "error");
+    } catch (err: unknown) {
+      const mapped = mapManpowerApiFieldErrors(err);
+      if (Object.keys(mapped).length > 0) {
+        setFieldErrors(mapped);
+        setFormError('Fix the highlighted fields, then save.');
+        const order: (keyof ManpowerFormValues)[] = [
+          'project_name',
+          'month',
+          'year',
+          'planned_manpower',
+          'actual_manpower',
+          'remarks',
+        ];
+        const first = order.find((key) => mapped[key]) ?? Object.keys(mapped)[0];
+        if (first) focusManpowerField(first);
+      } else {
+        setFormError(
+          formatUserFacingError(err, {
+            fallback: 'Unable to save this manpower record. Check the form and try again.',
+          }),
+        );
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -1113,18 +1297,24 @@ const ManpowerManagement: React.FC<ManpowerManagementProps> = ({ projects = [], 
           )}
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-6 p-4 sm:p-6">
+        <form onSubmit={handleSubmit} noValidate className="space-y-6 p-4 sm:p-6">
+          <p className={`text-xs font-semibold ${isDarkTheme ? themeClasses.textMuted : 'text-[#64748B]'}`}>
+            Required: project, month, year, planned manpower, and actual manpower (0 or more). Remarks are optional.
+          </p>
           {/* Row 1: Project + Month + Year */}
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 lg:gap-x-6 lg:gap-y-6">
             {/* Project */}
             <div ref={projectNameRef} className="manpower-project-name-field">
-              <label className={labelClass}>Project Name *</label>
+              <label className={`${labelClass} ${fieldErrors.project_name ? errorLabelClass : ''}`}>
+                Project Name <span className="text-rose-400">*</span>
+              </label>
               {isTeamLead && assignedProjectNames.length > 0 ? (
                 <select
+                  data-manpower-field="project_name"
+                  aria-invalid={Boolean(fieldErrors.project_name)}
                   value={formData.project_name}
                   onChange={(e) => handleInputChange('project_name', e.target.value)}
-                  className={inputClass}
-                  required
+                  className={`${inputClass} ${fieldErrors.project_name ? invalidInputClass : ''}`}
                   disabled={Boolean(singleAssignedProjectName)}
                 >
                   {assignedProjectNames.map((name) => (
@@ -1138,11 +1328,12 @@ const ManpowerManagement: React.FC<ManpowerManagementProps> = ({ projects = [], 
                   <input
                     type="text"
                     list="project-list"
+                    data-manpower-field="project_name"
+                    aria-invalid={Boolean(fieldErrors.project_name)}
                     value={formData.project_name}
                     onChange={(e) => handleInputChange('project_name', e.target.value)}
                     placeholder="e.g. Thane Project"
-                    className={inputClass}
-                    required
+                    className={`${inputClass} ${fieldErrors.project_name ? invalidInputClass : ''}`}
                   />
                   <datalist id="project-list">
                     {projectOptions.map((p, i) => (
@@ -1151,34 +1342,44 @@ const ManpowerManagement: React.FC<ManpowerManagementProps> = ({ projects = [], 
                   </datalist>
                 </>
               )}
+              {fieldErrors.project_name && <p className={errorTextClass}>{fieldErrors.project_name}</p>}
             </div>
 
             {/* Month */}
             <div ref={monthRef} className="manpower-month-field">
-              <label className={labelClass}>Month *</label>
+              <label className={`${labelClass} ${fieldErrors.month ? errorLabelClass : ''}`}>
+                Month <span className="text-rose-400">*</span>
+              </label>
               <select
+                data-manpower-field="month"
+                aria-invalid={Boolean(fieldErrors.month)}
                 value={formData.month}
                 onChange={(e) => handleInputChange('month', e.target.value)}
-                className={inputClass}
+                className={`${inputClass} ${fieldErrors.month ? invalidInputClass : ''}`}
               >
                 {MONTHS.map((m) => (
                   <option key={m} value={m}>{m}</option>
                 ))}
               </select>
+              {fieldErrors.month && <p className={errorTextClass}>{fieldErrors.month}</p>}
             </div>
 
             {/* Year */}
             <div ref={yearRef} className="manpower-year-field">
-              <label className={labelClass}>Year *</label>
+              <label className={`${labelClass} ${fieldErrors.year ? errorLabelClass : ''}`}>
+                Year <span className="text-rose-400">*</span>
+              </label>
               <input
                 type="number"
+                data-manpower-field="year"
+                aria-invalid={Boolean(fieldErrors.year)}
                 value={formData.year}
                 onChange={(e) => handleInputChange("year", e.target.value)}
-                min="2020"
-                max="2035"
-                className={inputClass}
-                required
+                min="2000"
+                max="2100"
+                className={`${inputClass} ${fieldErrors.year ? invalidInputClass : ''}`}
               />
+              {fieldErrors.year && <p className={errorTextClass}>{fieldErrors.year}</p>}
             </div>
           </div>
 
@@ -1186,32 +1387,40 @@ const ManpowerManagement: React.FC<ManpowerManagementProps> = ({ projects = [], 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 lg:gap-x-6 lg:gap-y-6">
             {/* Planned */}
             <div ref={plannedManpowerRef} className="manpower-planned-field">
-              <label className={`${labelClass} ${!isDarkTheme ? 'text-[#2563EB]' : ''}`}>
-                Monthly Planned Manpower *
+              <label className={`${labelClass} ${fieldErrors.planned_manpower ? errorLabelClass : !isDarkTheme ? 'text-[#2563EB]' : ''}`}>
+                Monthly Planned Manpower <span className="text-rose-400">*</span>
               </label>
               <input
                 type="number"
                 min="0"
+                step="1"
+                inputMode="numeric"
+                data-manpower-field="planned_manpower"
+                aria-invalid={Boolean(fieldErrors.planned_manpower)}
                 value={formData.planned_manpower}
                 onChange={(e) => handleInputChange('planned_manpower', e.target.value)}
-                className={`${inputClass} ${!isDarkTheme ? 'focus:border-[#2563EB] focus:ring-[#2563EB]/20' : ''}`}
-                required
+                className={`${inputClass} ${fieldErrors.planned_manpower ? invalidInputClass : !isDarkTheme ? 'focus:border-[#2563EB] focus:ring-[#2563EB]/20' : ''}`}
               />
+              {fieldErrors.planned_manpower && <p className={errorTextClass}>{fieldErrors.planned_manpower}</p>}
             </div>
 
             {/* Actual */}
             <div ref={actualManpowerRef} className="manpower-actual-field">
-              <label className={`${labelClass} ${!isDarkTheme ? 'text-[#10B981]' : ''}`}>
-                Actual Manpower *
+              <label className={`${labelClass} ${fieldErrors.actual_manpower ? errorLabelClass : !isDarkTheme ? 'text-[#10B981]' : ''}`}>
+                Actual Manpower <span className="text-rose-400">*</span>
               </label>
               <input
                 type="number"
                 min="0"
+                step="1"
+                inputMode="numeric"
+                data-manpower-field="actual_manpower"
+                aria-invalid={Boolean(fieldErrors.actual_manpower)}
                 value={formData.actual_manpower}
                 onChange={(e) => handleInputChange('actual_manpower', e.target.value)}
-                className={`${inputClass} ${!isDarkTheme ? 'focus:border-[#10B981] focus:ring-emerald-500/20' : ''}`}
-                required
+                className={`${inputClass} ${fieldErrors.actual_manpower ? invalidInputClass : !isDarkTheme ? 'focus:border-[#10B981] focus:ring-emerald-500/20' : ''}`}
               />
+              {fieldErrors.actual_manpower && <p className={errorTextClass}>{fieldErrors.actual_manpower}</p>}
             </div>
 
             {/* Live Difference */}
@@ -1237,8 +1446,15 @@ const ManpowerManagement: React.FC<ManpowerManagementProps> = ({ projects = [], 
 
             {/* Remarks */}
             <div ref={remarksRef} className="manpower-remarks-field">
-              <label className={labelClass}>Remarks (Optional)</label>
+              <label className={`${labelClass} ${fieldErrors.remarks ? errorLabelClass : ''}`}>
+                Remarks
+                <span className={`ml-1 font-semibold normal-case tracking-normal ${isDarkTheme ? themeClasses.textMuted : 'text-[#94A3B8]'}`}>
+                  Optional
+                </span>
+              </label>
               <textarea
+                data-manpower-field="remarks"
+                aria-invalid={Boolean(fieldErrors.remarks)}
                 value={formData.remarks}
                 onChange={(e) => handleInputChange('remarks', e.target.value)}
                 rows={2}
@@ -1247,9 +1463,19 @@ const ManpowerManagement: React.FC<ManpowerManagementProps> = ({ projects = [], 
                   isDarkTheme
                     ? `${themeClasses.input} ${themeClasses.border}`
                     : 'border-[#E2E8F0] bg-white text-[#1E293B] placeholder:text-[15px] placeholder:font-normal placeholder:text-[#94A3B8]'
-                }`}
+                } ${fieldErrors.remarks ? invalidInputClass : ''}`}
               />
+              {fieldErrors.remarks && <p className={errorTextClass}>{fieldErrors.remarks}</p>}
             </div>
+
+          {formError && (
+            <div
+              role="alert"
+              className="rounded-xl border border-rose-400/40 bg-rose-500/10 px-3 py-2 text-sm font-semibold text-rose-500"
+            >
+              {formError}
+            </div>
+          )}
 
           {/* Actions */}
           <div className="flex flex-col sm:flex-row gap-3 pt-2">

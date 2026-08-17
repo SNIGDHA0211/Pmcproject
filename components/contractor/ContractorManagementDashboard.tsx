@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Plus, Users } from 'lucide-react';
+import { Plus, Users, Building2, CreditCard } from 'lucide-react';
 import type { Project, UserRole } from '../../types';
 import type { ContractorMasterRecord, ProjectDatesApiRecord } from '../../types/contractorManagement';
 import type { ProjectDatesRecord } from '../../services/api';
@@ -207,13 +207,29 @@ const ContractorManagementDashboard: React.FC<ContractorManagementDashboardProps
           />
         )}
         {showFinancial && !cm.loading && !cm.contractValues && !cm.invoicing && (
-          <div className={`${theme.panel} p-6 text-center`}>
-            <p className={theme.emptyTitle}>No contract or invoicing data</p>
-            <p className={`mt-0.5 ${theme.emptySubtitle}`}>
-              {cm.error
-                ? 'Financial records could not be loaded. Try Refresh above.'
-                : 'Add contract values and invoicing records in Financial Management.'}
+          <div className={`${theme.panel} p-5 sm:p-6`}>
+            <p className={theme.emptyTitle}>No contract or invoicing data yet</p>
+            <p className={`mt-1 ${theme.emptySubtitle}`}>
+              Add values in Financial Management. The dashboard here will update after you save.
             </p>
+            <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+              <CmButton
+                variant="primary"
+                icon={Building2}
+                onClick={() => onNavigateFinancial?.('contracts')}
+                disabled={!onNavigateFinancial}
+              >
+                Add Contract Values
+              </CmButton>
+              <CmButton
+                variant="secondary"
+                icon={CreditCard}
+                onClick={() => onNavigateFinancial?.('invoicing')}
+                disabled={!onNavigateFinancial}
+              >
+                Add Invoicing
+              </CmButton>
+            </div>
           </div>
         )}
       </div>

@@ -19,6 +19,7 @@ type DashboardChartShellProps = {
   emptyMessage: string;
   children: React.ReactNode;
   chartMinHeight?: number;
+  borderless?: boolean;
 };
 
 /**
@@ -33,6 +34,7 @@ const DashboardChartShell: React.FC<DashboardChartShellProps> = ({
   emptyMessage,
   children,
   chartMinHeight = DASHBOARD_CHART_MIN_HEIGHT,
+  borderless = false,
 }) => {
   const { isDarkTheme } = useTheme();
   const themeClasses = getThemeClasses(isDarkTheme);
@@ -41,15 +43,21 @@ const DashboardChartShell: React.FC<DashboardChartShellProps> = ({
   const fsActions = useFullScreenCardActions();
 
   const resolvedMinHeight = isExpanded ? DASHBOARD_CHART_MIN_HEIGHT_EXPANDED : chartMinHeight;
-  const shellClass = isExpanded
-    ? `relative flex h-full min-h-0 flex-1 flex-col overflow-hidden rounded-xl border ${DASHBOARD_CHART_SHELL_PADDING} ${dashboardChartShellBorder(isDarkTheme)}`
-    : `relative flex h-full min-h-0 flex-col overflow-hidden rounded-xl border ${DASHBOARD_CHART_SHELL_PADDING} ${dashboardChartShellBorder(isDarkTheme)}`;
+  const shellClass = borderless
+    ? `relative flex h-full min-h-0 flex-1 flex-col overflow-hidden rounded-xl ${DASHBOARD_CHART_SHELL_PADDING}`
+    : `relative flex h-full min-h-0 flex-1 flex-col overflow-hidden rounded-xl border ${DASHBOARD_CHART_SHELL_PADDING} ${dashboardChartShellBorder(isDarkTheme)}`;
 
   return (
-    <div className={`${shellClass} ${themeClasses.glassCard}`}>
+    <div
+      className={`${shellClass} ${themeClasses.glassCard}${
+        borderless ? ' !border-0 !shadow-none' : ''
+      }`}
+    >
       <DashboardCardTopAccent />
       <div
-        className={`mb-2 flex shrink-0 items-center justify-between gap-2 border-b pb-2 pt-0.5 sm:gap-3 ${themeClasses.border}`}
+        className={`mb-2 flex shrink-0 items-center justify-between gap-2 pb-2 pt-0.5 sm:gap-3 ${
+          borderless ? '' : `border-b ${themeClasses.border}`
+        }`}
       >
         <h3 className={`min-w-0 flex-1 ${typo.sectionTitle(isDarkTheme)}`}>{title}</h3>
         {(headerActions || fsActions) && (

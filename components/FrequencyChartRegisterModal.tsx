@@ -4,6 +4,11 @@ import type { FrequencyChartRegisterRow, FrequencyChartTestStatus } from "../typ
 import { ModalPortal } from "./ModalPortal";
 import { getThemeClasses, useTheme } from "../utils/theme";
 import { Icons } from "./Icons";
+import {
+  extractUserFacingFieldErrors,
+  formatUserFacingError,
+  simplifyFieldErrorMessage,
+} from "../utils/formErrors";
 
 const MONTH_OPTIONS = [
   { value: 1,  label: "January"   }, { value: 2,  label: "February"  },
@@ -75,18 +80,97 @@ function statusBadgeClass(status: FrequencyChartTestStatus, isDark: boolean): st
   return isDark ? "bg-rose-900/50 text-rose-300" : "bg-red-100 text-red-700";
 }
 
-function extractFieldErrors(err: unknown): Record<string, string> {
-  const data = (err as { response?: { data?: unknown } })?.response?.data;
-  if (!data || typeof data !== "object") return {};
-  const body = data as Record<string, unknown>;
-  const errors = (body.errors ?? body) as Record<string, unknown>;
+const FORM_FIELD_KEYS: (keyof FormValues)[] = [
+  "month",
+  "year",
+  "itemDescription",
+  "typeOfTest",
+  "unit",
+  "qtyPreviousBill",
+  "qtyThisBill",
+  "fieldLabPreviousBill",
+  "fieldLabThisBill",
+  "thirdPartyPreviousBill",
+  "thirdPartyThisBill",
+  "requiredTests",
+  "conductedTests",
+  "passedTests",
+  "remarks",
+  "activityName",
+  "contractorName",
+];
+
+const FORM_FIELD_SET = new Set<string>(FORM_FIELD_KEYS);
+
+function toFormField(field: string): string {
+  if (FORM_FIELD_SET.has(field)) return field;
+  const camel = field.replace(/_([a-z])/g, (_, letter: string) => letter.toUpperCase());
+  return FORM_FIELD_SET.has(camel) ? camel : field;
+}
+
+function mapApiFieldErrors(err: unknown): Record<string, string> {
+  const raw = extractUserFacingFieldErrors(err);
   const out: Record<string, string> = {};
-  for (const [key, val] of Object.entries(errors)) {
-    if (key === "success" || key === "message" || key === "detail" || key === "data") continue;
-    if (Array.isArray(val)) out[key] = val.map(String).join(", ");
-    else if (typeof val === "string") out[key] = val;
+  for (const [key, message] of Object.entries(raw)) {
+    if (key === "non_field_errors" || key === "detail" || key.startsWith("item_")) continue;
+    const mapped = toFormField(key);
+    if (!FORM_FIELD_SET.has(mapped)) continue;
+    out[mapped] = simplifyFieldErrorMessage(mapped, message);
   }
   return out;
+}
+
+function validateTestRecordForm(values: FormValues): Record<string, string> {
+  const errors: Record<string, string> = {};
+
+  if (!values.month || values.month < 1 || values.month > 12) {
+    errors.month = "Select a month.";
+  }
+  if (!values.year || values.year < 2000) {
+    errors.year = "Select a year.";
+  }
+  if (!values.itemDescription.trim()) {
+    errors.itemDescription = "Item description is required.";
+  }
+  if (!values.typeOfTest.trim()) {
+    errors.typeOfTest = "Type of test is required.";
+  }
+  if (!values.unit.trim()) {
+    errors.unit = "Unit is required.";
+  }
+
+  const amounts: (keyof FormValues)[] = [
+    "qtyPreviousBill",
+    "qtyThisBill",
+    "fieldLabPreviousBill",
+    "fieldLabThisBill",
+    "thirdPartyPreviousBill",
+    "thirdPartyThisBill",
+    "requiredTests",
+    "conductedTests",
+    "passedTests",
+  ];
+  for (const key of amounts) {
+    const n = Number(values[key]);
+    if (!Number.isFinite(n) || n < 0) {
+      errors[key] = "Enter 0 or a positive number.";
+    }
+  }
+
+  if (values.passedTests > values.conductedTests) {
+    errors.passedTests = "Cannot be more than conducted tests.";
+  }
+  if (values.conductedTests > values.requiredTests) {
+    errors.conductedTests = "Cannot be more than required tests.";
+  }
+
+  return errors;
+}
+
+function focusTestField(field: string) {
+  window.requestAnimationFrame(() => {
+    document.querySelector<HTMLElement>(`[data-test-field="${field}"]`)?.focus();
+  });
 }
 
 const currentYear = new Date().getFullYear();
@@ -168,6 +252,7 @@ export default function FrequencyChartRegisterModal({
 
   function set<K extends keyof FormValues>(key: K, value: FormValues[K]) {
     setValues((prev) => ({ ...prev, [key]: value }));
+    setFormErr(null);
     setFieldErrors((prev) => {
       if (!prev[key as string]) return prev;
       const next = { ...prev };
@@ -181,41 +266,29 @@ export default function FrequencyChartRegisterModal({
     set(key, (Number.isFinite(n) && n >= 0 ? n : 0) as FormValues[typeof key]);
   }
 
-  function validateTestingSummary(): Record<string, string> {
-    const errors: Record<string, string> = {};
-    if (values.requiredTests < 0) {
-      errors.requiredTests = "Required Tests cannot be negative.";
-    }
-    if (values.conductedTests < 0) {
-      errors.conductedTests = "Conducted Tests cannot be negative.";
-    }
-    if (values.passedTests < 0) {
-      errors.passedTests = "Passed Tests cannot be negative.";
-    }
-    if (values.passedTests > values.conductedTests) {
-      errors.passedTests = "Passed Tests cannot be greater than Conducted Tests.";
-    }
-    if (values.conductedTests > values.requiredTests) {
-      errors.conductedTests = "Conducted Tests cannot exceed Required Tests.";
-    }
-    return errors;
-  }
-
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    setFormErr(null);
-
-    if (!values.itemDescription.trim()) return setFormErr("Item description is required.");
-    if (!values.typeOfTest.trim()) return setFormErr("Type of test is required.");
-    if (!values.unit.trim()) return setFormErr("Unit is required.");
-
-    const testingErrors = validateTestingSummary();
-    if (Object.keys(testingErrors).length > 0) {
-      setFieldErrors(testingErrors);
-      setFormErr("Validation failed.");
+    const nextErrors = validateTestRecordForm(values);
+    if (Object.keys(nextErrors).length > 0) {
+      setFieldErrors(nextErrors);
+      setFormErr("Fix the highlighted fields, then save.");
+      const order: (keyof FormValues)[] = [
+        "month",
+        "year",
+        "itemDescription",
+        "typeOfTest",
+        "unit",
+        "requiredTests",
+        "conductedTests",
+        "passedTests",
+      ];
+      const first = order.find((key) => nextErrors[key]) ?? Object.keys(nextErrors)[0];
+      if (first) focusTestField(first);
       return;
     }
 
+    setFormErr(null);
+    setFieldErrors({});
     setSaving(true);
     try {
       let response;
@@ -256,8 +329,15 @@ export default function FrequencyChartRegisterModal({
 
       const env = response.data as Record<string, unknown> | undefined;
       if (env && typeof env === "object" && env.success === false) {
-        setFormErr(String(env.message ?? "Unable to save record."));
-        setFieldErrors(extractFieldErrors({ response: { data: env } }));
+        const mapped = mapApiFieldErrors({ response: { data: env } });
+        if (Object.keys(mapped).length > 0) {
+          setFieldErrors(mapped);
+          setFormErr("Fix the highlighted fields, then save.");
+          const first = Object.keys(mapped)[0];
+          if (first) focusTestField(first);
+        } else {
+          setFormErr(String(env.message ?? "Unable to save record."));
+        }
         return;
       }
 
@@ -265,13 +345,19 @@ export default function FrequencyChartRegisterModal({
         isEditing ? "Record updated successfully." : "Record created successfully.",
       );
     } catch (err) {
-      const fieldErrs = extractFieldErrors(err);
-      setFieldErrors(fieldErrs);
-      setFormErr(
-        Object.keys(fieldErrs).length
-          ? getApiErrorMessage(err, "Validation failed.")
-          : getApiErrorMessage(err, "Unable to save record."),
-      );
+      const mapped = mapApiFieldErrors(err);
+      if (Object.keys(mapped).length > 0) {
+        setFieldErrors(mapped);
+        setFormErr("Fix the highlighted fields, then save.");
+        const first = Object.keys(mapped)[0];
+        if (first) focusTestField(first);
+      } else {
+        setFormErr(
+          formatUserFacingError(err, {
+            fallback: getApiErrorMessage(err, "Unable to save record."),
+          }),
+        );
+      }
     } finally {
       setSaving(false);
     }
@@ -289,6 +375,9 @@ export default function FrequencyChartRegisterModal({
   }`;
 
   const readOnlyClass = `${inputClass} cursor-not-allowed opacity-80`;
+
+  const errorTextClass = `mt-0.5 text-[10px] font-semibold ${isDarkTheme ? "text-rose-400" : "text-rose-600"}`;
+  const errorLabelClass = isDarkTheme ? "text-rose-400" : "text-rose-600";
 
   return (
     <ModalPortal open>
@@ -314,79 +403,107 @@ export default function FrequencyChartRegisterModal({
             </button>
           </div>
 
-          <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col">
+          <form onSubmit={handleSubmit} noValidate className="flex min-h-0 flex-1 flex-col">
             <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 py-3 sm:px-4">
+              <p className={`text-[10px] font-semibold ${tc.textMuted}`}>
+                Required: item description, type of test, unit, and testing summary. Bill
+                quantities, activity, contractor, and remarks can stay empty or 0.
+              </p>
               <div className="grid grid-cols-2 gap-2.5">
                 <div>
-                  <label className={labelClass}>Month</label>
+                  <label className={`${labelClass} ${fieldErrors.month ? errorLabelClass : ""}`}>
+                    Month <span className="text-rose-400">*</span>
+                  </label>
                   <select
+                    data-test-field="month"
+                    aria-invalid={Boolean(fieldErrors.month)}
                     value={values.month}
                     onChange={(e) => set("month", Number(e.target.value))}
                     disabled={isEditing}
-                    className={`${inputClass} ${disabledClass}`}
+                    className={`${inputClass} ${disabledClass} ${fieldErrors.month ? invalidClass : ""}`}
                   >
                     {MONTH_OPTIONS.map((o) => (
                       <option key={o.value} value={o.value}>{o.label}</option>
                     ))}
                   </select>
+                  {fieldErrors.month && <p className={errorTextClass}>{fieldErrors.month}</p>}
                 </div>
                 <div>
-                  <label className={labelClass}>Year</label>
+                  <label className={`${labelClass} ${fieldErrors.year ? errorLabelClass : ""}`}>
+                    Year <span className="text-rose-400">*</span>
+                  </label>
                   <select
+                    data-test-field="year"
+                    aria-invalid={Boolean(fieldErrors.year)}
                     value={values.year}
                     onChange={(e) => set("year", Number(e.target.value))}
                     disabled={isEditing}
-                    className={`${inputClass} ${disabledClass}`}
+                    className={`${inputClass} ${disabledClass} ${fieldErrors.year ? invalidClass : ""}`}
                   >
                     {YEARS.map((y) => <option key={y} value={y}>{y}</option>)}
                   </select>
+                  {fieldErrors.year && <p className={errorTextClass}>{fieldErrors.year}</p>}
                 </div>
               </div>
 
               <div className="space-y-2.5">
                 <div>
-                  <label className={labelClass}>Item Description *</label>
+                  <label className={`${labelClass} ${fieldErrors.itemDescription ? errorLabelClass : ""}`}>
+                    Item Description <span className="text-rose-400">*</span>
+                  </label>
                   <input
                     type="text"
+                    data-test-field="itemDescription"
+                    aria-invalid={Boolean(fieldErrors.itemDescription)}
                     value={values.itemDescription}
                     onChange={(e) => set("itemDescription", e.target.value)}
                     disabled={isEditing}
                     placeholder="e.g. Concrete"
-                    className={`${inputClass} ${disabledClass}`}
-                    required
+                    className={`${inputClass} ${disabledClass} ${fieldErrors.itemDescription ? invalidClass : ""}`}
                   />
+                  {fieldErrors.itemDescription && (
+                    <p className={errorTextClass}>{fieldErrors.itemDescription}</p>
+                  )}
                 </div>
                 <div className="grid grid-cols-2 gap-2.5">
                   <div>
-                    <label className={labelClass}>Type of Test *</label>
+                    <label className={`${labelClass} ${fieldErrors.typeOfTest ? errorLabelClass : ""}`}>
+                      Type of Test <span className="text-rose-400">*</span>
+                    </label>
                     <input
                       type="text"
+                      data-test-field="typeOfTest"
+                      aria-invalid={Boolean(fieldErrors.typeOfTest)}
                       value={values.typeOfTest}
                       onChange={(e) => set("typeOfTest", e.target.value)}
                       disabled={isEditing}
                       placeholder="Compressive Strength"
-                      className={`${inputClass} ${disabledClass}`}
-                      required
+                      className={`${inputClass} ${disabledClass} ${fieldErrors.typeOfTest ? invalidClass : ""}`}
                     />
+                    {fieldErrors.typeOfTest && <p className={errorTextClass}>{fieldErrors.typeOfTest}</p>}
                   </div>
                   <div>
-                    <label className={labelClass}>Unit *</label>
+                    <label className={`${labelClass} ${fieldErrors.unit ? errorLabelClass : ""}`}>
+                      Unit <span className="text-rose-400">*</span>
+                    </label>
                     <input
                       type="text"
+                      data-test-field="unit"
+                      aria-invalid={Boolean(fieldErrors.unit)}
                       value={values.unit}
                       onChange={(e) => set("unit", e.target.value)}
                       disabled={isEditing}
                       placeholder="Cum, Kg, Nos"
-                      className={`${inputClass} ${disabledClass}`}
-                      required
+                      className={`${inputClass} ${disabledClass} ${fieldErrors.unit ? invalidClass : ""}`}
                     />
+                    {fieldErrors.unit && <p className={errorTextClass}>{fieldErrors.unit}</p>}
                   </div>
                 </div>
               </div>
 
               <div className={sectionClass}>
                 <p className={`mb-2 text-[9px] font-bold uppercase tracking-wide ${isDarkTheme ? "text-indigo-300" : "text-indigo-700"}`}>
-                  Bill Quantities & Tests
+                  Bill Quantities & Tests · optional, use 0 if none
                 </p>
                 <div className="space-y-2">
                   <div className="grid grid-cols-[1fr_5.5rem_5.5rem] gap-2 items-center">
@@ -401,18 +518,26 @@ export default function FrequencyChartRegisterModal({
                         type="number"
                         min="0"
                         step={row.key === "qty" ? "any" : undefined}
+                        data-test-field={row.prevKey}
+                        aria-invalid={Boolean(fieldErrors[row.prevKey])}
                         value={values[row.prevKey]}
                         onChange={(e) => numField(row.prevKey, e.target.value)}
                         disabled={isEditing}
-                        className={`${inputClass} text-center tabular-nums ${disabledClass}`}
+                        className={`${inputClass} text-center tabular-nums ${disabledClass} ${
+                          fieldErrors[row.prevKey] ? invalidClass : ""
+                        }`}
                       />
                       <input
                         type="number"
                         min="0"
                         step={row.key === "qty" ? "any" : undefined}
+                        data-test-field={row.thisKey}
+                        aria-invalid={Boolean(fieldErrors[row.thisKey])}
                         value={values[row.thisKey]}
                         onChange={(e) => numField(row.thisKey, e.target.value)}
-                        className={`${inputClass} text-center tabular-nums`}
+                        className={`${inputClass} text-center tabular-nums ${
+                          fieldErrors[row.thisKey] ? invalidClass : ""
+                        }`}
                       />
                     </div>
                   ))}
@@ -426,10 +551,14 @@ export default function FrequencyChartRegisterModal({
                 </p>
                 <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-3">
                   <div>
-                    <label className={labelClass}>Required Tests *</label>
+                    <label className={`${labelClass} ${fieldErrors.requiredTests ? errorLabelClass : ""}`}>
+                      Required Tests <span className="text-rose-400">*</span>
+                    </label>
                     <input
                       type="number"
                       min="0"
+                      data-test-field="requiredTests"
+                      aria-invalid={Boolean(fieldErrors.requiredTests)}
                       value={values.requiredTests}
                       onChange={(e) => numField("requiredTests", e.target.value)}
                       className={`${inputClass} tabular-nums ${fieldErrors.requiredTests ? invalidClass : ""}`}
@@ -441,10 +570,14 @@ export default function FrequencyChartRegisterModal({
                     )}
                   </div>
                   <div>
-                    <label className={labelClass}>Conducted Tests *</label>
+                    <label className={`${labelClass} ${fieldErrors.conductedTests ? errorLabelClass : ""}`}>
+                      Conducted Tests <span className="text-rose-400">*</span>
+                    </label>
                     <input
                       type="number"
                       min="0"
+                      data-test-field="conductedTests"
+                      aria-invalid={Boolean(fieldErrors.conductedTests)}
                       value={values.conductedTests}
                       onChange={(e) => numField("conductedTests", e.target.value)}
                       className={`${inputClass} tabular-nums ${fieldErrors.conductedTests ? invalidClass : ""}`}
@@ -456,10 +589,14 @@ export default function FrequencyChartRegisterModal({
                     )}
                   </div>
                   <div>
-                    <label className={labelClass}>Passed Tests *</label>
+                    <label className={`${labelClass} ${fieldErrors.passedTests ? errorLabelClass : ""}`}>
+                      Passed Tests <span className="text-rose-400">*</span>
+                    </label>
                     <input
                       type="number"
                       min="0"
+                      data-test-field="passedTests"
+                      aria-invalid={Boolean(fieldErrors.passedTests)}
                       value={values.passedTests}
                       onChange={(e) => numField("passedTests", e.target.value)}
                       className={`${inputClass} tabular-nums ${fieldErrors.passedTests ? invalidClass : ""}`}
@@ -508,42 +645,63 @@ export default function FrequencyChartRegisterModal({
 
               <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
                 <div>
-                  <label className={labelClass}>Activity Name</label>
-                  <input
-                    type="text"
-                    value={values.activityName}
-                    onChange={(e) => set("activityName", e.target.value)}
-                    placeholder="Foundation"
-                    className={inputClass}
-                  />
+                    <label className={`${labelClass} ${fieldErrors.activityName ? errorLabelClass : ""}`}>
+                      Activity Name{" "}
+                      <span className={`font-semibold normal-case tracking-normal ${tc.textMuted}`}>Optional</span>
+                    </label>
+                    <input
+                      type="text"
+                      data-test-field="activityName"
+                      aria-invalid={Boolean(fieldErrors.activityName)}
+                      value={values.activityName}
+                      onChange={(e) => set("activityName", e.target.value)}
+                      placeholder="Foundation"
+                      className={`${inputClass} ${fieldErrors.activityName ? invalidClass : ""}`}
+                    />
+                    {fieldErrors.activityName && <p className={errorTextClass}>{fieldErrors.activityName}</p>}
                 </div>
                 <div>
-                  <label className={labelClass}>Contractor Name</label>
-                  <input
-                    type="text"
-                    value={values.contractorName}
-                    onChange={(e) => set("contractorName", e.target.value)}
-                    placeholder="ABC Contractors"
-                    className={inputClass}
-                  />
+                    <label className={`${labelClass} ${fieldErrors.contractorName ? errorLabelClass : ""}`}>
+                      Contractor Name{" "}
+                      <span className={`font-semibold normal-case tracking-normal ${tc.textMuted}`}>Optional</span>
+                    </label>
+                    <input
+                      type="text"
+                      data-test-field="contractorName"
+                      aria-invalid={Boolean(fieldErrors.contractorName)}
+                      value={values.contractorName}
+                      onChange={(e) => set("contractorName", e.target.value)}
+                      placeholder="ABC Contractors"
+                      className={`${inputClass} ${fieldErrors.contractorName ? invalidClass : ""}`}
+                    />
+                    {fieldErrors.contractorName && <p className={errorTextClass}>{fieldErrors.contractorName}</p>}
                 </div>
               </div>
 
               <div>
-                <label className={labelClass}>Remarks</label>
-                <input
-                  type="text"
-                  value={values.remarks}
-                  onChange={(e) => set("remarks", e.target.value)}
-                  placeholder="Complied"
-                  className={inputClass}
-                />
-              </div>
+                  <label className={`${labelClass} ${fieldErrors.remarks ? errorLabelClass : ""}`}>
+                    Remarks{" "}
+                    <span className={`font-semibold normal-case tracking-normal ${tc.textMuted}`}>Optional</span>
+                  </label>
+                  <input
+                    type="text"
+                    data-test-field="remarks"
+                    aria-invalid={Boolean(fieldErrors.remarks)}
+                    value={values.remarks}
+                    onChange={(e) => set("remarks", e.target.value)}
+                    placeholder="Complied"
+                    className={`${inputClass} ${fieldErrors.remarks ? invalidClass : ""}`}
+                  />
+                  {fieldErrors.remarks && <p className={errorTextClass}>{fieldErrors.remarks}</p>}
+                </div>
 
               {formErr && (
-                <p className={`text-xs font-semibold ${isDarkTheme ? "text-rose-400" : "text-rose-600"}`}>
+                <div
+                  role="alert"
+                  className="rounded-xl border border-rose-400/40 bg-rose-500/10 px-3 py-2 text-xs font-semibold text-rose-400"
+                >
                   {formErr}
-                </p>
+                </div>
               )}
             </div>
 

@@ -15,8 +15,52 @@ const FIELD_LABELS: Record<string, string> = {
   approved_vo: 'Approved VO',
   pending_vo: 'Pending VO',
   bac: 'Budget at completion (BAC)',
+  bcws: 'Budgeted cost of work scheduled',
+  bcwp: 'Budgeted cost of work performed',
+  acwp: 'Actual cost of work performed',
+  fcst: 'Forecast at completion',
+  month_year: 'Month / year',
+  month: 'Month',
+  year: 'Year',
+  item_description: 'Item description',
+  type_of_test: 'Type of test',
+  unit: 'Unit',
+  qty_previous_bill: 'Previous bill quantity',
+  qty_this_bill: 'This bill quantity',
+  field_lab_previous_bill: 'Previous field / lab tests',
+  field_lab_this_bill: 'This field / lab tests',
+  third_party_previous_bill: 'Previous third party tests',
+  third_party_this_bill: 'This third party tests',
+  required_tests: 'Required tests',
+  conducted_tests: 'Conducted tests',
+  passed_tests: 'Passed tests',
+  activity_name: 'Activity name',
+  contractor_name: 'Contractor name',
+  average_daily_manpower: 'Average daily manpower',
+  working_days: 'Working days',
+  fatalities: 'Fatalities',
+  significant: 'Significant incidents',
+  major: 'Major incidents',
+  minor: 'Minor incidents',
+  near_miss: 'Near miss',
+  reportable_accident_lti: 'Reportable accident (LTI)',
+  dangerous_occurrences: 'Dangerous occurrences',
+  first_aid_cases: 'First aid cases',
+  medical_treatment_cases: 'Medical treatment cases',
+  utility_damage: 'Utility damage',
+  loss_of_manhours: 'Man hours lost',
+  internal_training_count: 'Internal training count',
+  internal_training_hours: 'Internal training hours',
+  external_training_count: 'External training count',
+  external_training_hours: 'External training hours',
+  mock_drills: 'Mock drills',
+  medical_checkup_workers: 'Medical checkup — workers',
+  medical_checkup_staff: 'Medical checkup — staff',
   working_hours_per_day: 'Working hours/day',
   working_days_per_month: 'Working days/month',
+  planned_manpower: 'Monthly planned manpower',
+  monthly_planned_manpower: 'Monthly planned manpower',
+  actual_manpower: 'Actual manpower',
   assigned_users: 'Assigned users',
   project: 'Project',
   project_id: 'Project',
@@ -30,6 +74,12 @@ const FIELD_LABELS: Record<string, string> = {
   remaining_quantity: 'Remaining quantity',
   cumulative_quantity: 'Cumulative quantity',
   remarks: 'Remarks',
+  correspondence_type: 'Correspondence type',
+  recipient_type: 'Recipient',
+  correspondence_category: 'Correspondence category',
+  sr_no: 'Sr No',
+  received_date: 'Received date',
+  delivered_date: 'Delivered date',
   reason: 'Reason',
   eot_date: 'EOT date',
   extension_days: 'Extension days',
@@ -59,6 +109,11 @@ const FIELD_LABELS: Record<string, string> = {
   non_field_errors: 'Form',
   detail: 'Error',
   message: 'Error',
+  progress_month: 'Progress month',
+  monthly_plan: 'Monthly plan (%)',
+  monthly_actual: 'Monthly actual (%)',
+  cumulative_plan: 'Cumulative plan (%)',
+  cumulative_actual: 'Cumulative actual (%)',
 };
 
 const SKIP_BODY_KEYS = new Set([
@@ -82,6 +137,26 @@ function humanFieldLabel(field: string): string {
     .replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
+/** Shorten API text like "monthly_plan must be between 0 and 100" for display under a labeled input. */
+export function simplifyFieldErrorMessage(field: string, message: string): string {
+  let text = String(message || '').trim();
+  if (!text) return text;
+
+  const spaced = field.replace(/_/g, ' ');
+  const strippers = [
+    new RegExp(`^${field}\\s*[:\\-–]?\\s*`, 'i'),
+    new RegExp(`^${spaced}\\s*[:\\-–]?\\s*`, 'i'),
+    new RegExp(`^${humanFieldLabel(field).replace(/[()%]/g, '\\$&')}\\s*[:\\-–]?\\s*`, 'i'),
+  ];
+  for (const pattern of strippers) {
+    text = text.replace(pattern, '');
+  }
+
+  text = text.trim();
+  if (!text) return String(message).trim();
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}
+
 function flattenErrorValue(value: unknown): string {
   if (value == null || value === '') return '';
   if (typeof value === 'string') return value.trim();
@@ -92,9 +167,11 @@ function flattenErrorValue(value: unknown): string {
   if (typeof value === 'object') {
     const record = value as Record<string, unknown>;
     if (typeof record.message === 'string' && record.message.trim()) {
-      const field =
-        typeof record.field === 'string' ? humanFieldLabel(record.field) : '';
-      return field ? `${field}: ${record.message.trim()}` : record.message.trim();
+      const fieldKey = typeof record.field === 'string' ? record.field : '';
+      const cleaned = fieldKey
+        ? simplifyFieldErrorMessage(fieldKey, record.message.trim())
+        : record.message.trim();
+      return fieldKey ? `${humanFieldLabel(fieldKey)}: ${cleaned}` : cleaned;
     }
     if (typeof record.detail === 'string' && record.detail.trim()) {
       return record.detail.trim();
@@ -105,7 +182,7 @@ function flattenErrorValue(value: unknown): string {
         const text = flattenErrorValue(nested);
         if (!text) return '';
         if (key === 'non_field_errors') return text;
-        return `${humanFieldLabel(key)}: ${text}`;
+        return `${humanFieldLabel(key)}: ${simplifyFieldErrorMessage(key, text)}`;
       })
       .filter(Boolean)
       .join(' · ');
@@ -284,13 +361,13 @@ export function extractUserFacingFieldErrors(
           const row = entry as Record<string, unknown>;
           const field = typeof row.field === 'string' ? row.field : `item_${index}`;
           const text = flattenErrorValue(row.message ?? entry);
-          if (text) out[field] = text;
+          if (text) out[field] = simplifyFieldErrorMessage(field, text);
         }
       });
       continue;
     }
     const text = flattenErrorValue(value);
-    if (text) out[key] = text;
+    if (text) out[key] = simplifyFieldErrorMessage(key, text);
   }
 
   return out;

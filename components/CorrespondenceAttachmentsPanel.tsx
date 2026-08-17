@@ -22,6 +22,7 @@ import {
 } from '../services/correspondenceAttachmentsApi';
 import { getThemeClasses, useTheme } from '../utils/theme';
 import { useDebouncedValue } from '../hooks/useDebouncedValue';
+import CorrespondenceComments from './correspondence/CorrespondenceComments';
 
 export type CorrespondenceAttachmentsMode = 'view' | 'upload';
 
@@ -557,6 +558,17 @@ const CorrespondenceAttachmentsPanel: React.FC<CorrespondenceAttachmentsPanelPro
             {filteredAttachments.map(renderAttachmentRow)}
           </div>
         )}
+
+        {document.id != null && (
+          <CorrespondenceComments
+            correspondenceId={document.id}
+            correspondenceType={document.correspondenceType}
+            flowDirection={document.flowDirection}
+            onToast={showToast}
+            className="mt-6"
+          />
+        )}
+
         {error && panelView === 'list' && (
           <p className="mt-4 rounded-lg bg-rose-500/10 px-3 py-2 text-xs font-bold text-rose-500">{error}</p>
         )}

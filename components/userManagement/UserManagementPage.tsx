@@ -133,6 +133,70 @@ const emptyForm = (): UserFormState => ({
   isActive: true,
 });
 
+const USERNAME_PATTERN = /^[a-zA-Z0-9._-]{3,50}$/;
+
+function summarizeFieldErrors(fields: Record<string, string>): string {
+  const unique = [...new Set(Object.values(fields).filter(Boolean))];
+  return unique.join(' ');
+}
+
+function focusFirstInvalidField(fields: Record<string, string>) {
+  const order = [
+    'full_name',
+    'username',
+    'role',
+    'project_ids',
+    'projects',
+    'password',
+    'new_password',
+    'confirm_password',
+    'confirm_new_password',
+  ];
+  const first = order.find((key) => fields[key]);
+  if (!first) return;
+  window.requestAnimationFrame(() => {
+    document
+      .querySelector<HTMLElement>(`[data-user-field="${first}"]`)
+      ?.focus();
+  });
+}
+
+function validateUserForm(
+  form: UserFormState,
+  isEdit: boolean,
+): Record<string, string> {
+  const next: Record<string, string> = {};
+  if (!form.fullName.trim()) {
+    next.full_name = 'Full name is required.';
+  }
+  const username = form.username.trim();
+  if (!username) {
+    next.username = 'Username is required.';
+  } else if (!USERNAME_PATTERN.test(username)) {
+    next.username =
+      'Username must be 3–50 characters (letters, numbers, . _ -).';
+  }
+  if (!form.role) {
+    next.role = 'Please select a role.';
+  }
+  if (form.projectIds.length === 0) {
+    next.project_ids = 'Please select at least one project.';
+  }
+  if (!isEdit) {
+    if (!form.password) {
+      next.password = 'Password is required.';
+    } else if (form.password.length < 8) {
+      next.password = 'Password must be at least 8 characters.';
+    }
+    if (!form.confirmPassword) {
+      next.confirm_password = 'Confirm password is required.';
+    } else if (form.password !== form.confirmPassword) {
+      next.confirm_password = 'Passwords do not match.';
+    }
+  }
+  return next;
+}
+
 type PasswordFormState = {
   password: string;
   confirmPassword: string;
@@ -350,7 +414,23 @@ const UserManagementPage: React.FC<UserManagementPageProps> = ({
       : 'border-slate-200 bg-white shadow-sm'
   }`;
   const inputCls = `w-full rounded-xl border px-3 py-2 text-sm font-semibold outline-none ${themeClasses.input} ${themeClasses.border} ${themeClasses.textPrimary}`;
+  const inputErrorCls =
+    'border-rose-500 ring-2 ring-rose-500/30 focus:border-rose-500 focus:ring-rose-500/40';
+  const fieldInputCls = (hasError?: boolean) =>
+    `${inputCls} ${hasError ? inputErrorCls : ''}`;
   const labelCls = `mb-1 block text-[10px] font-bold uppercase tracking-wider ${themeClasses.textSecondary}`;
+
+  const clearFieldError = (...keys: string[]) => {
+    setFieldErrors((prev) => {
+      if (!keys.some((key) => prev[key])) return prev;
+      const next = { ...prev };
+      keys.forEach((key) => {
+        delete next[key];
+      });
+      return next;
+    });
+    setFormError(null);
+  };
   const actionBtnCls = `inline-flex items-center justify-center rounded-lg border p-1.5 transition ${
     isDarkTheme
       ? 'border-white/10 text-slate-300 hover:bg-white/10'
@@ -395,6 +475,7 @@ const UserManagementPage: React.FC<UserManagementPageProps> = ({
   };
 
   const toggleProjectId = (id: number) => {
+    clearFieldError('project_ids', 'projects');
     setForm((prev) => ({
       ...prev,
       projectIds: prev.projectIds.includes(id)
@@ -404,43 +485,17 @@ const UserManagementPage: React.FC<UserManagementPageProps> = ({
   };
 
   const handleSaveUser = async () => {
-    setFormError(null);
-    setFieldErrors({});
-
-    if (!form.fullName.trim()) {
-      setFieldErrors({ full_name: 'Full name is required.' });
-      setFormError('Full name is required.');
+    const nextFieldErrors = validateUserForm(form, Boolean(editing));
+    if (Object.keys(nextFieldErrors).length > 0) {
+      setFieldErrors(nextFieldErrors);
+      setFormError(summarizeFieldErrors(nextFieldErrors));
+      focusFirstInvalidField(nextFieldErrors);
       return;
-    }
-    if (!form.username.trim()) {
-      setFieldErrors({ username: 'Username is required.' });
-      setFormError('Username is required.');
-      return;
-    }
-    if (!form.role) {
-      setFieldErrors({ role: 'Please select a role.' });
-      setFormError('Please select a role.');
-      return;
-    }
-    if (form.projectIds.length === 0) {
-      setFieldErrors({ project_ids: 'Please select at least one project.' });
-      setFormError('Please select at least one project.');
-      return;
-    }
-    if (!editing) {
-      if (!form.password) {
-        setFieldErrors({ password: 'Password is required.' });
-        setFormError('Password is required.');
-        return;
-      }
-      if (form.password !== form.confirmPassword) {
-        setFieldErrors({ confirm_password: 'Passwords do not match.' });
-        setFormError('Passwords do not match.');
-        return;
-      }
     }
 
     setSaving(true);
+    setFormError(null);
+    setFieldErrors({});
     try {
       if (editing) {
         const result = await updateUser(editing.id, {
@@ -452,7 +507,13 @@ const UserManagementPage: React.FC<UserManagementPageProps> = ({
           status: form.isActive ? 'active' : 'inactive',
         });
         if (!result.success) {
-          setFormError(result.message || 'Failed to update user.');
+          setFieldErrors(result.fieldErrors || {});
+          setFormError(
+            result.message ||
+              summarizeFieldErrors(result.fieldErrors || {}) ||
+              'Failed to update user.',
+          );
+          focusFirstInvalidField(result.fieldErrors || {});
           return;
         }
         showToast(result.message || 'User updated successfully.');
@@ -466,7 +527,13 @@ const UserManagementPage: React.FC<UserManagementPageProps> = ({
           confirm_password: form.confirmPassword,
         });
         if (!result.success) {
-          setFormError(result.message || 'Failed to create user.');
+          setFieldErrors(result.fieldErrors || {});
+          setFormError(
+            result.message ||
+              summarizeFieldErrors(result.fieldErrors || {}) ||
+              'Failed to create user.',
+          );
+          focusFirstInvalidField(result.fieldErrors || {});
           return;
         }
         showToast(result.message || 'User created successfully.');
@@ -484,6 +551,7 @@ const UserManagementPage: React.FC<UserManagementPageProps> = ({
           editing ? 'Failed to update user.' : 'Failed to create user.',
         ),
       );
+      focusFirstInvalidField(fields);
     } finally {
       setSaving(false);
     }
@@ -1029,13 +1097,19 @@ const UserManagementPage: React.FC<UserManagementPageProps> = ({
 
             <div className="space-y-3">
               <div>
-                <label className={labelCls}>Full Name</label>
+                <label className={labelCls} htmlFor="create-user-full-name">
+                  Full Name <span className="text-rose-400">*</span>
+                </label>
                 <input
-                  className={inputCls}
+                  id="create-user-full-name"
+                  data-user-field="full_name"
+                  className={fieldInputCls(Boolean(fieldErrors.full_name))}
                   value={form.fullName}
-                  onChange={(e) =>
-                    setForm((prev) => ({ ...prev, fullName: e.target.value }))
-                  }
+                  aria-invalid={Boolean(fieldErrors.full_name)}
+                  onChange={(e) => {
+                    clearFieldError('full_name');
+                    setForm((prev) => ({ ...prev, fullName: e.target.value }));
+                  }}
                 />
                 {fieldErrors.full_name && (
                   <p className="mt-1 text-xs font-semibold text-rose-500">
@@ -1044,13 +1118,20 @@ const UserManagementPage: React.FC<UserManagementPageProps> = ({
                 )}
               </div>
               <div>
-                <label className={labelCls}>Username</label>
+                <label className={labelCls} htmlFor="create-user-username">
+                  Username <span className="text-rose-400">*</span>
+                </label>
                 <input
-                  className={inputCls}
+                  id="create-user-username"
+                  data-user-field="username"
+                  className={fieldInputCls(Boolean(fieldErrors.username))}
                   value={form.username}
-                  onChange={(e) =>
-                    setForm((prev) => ({ ...prev, username: e.target.value }))
-                  }
+                  aria-invalid={Boolean(fieldErrors.username)}
+                  autoComplete="off"
+                  onChange={(e) => {
+                    clearFieldError('username');
+                    setForm((prev) => ({ ...prev, username: e.target.value }));
+                  }}
                 />
                 {fieldErrors.username && (
                   <p className="mt-1 text-xs font-semibold text-rose-500">
@@ -1059,16 +1140,22 @@ const UserManagementPage: React.FC<UserManagementPageProps> = ({
                 )}
               </div>
               <div>
-                <label className={labelCls}>Role</label>
+                <label className={labelCls} htmlFor="create-user-role">
+                  Role <span className="text-rose-400">*</span>
+                </label>
                 <select
-                  className={inputCls}
+                  id="create-user-role"
+                  data-user-field="role"
+                  className={fieldInputCls(Boolean(fieldErrors.role))}
                   value={form.role}
-                  onChange={(e) =>
+                  aria-invalid={Boolean(fieldErrors.role)}
+                  onChange={(e) => {
+                    clearFieldError('role');
                     setForm((prev) => ({
                       ...prev,
                       role: e.target.value as ManageableUserRole | '',
-                    }))
-                  }
+                    }));
+                  }}
                 >
                   <option value="">Select role</option>
                   {MANAGEABLE_ROLES.map((r) => (
@@ -1084,9 +1171,17 @@ const UserManagementPage: React.FC<UserManagementPageProps> = ({
                 )}
               </div>
               <div>
-                <label className={labelCls}>Assigned Project(s)</label>
+                <label className={labelCls}>
+                  Assigned Project(s) <span className="text-rose-400">*</span>
+                </label>
                 <div
-                  className={`max-h-72 space-y-1 overflow-y-auto rounded-xl border p-2 ${themeClasses.border}`}
+                  data-user-field="project_ids"
+                  tabIndex={-1}
+                  className={`max-h-72 space-y-1 overflow-y-auto rounded-xl border p-2 outline-none ${
+                    fieldErrors.project_ids || fieldErrors.projects
+                      ? 'border-rose-500 ring-2 ring-rose-500/30'
+                      : themeClasses.border
+                  }`}
                 >
                   {assignableProjectOptions.length === 0 ? (
                     <p className={`text-xs font-semibold ${themeClasses.textSecondary}`}>
@@ -1135,17 +1230,28 @@ const UserManagementPage: React.FC<UserManagementPageProps> = ({
               {!editing && (
                 <>
                   <div>
-                    <label className={labelCls}>Password</label>
+                    <label className={labelCls} htmlFor="create-user-password">
+                      Password <span className="text-rose-400">*</span>
+                    </label>
                     <input
+                      id="create-user-password"
+                      data-user-field="password"
                       type="password"
-                      className={inputCls}
+                      autoComplete="new-password"
+                      className={fieldInputCls(
+                        Boolean(fieldErrors.password || fieldErrors.new_password),
+                      )}
                       value={form.password}
-                      onChange={(e) =>
+                      aria-invalid={Boolean(
+                        fieldErrors.password || fieldErrors.new_password,
+                      )}
+                      onChange={(e) => {
+                        clearFieldError('password', 'new_password');
                         setForm((prev) => ({
                           ...prev,
                           password: e.target.value,
-                        }))
-                      }
+                        }));
+                      }}
                     />
                     {(fieldErrors.password || fieldErrors.new_password) && (
                       <p className="mt-1 text-xs font-semibold text-rose-500">
@@ -1154,17 +1260,35 @@ const UserManagementPage: React.FC<UserManagementPageProps> = ({
                     )}
                   </div>
                   <div>
-                    <label className={labelCls}>Confirm Password</label>
+                    <label className={labelCls} htmlFor="create-user-confirm-password">
+                      Confirm Password <span className="text-rose-400">*</span>
+                    </label>
                     <input
+                      id="create-user-confirm-password"
+                      data-user-field="confirm_password"
                       type="password"
-                      className={inputCls}
+                      autoComplete="new-password"
+                      className={fieldInputCls(
+                        Boolean(
+                          fieldErrors.confirm_password ||
+                            fieldErrors.confirm_new_password,
+                        ),
+                      )}
                       value={form.confirmPassword}
-                      onChange={(e) =>
+                      aria-invalid={Boolean(
+                        fieldErrors.confirm_password ||
+                          fieldErrors.confirm_new_password,
+                      )}
+                      onChange={(e) => {
+                        clearFieldError(
+                          'confirm_password',
+                          'confirm_new_password',
+                        );
                         setForm((prev) => ({
                           ...prev,
                           confirmPassword: e.target.value,
-                        }))
-                      }
+                        }));
+                      }}
                     />
                     {(fieldErrors.confirm_password ||
                       fieldErrors.confirm_new_password) && (
@@ -1177,7 +1301,10 @@ const UserManagementPage: React.FC<UserManagementPageProps> = ({
                 </>
               )}
               {formError && (
-                <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700 dark:border-rose-500/30 dark:bg-rose-500/10 dark:text-rose-300">
+                <div
+                  role="alert"
+                  className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700 dark:border-rose-500/30 dark:bg-rose-500/10 dark:text-rose-300"
+                >
                   {formError}
                 </div>
               )}

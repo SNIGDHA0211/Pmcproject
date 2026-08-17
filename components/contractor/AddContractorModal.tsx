@@ -22,6 +22,22 @@ const emptyForm = {
   address: '',
 };
 
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+function validateAddContractorForm(form: typeof emptyForm): Record<string, string> {
+  const next: Record<string, string> = {};
+  if (!form.contractor_name.trim()) {
+    next.contractor_name = 'Contractor name is required.';
+  }
+  if (form.email.trim() && !EMAIL_PATTERN.test(form.email.trim())) {
+    next.email = 'Enter a valid email address.';
+  }
+  if (form.phone.trim() && form.phone.replace(/\D/g, '').length < 7) {
+    next.phone = 'Enter a valid phone number.';
+  }
+  return next;
+}
+
 const AddContractorModal: React.FC<AddContractorModalProps> = ({
   open,
   projectName,
@@ -31,25 +47,44 @@ const AddContractorModal: React.FC<AddContractorModalProps> = ({
   const theme = useCmTheme();
   const [form, setForm] = useState(emptyForm);
   const [error, setError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
     if (!open) return;
     setForm(emptyForm);
     setError(null);
+    setFieldErrors({});
     setIsSaving(false);
   }, [open]);
 
+  const inputClass = (hasError?: boolean) =>
+    `${theme.select.input} ${hasError ? 'border-rose-500 ring-2 ring-rose-500/30' : ''}`;
+
+  const updateField = (key: keyof typeof emptyForm, value: string) => {
+    setForm((prev) => ({ ...prev, [key]: value }));
+    setFieldErrors((prev) => {
+      if (!prev[key]) return prev;
+      const next = { ...prev };
+      delete next[key];
+      return next;
+    });
+    setError(null);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const name = form.contractor_name.trim();
-    if (!name) {
-      setError('Contractor name is required.');
+    const nextErrors = validateAddContractorForm(form);
+    if (Object.keys(nextErrors).length > 0) {
+      setFieldErrors(nextErrors);
+      setError([...new Set(Object.values(nextErrors))].join(' '));
       return;
     }
 
+    const name = form.contractor_name.trim();
     setIsSaving(true);
     setError(null);
+    setFieldErrors({});
     try {
       const created = await contractorMasterApi.create(projectName, {
         contractor_name: name,
@@ -71,10 +106,6 @@ const AddContractorModal: React.FC<AddContractorModalProps> = ({
       setIsSaving(false);
     }
   };
-
-  if (!open) return null;
-
-  const inputClass = theme.select.input;
 
   return (
     <ModalPortal open={open}>
@@ -111,7 +142,7 @@ const AddContractorModal: React.FC<AddContractorModalProps> = ({
             </button>
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={handleSubmit} className="space-y-4" noValidate>
             <div>
               <label className={theme.select.label}>
                 Contractor Name <span className="text-rose-500">*</span>
@@ -119,12 +150,14 @@ const AddContractorModal: React.FC<AddContractorModalProps> = ({
               <input
                 type="text"
                 value={form.contractor_name}
-                onChange={(e) => setForm((prev) => ({ ...prev, contractor_name: e.target.value }))}
-                required
+                onChange={(e) => updateField('contractor_name', e.target.value)}
                 autoFocus
                 placeholder="e.g. ABC Infra Pvt Ltd"
-                className={inputClass}
+                className={inputClass(Boolean(fieldErrors.contractor_name))}
               />
+              {fieldErrors.contractor_name && (
+                <p className="mt-1 text-xs font-semibold text-rose-500">{fieldErrors.contractor_name}</p>
+              )}
             </div>
 
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -132,13 +165,16 @@ const AddContractorModal: React.FC<AddContractorModalProps> = ({
                 <div key={field}>
                   <label className={theme.select.label}>
                     {field === 'contractor_code' ? 'Contractor Code' : 'Contact Person'}
+                    <span className={`ml-1 font-semibold normal-case tracking-normal ${theme.tc.textMuted}`}>
+                      Optional
+                    </span>
                   </label>
                   <input
                     type="text"
                     value={form[field]}
-                    onChange={(e) => setForm((prev) => ({ ...prev, [field]: e.target.value }))}
+                    onChange={(e) => updateField(field, e.target.value)}
                     placeholder="Optional"
-                    className={inputClass}
+                    className={inputClass()}
                   />
                 </div>
               ))}
@@ -146,39 +182,64 @@ const AddContractorModal: React.FC<AddContractorModalProps> = ({
 
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
-                <label className={theme.select.label}>Phone</label>
+                <label className={theme.select.label}>
+                  Phone
+                  <span className={`ml-1 font-semibold normal-case tracking-normal ${theme.tc.textMuted}`}>
+                    Optional
+                  </span>
+                </label>
                 <input
                   type="tel"
                   value={form.phone}
-                  onChange={(e) => setForm((prev) => ({ ...prev, phone: e.target.value }))}
+                  onChange={(e) => updateField('phone', e.target.value)}
                   placeholder="Optional"
-                  className={inputClass}
+                  className={inputClass(Boolean(fieldErrors.phone))}
                 />
+                {fieldErrors.phone && (
+                  <p className="mt-1 text-xs font-semibold text-rose-500">{fieldErrors.phone}</p>
+                )}
               </div>
               <div>
-                <label className={theme.select.label}>Email</label>
+                <label className={theme.select.label}>
+                  Email
+                  <span className={`ml-1 font-semibold normal-case tracking-normal ${theme.tc.textMuted}`}>
+                    Optional
+                  </span>
+                </label>
                 <input
                   type="email"
                   value={form.email}
-                  onChange={(e) => setForm((prev) => ({ ...prev, email: e.target.value }))}
+                  onChange={(e) => updateField('email', e.target.value)}
                   placeholder="Optional"
-                  className={inputClass}
+                  className={inputClass(Boolean(fieldErrors.email))}
                 />
+                {fieldErrors.email && (
+                  <p className="mt-1 text-xs font-semibold text-rose-500">{fieldErrors.email}</p>
+                )}
               </div>
             </div>
 
             <div>
-              <label className={theme.select.label}>Address</label>
+              <label className={theme.select.label}>
+                Address
+                <span className={`ml-1 font-semibold normal-case tracking-normal ${theme.tc.textMuted}`}>
+                  Optional
+                </span>
+              </label>
               <textarea
                 value={form.address}
-                onChange={(e) => setForm((prev) => ({ ...prev, address: e.target.value }))}
+                onChange={(e) => updateField('address', e.target.value)}
                 rows={2}
                 placeholder="Optional"
-                className={`${inputClass} resize-none`}
+                className={`${inputClass()} resize-none`}
               />
             </div>
 
-            {error && <p className={theme.errorBanner}>{error}</p>}
+            {error && (
+              <p role="alert" className={theme.errorBanner}>
+                {error}
+              </p>
+            )}
 
             <div className="flex flex-col gap-3 pt-1 sm:flex-row">
               <CmButton variant="secondary" onClick={onClose} disabled={isSaving} className="flex-1">

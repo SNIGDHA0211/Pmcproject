@@ -2073,6 +2073,9 @@ const App: React.FC = () => {
               } else if (typeof navData === 'object' && navData.tab && navData.section) {
                 setFinancialSection(normalizeFinancialSubTab(navData.section));
                 setFinancialSectionLocked(true);
+                if (navData.projectId) {
+                  setFinancialInitialProjectId(navData.projectId);
+                }
                 setNavReturn(
                   navData.returnTab ? makeNavReturn(navData.returnTab) : returnCtx,
                 );
@@ -2113,16 +2116,6 @@ const App: React.FC = () => {
               </div>
               <div className="flex shrink-0 flex-wrap items-center gap-3">
                 <TutorialWatchButton section="portfolio" variant="panel" isDark={isDarkTheme} />
-                {isPmcHeadEquivalent(currentUser) && (
-                  <button
-                    onClick={() => setIsCreateModalOpen(true)}
-                    className={`flex items-center gap-2 rounded-2xl border px-4 py-2 text-xs font-black uppercase tracking-widest transition-all sm:px-6 sm:py-2.5 ${themeClasses.buttonSecondary} ${themeClasses.border}`}
-                  >
-                    <Icons.Add size={16} />
-                    <span className="hidden sm:inline">Initiate Project</span>
-                    <span className="sm:hidden">New</span>
-                  </button>
-                )}
               </div>
             </div>
 

@@ -5974,8 +5974,117 @@ function extractDrawingRegisterFiles(
   return files.length ? files : undefined;
 }
 
+function drawingRegisterRowName(row: Record<string, unknown>): string {
+  return String(
+    row.drawing_name ??
+      row.drawingName ??
+      row.design_and_drawing ??
+      row.designAndDrawing ??
+      "",
+  ).trim();
+}
+
+function looksLikeDrawingRegisterRecord(row: Record<string, unknown>): boolean {
+  if (drawingRegisterRowName(row)) return true;
+  const nested = row.client_row ?? row.clientRow;
+  if (nested && typeof nested === "object") {
+    return drawingRegisterRowName(nested as Record<string, unknown>).length > 0;
+  }
+  return (
+    row.submission_by_contractor != null ||
+    row.submitted_date != null ||
+    row.submittedDate != null ||
+    row.approved_by_consultant != null ||
+    row.approved_date != null
+  );
+}
+
+const DRAWING_REGISTER_LIST_KEYS = [
+  "results",
+  "rows",
+  "register_rows",
+  "registerRows",
+  "items",
+  "records",
+  "drawings_register",
+] as const;
+
+function extractDrawingRegisterListArray(
+  obj: Record<string, unknown>,
+): unknown[] | null {
+  for (const key of DRAWING_REGISTER_LIST_KEYS) {
+    const value = obj[key];
+    if (Array.isArray(value) && value.length) return value;
+  }
+  return null;
+}
+
+/** Walk envelopes and ignore empty `results: []` so nested `client_row` is not dropped. */
+function collectDrawingRegisterRecords(
+  raw: unknown,
+  depth = 0,
+  into: unknown[] = [],
+  seen?: WeakSet<object>,
+): unknown[] {
+  const visited = seen ?? new WeakSet<object>();
+  if (raw == null || depth > 6) return into;
+  if (typeof raw !== "object") return into;
+  if (visited.has(raw as object)) return into;
+  visited.add(raw as object);
+
+  if (Array.isArray(raw)) {
+    const rowLike = raw.filter(
+      (item): item is Record<string, unknown> =>
+        Boolean(item) &&
+        typeof item === "object" &&
+        looksLikeDrawingRegisterRecord(item as Record<string, unknown>),
+    );
+    if (rowLike.length) {
+      into.push(...rowLike);
+      return into;
+    }
+    for (const item of raw) {
+      collectDrawingRegisterRecords(item, depth + 1, into, visited);
+    }
+    return into;
+  }
+
+  const obj = raw as Record<string, unknown>;
+  const nestedList = extractDrawingRegisterListArray(obj);
+  if (nestedList) {
+    collectDrawingRegisterRecords(nestedList, depth + 1, into, visited);
+    return into;
+  }
+  if (looksLikeDrawingRegisterRecord(obj) && drawingRegisterRowName(obj)) {
+    into.push(obj);
+    return into;
+  }
+  const nestedClient = obj.client_row ?? obj.clientRow;
+  if (nestedClient && typeof nestedClient === "object") {
+    collectDrawingRegisterRecords(nestedClient, depth + 1, into, visited);
+    if (into.length) return into;
+  }
+  for (const value of Object.values(obj)) {
+    collectDrawingRegisterRecords(value, depth + 1, into, visited);
+  }
+  return into;
+}
+
 function normalizeDrawingClientReportRow(row: unknown): DrawingClientReportRow {
   const r = (row ?? {}) as Record<string, unknown>;
+  const nested = r.client_row ?? r.clientRow;
+  if (nested && typeof nested === "object") {
+    const fromNested = normalizeDrawingClientReportRow(nested);
+    const drawings = extractDrawingRegisterFiles(r) ?? fromNested.drawings;
+    return {
+      ...fromNested,
+      id: fromNested.id ?? (r.id != null ? toNum(r.id) : undefined),
+      projectName: fromNested.projectName || String(r.project_name ?? r.projectName ?? ""),
+      ...(drawings?.length
+        ? { drawings, drawingFileCount: drawings.length }
+        : {}),
+    };
+  }
   const drawings = extractDrawingRegisterFiles(r);
   const drawingFileCount =
     r.drawing_file_count != null || r.drawingFileCount != null
@@ -6051,14 +6160,16 @@ export function normalizeDrawingClientReport(
   context: DrawingClientReportContext = {},
 ): DrawingClientReportData {
   const normalizeRows = (rows: unknown[]): DrawingClientReportRow[] =>
-    rows.map((row, index) => {
-      const normalized = normalizeDrawingClientReportRow(row);
-      return {
-        ...normalized,
-        srNo: normalized.srNo > 0 ? normalized.srNo : index + 1,
-        projectName: normalized.projectName || context.projectName || "",
-      };
-    });
+    rows
+      .map((row, index) => {
+        const normalized = normalizeDrawingClientReportRow(row);
+        return {
+          ...normalized,
+          srNo: normalized.srNo > 0 ? normalized.srNo : index + 1,
+          projectName: normalized.projectName || context.projectName || "",
+        };
+      })
+      .filter((row) => Boolean(row.designAndDrawing.trim() || row.id != null));
 
   if (Array.isArray(raw)) {
     const rows = normalizeRows(raw);
@@ -6076,13 +6187,15 @@ export function normalizeDrawingClientReport(
 
   const d = (raw ?? {}) as Record<string, unknown>;
   const summaryRaw = (d.summary ?? {}) as Record<string, unknown>;
-  const rowSource = Array.isArray(d.rows)
-    ? d.rows
-    : Array.isArray(d.results)
-      ? d.results
-      : Array.isArray(d.register_rows)
-        ? d.register_rows
-        : [];
+  const collected = collectDrawingRegisterRecords(raw);
+  const rowSource =
+    collected.length > 0
+      ? collected
+      : Array.isArray(d.rows) && d.rows.length
+        ? d.rows
+        : Array.isArray(d.results) && d.results.length
+          ? d.results
+          : [];
   const rows = normalizeRows(rowSource);
 
   const submittedDrawings = toNum(
@@ -6171,7 +6284,12 @@ export function registerRowToClientReportRow(
 ): DrawingClientReportRow {
   const fromClient = row.clientRow;
   const base: DrawingClientReportRow = fromClient
-    ? { ...fromClient }
+    ? {
+        ...fromClient,
+        id: fromClient.id ?? row.id,
+        projectName: fromClient.projectName || row.projectName,
+        designAndDrawing: fromClient.designAndDrawing || row.drawingName,
+      }
     : {
         id: row.id,
         srNo: row.srNo ?? 0,
@@ -6253,29 +6371,129 @@ export function supplementClientReportRows(
   );
 }
 
+function dedupeClientReportRows(rows: DrawingClientReportRow[]): DrawingClientReportRow[] {
+  const out: DrawingClientReportRow[] = [];
+  const seenIds = new Set<number>();
+  const seenKeys = new Set<string>();
+  for (const row of rows) {
+    if (row.id != null) {
+      if (seenIds.has(row.id)) continue;
+      seenIds.add(row.id);
+    } else {
+      const key = [
+        row.designAndDrawing.trim().toLowerCase(),
+        row.revision ?? "",
+        row.srNo,
+        String(row.contractorName ?? "").trim().toLowerCase(),
+      ].join("::");
+      if (!row.designAndDrawing.trim()) continue;
+      if (seenKeys.has(key)) continue;
+      seenKeys.add(key);
+    }
+    out.push(row);
+  }
+  return out.sort((a, b) => (a.srNo ?? 0) - (b.srNo ?? 0));
+}
+
 function drawingRegisterListParams(
   params: DrawingRegisterClientReportParams,
+  options?: { ignorePeriod?: boolean; projectOnly?: boolean },
 ): Record<string, string | number> {
+  if (options?.projectOnly) {
+    return { project_name: params.projectName };
+  }
   return {
     project_name: params.projectName,
-    month: params.month,
-    year: params.year,
-    view: params.view,
-    ...(params.contractor ? { contractor: params.contractor } : {}),
+    ...(options?.ignorePeriod
+      ? {}
+      : { month: params.month, year: params.year, view: params.view }),
+    ...(params.contractor
+      ? { contractor: params.contractor, contractor_name: params.contractor }
+      : {}),
     ...(params.status ? { status: params.status } : {}),
     ...(params.search ? { search: params.search } : {}),
   };
 }
 
-async function fetchDrawingRegisterRowsWithFiles(
-  params: DrawingRegisterClientReportParams,
-) {
-  return api.get(
-    API_ENDPOINTS.DRAWINGS.REGISTER_LIST,
-    drawingRegisterAxiosConfig(params, {
-      params: drawingRegisterListParams(params),
-    }),
+function yearMonthFromDate(value?: string | null): { year: number; month: number } | null {
+  if (!value) return null;
+  const match = String(value).match(/^(\d{4})-(\d{2})/);
+  if (!match) return null;
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  if (!year || month < 1 || month > 12) return null;
+  return { year, month };
+}
+
+function drawingRowMatchesPeriod(
+  row: DrawingRegisterRow,
+  month: number,
+  year: number,
+  view: "monthly" | "cumulative",
+): boolean {
+  const client = row.clientRow;
+  const stamps = [
+    row.submittedDate,
+    row.consultantCommentsDate,
+    row.resubmittedDate,
+    row.approvedDate,
+    row.createdAt,
+    row.updatedAt,
+    client?.submissionByContractor,
+    client?.consultantCommentsDate,
+    client?.resubmissionDate,
+    client?.approvedByConsultant,
+  ];
+  const parts = stamps
+    .map(yearMonthFromDate)
+    .filter((item): item is { year: number; month: number } => item != null);
+  if (!parts.length) return true;
+  if (view === "monthly") {
+    return parts.some((item) => item.year === year && item.month === month);
+  }
+  return parts.some(
+    (item) => item.year < year || (item.year === year && item.month <= month),
   );
+}
+
+/** Paginate GET /drawings/register/ without format=client — source of table rows. */
+async function fetchAllDrawingRegisterRows(
+  params: DrawingRegisterClientReportParams,
+  options?: { ignorePeriod?: boolean; projectOnly?: boolean },
+): Promise<DrawingRegisterRow[]> {
+  const collected: DrawingRegisterRow[] = [];
+  const baseParams = drawingRegisterListParams(params, options);
+  let page = 1;
+  let guard = 0;
+  let usePaging = false;
+
+  while (guard < 20) {
+    guard += 1;
+    const query = usePaging
+      ? { ...baseParams, page, page_size: 100 }
+      : baseParams;
+    const res = await api.get(
+      API_ENDPOINTS.DRAWINGS.REGISTER_LIST,
+      drawingRegisterAxiosConfig(params, { params: query }),
+    );
+    const payload = unwrapDrawingApiEnvelope(
+      res.data,
+      "Failed to load register rows",
+    );
+    const rows = normalizeDrawingRegisterList(payload, params.projectName);
+    collected.push(...rows);
+
+    const envelope =
+      payload && typeof payload === "object"
+        ? (payload as Record<string, unknown>)
+        : {};
+    const next = envelope.next;
+    if (!next || rows.length === 0) break;
+    usePaging = true;
+    page += 1;
+  }
+
+  return collected;
 }
 
 async function enrichClientRowsWithDetailFiles(
@@ -6601,18 +6819,9 @@ export function normalizeDrawingRegisterRow(
 }
 
 function extractDrawingRegisterListItems(raw: unknown): unknown[] {
+  const collected = collectDrawingRegisterRecords(raw);
+  if (collected.length) return collected;
   if (Array.isArray(raw)) return raw;
-  if (!raw || typeof raw !== "object") return [];
-  const obj = raw as Record<string, unknown>;
-  if (obj.data && typeof obj.data === "object") {
-    const inner = obj.data as Record<string, unknown>;
-    if (Array.isArray(inner.results)) return inner.results;
-    if (Array.isArray(inner.rows)) return inner.rows;
-    if (Array.isArray(inner.register_rows)) return inner.register_rows;
-  }
-  if (Array.isArray(obj.results)) return obj.results;
-  if (Array.isArray(obj.rows)) return obj.rows;
-  if (Array.isArray(obj.register_rows)) return obj.register_rows;
   return unwrapList(raw);
 }
 
@@ -6695,66 +6904,153 @@ export async function parseDrawingRegisterCsvBlob(
 export const drawingRegisterApi = {
   /** Client report table — tries /drawings/summary/, /drawings/register/, then project summary */
   getClientReport: async (params: DrawingRegisterClientReportParams) => {
-    const [clientRes, registerRes] = await Promise.all([
-      fetchDrawingRegisterClientReport(params),
-      fetchDrawingRegisterRowsWithFiles(params).catch(() => null),
-    ]);
-
-    const payload = unwrapDrawingApiEnvelope(
-      clientRes.data,
-      "Failed to load drawing register",
-    );
-    let report = normalizeDrawingClientReport(payload, {
+    const context = {
       projectName: params.projectName,
       month: params.month,
       year: params.year,
       view: params.view,
-    });
+    };
+    const clientQuery = drawingRegisterReportParams(params);
+    const [clientRegisterRes, clientSummaryRes, registerRows] = await Promise.all([
+      api
+        .get(
+          API_ENDPOINTS.DRAWINGS.REGISTER_LIST,
+          drawingRegisterAxiosConfig(params, { params: clientQuery }),
+        )
+        .catch(() => null),
+      api
+        .get(
+          API_ENDPOINTS.DRAWINGS.REGISTER_CLIENT_REPORT,
+          drawingRegisterAxiosConfig(params, { params: clientQuery }),
+        )
+        .catch(() => null),
+      fetchAllDrawingRegisterRows(params, { projectOnly: true }).catch(
+        () => [] as DrawingRegisterRow[],
+      ),
+    ]);
+
+    const responses = [clientSummaryRes, clientRegisterRes].filter(
+      (res): res is NonNullable<typeof res> => Boolean(res),
+    );
+
+    const mergeFromPayload = (
+      current: DrawingClientReportData,
+      payload: unknown,
+      extraRegisterRows: DrawingRegisterRow[] = [],
+    ): DrawingClientReportData => {
+      const parsed = normalizeDrawingClientReport(payload, context);
+      const registerRowsFromPayload = normalizeDrawingRegisterList(
+        payload,
+        params.projectName,
+      );
+      const mergedRows = dedupeClientReportRows(
+        supplementClientReportRows(
+          [...current.rows, ...parsed.rows],
+          [...registerRowsFromPayload, ...extraRegisterRows],
+        ),
+      );
+      const strongerSummary =
+        parsed.summary.submittedDrawings > current.summary.submittedDrawings
+          ? parsed.summary
+          : current.summary;
+      return {
+        ...current,
+        ...parsed,
+        rows: mergedRows,
+        summary: mergedRows.length
+          ? buildDrawingClientReportSummary(mergedRows)
+          : strongerSummary,
+      };
+    };
+
+    let report: DrawingClientReportData = {
+      view: params.view,
+      fromDate: "",
+      toDate: "",
+      month: params.month,
+      year: params.year,
+      projectName: params.projectName,
+      summary: buildDrawingClientReportSummary([]),
+      rows: [],
+    };
+
+    if (!responses.length && !registerRows.length) {
+      throw new Error("Failed to load drawing register");
+    }
+
+    for (const res of responses) {
+      report = mergeFromPayload(
+        report,
+        unwrapDrawingApiEnvelope(res.data, "Failed to load drawing register"),
+      );
+    }
+
+    if (registerRows.length) {
+      const matched = registerRows.filter((row) =>
+        drawingRowMatchesPeriod(row, params.month, params.year, params.view),
+      );
+      const rowsForTable =
+        matched.length > 0
+          ? matched
+          : report.summary.submittedDrawings > 0
+            ? registerRows
+            : matched;
+      if (rowsForTable.length) {
+        report = mergeFromPayload(report, rowsForTable, rowsForTable);
+      }
+    }
+
+    if (!report.rows.length) {
+      const unfilteredRows = await fetchAllDrawingRegisterRows(params, {
+        projectOnly: true,
+        ignorePeriod: true,
+      }).catch(() => [] as DrawingRegisterRow[]);
+      if (unfilteredRows.length) {
+        const matched = unfilteredRows.filter((row) =>
+          drawingRowMatchesPeriod(row, params.month, params.year, params.view),
+        );
+        const rowsForTable =
+          matched.length > 0 || report.summary.submittedDrawings === 0
+            ? matched.length
+              ? matched
+              : unfilteredRows
+            : unfilteredRows;
+        report = mergeFromPayload(report, rowsForTable, rowsForTable);
+      }
+    }
+
+    if (!report.rows.length) {
+      const legacyRes = await api
+        .get(
+          API_ENDPOINTS.DRAWINGS.LIST,
+          drawingRegisterAxiosConfig(params, {
+            params: { project_name: params.projectName },
+          }),
+        )
+        .catch(() => null);
+      if (legacyRes) {
+        report = mergeFromPayload(
+          report,
+          unwrapDrawingApiEnvelope(legacyRes.data, "Failed to load drawings"),
+        );
+      }
+    }
 
     try {
-      const registerRows = registerRes
-        ? normalizeDrawingRegisterList(
-            unwrapDrawingApiEnvelope(
-              registerRes.data,
-              "Failed to load register rows",
-            ),
-            params.projectName,
-          )
-        : [];
-
-      let rows =
-        registerRows.length > 0
-          ? supplementClientReportRows(report.rows, registerRows)
-          : report.rows;
-
-      if (!rows.length && registerRows.length > 0) {
-        rows = registerRows
-          .map(registerRowToClientReportRow)
-          .sort((a, b) => (a.srNo ?? 0) - (b.srNo ?? 0));
-      }
-
-      rows = await enrichClientRowsWithDetailFiles(rows);
-      report = { ...report, rows };
-    } catch (enrichError) {
-      if (!axios.isAxiosError(enrichError)) {
-        console.warn("[DrawingRegister] File enrichment failed:", enrichError);
-      } else {
-        const status = enrichError.response?.status;
-        if (status !== 404 && status !== 405) {
-          console.warn(
-            "[DrawingRegister] File enrichment failed:",
-            enrichError,
-          );
-        }
-      }
+      const rows = await enrichClientRowsWithDetailFiles(report.rows);
       report = {
         ...report,
-        rows: await enrichClientRowsWithDetailFiles(report.rows),
+        rows,
+        summary: rows.length
+          ? buildDrawingClientReportSummary(rows)
+          : report.summary,
       };
+    } catch (enrichError) {
+      console.warn("[DrawingRegister] File enrichment failed:", enrichError);
     }
 
     return {
-      ...clientRes,
+      ...(responses[0] ?? { data: report }),
       data: report,
     };
   },

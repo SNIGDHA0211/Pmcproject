@@ -552,6 +552,17 @@ export interface CorrespondenceDocumentDetailPermissions {
   canEdit?: boolean;
 }
 
+/** Historical comment on Client/Contractor correspondence (append-only). */
+export interface CorrespondenceComment {
+  id: number;
+  comment: string;
+  commented_by: {
+    id: number;
+    name: string;
+  };
+  created_at: string;
+}
+
 export interface PerformanceIndices {
   spi: number;
   cpi: number;

@@ -178,6 +178,7 @@ export const API_ENDPOINTS = {
   CORRESPONDENCE: {
     LIST: '/correspondence/',
     DETAIL: (id: string | number) => `/correspondence/${id}/`,
+    COMMENTS: (id: string | number) => `/correspondence/${id}/comments/`,
     BY_MONTH_YEAR: (projectName: string, month: number, year: number) =>
       `/correspondence/project/${encodeURIComponent(projectName)}/month/${month}/year/${year}/`,
     PROJECT_SUMMARY: (projectName: string) =>
@@ -192,6 +193,7 @@ export const API_ENDPOINTS = {
   CORRESPONDENCE_DOCUMENTS: {
     LIST: '/correspondence-documents/',
     DETAIL: (id: string | number) => `/correspondence-documents/${id}/`,
+    COMMENTS: (id: string | number) => `/correspondence-documents/${id}/comments/`,
     DASHBOARD: '/correspondence-documents/dashboard/',
     SCL_DELIVERED: '/correspondence-documents/scl-delivered-correspondence/',
     ATTACHMENTS: (id: string | number) => `/correspondence-documents/${id}/attachments/`,

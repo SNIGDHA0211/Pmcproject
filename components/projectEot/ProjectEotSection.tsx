@@ -52,9 +52,9 @@ function simplifyFieldMessage(raw: string, field?: string): string {
   const t = raw.trim();
   if (!t) return '';
   if (/reason is required/i.test(t) || (field === 'reason' && /required/i.test(t))) {
-    return 'Please enter the reason for this extension of time.';
+    return 'Enter the reason for this EOT.';
   }
-  if (/required/i.test(t)) return 'Please fill in this field.';
+  if (/required/i.test(t)) return 'This field is required.';
   if (/valid date|date format|invalid date/i.test(t)) {
     return 'Please enter a valid date.';
   }
@@ -133,38 +133,38 @@ function validateEotForm(form: FormState, projectName: string): {
   }
 
   if (!form.project_start) {
-    fieldErrors.project_start = 'Please select the project start date.';
+    fieldErrors.project_start = 'Select the project start date.';
   }
   if (!form.contract_finish) {
-    fieldErrors.contract_finish = 'Please select the contract finish date.';
+    fieldErrors.contract_finish = 'Select the contract finish date.';
   }
   if (!form.forecast_finish) {
-    fieldErrors.forecast_finish = 'Please select the forecast finish date.';
+    fieldErrors.forecast_finish = 'Select the forecast finish date.';
   }
   if (!form.eot_date) {
-    fieldErrors.eot_date = 'Please select the EOT date.';
+    fieldErrors.eot_date = 'Select the EOT date.';
   }
 
   if (!String(form.reason ?? '').trim()) {
-    fieldErrors.reason = 'Please enter the reason for this extension of time.';
+    fieldErrors.reason = 'Enter the reason for this EOT.';
   }
 
   const daysRaw = String(form.extension_days ?? '').trim();
   const extensionDays = Number(daysRaw);
   if (!daysRaw) {
-    fieldErrors.extension_days = 'Please enter how many extra days are needed.';
+    fieldErrors.extension_days = 'Enter how many extra days are needed.';
   } else if (!Number.isFinite(extensionDays) || extensionDays <= 0) {
-    fieldErrors.extension_days = 'Extension days must be a number greater than 0.';
+    fieldErrors.extension_days = 'Extension days must be greater than 0.';
   } else if (!Number.isInteger(extensionDays)) {
-    fieldErrors.extension_days = 'Please enter whole days only (no decimals).';
+    fieldErrors.extension_days = 'Use whole days only (no decimals).';
   }
 
   if (!form.status || !STATUS_OPTIONS.some((o) => o.value === form.status)) {
-    fieldErrors.status = 'Please choose a status.';
+    fieldErrors.status = 'Choose a status.';
   }
 
   if (String(form.status).toLowerCase() === 'approved' && !form.approval_date) {
-    fieldErrors.approval_date = 'Please add the approval date when status is Approved.';
+    fieldErrors.approval_date = 'Add the approval date when status is Approved.';
   }
 
   if (
@@ -172,8 +172,15 @@ function validateEotForm(form: FormState, projectName: string): {
     form.contract_finish &&
     form.project_start > form.contract_finish
   ) {
-    fieldErrors.contract_finish =
-      'Contract finish date should be on or after the project start date.';
+    fieldErrors.contract_finish = 'Contract finish must be on or after project start.';
+  }
+
+  if (
+    form.project_start &&
+    form.forecast_finish &&
+    form.forecast_finish < form.project_start
+  ) {
+    fieldErrors.forecast_finish = 'Forecast finish must be on or after project start.';
   }
 
   if (
@@ -181,17 +188,13 @@ function validateEotForm(form: FormState, projectName: string): {
     form.eot_date &&
     form.eot_date < form.contract_finish
   ) {
-    fieldErrors.eot_date =
-      'EOT date is usually on or after the contract finish date. Please check.';
+    fieldErrors.eot_date = 'EOT date must be on or after contract finish.';
   }
 
-  const count = Object.keys(fieldErrors).length;
+  const unique = [...new Set(Object.values(fieldErrors).filter(Boolean))];
   return {
     fieldErrors,
-    formError:
-      count > 0
-        ? `Please fix ${count} item${count === 1 ? '' : 's'} highlighted below.`
-        : null,
+    formError: unique.length > 0 ? unique.join(' ') : null,
   };
 }
 
@@ -327,6 +330,7 @@ const ProjectEotSection: React.FC<ProjectEotSectionProps> = ({
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [isSaving, setIsSaving] = useState(false);
   const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
 
   const clearFieldError = (key: FormFieldKey) => {
     setFieldErrors((prev) => {
@@ -359,7 +363,7 @@ const ProjectEotSection: React.FC<ProjectEotSectionProps> = ({
   const fieldClass = (key: FormFieldKey) =>
     `w-full rounded-2xl border px-4 py-3 text-sm font-bold outline-none ${themeClasses.input} ${
       fieldErrors[key]
-        ? 'border-rose-400 ring-2 ring-rose-200/70'
+        ? 'border-rose-500 ring-2 ring-rose-500/30'
         : themeClasses.border
     }`;
 
@@ -420,6 +424,7 @@ const ProjectEotSection: React.FC<ProjectEotSectionProps> = ({
     setForm(emptyForm(seedDates));
     setFormError(null);
     setFieldErrors({});
+    setActionError(null);
     setModalOpen(true);
   };
 
@@ -428,6 +433,7 @@ const ProjectEotSection: React.FC<ProjectEotSectionProps> = ({
     setForm(formFromHistory(item, seedDates));
     setFormError(null);
     setFieldErrors({});
+    setActionError(null);
     setModalOpen(true);
   };
 
@@ -438,7 +444,29 @@ const ProjectEotSection: React.FC<ProjectEotSectionProps> = ({
     );
     setFieldErrors(nextErrors);
     setFormError(nextFormError);
-    if (nextFormError || Object.keys(nextErrors).length > 0) return null;
+    if (nextFormError || Object.keys(nextErrors).length > 0) {
+      const order: FormFieldKey[] = [
+        'project_start',
+        'contract_finish',
+        'forecast_finish',
+        'eot_date',
+        'extension_days',
+        'status',
+        'approval_date',
+        'reason',
+        'remarks',
+        'supporting_document',
+      ];
+      const first = order.find((key) => nextErrors[key]);
+      if (first) {
+        window.requestAnimationFrame(() => {
+          document
+            .querySelector<HTMLElement>(`[data-eot-field="${first}"]`)
+            ?.focus();
+        });
+      }
+      return null;
+    }
 
     const extensionDays = Number(String(form.extension_days).trim());
 
@@ -480,12 +508,12 @@ const ProjectEotSection: React.FC<ProjectEotSectionProps> = ({
       const apiFields = parseApiFieldErrors(err);
       setFieldErrors(apiFields);
       if (Object.keys(apiFields).length > 0) {
-        setFormError('Please fix the highlighted fields and try again.');
+        setFormError([...new Set(Object.values(apiFields))].join(' '));
       } else {
         setFormError(
           getProjectEotErrorMessage(
             err,
-            'Could not save this extension of time. Please check the details and try again.',
+            'Could not save this EOT. Check the details and try again.',
           ),
         );
       }
@@ -505,15 +533,13 @@ const ProjectEotSection: React.FC<ProjectEotSectionProps> = ({
       return;
 
     setDeletingId(item.id);
+    setActionError(null);
     try {
       await projectEotApi.deleteProjectEOT(item.id);
       await loadSummary();
     } catch (err) {
-      window.alert(
-        getProjectEotErrorMessage(
-          err,
-          'Could not delete this extension of time. Please try again.',
-        ),
+      setActionError(
+        getProjectEotErrorMessage(err, 'Could not delete this EOT. Please try again.'),
       );
     } finally {
       setDeletingId(null);
@@ -552,6 +578,15 @@ const ProjectEotSection: React.FC<ProjectEotSectionProps> = ({
           </button>
         )}
       </div>
+
+      {actionError && (
+        <div
+          role="alert"
+          className="mb-4 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700 dark:border-rose-500/30 dark:bg-rose-500/10 dark:text-rose-300"
+        >
+          {actionError}
+        </div>
+      )}
 
       {isLoading && !summary ? (
         <p className={`text-sm font-bold ${themeClasses.textSecondary}`}>
@@ -834,6 +869,7 @@ const ProjectEotSection: React.FC<ProjectEotSectionProps> = ({
                     </label>
                     <input
                       type="date"
+                      data-eot-field={key}
                       value={form[key]}
                       onChange={(e) => updateForm(key, e.target.value)}
                       aria-invalid={Boolean(fieldErrors[key])}
@@ -851,11 +887,12 @@ const ProjectEotSection: React.FC<ProjectEotSectionProps> = ({
                   >
                     Extension Days *
                   </label>
-                  <input
+                    <input
                     type="number"
                     min={1}
                     step={1}
                     inputMode="numeric"
+                    data-eot-field="extension_days"
                     placeholder="e.g. 30"
                     value={form.extension_days}
                     onChange={(e) => updateForm('extension_days', e.target.value)}
@@ -871,6 +908,7 @@ const ProjectEotSection: React.FC<ProjectEotSectionProps> = ({
                     Status *
                   </label>
                   <select
+                    data-eot-field="status"
                     value={form.status}
                     onChange={(e) =>
                       updateForm('status', e.target.value as ProjectEotStatus)
@@ -895,6 +933,7 @@ const ProjectEotSection: React.FC<ProjectEotSectionProps> = ({
                   </label>
                   <input
                     type="date"
+                    data-eot-field="approval_date"
                     value={form.approval_date}
                     onChange={(e) => updateForm('approval_date', e.target.value)}
                     aria-invalid={Boolean(fieldErrors.approval_date)}
@@ -907,16 +946,20 @@ const ProjectEotSection: React.FC<ProjectEotSectionProps> = ({
                     className={`mb-1 block text-[10px] font-black uppercase tracking-widest ${themeClasses.textSecondary}`}
                   >
                     Supporting Document
+                    <span className={`ml-1 font-semibold normal-case tracking-normal ${themeClasses.textMuted}`}>
+                      Optional
+                    </span>
                   </label>
                   <input
                     type="file"
+                    data-eot-field="supporting_document"
                     onChange={(e) =>
                       updateForm('supporting_document', e.target.files?.[0] ?? null)
                     }
                     aria-invalid={Boolean(fieldErrors.supporting_document)}
                     className={`w-full rounded-2xl border px-4 py-2.5 text-sm outline-none ${themeClasses.input} ${
                       fieldErrors.supporting_document
-                        ? 'border-rose-400 ring-2 ring-rose-200/70'
+                        ? 'border-rose-500 ring-2 ring-rose-500/30'
                         : themeClasses.border
                     }`}
                   />
@@ -932,13 +975,14 @@ const ProjectEotSection: React.FC<ProjectEotSectionProps> = ({
                 </label>
                 <textarea
                   rows={2}
+                  data-eot-field="reason"
                   value={form.reason}
                   onChange={(e) => updateForm('reason', e.target.value)}
                   placeholder="Why is extra time needed?"
                   aria-invalid={Boolean(fieldErrors.reason)}
                   className={`w-full rounded-2xl border px-4 py-3 text-sm font-medium outline-none ${themeClasses.input} ${
                     fieldErrors.reason
-                      ? 'border-rose-400 ring-2 ring-rose-200/70'
+                      ? 'border-rose-500 ring-2 ring-rose-500/30'
                       : themeClasses.border
                   }`}
                 />
@@ -950,16 +994,20 @@ const ProjectEotSection: React.FC<ProjectEotSectionProps> = ({
                   className={`mb-1 block text-[10px] font-black uppercase tracking-widest ${themeClasses.textSecondary}`}
                 >
                   Remarks
-                </label>
+                    <span className={`ml-1 font-semibold normal-case tracking-normal ${themeClasses.textMuted}`}>
+                      Optional
+                    </span>
+                  </label>
                 <textarea
                   rows={2}
+                  data-eot-field="remarks"
                   value={form.remarks}
                   onChange={(e) => updateForm('remarks', e.target.value)}
                   placeholder="Any extra notes (optional)"
                   aria-invalid={Boolean(fieldErrors.remarks)}
                   className={`w-full rounded-2xl border px-4 py-3 text-sm font-medium outline-none ${themeClasses.input} ${
                     fieldErrors.remarks
-                      ? 'border-rose-400 ring-2 ring-rose-200/70'
+                      ? 'border-rose-500 ring-2 ring-rose-500/30'
                       : themeClasses.border
                   }`}
                 />

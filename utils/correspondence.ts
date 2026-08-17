@@ -310,6 +310,31 @@ export function isSclOutboundDocument(document: CorrespondenceDocument): boolean
   return Boolean(normalizeCorrespondenceRecipientType(document.recipientType));
 }
 
+/**
+ * Whether the optional historical Comments UI should appear.
+ * Backend remains authoritative — this is UX-only.
+ */
+export function canShowCorrespondenceComments(input: {
+  correspondenceType?: string | null;
+  flowDirection?: string | null;
+}): boolean {
+  const flow = String(input.flowDirection ?? '').toUpperCase();
+  if (flow === 'OUTBOUND_SCL') return false;
+  const type = String(input.correspondenceType ?? '').toUpperCase();
+  return type === 'CLIENT' || type === 'CONTRACTOR';
+}
+
+export const CORRESPONDENCE_COMMENT_MAX_LENGTH = 2000;
+
+export function validateCorrespondenceCommentInput(value: string): string | null {
+  const trimmed = value.trim();
+  if (!trimmed) return 'Comment cannot be empty.';
+  if (trimmed.length > CORRESPONDENCE_COMMENT_MAX_LENGTH) {
+    return `Comment must be ${CORRESPONDENCE_COMMENT_MAX_LENGTH} characters or fewer.`;
+  }
+  return null;
+}
+
 export function correspondenceCategoryLabel(category: CorrespondenceCategory): string {
   return category === 'RECORD' ? 'Record' : 'Delivery';
 }
@@ -319,28 +344,56 @@ export function correspondenceRecipientLabel(recipient: CorrespondenceRecipientT
   return recipient === 'CONTRACTOR' ? 'Contractor' : 'Client';
 }
 
-export function validateCorrespondenceDocumentInput(values: CorrespondenceDocumentFormValues): string | null {
-  if (!values.month || values.month < 1 || values.month > 12) return 'Month is required.';
-  if (!values.year || values.year < 2000) return 'Year is required.';
-  if (!values.correspondenceCategory) return 'Correspondence category is required.';
-  if (!values.description.trim()) return 'Description is required.';
-  if (!values.receivedDate) return 'Received date is required.';
+export function validateCorrespondenceDocumentFields(
+  values: CorrespondenceDocumentFormValues,
+): Record<string, string> {
+  const errors: Record<string, string> = {};
+
+  if (!values.month || values.month < 1 || values.month > 12) {
+    errors.month = 'Select a month.';
+  }
+  if (!values.year || values.year < 2000) {
+    errors.year = 'Select a year.';
+  }
+  if (!values.correspondenceCategory) {
+    errors.correspondenceCategory = 'Select delivery or record.';
+  }
+  if (!values.description.trim()) {
+    errors.description = 'Description is required.';
+  }
+  if (!values.receivedDate) {
+    errors.receivedDate = 'Received date is required.';
+  }
 
   if (values.documentScope === 'scl') {
-    if (!values.recipientType) return 'Recipient is required.';
+    if (!values.recipientType) {
+      errors.recipientType = 'Select a recipient.';
+    }
   } else {
-    if (!values.correspondenceType) return 'Correspondence type is required.';
-    if (!Number.isFinite(values.srNo) || values.srNo < 1) return 'Sr No must be at least 1.';
+    if (!values.correspondenceType) {
+      errors.correspondenceType = 'Select client or contractor.';
+    }
+    if (!Number.isFinite(values.srNo) || values.srNo < 1) {
+      errors.srNo = 'Sr No must be at least 1.';
+    }
   }
 
   if (
     values.correspondenceCategory === 'DELIVERY' &&
     values.deliveredDate &&
+    values.receivedDate &&
     values.deliveredDate < values.receivedDate
   ) {
-    return 'Delivered date cannot be before received date.';
+    errors.deliveredDate = 'Cannot be before received date.';
   }
-  return null;
+
+  return errors;
+}
+
+export function validateCorrespondenceDocumentInput(values: CorrespondenceDocumentFormValues): string | null {
+  const errors = validateCorrespondenceDocumentFields(values);
+  const first = Object.values(errors)[0];
+  return first ?? null;
 }
 
 /** @deprecated Count-based monthly form */

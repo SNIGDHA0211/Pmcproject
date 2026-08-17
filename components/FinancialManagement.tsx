@@ -48,6 +48,49 @@ import { contractorMasterApi } from '../services/contractorManagementApi';
 import type { ContractorMasterRecord } from '../types/contractorManagement';
 import { loadContractorFinancialBuckets } from '../utils/financialContractorForms';
 import FinancialCashflowSection from './financial/FinancialCashflowSection';
+import {
+  extractUserFacingFieldErrors,
+  formatUserFacingError,
+} from '../utils/formErrors';
+
+const PROGRESS_PERCENT_FIELDS = [
+  'monthly_plan',
+  'monthly_actual',
+  'cumulative_plan',
+  'cumulative_actual',
+] as const;
+
+const PROGRESS_FIELD_LABELS: Record<string, string> = {
+  progress_month: 'Progress month',
+  monthly_plan: 'Monthly plan (%)',
+  monthly_actual: 'Monthly actual (%)',
+  cumulative_plan: 'Cumulative plan (%)',
+  cumulative_actual: 'Cumulative actual (%)',
+};
+
+function validatePhysicalProgressForm(form: Record<string, unknown>): Record<string, string> {
+  const errors: Record<string, string> = {};
+  const monthRaw = String(form.progress_month ?? '').trim();
+  if (!monthRaw) {
+    errors.progress_month = 'Enter the progress month (YYYY-MM-DD).';
+  }
+
+  for (const key of PROGRESS_PERCENT_FIELDS) {
+    const raw = form[key];
+    const text = raw == null ? '' : String(raw).replace(/,/g, '').trim();
+    if (text === '') {
+      errors[key] = `${PROGRESS_FIELD_LABELS[key]} is required.`;
+      continue;
+    }
+    const n = Number(text);
+    if (!Number.isFinite(n)) {
+      errors[key] = 'Enter a valid number.';
+    } else if (n < 0 || n > 100) {
+      errors[key] = 'Must be between 0 and 100.';
+    }
+  }
+  return errors;
+}
 
 interface FinancialManagementProps {
   projects?: Project[];
@@ -139,6 +182,40 @@ const COST_EVM_FIELD_LABELS: Record<string, string> = {
 };
 
 const COST_EVM_FORM_FIELDS = ['month_year', 'bcws', 'bcwp', 'acwp', 'fcst', 'bac'] as const;
+const COST_AMOUNT_FIELDS = ['bcws', 'bcwp', 'acwp', 'fcst', 'bac'] as const;
+
+function parseFormAmount(raw: unknown): { empty: boolean; value: number } {
+  const text = raw == null ? '' : String(raw).replace(/,/g, '').trim();
+  if (text === '') return { empty: true, value: NaN };
+  return { empty: false, value: Number(text) };
+}
+
+function validateFinancialProgressForm(form: Record<string, unknown>): Record<string, string> {
+  const errors: Record<string, string> = {};
+  if (!String(form.month_year ?? '').trim()) {
+    errors.month_year = 'Month / year is required.';
+  }
+
+  for (const key of COST_AMOUNT_FIELDS) {
+    const { empty, value } = parseFormAmount(form[key]);
+    const label = COST_EVM_FIELD_LABELS[key];
+    if (empty) {
+      errors[key] =
+        key === 'bac' ? 'Budget at Completion is required and must be greater than 0.' : `${label} is required.`;
+      continue;
+    }
+    if (!Number.isFinite(value)) {
+      errors[key] = 'Enter a valid number.';
+      continue;
+    }
+    if (key === 'bac' && value <= 0) {
+      errors[key] = 'Must be greater than 0.';
+    } else if (value < 0) {
+      errors[key] = 'Cannot be negative.';
+    }
+  }
+  return errors;
+}
 
 /** Display metadata for Budget Performance — API keys unchanged */
 const BUDGET_PERFORMANCE_FIELDS = ['bac', 'bcwp', 'acwp'] as const;
@@ -252,10 +329,14 @@ const FinancialManagement: React.FC<FinancialManagementProps> = ({
 
   // Form states for each module (simplified)
   const [progressForm, setProgressForm] = useState<any>({});
+  const [progressFieldErrors, setProgressFieldErrors] = useState<Record<string, string>>({});
+  const [progressFormError, setProgressFormError] = useState<string | null>(null);
   const [contractForm, setContractForm] = useState<ContractPerformanceRecord | null>(null);
   const [contractFormError, setContractFormError] = useState<string | null>(null);
   const [isSavingContractPerformance, setIsSavingContractPerformance] = useState(false);
   const [costForm, setCostForm] = useState<any>({});
+  const [costFieldErrors, setCostFieldErrors] = useState<Record<string, string>>({});
+  const [costFormError, setCostFormError] = useState<string | null>(null);
   const [budgetForm, setBudgetForm] = useState<any>({});
   const [invoicingForms, setInvoicingForms] = useState<Record<InvoiceType, InvoicingRecord | null>>({
     PMC: null,
@@ -360,11 +441,15 @@ const FinancialManagement: React.FC<FinancialManagementProps> = ({
 
   const applyFinancialSnapshot = useCallback((snapshot: FinancialDataSnapshot) => {
     setProgressForm(snapshot.progressForm);
+    setProgressFieldErrors({});
+    setProgressFormError(null);
     setPevForms(snapshot.pevForms);
     setPevErrors(snapshot.pevErrors);
     setContractForm(snapshot.contractForm);
     setContractFormError(snapshot.contractFormError);
     setCostForm(snapshot.costForm);
+    setCostFieldErrors({});
+    setCostFormError(null);
     setBudgetForm(snapshot.budgetForm);
     setInvoicingForms(snapshot.invoicingForms);
     setInvoicingErrors(snapshot.invoicingErrors);
@@ -483,32 +568,9 @@ const FinancialManagement: React.FC<FinancialManagementProps> = ({
 
   // Safe error message extractor - prevents rendering raw Django HTML tracebacks
   const getErrorMessage = (error: any): string => {
-    const data = error?.response?.data;
-
-    // Prevent showing full HTML error pages (Django debug mode)
-    if (typeof data === "string") {
-      if (data.includes("<!DOCTYPE html>") || data.includes("<html")) {
-        return "Internal server error. Please try again later.";
-      }
-      return "Server error occurred";
-    }
-
-    if (data?.detail) {
-      return data.detail;
-    }
-
-    if (typeof data === "object" && data !== null) {
-      return Object.entries(data)
-        .map(([field, messages]) => {
-          const msgStr = Array.isArray(messages)
-            ? messages.join(", ")
-            : String(messages);
-          return `${field}: ${msgStr}`;
-        })
-        .join(" | ");
-    }
-
-    return error?.message || "Something went wrong. Please try again.";
+    return formatUserFacingError(error, {
+      fallback: 'Something went wrong. Please try again.',
+    });
   };
 
   const { forceRefresh } = useFinancialManagementData({
@@ -524,6 +586,10 @@ const FinancialManagement: React.FC<FinancialManagementProps> = ({
 
   const handleFormReset = useCallback(() => {
     if (!projectName) return;
+    setProgressFieldErrors({});
+    setProgressFormError(null);
+    setCostFieldErrors({});
+    setCostFormError(null);
     const cached = getFinancialCacheEntry(projectName);
     if (cached && financialCacheMatchesPeriod(cached, selectedMonthNumber, selectedYearNumber)) {
       applyFinancialSnapshot(cached.snapshot);
@@ -764,6 +830,47 @@ const FinancialManagement: React.FC<FinancialManagementProps> = ({
       return;
     }
 
+    if (cacheSection === 'progress') {
+      const clientErrors = validatePhysicalProgressForm(formData);
+      if (Object.keys(clientErrors).length > 0) {
+        setProgressFieldErrors(clientErrors);
+        setProgressFormError('Fix the highlighted fields, then save. Percent values must be between 0 and 100.');
+        setFormSuccessBanner(null);
+        showSaveNotification('Fix the highlighted progress fields, then save.', 'error');
+        const firstKey =
+          (['progress_month', ...PROGRESS_PERCENT_FIELDS] as const).find((key) => clientErrors[key]) ??
+          Object.keys(clientErrors)[0];
+        if (firstKey) {
+          window.requestAnimationFrame(() => {
+            document.querySelector<HTMLElement>(`[data-progress-field="${firstKey}"]`)?.focus();
+          });
+        }
+        return;
+      }
+      setProgressFieldErrors({});
+      setProgressFormError(null);
+    }
+
+    if (cacheSection === 'cost') {
+      const clientErrors = validateFinancialProgressForm(formData);
+      if (Object.keys(clientErrors).length > 0) {
+        setCostFieldErrors(clientErrors);
+        setCostFormError('Fix the highlighted fields, then save. Budget at Completion must be greater than 0.');
+        setFormSuccessBanner(null);
+        showSaveNotification('Fix the highlighted financial progress fields, then save.', 'error');
+        const firstKey =
+          COST_EVM_FORM_FIELDS.find((key) => clientErrors[key]) ?? Object.keys(clientErrors)[0];
+        if (firstKey) {
+          window.requestAnimationFrame(() => {
+            document.querySelector<HTMLElement>(`[data-cost-field="${firstKey}"]`)?.focus();
+          });
+        }
+        return;
+      }
+      setCostFieldErrors({});
+      setCostFormError(null);
+    }
+
     const payload = buildPeriodSavePayload(
       formData,
       editableKeys,
@@ -805,9 +912,13 @@ const FinancialManagement: React.FC<FinancialManagementProps> = ({
       };
       if (cacheSection === 'progress') {
         setProgressForm(nextForm);
+        setProgressFieldErrors({});
+        setProgressFormError(null);
         patchFinancialCache({ progressForm: nextForm });
       } else if (cacheSection === 'cost') {
         setCostForm(nextForm);
+        setCostFieldErrors({});
+        setCostFormError(null);
         patchFinancialCache({ costForm: nextForm });
       } else {
         setBudgetForm(nextForm);
@@ -820,6 +931,48 @@ const FinancialManagement: React.FC<FinancialManagementProps> = ({
     } catch (err: any) {
       console.error("Financial Management save error:", err);
       const message = getErrorMessage(err);
+      if (cacheSection === 'progress') {
+        const fieldErrors = extractUserFacingFieldErrors(err);
+        const knownKeys = new Set(['progress_month', ...PROGRESS_PERCENT_FIELDS]);
+        const mapped: Record<string, string> = {};
+        for (const [key, text] of Object.entries(fieldErrors)) {
+          if (knownKeys.has(key)) mapped[key] = text;
+        }
+        if (Object.keys(mapped).length > 0) {
+          setProgressFieldErrors(mapped);
+          setProgressFormError('Fix the highlighted fields, then save. Percent values must be between 0 and 100.');
+          const firstKey =
+            (['progress_month', ...PROGRESS_PERCENT_FIELDS] as const).find((key) => mapped[key]) ??
+            Object.keys(mapped)[0];
+          if (firstKey) {
+            window.requestAnimationFrame(() => {
+              document.querySelector<HTMLElement>(`[data-progress-field="${firstKey}"]`)?.focus();
+            });
+          }
+        } else {
+          setProgressFormError(message);
+        }
+      } else if (cacheSection === 'cost') {
+        const fieldErrors = extractUserFacingFieldErrors(err);
+        const knownKeys = new Set(COST_EVM_FORM_FIELDS);
+        const mapped: Record<string, string> = {};
+        for (const [key, text] of Object.entries(fieldErrors)) {
+          if (knownKeys.has(key as (typeof COST_EVM_FORM_FIELDS)[number])) mapped[key] = text;
+        }
+        if (Object.keys(mapped).length > 0) {
+          setCostFieldErrors(mapped);
+          setCostFormError('Fix the highlighted fields, then save.');
+          const firstKey =
+            COST_EVM_FORM_FIELDS.find((key) => mapped[key]) ?? Object.keys(mapped)[0];
+          if (firstKey) {
+            window.requestAnimationFrame(() => {
+              document.querySelector<HTMLElement>(`[data-cost-field="${firstKey}"]`)?.focus();
+            });
+          }
+        } else {
+          setCostFormError(message);
+        }
+      }
       showSaveNotification(`Save failed: ${message}`, 'error');
     }
   };
@@ -1217,27 +1370,62 @@ const FinancialManagement: React.FC<FinancialManagementProps> = ({
                   isDarkTheme={isDarkTheme}
                   themeClasses={themeClasses}
                 >
+                  <p className={`mb-4 text-xs font-medium ${themeClasses.textMuted}`}>
+                    All fields are required. Plan and actual values must be between 0 and 100.
+                  </p>
+                  {progressFormError && (
+                    <div
+                      role="alert"
+                      className="mb-4 rounded-xl border border-rose-400/40 bg-rose-500/10 px-3 py-2 text-sm font-semibold text-rose-500"
+                    >
+                      {progressFormError}
+                    </div>
+                  )}
                   <FinancialFormGrid>
                     {[
-                      { key: 'progress_month', label: 'Progress Month (YYYY-MM-DD)', tour: 'progress-month-field' },
-                      { key: 'monthly_plan', label: 'Monthly Plan (%)', tour: 'monthly-plan-field' },
-                      { key: 'monthly_actual', label: 'Monthly Actual (%)', tour: 'monthly-actual-field' },
-                      { key: 'cumulative_plan', label: 'Cumulative Plan (%)', tour: 'cumulative-plan-field' },
-                      { key: 'cumulative_actual', label: 'Cumulative Actual (%)', tour: 'cumulative-actual-field' },
-                    ].map((field) => (
+                      { key: 'progress_month', label: 'Progress Month (YYYY-MM-DD)', tour: 'progress-month-field', required: true },
+                      { key: 'monthly_plan', label: 'Monthly Plan (%)', tour: 'monthly-plan-field', required: true },
+                      { key: 'monthly_actual', label: 'Monthly Actual (%)', tour: 'monthly-actual-field', required: true },
+                      { key: 'cumulative_plan', label: 'Cumulative Plan (%)', tour: 'cumulative-plan-field', required: true },
+                      { key: 'cumulative_actual', label: 'Cumulative Actual (%)', tour: 'cumulative-actual-field', required: true },
+                    ].map((field) => {
+                      const fieldError = progressFieldErrors[field.key];
+                      return (
                       <div
                         key={field.key}
                         className={`financial-progress-${field.key.replace(/_/g, '-')} ${field.tour}`}
                       >
-                        <label className={fieldLabel}>{field.label}</label>
+                        <label
+                          className={`${fieldLabel} ${fieldError ? 'text-rose-500' : ''}`}
+                        >
+                          {field.label}
+                          {field.required ? <span className="text-rose-500"> *</span> : null}
+                        </label>
                         <input
                           type="text"
+                          data-progress-field={field.key}
+                          aria-invalid={Boolean(fieldError)}
                           value={String(progressForm[field.key] ?? '')}
-                          onChange={(e) => setProgressForm({ ...progressForm, [field.key]: e.target.value })}
-                          className={fieldInput}
+                          onChange={(e) => {
+                            setProgressForm({ ...progressForm, [field.key]: e.target.value });
+                            setProgressFieldErrors((prev) => {
+                              if (!prev[field.key]) return prev;
+                              const next = { ...prev };
+                              delete next[field.key];
+                              return next;
+                            });
+                            setProgressFormError(null);
+                          }}
+                          className={`${fieldInput} ${
+                            fieldError ? 'border border-rose-500 ring-2 ring-rose-500/30' : ''
+                          }`}
                         />
+                        {fieldError && (
+                          <p className="mt-1 text-xs font-semibold text-rose-500">{fieldError}</p>
+                        )}
                       </div>
-                    ))}
+                      );
+                    })}
                   </FinancialFormGrid>
                 </FinancialQuickUpdateCard>
 
@@ -1365,21 +1553,59 @@ const FinancialManagement: React.FC<FinancialManagementProps> = ({
                   isDarkTheme={isDarkTheme}
                   themeClasses={themeClasses}
                 >
+                  <p className={`mb-4 text-xs font-medium ${themeClasses.textMuted}`}>
+                    All amounts are required. Budget at Completion must be greater than 0. Other
+                    amounts can be 0 if there is no value yet.
+                  </p>
+                  {costFormError && (
+                    <div
+                      role="alert"
+                      className="mb-4 rounded-xl border border-rose-400/40 bg-rose-500/10 px-3 py-2 text-sm font-semibold text-rose-500"
+                    >
+                      {costFormError}
+                    </div>
+                  )}
                   <FinancialFormGrid>
-                    {COST_EVM_FORM_FIELDS.map((key) => (
+                    {COST_EVM_FORM_FIELDS.map((key) => {
+                      const fieldError = costFieldErrors[key];
+                      const isMonth = key === 'month_year';
+                      return (
                       <div key={key} className={`financial-cost-${key}`}>
-                        <label className={fieldLabel} htmlFor={`cost-evm-${key}`}>
+                        <label
+                          className={`${fieldLabel} ${fieldError ? 'text-rose-500' : ''}`}
+                          htmlFor={`cost-evm-${key}`}
+                        >
                           {COST_EVM_FIELD_LABELS[key]}
+                          <span className="text-rose-500"> *</span>
                         </label>
                         <input
                           id={`cost-evm-${key}`}
                           type="text"
+                          data-cost-field={key}
+                          aria-invalid={Boolean(fieldError)}
+                          readOnly={isMonth}
                           value={String(costForm[key] ?? '')}
-                          onChange={(e) => setCostForm({ ...costForm, [key]: e.target.value })}
-                          className={fieldInput}
+                          onChange={(e) => {
+                            if (isMonth) return;
+                            setCostForm({ ...costForm, [key]: e.target.value });
+                            setCostFieldErrors((prev) => {
+                              if (!prev[key]) return prev;
+                              const next = { ...prev };
+                              delete next[key];
+                              return next;
+                            });
+                            setCostFormError(null);
+                          }}
+                          className={`${fieldInput} ${
+                            fieldError ? 'border border-rose-500 ring-2 ring-rose-500/30' : ''
+                          } ${isMonth ? 'cursor-not-allowed opacity-80' : ''}`}
                         />
+                        {fieldError && (
+                          <p className="mt-1 text-xs font-semibold text-rose-500">{fieldError}</p>
+                        )}
                       </div>
-                    ))}
+                      );
+                    })}
                   </FinancialFormGrid>
                 </FinancialQuickUpdateCard>
 

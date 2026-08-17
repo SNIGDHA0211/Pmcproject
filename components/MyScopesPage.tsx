@@ -391,7 +391,7 @@ const MyScopesPage: React.FC<MyScopesPageProps> = ({
       return true;
     } catch (error) {
       setHseFormError(getApiErrorMessage(error, 'Failed to save Health & Safety data.'));
-      return false;
+      throw error;
     } finally {
       setIsSavingHse(false);
     }

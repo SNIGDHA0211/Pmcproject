@@ -193,12 +193,15 @@ export function parseUserListResponse(payload: unknown): UserListResult {
 export function parseUserResponse(payload: unknown): UserMutationResult {
   const { success, message, data } = unwrapEnvelope(payload);
   const user = normalizeManagedUser(data);
-  return { user, message, success, fieldErrors: {} };
+  return {
+    user,
+    message,
+    success,
+    fieldErrors: extractFieldErrorsFromBody(payload),
+  };
 }
 
-export function extractUserFieldErrors(error: unknown): Record<string, string> {
-  if (!axios.isAxiosError(error) || !error.response?.data) return {};
-  const data = error.response.data;
+function extractFieldErrorsFromBody(data: unknown): Record<string, string> {
   if (!data || typeof data !== 'object') return {};
 
   const body = data as Record<string, unknown>;
@@ -211,13 +214,24 @@ export function extractUserFieldErrors(error: unknown): Record<string, string> {
 
   const fieldErrors: Record<string, string> = {};
   for (const [key, value] of Object.entries(source)) {
-    if (key === 'success' || key === 'message' || key === 'detail' || key === 'data') {
+    if (
+      key === 'success' ||
+      key === 'message' ||
+      key === 'detail' ||
+      key === 'data' ||
+      key === 'user'
+    ) {
       continue;
     }
     const msg = firstString(value).trim();
     if (msg) fieldErrors[key] = msg;
   }
   return fieldErrors;
+}
+
+export function extractUserFieldErrors(error: unknown): Record<string, string> {
+  if (!axios.isAxiosError(error) || !error.response?.data) return {};
+  return extractFieldErrorsFromBody(error.response.data);
 }
 
 export function getUserManagementErrorMessage(

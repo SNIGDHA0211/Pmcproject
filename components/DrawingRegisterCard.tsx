@@ -17,6 +17,7 @@ import {
   downloadDrawingRegisterExcel,
   triggerDrawingRegisterExcelBlobDownload,
 } from '../utils/drawingRegisterExport';
+import { projectApiName } from '../utils/hseSiteEngineerProjects';
 import {
   DRAWING_REGISTER_ALLOWED_EXT,
   formatDrawingFileSize,
@@ -233,9 +234,21 @@ function DrawingFilesCell({
 function mergeSavedRowIntoReport(
   prev: DrawingClientReportData | null,
   saved: DrawingRegisterRow,
-): DrawingClientReportData | null {
-  if (!prev) return prev;
+): DrawingClientReportData {
   const clientRow = registerRowToClientReportRow(saved);
+  if (!prev) {
+    const rows = [clientRow];
+    return {
+      view: 'monthly',
+      fromDate: '',
+      toDate: '',
+      month: 0,
+      year: 0,
+      projectName: saved.projectName,
+      summary: computeDrawingSummaryFromRows(rows),
+      rows,
+    };
+  }
   const idx = prev.rows.findIndex((row) => row.id === clientRow.id);
   let rows: DrawingClientReportRow[];
   if (idx >= 0) {
@@ -1055,7 +1068,7 @@ export default function DrawingRegisterCard({
     setError(null);
     try {
       const res = await drawingRegisterApi.getClientReport({
-        projectName: project.title,
+        projectName: projectApiName(project) || project.title,
         month: selMonth,
         year: selYear,
         view,
@@ -1066,7 +1079,17 @@ export default function DrawingRegisterCard({
         signal,
       });
       if (signal?.aborted) return;
-      setReportData(res.data);
+      setReportData((prev) => {
+        const next = res.data;
+        if ((!next?.rows || next.rows.length === 0) && prev?.rows?.length) {
+          return {
+            ...next,
+            rows: prev.rows,
+            summary: computeDrawingSummaryFromRows(prev.rows),
+          };
+        }
+        return next;
+      });
     } catch (err) {
       if (isAbortError(err) || signal?.aborted) return;
       setReportData(null);
@@ -1074,7 +1097,7 @@ export default function DrawingRegisterCard({
     } finally {
       if (!signal?.aborted) setLoading(false);
     }
-  }, [project?.title, selMonth, selYear, view, debouncedContractor, statusFilter, debouncedSearch]);
+  }, [project, selMonth, selYear, view, debouncedContractor, statusFilter, debouncedSearch]);
 
   useEffect(() => {
     if (!successMsg) return;
@@ -1090,7 +1113,7 @@ export default function DrawingRegisterCard({
 
   async function handleExportExcel() {
     const exportParams = {
-      projectName: project.title,
+      projectName: projectApiName(project) || project.title,
       month: selMonth,
       year: selYear,
       view,
@@ -1167,7 +1190,7 @@ export default function DrawingRegisterCard({
             className={`flex items-center justify-center gap-1.5 rounded-xl border px-3 py-2 text-xs font-bold transition-colors ${tc.border} ${tc.textSecondary} ${isDarkTheme ? 'hover:bg-white/10' : 'hover:bg-slate-100'} ${showFilters ? (isDarkTheme ? 'bg-white/10' : 'bg-slate-100') : ''}`}>
             <Icons.Filter size={14} /><span className="hidden sm:inline">Filters</span>
           </button>
-          <button onClick={() => void loadData()} disabled={loading}
+          <button onClick={() => void loadData(undefined, true)} disabled={loading}
             className={`flex items-center justify-center gap-1.5 rounded-xl border px-3 py-2 text-xs font-bold transition-colors disabled:opacity-40 ${tc.border} ${tc.textSecondary} ${isDarkTheme ? 'hover:bg-white/10' : 'hover:bg-slate-100'}`}>
             <Icons.History size={14} className={loading ? 'animate-spin' : ''} />
             <span className="hidden sm:inline">Refresh</span>
@@ -1258,13 +1281,13 @@ export default function DrawingRegisterCard({
           </div>
         )}
 
-        {loading && (
+        {loading && !reportData?.rows?.length && (
           <div className="flex items-center justify-center py-16">
             <div className="h-10 w-10 animate-spin rounded-full border-[3px] border-indigo-500 border-t-transparent" />
           </div>
         )}
 
-        {!loading && !error && reportData && (
+        {!error && reportData && (!loading || Boolean(reportData.rows.length)) && (
           <>
             <SummaryKPIs summary={reportData.summary} rows={reportData.rows} isDarkTheme={isDarkTheme} />
 
@@ -1331,7 +1354,7 @@ export default function DrawingRegisterCard({
       {/* Create / Edit Modal */}
       {modalOpen && (
         <RegisterModal
-          projectName={project.title}
+          projectName={projectApiName(project) || project.title}
           editRow={editRow}
           onClose={() => { setModalOpen(false); setEditRow(null); }}
           onSaved={(result) => {

@@ -17,12 +17,58 @@ import {
   nextCorrespondenceSrNo,
   normalizeCorrespondenceCategory,
   normalizeCorrespondenceRecipientType,
-  validateCorrespondenceDocumentInput,
+  validateCorrespondenceDocumentFields,
 } from '../utils/correspondence';
 import CorrespondenceFormAttachments, {
   uploadCorrespondencePendingAttachments,
 } from './CorrespondenceFormAttachments';
 import { getThemeClasses, useTheme } from '../utils/theme';
+import {
+  extractUserFacingFieldErrors,
+  formatUserFacingError,
+  simplifyFieldErrorMessage,
+} from '../utils/formErrors';
+
+const CORRESPONDENCE_FORM_FIELDS = [
+  'month',
+  'year',
+  'correspondenceType',
+  'recipientType',
+  'correspondenceCategory',
+  'srNo',
+  'description',
+  'receivedDate',
+  'deliveredDate',
+] as const;
+
+const CORRESPONDENCE_FIELD_ALIASES: Record<string, string> = {
+  correspondence_type: 'correspondenceType',
+  recipient_type: 'recipientType',
+  correspondence_category: 'correspondenceCategory',
+  sr_no: 'srNo',
+  received_date: 'receivedDate',
+  delivered_date: 'deliveredDate',
+};
+
+function mapCorrespondenceApiFieldErrors(err: unknown): Record<string, string> {
+  const raw = extractUserFacingFieldErrors(err);
+  const allowed = new Set<string>(CORRESPONDENCE_FORM_FIELDS);
+  const out: Record<string, string> = {};
+  for (const [key, message] of Object.entries(raw)) {
+    const mapped =
+      CORRESPONDENCE_FIELD_ALIASES[key] ??
+      key.replace(/_([a-z])/g, (_, letter: string) => letter.toUpperCase());
+    if (!allowed.has(mapped)) continue;
+    out[mapped] = simplifyFieldErrorMessage(mapped, message);
+  }
+  return out;
+}
+
+function focusCorrespondenceField(field: string) {
+  window.requestAnimationFrame(() => {
+    document.querySelector<HTMLElement>(`[data-corr-field="${field}"]`)?.focus();
+  });
+}
 
 export type { CorrespondenceDocumentFormValues };
 
@@ -101,8 +147,19 @@ const CorrespondenceDocumentForm: React.FC<CorrespondenceDocumentFormProps> = ({
     buildInitialValues(document, selectedMonth, selectedYear, initialType, initialScope, documents),
   );
   const [localError, setLocalError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
   const [savedDocumentId, setSavedDocumentId] = useState<string | number | null>(document?.id ?? null);
+
+  const clearFieldError = (field: string) => {
+    setFieldErrors((prev) => {
+      if (!prev[field]) return prev;
+      const next = { ...prev };
+      delete next[field];
+      return next;
+    });
+    setLocalError(null);
+  };
 
   const isSclDocument = values.documentScope === 'scl';
   const isDelivery = values.correspondenceCategory === 'DELIVERY';
@@ -127,54 +184,88 @@ const CorrespondenceDocumentForm: React.FC<CorrespondenceDocumentFormProps> = ({
       correspondenceCategory: category,
       deliveredDate: category === 'RECORD' ? '' : prev.deliveredDate,
     }));
-    setLocalError(null);
+    clearFieldError('correspondenceCategory');
+    clearFieldError('deliveredDate');
   };
 
   const persist = async (closeOnSuccess: boolean) => {
-    const validation = validateCorrespondenceDocumentInput(values);
-    if (validation) {
-      setLocalError(validation);
+    const nextErrors = validateCorrespondenceDocumentFields(values);
+    if (Object.keys(nextErrors).length > 0) {
+      setFieldErrors(nextErrors);
+      setLocalError('Fix the highlighted fields, then save.');
+      const order = [
+        'description',
+        'receivedDate',
+        'deliveredDate',
+        'month',
+        'year',
+        'correspondenceType',
+        'recipientType',
+        'correspondenceCategory',
+        'srNo',
+      ] as const;
+      const first = order.find((key) => nextErrors[key]) ?? Object.keys(nextErrors)[0];
+      if (first) focusCorrespondenceField(first);
       return;
     }
     setLocalError(null);
-    const saved = await onSubmit(values);
-    if (!saved) return;
+    setFieldErrors({});
+    try {
+      const saved = await onSubmit(values);
+      if (!saved) return;
 
-    const targetId = saved.id ?? savedDocumentId;
-    if (targetId != null && pendingFiles.length > 0) {
-      try {
-        await uploadCorrespondencePendingAttachments(targetId, pendingFiles);
-        setPendingFiles([]);
-        onAttachmentsChanged?.();
-      } catch (uploadError) {
-        setLocalError(
-          uploadError instanceof Error ? uploadError.message : 'Document saved but attachment upload failed.',
-        );
-        if (saved.id != null) setSavedDocumentId(saved.id);
+      const targetId = saved.id ?? savedDocumentId;
+      if (targetId != null && pendingFiles.length > 0) {
+        try {
+          await uploadCorrespondencePendingAttachments(targetId, pendingFiles);
+          setPendingFiles([]);
+          onAttachmentsChanged?.();
+        } catch (uploadError) {
+          setLocalError(
+            uploadError instanceof Error ? uploadError.message : 'Document saved but attachment upload failed.',
+          );
+          if (saved.id != null) setSavedDocumentId(saved.id);
+          return;
+        }
+      } else if (saved.id != null) {
+        setSavedDocumentId(saved.id);
+      }
+
+      if (closeOnSuccess) {
+        onClose();
         return;
       }
-    } else if (saved.id != null) {
-      setSavedDocumentId(saved.id);
-    }
 
-    if (closeOnSuccess) {
-      onClose();
-      return;
+      const { month, year, correspondenceType, correspondenceCategory, documentScope, recipientType } = values;
+      setValues({
+        month,
+        year,
+        documentScope,
+        correspondenceType,
+        recipientType: documentScope === 'scl' ? recipientType || 'CLIENT' : '',
+        correspondenceCategory,
+        srNo: documentScope === 'scl' ? 1 : values.srNo + 1,
+        description: '',
+        receivedDate: '',
+        deliveredDate: '',
+      });
+      setFieldErrors({});
+      setLocalError(null);
+    } catch (err) {
+      const mapped = mapCorrespondenceApiFieldErrors(err);
+      if (Object.keys(mapped).length > 0) {
+        setFieldErrors(mapped);
+        setLocalError('Fix the highlighted fields, then save.');
+        const first = Object.keys(mapped)[0];
+        if (first) focusCorrespondenceField(first);
+      } else {
+        setLocalError(
+          formatUserFacingError(err, {
+            fallback: 'Unable to save this document. Check the form and try again.',
+          }),
+        );
+      }
     }
-
-    const { month, year, correspondenceType, correspondenceCategory, documentScope, recipientType } = values;
-    setValues({
-      month,
-      year,
-      documentScope,
-      correspondenceType,
-      recipientType: documentScope === 'scl' ? recipientType || 'CLIENT' : '',
-      correspondenceCategory,
-      srNo: documentScope === 'scl' ? 1 : values.srNo + 1,
-      description: '',
-      receivedDate: '',
-      deliveredDate: '',
-    });
   };
 
   const submit = async (event: React.FormEvent) => {
@@ -189,6 +280,18 @@ const CorrespondenceDocumentForm: React.FC<CorrespondenceDocumentFormProps> = ({
   const inputClass = `w-full rounded-2xl px-4 py-3 text-sm font-bold outline-none ${themeClasses.input}`;
   const labelClass = `mb-1 block text-[10px] font-black uppercase tracking-widest ${themeClasses.textSecondary}`;
   const readOnlyClass = `${inputClass} cursor-not-allowed opacity-80`;
+  const fieldErrorClass = 'border border-rose-500 ring-2 ring-rose-500/30';
+  const fieldErrorText = 'mt-1 text-xs font-semibold text-rose-500';
+
+  const fieldLabel = (field: string, label: React.ReactNode, required?: boolean) => (
+    <label className={`${labelClass}${fieldErrors[field] ? ' text-rose-500' : ''}`}>
+      {label}
+      {required ? <span className="text-rose-500"> *</span> : null}
+    </label>
+  );
+
+  const fieldMessage = (field: string) =>
+    fieldErrors[field] ? <p className={fieldErrorText}>{fieldErrors[field]}</p> : null;
 
   const deadlineDisplay = document?.deadlineDate
     ? formatCorrespondenceDisplayDate(document.deadlineDate)
@@ -222,8 +325,12 @@ const CorrespondenceDocumentForm: React.FC<CorrespondenceDocumentFormProps> = ({
             </div>
           </div>
 
-          <form onSubmit={submit} className="flex min-h-0 flex-1 flex-col overflow-hidden">
+          <form onSubmit={submit} noValidate className="flex min-h-0 flex-1 flex-col overflow-hidden">
             <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-6 py-4">
+            <p className={`text-[11px] font-semibold ${themeClasses.textMuted}`}>
+              Required: month, year, type, category, description, and received date. Delivered date
+              is optional for delivery items. Attachments are optional.
+            </p>
             {!isEditing && (
               <>
                 <div>
@@ -233,16 +340,16 @@ const CorrespondenceDocumentForm: React.FC<CorrespondenceDocumentFormProps> = ({
 
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <div>
-                    <label className={labelClass}>
-                      Month <span className="text-rose-500">*</span>
-                    </label>
+                    {fieldLabel('month', 'Month', true)}
                     <select
+                      data-corr-field="month"
+                      aria-invalid={Boolean(fieldErrors.month)}
                       value={values.month}
-                      onChange={(e) =>
-                        setValues((prev) => ({ ...prev, month: Number(e.target.value) }))
-                      }
-                      className={inputClass}
-                      required
+                      onChange={(e) => {
+                        setValues((prev) => ({ ...prev, month: Number(e.target.value) }));
+                        clearFieldError('month');
+                      }}
+                      className={`${inputClass}${fieldErrors.month ? ` ${fieldErrorClass}` : ''}`}
                     >
                       {MONTH_OPTIONS.map((option) => (
                         <option key={option.value} value={option.value}>
@@ -250,18 +357,19 @@ const CorrespondenceDocumentForm: React.FC<CorrespondenceDocumentFormProps> = ({
                         </option>
                       ))}
                     </select>
+                    {fieldMessage('month')}
                   </div>
                   <div>
-                    <label className={labelClass}>
-                      Year <span className="text-rose-500">*</span>
-                    </label>
+                    {fieldLabel('year', 'Year', true)}
                     <select
+                      data-corr-field="year"
+                      aria-invalid={Boolean(fieldErrors.year)}
                       value={values.year}
-                      onChange={(e) =>
-                        setValues((prev) => ({ ...prev, year: Number(e.target.value) }))
-                      }
-                      className={inputClass}
-                      required
+                      onChange={(e) => {
+                        setValues((prev) => ({ ...prev, year: Number(e.target.value) }));
+                        clearFieldError('year');
+                      }}
+                      className={`${inputClass}${fieldErrors.year ? ` ${fieldErrorClass}` : ''}`}
                     >
                       {buildCorrespondenceYearOptions().map((optionYear) => (
                         <option key={optionYear} value={optionYear}>
@@ -269,49 +377,52 @@ const CorrespondenceDocumentForm: React.FC<CorrespondenceDocumentFormProps> = ({
                         </option>
                       ))}
                     </select>
+                    {fieldMessage('year')}
                   </div>
                 </div>
 
                 {isSclDocument ? (
                   <div>
-                    <label className={labelClass}>
-                      Recipient <span className="text-rose-500">*</span>
-                    </label>
+                    {fieldLabel('recipientType', 'Recipient', true)}
                     <select
+                      data-corr-field="recipientType"
+                      aria-invalid={Boolean(fieldErrors.recipientType)}
                       value={values.recipientType}
-                      onChange={(e) =>
+                      onChange={(e) => {
                         setValues((prev) => ({
                           ...prev,
                           recipientType: e.target.value as CorrespondenceRecipientType,
-                        }))
-                      }
-                      className={inputClass}
-                      required
+                        }));
+                        clearFieldError('recipientType');
+                      }}
+                      className={`${inputClass}${fieldErrors.recipientType ? ` ${fieldErrorClass}` : ''}`}
                     >
                       <option value="CLIENT">Client</option>
                       <option value="CONTRACTOR">Contractor</option>
                       <option value="OTHER_AGENCY">Other Agency</option>
                     </select>
+                    {fieldMessage('recipientType')}
                   </div>
                 ) : (
                   <div>
-                    <label className={labelClass}>
-                      Correspondence Type <span className="text-rose-500">*</span>
-                    </label>
+                    {fieldLabel('correspondenceType', 'Correspondence Type', true)}
                     <select
+                      data-corr-field="correspondenceType"
+                      aria-invalid={Boolean(fieldErrors.correspondenceType)}
                       value={values.correspondenceType}
-                      onChange={(e) =>
+                      onChange={(e) => {
                         setValues((prev) => ({
                           ...prev,
                           correspondenceType: e.target.value as CorrespondenceType,
-                        }))
-                      }
-                      className={inputClass}
-                      required
+                        }));
+                        clearFieldError('correspondenceType');
+                      }}
+                      className={`${inputClass}${fieldErrors.correspondenceType ? ` ${fieldErrorClass}` : ''}`}
                     >
                       <option value="CLIENT">Client</option>
                       <option value="CONTRACTOR">Contractor</option>
                     </select>
+                    {fieldMessage('correspondenceType')}
                   </div>
                 )}
               </>
@@ -319,60 +430,73 @@ const CorrespondenceDocumentForm: React.FC<CorrespondenceDocumentFormProps> = ({
 
             {(isEditing && isSclDocument) && (
               <div>
-                <label className={labelClass}>
-                  Recipient <span className="text-rose-500">*</span>
-                </label>
+                {fieldLabel('recipientType', 'Recipient', true)}
                 <select
+                  data-corr-field="recipientType"
+                  aria-invalid={Boolean(fieldErrors.recipientType)}
                   value={values.recipientType}
-                  onChange={(e) =>
+                  onChange={(e) => {
                     setValues((prev) => ({
                       ...prev,
                       recipientType: e.target.value as CorrespondenceRecipientType,
-                    }))
-                  }
-                  className={inputClass}
-                  required
+                    }));
+                    clearFieldError('recipientType');
+                  }}
+                  className={`${inputClass}${fieldErrors.recipientType ? ` ${fieldErrorClass}` : ''}`}
                 >
                   <option value="CLIENT">Client</option>
                   <option value="CONTRACTOR">Contractor</option>
                   <option value="OTHER_AGENCY">Other Agency</option>
                 </select>
+                {fieldMessage('recipientType')}
               </div>
             )}
 
             <div>
-              <label className={labelClass}>
-                Correspondence Category <span className="text-rose-500">*</span>
-              </label>
+              {fieldLabel('correspondenceCategory', 'Correspondence Category', true)}
               <select
+                data-corr-field="correspondenceCategory"
+                aria-invalid={Boolean(fieldErrors.correspondenceCategory)}
                 value={values.correspondenceCategory}
                 onChange={(e) =>
                   handleCategoryChange(normalizeCorrespondenceCategory(e.target.value))
                 }
-                className={inputClass}
-                required
+                className={`${inputClass}${fieldErrors.correspondenceCategory ? ` ${fieldErrorClass}` : ''}`}
               >
                 <option value="DELIVERY">Delivery</option>
                 <option value="RECORD">Record</option>
               </select>
+              {fieldMessage('correspondenceCategory')}
             </div>
 
             {!isEditing && !isSclDocument && (
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div>
-                  <label className={labelClass}>Sr No</label>
+                  {fieldLabel(
+                    'srNo',
+                    <>
+                      Sr No{' '}
+                      <span className={`font-semibold normal-case tracking-normal ${themeClasses.textMuted}`}>
+                        Required
+                      </span>
+                    </>,
+                  )}
                   <input
                     type="number"
                     min={1}
+                    data-corr-field="srNo"
+                    aria-invalid={Boolean(fieldErrors.srNo)}
                     value={values.srNo}
-                    onChange={(e) =>
+                    onChange={(e) => {
                       setValues((prev) => ({
                         ...prev,
                         srNo: Number(e.target.value) || 1,
-                      }))
-                    }
-                    className={inputClass}
+                      }));
+                      clearFieldError('srNo');
+                    }}
+                    className={`${inputClass}${fieldErrors.srNo ? ` ${fieldErrorClass}` : ''}`}
                   />
+                  {fieldMessage('srNo')}
                 </div>
                 <div>
                   <label className={labelClass}>Deadline Date</label>
@@ -382,40 +506,62 @@ const CorrespondenceDocumentForm: React.FC<CorrespondenceDocumentFormProps> = ({
             )}
 
             <div>
-              <label className={labelClass}>
-                Description <span className="text-rose-500">*</span>
-              </label>
+              {fieldLabel('description', 'Description', true)}
               <textarea
+                data-corr-field="description"
+                aria-invalid={Boolean(fieldErrors.description)}
                 value={values.description}
-                onChange={(e) => setValues((prev) => ({ ...prev, description: e.target.value }))}
+                onChange={(e) => {
+                  setValues((prev) => ({ ...prev, description: e.target.value }));
+                  clearFieldError('description');
+                }}
                 rows={3}
-                className={inputClass}
-                required
+                placeholder="Enter document details"
+                className={`${inputClass}${fieldErrors.description ? ` ${fieldErrorClass}` : ''}`}
               />
+              {fieldMessage('description')}
             </div>
 
             <div className={`grid grid-cols-1 gap-4 ${isDelivery ? 'sm:grid-cols-2' : ''}`}>
               <div>
-                <label className={labelClass}>
-                  Received Date <span className="text-rose-500">*</span>
-                </label>
+                {fieldLabel('receivedDate', 'Received Date', true)}
                 <input
                   type="date"
+                  data-corr-field="receivedDate"
+                  aria-invalid={Boolean(fieldErrors.receivedDate)}
                   value={values.receivedDate}
-                  onChange={(e) => setValues((prev) => ({ ...prev, receivedDate: e.target.value }))}
-                  className={inputClass}
-                  required
+                  onChange={(e) => {
+                    setValues((prev) => ({ ...prev, receivedDate: e.target.value }));
+                    clearFieldError('receivedDate');
+                    clearFieldError('deliveredDate');
+                  }}
+                  className={`${inputClass}${fieldErrors.receivedDate ? ` ${fieldErrorClass}` : ''}`}
                 />
+                {fieldMessage('receivedDate')}
               </div>
               {isDelivery && (
                 <div>
-                  <label className={labelClass}>Delivered Date</label>
+                  {fieldLabel(
+                    'deliveredDate',
+                    <>
+                      Delivered Date{' '}
+                      <span className={`font-semibold normal-case tracking-normal ${themeClasses.textMuted}`}>
+                        Optional
+                      </span>
+                    </>,
+                  )}
                   <input
                     type="date"
+                    data-corr-field="deliveredDate"
+                    aria-invalid={Boolean(fieldErrors.deliveredDate)}
                     value={values.deliveredDate}
-                    onChange={(e) => setValues((prev) => ({ ...prev, deliveredDate: e.target.value }))}
-                    className={inputClass}
+                    onChange={(e) => {
+                      setValues((prev) => ({ ...prev, deliveredDate: e.target.value }));
+                      clearFieldError('deliveredDate');
+                    }}
+                    className={`${inputClass}${fieldErrors.deliveredDate ? ` ${fieldErrorClass}` : ''}`}
                   />
+                  {fieldMessage('deliveredDate')}
                 </div>
               )}
             </div>
@@ -427,7 +573,14 @@ const CorrespondenceDocumentForm: React.FC<CorrespondenceDocumentFormProps> = ({
               onAttachmentsChanged={onAttachmentsChanged}
             />
 
-            {(localError || error) && <p className="text-sm font-bold text-rose-500">{localError || error}</p>}
+            {(localError || error) && (
+              <div
+                role="alert"
+                className="rounded-xl border border-rose-400/40 bg-rose-500/10 px-3 py-2 text-sm font-semibold text-rose-500"
+              >
+                {localError || error}
+              </div>
+            )}
             </div>
 
             <div className="flex shrink-0 flex-col gap-3 border-t px-6 py-4">

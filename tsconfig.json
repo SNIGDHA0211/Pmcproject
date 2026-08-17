@@ -18,5 +18,5 @@
     "jsx": "react-jsx"
   },
   "include": ["."],
-  "exclude": ["node_modules", "dist", "Pmcproject-main", ".vite", "screenshots"]
+  "exclude": ["node_modules", "dist", "Pmcproject-main", ".vite", "screenshots", "**/*.test.ts", "**/*.spec.ts"]
 }
