@@ -145,6 +145,14 @@ function invalidateFromMutation(config: AxiosRequestConfig): void {
   if (path.includes('/cost-performance')) fragments.push('/cost-performance');
   if (path.includes('/project-progress')) fragments.push('/project-progress');
   if (path.includes('/drawings')) fragments.push('/drawings/register', '/drawings/summary', '/drawings/');
+  if (path.includes('/correspondence')) {
+    fragments.push(
+      '/correspondence/',
+      '/correspondence-documents/',
+      '/correspondence-documents/dashboard',
+      '/correspondence-documents/scl-delivered',
+    );
+  }
 
   invalidateApiGetCache(fragments);
 }

@@ -2537,16 +2537,24 @@ export async function saveCorrespondenceDocument(
   payload: CorrespondenceDocumentPayload,
   options?: { document?: CorrespondenceDocument | null },
 ): Promise<CorrespondenceDocument> {
-  if (options?.document?.id) {
-    return updateCorrespondenceDocument(options.document.id, payload);
-  }
+  const saved = options?.document?.id
+    ? await updateCorrespondenceDocument(options.document.id, payload)
+    : await (async () => {
+        const response = await correspondenceApi.createDocument(payload);
+        throwIfCorrespondenceFailure(response.data, response.status);
+        return normalizeCorrespondenceDocument(
+          response.data?.data ?? response.data,
+          payload.projectName,
+        );
+      })();
 
-  const response = await correspondenceApi.createDocument(payload);
-  throwIfCorrespondenceFailure(response.data, response.status);
-  return normalizeCorrespondenceDocument(
-    response.data?.data ?? response.data,
-    payload.projectName,
-  );
+  invalidateApiGetCache([
+    '/correspondence/',
+    '/correspondence-documents/',
+    '/correspondence-documents/dashboard',
+    '/correspondence-documents/scl-delivered',
+  ]);
+  return saved;
 }
 
 export async function deleteCorrespondenceDocument(
@@ -2554,6 +2562,12 @@ export async function deleteCorrespondenceDocument(
 ): Promise<void> {
   const response = await correspondenceApi.delete(id);
   throwIfCorrespondenceFailure(response.data, response.status);
+  invalidateApiGetCache([
+    '/correspondence/',
+    '/correspondence-documents/',
+    '/correspondence-documents/dashboard',
+    '/correspondence-documents/scl-delivered',
+  ]);
 }
 
 // ─── Correspondence Documents Dashboard API ────────────────────────────────

@@ -311,17 +311,34 @@ export function isSclOutboundDocument(document: CorrespondenceDocument): boolean
 }
 
 /**
- * Whether the optional historical Comments UI should appear.
- * Backend remains authoritative — this is UX-only.
+ * Whether the Comments UI should appear under View PDF / attachments.
+ * Incoming Client and Contractor letters can have comments.
+ * SCL delivered letters cannot — the backend rejects comments on those.
  */
 export function canShowCorrespondenceComments(input: {
   correspondenceType?: string | null;
   flowDirection?: string | null;
+  recipientType?: string | null;
 }): boolean {
+  return correspondenceCommentsUnavailableReason(input) == null;
+}
+
+export function correspondenceCommentsUnavailableReason(input: {
+  correspondenceType?: string | null;
+  flowDirection?: string | null;
+  recipientType?: string | null;
+}): string | null {
   const flow = String(input.flowDirection ?? '').toUpperCase();
-  if (flow === 'OUTBOUND_SCL') return false;
-  const type = String(input.correspondenceType ?? '').toUpperCase();
-  return type === 'CLIENT' || type === 'CONTRACTOR';
+  if (flow === 'OUTBOUND_SCL') {
+    return 'Comments are not available for SCL delivered correspondence.';
+  }
+
+  const type = String(input.correspondenceType ?? input.recipientType ?? '').toUpperCase();
+  if (!type || type === 'CLIENT' || type === 'CONTRACTOR') return null;
+  if (type === 'OTHER' || type === 'OTHER_AGENCY') {
+    return 'Comments are not available for this correspondence type.';
+  }
+  return 'Comments are only available for incoming Client and Contractor correspondence.';
 }
 
 export const CORRESPONDENCE_COMMENT_MAX_LENGTH = 2000;

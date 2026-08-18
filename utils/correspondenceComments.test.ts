@@ -44,6 +44,15 @@ describe('canShowCorrespondenceComments', () => {
       }),
     ).toBe(false);
   });
+
+  it('shows comments when type is missing but the letter is not SCL delivered', () => {
+    expect(
+      canShowCorrespondenceComments({
+        correspondenceType: '',
+        flowDirection: 'INBOUND',
+      }),
+    ).toBe(true);
+  });
 });
 
 describe('validateCorrespondenceCommentInput', () => {

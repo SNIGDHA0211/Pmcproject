@@ -564,6 +564,7 @@ const CorrespondenceAttachmentsPanel: React.FC<CorrespondenceAttachmentsPanelPro
             correspondenceId={document.id}
             correspondenceType={document.correspondenceType}
             flowDirection={document.flowDirection}
+            recipientType={document.recipientType}
             onToast={showToast}
             className="mt-6"
           />

@@ -1,8 +1,8 @@
-import axios from 'axios';
 import { API_ENDPOINTS } from '../config/apiConfig';
 import { invalidateApiGetCache } from '../utils/apiGetCache';
 import type { CorrespondenceComment } from '../types';
 import api, { getApiErrorMessage, unwrapList } from './api';
+import { formatUserFacingError } from '../utils/formErrors';
 
 function toNum(value: unknown): number {
   const n = Number(value);
@@ -60,28 +60,9 @@ export function getCorrespondenceCommentsErrorMessage(
   error: unknown,
   fallback: string,
 ): string {
-  if (axios.isAxiosError(error) && error.response?.data) {
-    const data = error.response.data;
-    if (typeof data === 'object' && data !== null) {
-      const body = data as Record<string, unknown>;
-      if (typeof body.message === 'string' && body.message.trim()) {
-        return body.message.trim();
-      }
-      if (typeof body.detail === 'string' && body.detail.trim()) {
-        return body.detail;
-      }
-      const nested = body.errors;
-      if (nested && typeof nested === 'object') {
-        const entries = Object.entries(nested as Record<string, unknown>);
-        if (entries.length > 0) {
-          const [, value] = entries[0];
-          const message = Array.isArray(value) ? value.join(' ') : String(value);
-          if (message.trim()) return message.trim();
-        }
-      }
-    }
-  }
-  return getApiErrorMessage(error, fallback);
+  return formatUserFacingError(error, {
+    fallback: getApiErrorMessage(error, fallback),
+  });
 }
 
 export function isSclCommentsBlockedError(error: unknown): boolean {
@@ -95,7 +76,7 @@ export function isSclCommentsBlockedError(error: unknown): boolean {
 export async function getCorrespondenceComments(
   id: string | number,
 ): Promise<CorrespondenceComment[]> {
-  const res = await api.get(API_ENDPOINTS.CORRESPONDENCE.COMMENTS(id));
+  const res = await api.get(API_ENDPOINTS.CORRESPONDENCE_DOCUMENTS.COMMENTS(id));
   return unwrapCommentsPayload(res.data)
     .map((row) => normalizeCorrespondenceComment(row))
     .filter((row): row is CorrespondenceComment => row != null);
@@ -105,9 +86,11 @@ export async function addCorrespondenceComment(
   id: string | number,
   comment: string,
 ): Promise<CorrespondenceComment> {
-  const res = await api.post(API_ENDPOINTS.CORRESPONDENCE.COMMENTS(id), {
-    comment: comment.trim(),
-  });
+  const res = await api.post(
+    API_ENDPOINTS.CORRESPONDENCE_DOCUMENTS.COMMENTS(id),
+    { comment: comment.trim() },
+    { skipActorStamp: true } as never,
+  );
   invalidateApiGetCache(commentsCacheFragments(id));
 
   const payload = res.data as Record<string, unknown> | undefined;

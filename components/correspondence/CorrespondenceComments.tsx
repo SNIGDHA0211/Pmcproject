@@ -4,6 +4,7 @@ import type { CorrespondenceComment, CorrespondenceType } from '../../types';
 import {
   canShowCorrespondenceComments,
   CORRESPONDENCE_COMMENT_MAX_LENGTH,
+  correspondenceCommentsUnavailableReason,
   validateCorrespondenceCommentInput,
 } from '../../utils/correspondence';
 import { formatCorrespondenceAttachmentDateTime } from '../../utils/correspondenceAttachments';
@@ -19,6 +20,7 @@ export interface CorrespondenceCommentsProps {
   correspondenceId: string | number;
   correspondenceType: CorrespondenceType | string;
   flowDirection?: string | null;
+  recipientType?: string | null;
   onToast?: (message: string, type?: 'success' | 'error') => void;
   className?: string;
 }
@@ -27,19 +29,23 @@ const CorrespondenceComments: React.FC<CorrespondenceCommentsProps> = ({
   correspondenceId,
   correspondenceType,
   flowDirection,
+  recipientType,
   onToast,
   className = '',
 }) => {
   const { isDarkTheme } = useTheme();
   const themeClasses = getThemeClasses(isDarkTheme);
 
-  const allowed = canShowCorrespondenceComments({ correspondenceType, flowDirection });
+  const commentGate = { correspondenceType, flowDirection, recipientType };
+  const allowed = canShowCorrespondenceComments(commentGate);
+  const unavailableReason = correspondenceCommentsUnavailableReason(commentGate);
   const [comments, setComments] = useState<CorrespondenceComment[]>([]);
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [blocked, setBlocked] = useState(false);
   const [draft, setDraft] = useState('');
   const [validationError, setValidationError] = useState<string | null>(null);
+  const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
   const loadComments = useCallback(async () => {
@@ -68,6 +74,7 @@ const CorrespondenceComments: React.FC<CorrespondenceCommentsProps> = ({
     setComments([]);
     setDraft('');
     setValidationError(null);
+    setSubmitError(null);
     setLoadError(null);
   }, [allowed, correspondenceId]);
 
@@ -76,8 +83,38 @@ const CorrespondenceComments: React.FC<CorrespondenceCommentsProps> = ({
     void loadComments();
   }, [allowed, blocked, correspondenceId, loadComments]);
 
-  if (!allowed || blocked) {
-    return null;
+  if (!allowed) {
+    return (
+      <section
+        className={`rounded-2xl border p-4 sm:p-5 ${
+          isDarkTheme ? 'border-white/10 bg-white/[0.02]' : 'border-slate-200 bg-slate-50/60'
+        } ${className}`.trim()}
+      >
+        <h4 className={`text-sm font-black uppercase tracking-tight ${themeClasses.textPrimary}`}>
+          Comments
+        </h4>
+        <p className={`mt-2 text-sm ${themeClasses.textMuted}`}>
+          {unavailableReason ?? 'Comments are not available for this correspondence.'}
+        </p>
+      </section>
+    );
+  }
+
+  if (blocked) {
+    return (
+      <section
+        className={`rounded-2xl border p-4 sm:p-5 ${
+          isDarkTheme ? 'border-white/10 bg-white/[0.02]' : 'border-slate-200 bg-slate-50/60'
+        } ${className}`.trim()}
+      >
+        <h4 className={`text-sm font-black uppercase tracking-tight ${themeClasses.textPrimary}`}>
+          Comments
+        </h4>
+        <p className={`mt-2 text-sm ${themeClasses.textMuted}`}>
+          Comments are not available for SCL delivered correspondence.
+        </p>
+      </section>
+    );
   }
 
   const inputClass = `w-full rounded-xl border px-3.5 py-2.5 text-sm outline-none transition-shadow focus:ring-2 focus:ring-blue-500/20 ${themeClasses.input}`;
@@ -88,9 +125,11 @@ const CorrespondenceComments: React.FC<CorrespondenceCommentsProps> = ({
     const validation = validateCorrespondenceCommentInput(draft);
     if (validation) {
       setValidationError(validation);
+      setSubmitError(null);
       return;
     }
     setValidationError(null);
+    setSubmitError(null);
     setSubmitting(true);
     try {
       const created = await addCorrespondenceComment(correspondenceId, draft);
@@ -102,10 +141,9 @@ const CorrespondenceComments: React.FC<CorrespondenceCommentsProps> = ({
         setBlocked(true);
         return;
       }
-      onToast?.(
-        getCorrespondenceCommentsErrorMessage(err, 'Failed to add comment.'),
-        'error',
-      );
+      const message = getCorrespondenceCommentsErrorMessage(err, 'Failed to add comment.');
+      setSubmitError(message);
+      onToast?.(message, 'error');
     } finally {
       setSubmitting(false);
     }
@@ -188,25 +226,30 @@ const CorrespondenceComments: React.FC<CorrespondenceCommentsProps> = ({
                 onChange={(e) => {
                   setDraft(e.target.value);
                   if (validationError) setValidationError(null);
+                  if (submitError) setSubmitError(null);
                 }}
                 rows={3}
                 maxLength={CORRESPONDENCE_COMMENT_MAX_LENGTH}
                 placeholder="Add a comment…"
                 disabled={submitting}
-                aria-invalid={validationError ? true : undefined}
+                aria-invalid={validationError || submitError ? true : undefined}
                 aria-describedby={
-                  validationError ? `correspondence-comment-error-${correspondenceId}` : undefined
+                  validationError || submitError
+                    ? `correspondence-comment-error-${correspondenceId}`
+                    : undefined
                 }
-                className={inputClass}
+                className={`${inputClass}${
+                  validationError || submitError ? ' border-rose-400 ring-2 ring-rose-500/20' : ''
+                }`}
               />
             </div>
-            {validationError && (
+            {(validationError || submitError) && (
               <p
                 id={`correspondence-comment-error-${correspondenceId}`}
                 className="text-xs font-bold text-rose-500"
                 role="alert"
               >
-                {validationError}
+                {validationError || submitError}
               </p>
             )}
             <button

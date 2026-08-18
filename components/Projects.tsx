@@ -34,7 +34,7 @@ import { fetchProjectProgressChart } from '../services/financialDataService';
 import { buildExecutiveProgressCurveData } from '../utils/projectProgress';
 import { fetchCostPerformanceChart } from '../utils/costPerformance';
 import { computeProjectDashboardMetrics } from '../utils/projectDashboardMetrics';
-import { projectApi, costPerformanceApi, budgetPerformanceApi, manpowerApi, cashflowApi, healthSafetyApi, invoicingApi, contractValuesApi, contractPerformanceApi, projectLogsApi, drawingRegisterApi, projectQualityApi, projectEquipmentApi, correspondenceApi, correspondenceDocumentsApi, getApiErrorMessage, normalizeContractPerformanceRecord, normalizeContractValueRecord, normalizeInvoicingRecord, normalizeProjectEquipmentRecord, normalizeProjectQualityStatusRecord, normalizeManpowerRecord, unwrapList, toNum, plannedEarnedValueApi, normalizePlannedEarnedByPeriod, type PlannedEarnedByPeriodResponse, normalizeHSERecord, type HSERecord, normalizeHealthSafetyDashboard, normalizeHealthSafetyYtdSummary, saveHealthSafetyRecord, fetchHealthSafetyYearRecords, fetchHealthSafetyDashboardFallback, type HealthSafetyDashboardData, projectDatesApi, normalizeProjectDatesByProject, mergeBgBundleIntoProjectDatesBundle, type ProjectDatesByProject, type ProjectDateType, type ProjectDatesRecord, mergeQualityRecordsByPeriod, fetchQualityYearRecords, saveProjectQualityRecord, saveDrawingRecord, normalizeCorrespondenceMonthlyPeriod, collectCorrespondenceDocuments, mergeCorrespondenceDocumentLists, mergeCorrespondencePeriods, fetchCorrespondenceYearPeriods, saveCorrespondenceDocument, deleteCorrespondenceDocument, type CorrespondenceDashboardResponse } from '../services/api';
+import { projectApi, costPerformanceApi, budgetPerformanceApi, manpowerApi, cashflowApi, healthSafetyApi, invoicingApi, contractValuesApi, contractPerformanceApi, projectLogsApi, drawingRegisterApi, projectQualityApi, projectEquipmentApi, correspondenceApi, correspondenceDocumentsApi, getApiErrorMessage, normalizeContractPerformanceRecord, normalizeContractValueRecord, normalizeInvoicingRecord, normalizeProjectEquipmentRecord, normalizeProjectQualityStatusRecord, normalizeManpowerRecord, unwrapList, toNum, plannedEarnedValueApi, normalizePlannedEarnedByPeriod, type PlannedEarnedByPeriodResponse, normalizeHSERecord, type HSERecord, normalizeHealthSafetyDashboard, normalizeHealthSafetyYtdSummary, saveHealthSafetyRecord, fetchHealthSafetyYearRecords, fetchHealthSafetyDashboardFallback, type HealthSafetyDashboardData, projectDatesApi, normalizeProjectDatesByProject, mergeBgBundleIntoProjectDatesBundle, type ProjectDatesByProject, type ProjectDateType, type ProjectDatesRecord, mergeQualityRecordsByPeriod, fetchQualityYearRecords, saveProjectQualityRecord, saveDrawingRecord, normalizeCorrespondenceMonthlyPeriod, collectCorrespondenceDocuments, mergeCorrespondenceDocumentLists, mergeCorrespondencePeriods, fetchCorrespondenceYearPeriods, saveCorrespondenceDocument, deleteCorrespondenceDocument, extractCorrespondenceDocuments, type CorrespondenceDashboardResponse } from '../services/api';
 import type { BgStatusBundle } from '../types/bgStatus';
 import type { QualityFormValues } from './QualityMonthlyForm';
 import type { DrawingFormValues } from './DrawingMonthlyForm';
@@ -1755,10 +1755,20 @@ const Projects: React.FC<ProjectsProps> = ({
     setIsLoadingCorrespondence(true);
     setCorrespondenceError(null);
     try {
-      const [listRes, yearPeriodsFromApi, dashboardRes] = await Promise.all([
+      const [listRes, documentsRes, yearPeriodsFromApi, dashboardRes] = await Promise.all([
         correspondenceApi.getAll({ project_name: selectedProject.title, month, year }).catch((error) => {
           if ((error as { response?: { status?: number } })?.response?.status === 404) return null;
           throw error;
+        }),
+        correspondenceDocumentsApi.getAll({
+          project_name: selectedProject.title,
+          month,
+          year,
+          page_size: 200,
+          ordering: '-updated_at',
+        }).catch((error) => {
+          console.warn('[Projects] Correspondence documents list fetch failed:', error);
+          return null;
         }),
         fetchCorrespondenceYearPeriods(selectedProject.title, year),
         correspondenceDocumentsApi.getDashboard({
@@ -1788,7 +1798,7 @@ const Projects: React.FC<ProjectsProps> = ({
 
       const documents = mergeCorrespondenceDocumentLists(
         collectCorrespondenceDocuments(listRes?.data, monthlyBody, selectedProject.title, month, year),
-        []
+        extractCorrespondenceDocuments(documentsRes?.data, selectedProject.title),
       );
 
       const dashboardPayload = dashboardRes?.data as { data?: CorrespondenceDashboardResponse } | CorrespondenceDashboardResponse | undefined;
@@ -1863,6 +1873,7 @@ const Projects: React.FC<ProjectsProps> = ({
       }
 
       showToast(document ? 'Correspondence document updated.' : 'Correspondence document saved.');
+      setCorrespondenceDocuments((prev) => mergeCorrespondenceDocumentLists(prev, [saved]));
       await fetchCorrespondenceForPeriod(values.month, values.year);
       return saved;
     } catch (error) {

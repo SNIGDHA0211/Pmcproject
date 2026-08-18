@@ -39,6 +39,7 @@ import {
 import {
   correspondenceDocumentsApi,
   emptyCorrespondenceSclDelivered,
+  mergeCorrespondenceDocumentLists,
   normalizeCorrespondenceDashboardParty,
   normalizeCorrespondenceSclDelivered,
   unwrapCorrespondenceSclDeliveredResponse,
@@ -489,40 +490,41 @@ const CorrespondenceCard: React.FC<CorrespondenceCardProps> = ({
     yearPeriods,
   ]);
 
-  // Documents — prefer dashboard recent_documents, fall back to props
+  // Documents — merge dashboard recent_documents with saved/list rows so a new save
+  // appears immediately even if the dashboard GET was still cached.
   const effectiveDocuments = useMemo<CorrespondenceDocument[]>(() => {
-    const baseDocuments = (() => {
-      if (dashboardData?.recent_documents?.length) {
-        return dashboardData.recent_documents.map((d) => ({
-          id: d.id,
-          projectName: d.project_name,
-          month: d.month,
-          year: d.year,
-          correspondenceType: d.correspondence_type as "CLIENT" | "CONTRACTOR",
-          correspondenceCategory: normalizeCorrespondenceCategory(d.correspondence_category),
-          srNo: d.sr_no,
-          description: d.description,
-          receivedDate: d.received_date,
-          deliveredDate: d.delivered_date ?? null,
-          deadlineDate: d.deadline_date ?? null,
-          deliveredStatus: d.delivered_status,
-          flowDirection: d.flow_direction,
-          sender: d.sender,
-          recipientType:
-            normalizeCorrespondenceRecipientType(d.recipient_type) || null,
-          status: d.delivered_status,
-          updatedAt: d.updated_at ?? undefined,
-          attachmentCount: d.attachment_count ?? 0,
-          latestAttachment: d.latest_attachment
-            ? {
-                id: d.latest_attachment.id,
-                fileName: d.latest_attachment.file_name,
-              }
-            : null,
-        }));
-      }
-      return documents;
-    })();
+    const dashboardDocuments =
+      dashboardData?.recent_documents?.length
+        ? dashboardData.recent_documents.map((d) => ({
+            id: d.id,
+            projectName: d.project_name,
+            month: d.month,
+            year: d.year,
+            correspondenceType: d.correspondence_type as "CLIENT" | "CONTRACTOR",
+            correspondenceCategory: normalizeCorrespondenceCategory(d.correspondence_category),
+            srNo: d.sr_no,
+            description: d.description,
+            receivedDate: d.received_date,
+            deliveredDate: d.delivered_date ?? null,
+            deadlineDate: d.deadline_date ?? null,
+            deliveredStatus: d.delivered_status,
+            flowDirection: d.flow_direction,
+            sender: d.sender,
+            recipientType:
+              normalizeCorrespondenceRecipientType(d.recipient_type) || null,
+            status: d.delivered_status,
+            updatedAt: d.updated_at ?? undefined,
+            attachmentCount: d.attachment_count ?? 0,
+            latestAttachment: d.latest_attachment
+              ? {
+                  id: d.latest_attachment.id,
+                  fileName: d.latest_attachment.file_name,
+                }
+              : null,
+          }))
+        : [];
+
+    const baseDocuments = mergeCorrespondenceDocumentLists(dashboardDocuments, documents);
 
     return baseDocuments.map((doc) => {
       if (doc.id == null) return doc;
