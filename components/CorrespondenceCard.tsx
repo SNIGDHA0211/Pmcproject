@@ -36,6 +36,7 @@ import {
   getThemeClasses,
   useTheme,
 } from "../utils/theme";
+import { CardLoadingSkeleton } from "./WorkspaceStatusPanels";
 import {
   correspondenceDocumentsApi,
   emptyCorrespondenceSclDelivered,
@@ -631,10 +632,7 @@ const CorrespondenceCard: React.FC<CorrespondenceCardProps> = ({
       return (
         <div className="grid grid-cols-1 gap-3 sm:gap-4 xl:grid-cols-2">
           {Array.from({ length: 2 }).map((_, i) => (
-            <div
-              key={i}
-              className={`h-48 animate-pulse rounded-2xl ${themeClasses.bgSecondary}`}
-            />
+            <CardLoadingSkeleton key={i} metrics={3} chartHeight={96} />
           ))}
         </div>
       );

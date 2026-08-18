@@ -53,8 +53,19 @@ export function useProjectsLoading(): boolean {
   return useProjectStoreSelector((s) => s.loadingProjects);
 }
 
+/** True until the first projects fetch finishes (success or error). */
+export function useProjectsBootstrapping(): boolean {
+  return useProjectStoreSelector(
+    (s) => s.loadingProjects || (s.lastFetched === null && s.error === null),
+  );
+}
+
 export function useOverviewLoading(): boolean {
-  return useProjectStoreSelector((s) => s.loadingOverview);
+  return useProjectStoreSelector(
+    (s) =>
+      s.loadingOverview ||
+      (s.lastOverviewFetched === null && s.overview.length === 0 && !s.error),
+  );
 }
 
 export function useProjectStoreError(): string | null {

@@ -16,6 +16,7 @@ import {
 import { projectStore } from '../stores/projectStore';
 import { useTheme, getThemeClasses } from '../utils/theme';
 import { Icons } from './Icons';
+import { WorkspaceLoadingPanel } from './WorkspaceStatusPanels';
 import StatusBadge from './StatusBadge';
 import QaqcScopeDashboardPanel from './QaqcScopeDashboardPanel';
 import BillingEngineerDashboardPanel, { type BillingProjectOption } from './BillingEngineerDashboardPanel';
@@ -65,7 +66,7 @@ const MyScopesPage: React.FC<MyScopesPageProps> = ({
   const themeClasses = getThemeClasses(isDarkTheme);
 
   const [scopes, setScopes] = useState<MonthlyScope[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [filters, setFilters] = useState<MonthlyScopeFilters>({});
   const [sortField, setSortField] = useState<string>('created_at');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
@@ -74,9 +75,9 @@ const MyScopesPage: React.FC<MyScopesPageProps> = ({
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [qualityRecord, setQualityRecord] = useState<ProjectQualityStatusRecord | null>(null);
-  const [qualityLoading, setQualityLoading] = useState(false);
+  const [qualityLoading, setQualityLoading] = useState(true);
   const [hseDashboard, setHseDashboard] = useState<HealthSafetyDashboardData | null>(null);
-  const [hseLoading, setHseLoading] = useState(false);
+  const [hseLoading, setHseLoading] = useState(true);
   const [primaryProject, setPrimaryProject] = useState<string | null>(null);
   const [editingScope, setEditingScope] = useState<MonthlyScope | null>(null);
   const [isSavingScope, setIsSavingScope] = useState(false);
@@ -292,6 +293,7 @@ const MyScopesPage: React.FC<MyScopesPageProps> = ({
   const loadQualitySnapshot = useCallback(async (projectName: string | null) => {
     if (!isQaqcEngineer || !projectName) {
       setQualityRecord(null);
+      setQualityLoading(false);
       return;
     }
     const now = new Date();
@@ -317,10 +319,12 @@ const MyScopesPage: React.FC<MyScopesPageProps> = ({
   const loadHealthSafetyForProject = useCallback(async (projectName: string | null) => {
     if (!showsHseDashboard) {
       setHseDashboard(null);
+      setHseLoading(false);
       return;
     }
     if (!projectName) {
       setHseDashboard(null);
+      setHseLoading(false);
       return;
     }
     setPrimaryProject(projectName);
@@ -650,7 +654,7 @@ const MyScopesPage: React.FC<MyScopesPageProps> = ({
 
   const showAssignedScopesSection = !isBillingEngineer && !isHseEngineer && !isQaqcEngineer;
 
-  if (loading && showAssignedScopesSection) {
+  if (loading) {
     return (
       <div className="space-y-8 animate-in fade-in duration-500">
         <div className="flex items-center justify-between">
@@ -663,12 +667,18 @@ const MyScopesPage: React.FC<MyScopesPageProps> = ({
             </p>
           </div>
         </div>
-        <div className={`rounded-[2rem] overflow-hidden border ${themeClasses.glassCard} ${themeClasses.border}`}>
-          <div className="p-8 text-center">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-500 mx-auto"></div>
-            <p className={`mt-4 text-sm ${themeClasses.textSecondary}`}>Loading your assigned scopes...</p>
-          </div>
-        </div>
+        <WorkspaceLoadingPanel
+          title={
+            isHseEngineer
+              ? 'Loading health and safety'
+              : isQaqcEngineer
+                ? 'Loading quality dashboard'
+                : isBillingEngineer
+                  ? 'Loading financial overview'
+                  : 'Loading your assigned scopes'
+          }
+          subtitle="Fetching the latest data for this page. This only takes a moment."
+        />
       </div>
     );
   }

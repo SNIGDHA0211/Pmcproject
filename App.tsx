@@ -31,6 +31,7 @@ import {
 } from "./types";
 import { MOCK_USERS, INITIAL_PROJECTS, MOCK_DPRS } from "./services/mockData";
 import { Icons } from "./components/Icons";
+import { WorkspaceLoadingPanel } from "./components/WorkspaceStatusPanels";
 import SiteDeleteDialog, { type SiteDeleteDependency } from "./components/SiteDeleteDialog";
 import CompleteProjectDialog, {
   type CompleteProjectConfirmPayload,
@@ -149,9 +150,10 @@ const RemindersPage = lazy(() => import("./components/reminders/RemindersPage"))
 const MeetingDocumentsPage = lazy(() => import("./components/meetingDocuments/MeetingDocumentsPage"));
 
 const TabSuspenseFallback: React.FC = () => (
-  <div className="flex min-h-[40vh] w-full items-center justify-center text-slate-500">
-    <Icons.History className="animate-spin" size={28} />
-  </div>
+  <WorkspaceLoadingPanel
+    title="Opening this section"
+    subtitle="Loading this page and its latest data. This only takes a moment."
+  />
 );
 
 const App: React.FC = () => {
@@ -1487,10 +1489,24 @@ const App: React.FC = () => {
 
   if (authLoading) {
     return (
-      <div className="min-h-screen w-full flex items-center justify-center bg-slate-950">
-        <div className="flex flex-col items-center gap-3 text-white/80">
-          <Icons.History className="animate-spin" size={28} />
-          <p className="text-sm font-semibold">Restoring session...</p>
+      <div className="pmc-app relative flex min-h-screen w-full items-center justify-center overflow-hidden bg-[#0a1420]">
+        <div className="relative z-[1] w-full max-w-md px-4">
+          <div className="rounded-3xl border border-white/10 bg-[#121a24]/90 px-8 py-10 text-center shadow-2xl backdrop-blur-md">
+            <div className="relative mx-auto mb-6 h-20 w-20">
+              <div className="absolute inset-0 rounded-full bg-sky-400/10" />
+              <div className="absolute inset-0 animate-spin rounded-full border-[3px] border-transparent border-t-sky-400 border-r-indigo-400" />
+              <div className="absolute inset-0 flex items-center justify-center text-sky-300">
+                <Icons.Project size={26} />
+              </div>
+            </div>
+            <h3 className="text-xl font-bold text-white">Signing you in</h3>
+            <p className="mt-2 text-sm text-slate-300">
+              Restoring your session and preparing the workspace…
+            </p>
+            <div className="mx-auto mt-6 h-1.5 w-48 overflow-hidden rounded-full bg-white/10">
+              <div className="h-full w-2/5 animate-pulse rounded-full bg-gradient-to-r from-sky-400 to-indigo-500" />
+            </div>
+          </div>
         </div>
       </div>
     );
@@ -1883,6 +1899,7 @@ const App: React.FC = () => {
           consumeHeaderSearchJump();
         }}
         notifications={notifications}
+        notificationsLoading={alertsLoading}
         onMarkRead={handleMarkRead}
         onRequestNotifications={handleRequestNotifications}
         onNavigateToAlerts={() => {

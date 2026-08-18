@@ -62,25 +62,26 @@ export function useBillingFinanceDashboardData(projectName: string | null, refre
   const periodYear = new Date().getFullYear();
 
   const [costPerformanceData, setCostPerformanceData] = useState<CostPerformancePoint[]>([]);
-  const [isLoadingCostPerformance, setIsLoadingCostPerformance] = useState(false);
+  const [isLoadingCostPerformance, setIsLoadingCostPerformance] = useState(true);
 
   const [budgetPerformanceData, setBudgetPerformanceData] = useState<Record<string, unknown> | null>(null);
-  const [isLoadingBudgetPerformance, setIsLoadingBudgetPerformance] = useState(false);
+  const [isLoadingBudgetPerformance, setIsLoadingBudgetPerformance] = useState(true);
 
   const [contractPerformanceData, setContractPerformanceData] = useState<ContractPerformanceRecord | null>(null);
-  const [isLoadingContractPerformance, setIsLoadingContractPerformance] = useState(false);
+  const [isLoadingContractPerformance, setIsLoadingContractPerformance] = useState(true);
   const [contractPerformanceError, setContractPerformanceError] = useState<string | null>(null);
 
   const [plannedEarnedByPeriod, setPlannedEarnedByPeriod] = useState<PlannedEarnedByPeriodResponse | null>(null);
-  const [isLoadingPlannedEarned, setIsLoadingPlannedEarned] = useState(false);
+  const [isLoadingPlannedEarned, setIsLoadingPlannedEarned] = useState(true);
   const [plannedEarnedError, setPlannedEarnedError] = useState<string | null>(null);
 
   const [cashflowRecords, setCashflowRecords] = useState<CashFlowRecord[]>([]);
-  const [isLoadingCashflow, setIsLoadingCashflow] = useState(false);
+  const [isLoadingCashflow, setIsLoadingCashflow] = useState(true);
 
   useEffect(() => {
     if (!projectName) {
       setCostPerformanceData([]);
+      setIsLoadingCostPerformance(false);
       return;
     }
 
@@ -114,6 +115,7 @@ export function useBillingFinanceDashboardData(projectName: string | null, refre
   useEffect(() => {
     if (!projectName) {
       setBudgetPerformanceData(null);
+      setIsLoadingBudgetPerformance(false);
       return;
     }
 
@@ -149,6 +151,7 @@ export function useBillingFinanceDashboardData(projectName: string | null, refre
     if (!projectName) {
       setContractPerformanceData(null);
       setContractPerformanceError(null);
+      setIsLoadingContractPerformance(false);
       return;
     }
 
@@ -188,6 +191,7 @@ export function useBillingFinanceDashboardData(projectName: string | null, refre
     if (!projectName) {
       setPlannedEarnedByPeriod(null);
       setPlannedEarnedError(null);
+      setIsLoadingPlannedEarned(false);
       return;
     }
 
@@ -247,6 +251,7 @@ export function useBillingFinanceDashboardData(projectName: string | null, refre
   useEffect(() => {
     if (!projectName) {
       setCashflowRecords([]);
+      setIsLoadingCashflow(false);
       return;
     }
 

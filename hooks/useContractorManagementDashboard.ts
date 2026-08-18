@@ -38,7 +38,7 @@ export function useContractorManagementDashboard(
   const [selectedContractorMasterId, setSelectedContractorMasterId] = useState<number | null>(
     null,
   );
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [selectedContractorContractValues, setSelectedContractorContractValues] =
@@ -55,6 +55,7 @@ export function useContractorManagementDashboard(
       setInvoicing(null);
       setProjectDates(null);
       setError(null);
+      setLoading(false);
       return;
     }
 

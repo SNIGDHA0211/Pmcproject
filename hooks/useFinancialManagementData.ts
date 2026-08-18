@@ -46,7 +46,10 @@ export function useFinancialManagementData({
 
   const loadData = useCallback(
     async (options?: { force?: boolean }) => {
-      if (!projectName.trim()) return;
+      if (!projectName.trim()) {
+        onInitialLoadingChange?.(false);
+        return;
+      }
 
       const cached = getFinancialCacheEntry(projectName);
       const periodMatch = financialCacheMatchesPeriod(cached, month, year);

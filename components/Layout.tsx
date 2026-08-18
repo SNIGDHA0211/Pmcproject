@@ -15,6 +15,7 @@ import UserAvatar from './UserAvatar';
 import HeaderSearch from './HeaderSearch';
 import type { HeaderSearchNavItem } from './HeaderSearch';
 import AlertNotificationItem from './alerts/AlertNotificationItem';
+import { InlineLoader } from './WorkspaceStatusPanels';
 import { isTabAllowedForRole } from '../utils/roleRouting';
 import { isPmcHeadEquivalent } from '../utils/pmcRoleAccess';
 import { canAccessUserManagement } from '../utils/userManagementAccess';
@@ -44,6 +45,7 @@ interface LayoutProps {
   navReturn?: NavReturnContext | null;
   onNavBack?: () => void;
   notifications: AppNotification[];
+  notificationsLoading?: boolean;
   onMarkRead: (id: string, isRead?: boolean) => void;
   /** Lazy-load alert history when the notification bell opens (Sprint 1). */
   onRequestNotifications?: () => void;
@@ -71,6 +73,7 @@ const Layout: React.FC<LayoutProps> = ({
   navReturn = null,
   onNavBack,
   notifications,
+  notificationsLoading = false,
   onMarkRead,
   onRequestNotifications,
   onNavigateToAlerts,
@@ -1032,7 +1035,11 @@ const Layout: React.FC<LayoutProps> = ({
                     )}
                   </div>
                   <div className="max-h-96 overflow-y-auto">
-                    {userNotifications.length > 0 ? (
+                    {notificationsLoading ? (
+                      <div className="flex min-h-[180px] items-center justify-center p-8">
+                        <InlineLoader label="Loading alerts" />
+                      </div>
+                    ) : userNotifications.length > 0 ? (
                       userNotifications.map((n) => (
                         <AlertNotificationItem
                           key={n.id}

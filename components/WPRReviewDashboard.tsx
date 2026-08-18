@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { Icons } from "./Icons";
+import { WorkspaceLoadingPanel } from "./WorkspaceStatusPanels";
 import { Project, User, UserRole } from "../types";
 import { wprApi } from "../services/api";
 import { ProgressBar } from "./wpr/ProgressBar";
@@ -473,14 +474,10 @@ const WPRReviewDashboard: React.FC<WPRReviewDashboardProps> = ({
 
   if (loading) {
     return (
-      <div className="flex min-w-0 items-center justify-center px-4 py-16 sm:py-24">
-        <div className="text-center">
-          <div
-            className={`mx-auto mb-4 h-12 w-12 animate-spin rounded-full border-b-2 ${isDarkTheme ? "border-white" : "border-indigo-600"}`}
-          />
-          <p className={wprTy.helperText}>Loading WPRs...</p>
-        </div>
-      </div>
+      <WorkspaceLoadingPanel
+        title="Loading WPRs"
+        subtitle="Fetching weekly progress reports for review. This only takes a moment."
+      />
     );
   }
 

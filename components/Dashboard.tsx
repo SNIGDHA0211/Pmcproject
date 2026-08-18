@@ -21,6 +21,12 @@ import {
   ProgressDifferenceSummaryChip,
 } from './charts/ProgressCurveTooltip';
 import { progressCumulativeDifference } from '../utils/projectProgress';
+import { WorkspaceLoadingPanel, ProjectsEmptyPanel } from './WorkspaceStatusPanels';
+import {
+  useProjectStoreActions,
+  useProjectStoreError,
+  useProjectsBootstrapping,
+} from '../hooks/useProjectStore';
 
 // Specialized Gauge Component for SPI/CPI
 const PerformanceGauge: React.FC<{ value: number; label: string; color: string }> = ({ value, label, color }) => {
@@ -118,26 +124,33 @@ const Dashboard: React.FC<DashboardProps> = ({ user, projects, dprs, projectDocu
   const [isLoadingManpower, setIsLoadingManpower] = useState(false);
   const [cashflowData, setCashflowData] = useState<any[]>([]);
   const [isLoadingCashflow, setIsLoadingCashflow] = useState(false);
+  const isProjectsBootstrapping = useProjectsBootstrapping();
+  const projectsLoadError = useProjectStoreError();
+  const { loadProjects } = useProjectStoreActions();
 
   // For PMC Head / Manager, use selected project; for Team Lead, use first project
   const leadProject = isPmcHeadEquivalent(user)
     ? projects.find(p => p.id === selectedProjectId) || projects[0]
     : projects[0];
 
+  if (isProjectsBootstrapping) {
+    return <WorkspaceLoadingPanel />;
+  }
+
   if ((user.role === UserRole.TEAM_LEAD || isPmcHeadEquivalent(user)) && !leadProject) {
     return (
-      <div className={`flex flex-col items-center justify-center min-h-[400px] text-center p-8 rounded-[3rem] border ${themeClasses.glassCard} ${themeClasses.border}`}>
-        <div className={`p-6 rounded-full mb-6 ${themeClasses.bgSecondary}`}>
-          <Icons.Project className={`${themeClasses.textMuted}`} size={48} />
-        </div>
-        <h3 className={`text-xl font-black uppercase tracking-tighter mb-2 ${themeClasses.textPrimary}`}>No Projects Found</h3>
-        <p className={`text-sm font-bold uppercase tracking-widest max-w-md ${themeClasses.textSecondary}`}>
-          {isPmcHeadEquivalent(user)
-            ? "You haven't created any projects yet. Go to Portfolio to create your first project."
-            : "You are currently logged in as Team Lead, but no active projects were found in your portfolio."
-          }
-        </p>
-      </div>
+      <ProjectsEmptyPanel
+        title="No projects to show yet"
+        message={
+          isPmcHeadEquivalent(user)
+            ? "You haven’t created any projects yet. Open Portfolio to add your first project."
+            : "No active projects are assigned to this account yet. Contact your administrator if you expected to see projects here."
+        }
+        error={projectsLoadError}
+        onRetry={() => {
+          void loadProjects(true);
+        }}
+      />
     );
   }
 

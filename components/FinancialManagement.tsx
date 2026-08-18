@@ -305,7 +305,7 @@ const FinancialManagement: React.FC<FinancialManagementProps> = ({
     CONTRACTOR: false,
   });
 
-  const [isInitialLoading, setIsInitialLoading] = useState(false);
+  const [isInitialLoading, setIsInitialLoading] = useState(true);
   const [isForceRefreshing, setIsForceRefreshing] = useState(false);
   const [isBackgroundRefreshing, setIsBackgroundRefreshing] = useState(false);
   const [progressTrendData, setProgressTrendData] = useState<

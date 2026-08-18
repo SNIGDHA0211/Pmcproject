@@ -24,6 +24,7 @@ import {
   toIncidentMetrics,
 } from '../utils/healthSafety';
 import { DASHBOARD_STATUS_CARD_PADDING, getThemeClasses, useTheme } from '../utils/theme';
+import { CardLoadingSkeleton } from './WorkspaceStatusPanels';
 import { useProjectsDashboardTypo } from '../utils/projectsDashboardTypography';
 
 interface HealthSafetyCardProps {
@@ -317,26 +318,9 @@ const HealthSafetyCard: React.FC<HealthSafetyCardProps> = ({
   const renderContent = (mode: 'compact' | 'expanded') => {
     if (isLoading) {
       if (mode === 'compact') {
-        return (
-          <div className="flex min-h-0 flex-1 flex-col py-1">
-            <div className={`min-h-0 flex-1 animate-pulse rounded-lg ${themeClasses.bgSecondary}`} />
-            <div className="mt-auto grid shrink-0 grid-cols-2 gap-2.5">
-              <div className={`h-[58px] animate-pulse rounded-xl ${themeClasses.bgSecondary}`} />
-              <div className={`h-[58px] animate-pulse rounded-xl ${themeClasses.bgSecondary}`} />
-            </div>
-          </div>
-        );
+        return <CardLoadingSkeleton metrics={2} chartHeight={140} />;
       }
-      return (
-        <div className="space-y-3 py-1">
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
-            {Array.from({ length: 5 }).map((_, i) => (
-              <div key={i} className={`h-[88px] animate-pulse rounded-lg ${themeClasses.bgSecondary}`} />
-            ))}
-          </div>
-          <div className={`h-24 animate-pulse rounded-xl ${themeClasses.bgSecondary}`} />
-        </div>
-      );
+      return <CardLoadingSkeleton metrics={5} chartHeight={96} />;
     }
     if (error) {
       return (

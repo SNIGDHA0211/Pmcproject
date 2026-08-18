@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { Icons } from "./Icons";
+import { WorkspaceLoadingPanel } from "./WorkspaceStatusPanels";
 
 // Types for the new DPR system
 interface DPRActivity {
@@ -61,7 +62,11 @@ const DPRDashboard: React.FC<DPRDashboardProps> = ({ api }) => {
     setLoading(true);
     setError(null);
     try {
-      const params: any = {};
+      const params: any = {
+        page: 1,
+        page_size: 50,
+        ordering: '-id',
+      };
       if (filters.project_name) params.project_name = filters.project_name;
       if (filters.date) params.date = filters.date;
 
@@ -99,14 +104,12 @@ const DPRDashboard: React.FC<DPRDashboardProps> = ({ api }) => {
     }
   };
 
-  if (loading) {
+  if (loading && !(Array.isArray(reports) && reports.length > 0)) {
     return (
-      <div className="flex items-center justify-center py-20">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto mb-4"></div>
-          <p className="text-white/60 text-sm">Loading DPRs...</p>
-        </div>
-      </div>
+      <WorkspaceLoadingPanel
+        title="Loading DPRs"
+        subtitle="Fetching daily progress reports. This only takes a moment."
+      />
     );
   }
 

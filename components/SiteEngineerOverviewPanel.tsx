@@ -22,6 +22,7 @@ import {
 import ProjectEquipmentChart from './ProjectEquipmentChart';
 import { SITE_ENGINEER_QUICK_LINKS } from '../utils/siteEngineerProjects';
 import { getThemeClasses, useTheme } from '../utils/theme';
+import { SectionLoadingPanel } from './WorkspaceStatusPanels';
 
 export interface SiteEngineerDashboardSnapshot {
   progressPct: number;
@@ -128,9 +129,7 @@ const SiteEngineerOverviewPanel: React.FC<SiteEngineerOverviewPanelProps> = ({
       </div>
 
       {loading && !snapshot ? (
-        <div className={`flex min-h-[280px] items-center justify-center ${cardCls}`}>
-          <div className="h-10 w-10 animate-spin rounded-full border-2 border-indigo-500 border-t-transparent" />
-        </div>
+        <SectionLoadingPanel label="Loading site engineer dashboard" minHeight={280} />
       ) : !projectName ? (
         <div className={`${cardCls} py-12 text-center`}>
           <p className={`text-sm font-bold ${themeClasses.textPrimary}`}>No project assigned yet</p>

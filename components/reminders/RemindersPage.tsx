@@ -21,6 +21,7 @@ import {
 } from '../../utils/reminderAlarm';
 import { sanitizeProjectDisplayName } from '../../utils/hseSiteEngineerProjects';
 import { getThemeClasses, useTheme } from '../../utils/theme';
+import { SectionLoadingPanel } from '../WorkspaceStatusPanels';
 import { isAbortError } from '../../utils/isAbortError';
 import DashboardToastStack, { type DashboardToastItem } from '../DashboardToastStack';
 import ReminderCard from './ReminderCard';
@@ -350,9 +351,7 @@ const RemindersPage: React.FC<RemindersPageProps> = ({
         </div>
 
         {loading ? (
-          <div className="flex min-h-[180px] items-center justify-center">
-            <div className="h-8 w-8 animate-spin rounded-full border-2 border-indigo-500 border-t-transparent" />
-          </div>
+          <SectionLoadingPanel label="Loading reminders" minHeight={180} />
         ) : items.length === 0 ? (
           <div className={`py-14 text-center text-sm font-semibold ${themeClasses.textSecondary}`}>
             No reminders found. Create one to get started.

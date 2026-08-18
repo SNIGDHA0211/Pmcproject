@@ -506,15 +506,24 @@ configureApiInstance(dprApiInstance);
 installGetRequestCache(dprApiInstance);
 
 export const dprApi = {
-  // Get all DPRs with optional filtering
+  // Get DPRs — always page so the list cannot stall on the full history.
   getDPRs: (params?: {
     project_name?: string;
     date?: string;
     date_from?: string;
     date_to?: string;
     page?: number;
+    page_size?: number;
+    ordering?: string;
   }) => {
-    return dprApiInstance.get(API_ENDPOINTS.DPR.LIST, { params });
+    return dprApiInstance.get(API_ENDPOINTS.DPR.LIST, {
+      params: {
+        page: 1,
+        page_size: 50,
+        ordering: '-id',
+        ...params,
+      },
+    });
   },
   // Get single DPR by ID
   getDPR: (id: string | number) => {

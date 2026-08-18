@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { Icons } from "./Icons";
+import { WorkspaceLoadingPanel } from "./WorkspaceStatusPanels";
 import { MOCK_DPRS } from "../services/mockData";
 import { User, UserRole, Project } from "../types";
 import DPRSubmissionForm from "./DPRSubmissionForm";
@@ -80,6 +81,22 @@ interface DPRReviewDashboardProps {
 
 function normalizeProjectKey(name: string): string {
     return name.trim().toLowerCase();
+}
+
+function reportIdKey(value: unknown): string {
+    if (value == null || value === '') return '';
+    return String(value);
+}
+
+function unwrapCreatedDpr(payload: unknown): Record<string, unknown> | null {
+    if (!payload || typeof payload !== 'object') return null;
+    const obj = payload as Record<string, unknown>;
+    if (reportIdKey(obj.id)) return obj;
+    const nested = [obj.data, obj.record, obj.dpr, obj.result].find(
+        (item) => item && typeof item === 'object' && !Array.isArray(item),
+    ) as Record<string, unknown> | undefined;
+    if (nested && reportIdKey(nested.id)) return nested;
+    return null;
 }
 
 function isTeamLeadAssignedToProject(project: Project, user: User): boolean {
@@ -393,11 +410,18 @@ const DPRReviewDashboard: React.FC<DPRReviewDashboardProps> = ({
         );
     };
 
-    const fetchDPRs = useCallback(async () => {
-        setLoading(true);
-        setError(null);
+    const fetchDPRs = useCallback(async (options?: { silent?: boolean }) => {
+        const silent = Boolean(options?.silent);
+        if (!silent) {
+            setLoading(true);
+            setError(null);
+        }
         try {
-            const params: any = {};
+            const params: any = {
+                page: 1,
+                page_size: 50,
+                ordering: '-id',
+            };
             const projectFilter = isTeamLead ? effectiveProjectName : filters.project_name;
             if (projectFilter) params.project_name = projectFilter;
             if (filters.date) params.date = filters.date;
@@ -428,9 +452,10 @@ const DPRReviewDashboard: React.FC<DPRReviewDashboardProps> = ({
 
             setSelectedReport((current) => {
                 if (current) {
-                    const updatedSelected = fetchedReports.find(
-                        (report) => report.id.toString() === current.id.toString(),
-                    );
+                    const currentId = reportIdKey(current.id);
+                    const updatedSelected = currentId
+                        ? fetchedReports.find((report) => reportIdKey(report.id) === currentId)
+                        : undefined;
                     return updatedSelected ?? fetchedReports[0] ?? null;
                 }
                 return fetchedReports[0] ?? null;
@@ -488,9 +513,10 @@ const DPRReviewDashboard: React.FC<DPRReviewDashboardProps> = ({
             setReports(mockReports);
             setSelectedReport((current) => {
                 if (current) {
-                    const updatedSelected = mockReports.find(
-                        (report) => report.id.toString() === current.id.toString(),
-                    );
+                    const currentId = reportIdKey(current.id);
+                    const updatedSelected = currentId
+                        ? mockReports.find((report) => reportIdKey(report.id) === currentId)
+                        : undefined;
                     return updatedSelected ?? mockReports[0] ?? null;
                 }
                 return mockReports[0] ?? null;
@@ -587,7 +613,8 @@ const DPRReviewDashboard: React.FC<DPRReviewDashboardProps> = ({
     const handleApprove = async () => {
         if (selectedReport && onApprove) {
             try {
-                const reportId = selectedReport.id.toString();
+                const reportId = reportIdKey(selectedReport.id);
+                if (!reportId) return;
                 const nextStatus = getNextApprovalStatus();
                 await onApprove(reportId);
                 setLocalStatusOverrides((prev) => ({
@@ -605,7 +632,7 @@ const DPRReviewDashboard: React.FC<DPRReviewDashboardProps> = ({
                 setSuccessMessage("DPR Approved Successfully");
                 setTimeout(() => setSuccessMessage(null), 3000);
                 // Refresh data to update status and hide buttons
-                fetchDPRs();
+                void fetchDPRs({ silent: true });
             } catch (err) {
                 // Error handled in App.tsx
             }
@@ -626,7 +653,8 @@ const DPRReviewDashboard: React.FC<DPRReviewDashboardProps> = ({
         setRejectReason(reviewComments);
         if (selectedReport && onReject) {
             try {
-                const reportId = selectedReport.id.toString();
+                const reportId = reportIdKey(selectedReport.id);
+                if (!reportId) return;
                 await onReject(reportId, reviewComments);
                 setLocalStatusOverrides((prev) => ({ ...prev, [reportId]: "rejected" }));
                 setSelectedReport((prev) =>
@@ -639,7 +667,7 @@ const DPRReviewDashboard: React.FC<DPRReviewDashboardProps> = ({
                 );
                 setSuccessMessage("Revision Requested — DPR returned to Site Engineer");
                 setTimeout(() => setSuccessMessage(null), 3000);
-                fetchDPRs();
+                void fetchDPRs({ silent: true });
             } catch {
                 // handled in App.tsx
             }
@@ -649,7 +677,8 @@ const DPRReviewDashboard: React.FC<DPRReviewDashboardProps> = ({
     const handleReject = async () => {
         if (selectedReport && onReject && rejectReason.trim()) {
             try {
-                const reportId = selectedReport.id.toString();
+                const reportId = reportIdKey(selectedReport.id);
+                if (!reportId) return;
                 await onReject(reportId, rejectReason);
                 setLocalStatusOverrides((prev) => ({
                     ...prev,
@@ -668,7 +697,7 @@ const DPRReviewDashboard: React.FC<DPRReviewDashboardProps> = ({
                 setSuccessMessage("DPR Rejected Successfully");
                 setTimeout(() => setSuccessMessage(null), 3000);
                 // Refresh data to update status and hide buttons
-                fetchDPRs();
+                void fetchDPRs({ silent: true });
             } catch (err) {
                 // Error handled in App.tsx
             }
@@ -683,7 +712,7 @@ const DPRReviewDashboard: React.FC<DPRReviewDashboardProps> = ({
                 await api.submitDPR(selectedReport.id, 'Site Engineer');
                 setSuccessMessage("DPR Submitted for Approval");
                 setTimeout(() => setSuccessMessage(null), 3000);
-                fetchDPRs();
+                void fetchDPRs({ silent: true });
             } catch (err: any) {
                 console.error("Failed to submit draft:", err);
                 alert(err.response?.data?.error || "Failed to submit DPR. Please try again.");
@@ -691,14 +720,12 @@ const DPRReviewDashboard: React.FC<DPRReviewDashboardProps> = ({
         }
     };
 
-    if (loading) {
+    if (loading && reports.length === 0) {
         return (
-            <div className="flex items-center justify-center py-24">
-                <div className="text-center">
-                    <div className={`animate-spin rounded-full h-12 w-12 border-b-2 ${isDarkTheme ? 'border-white' : 'border-indigo-600'} mx-auto mb-4`}></div>
-                    <p className={dprTy.helperText}>Loading DPRs...</p>
-                </div>
-            </div>
+            <WorkspaceLoadingPanel
+                title="Loading DPRs"
+                subtitle="Fetching daily progress reports for review. This only takes a moment."
+            />
         );
     }
 
@@ -816,7 +843,7 @@ const DPRReviewDashboard: React.FC<DPRReviewDashboardProps> = ({
                     <div className="flex min-w-[200px] max-w-md flex-1 flex-col">
                         <label className={dprTy.filterLabel}>Select DPR</label>
                         <select
-                            value={selectedReport ? String(selectedReport.id) : ""}
+                            value={selectedReport ? reportIdKey(selectedReport.id) : ""}
                             onChange={(e) => {
                                 const id = e.target.value;
                                 const next = reports.find((r) => String(r.id) === id);
@@ -1215,7 +1242,20 @@ const DPRReviewDashboard: React.FC<DPRReviewDashboardProps> = ({
                                 setShowSubmissionForm(false);
                                 setSuccessMessage(selectedReport?.status?.toLowerCase() === 'rejected' ? "DPR Updated & Resubmitted Successfully" : "DPR Created & Submitted Successfully");
                                 setTimeout(() => setSuccessMessage(null), 3000);
-                                fetchDPRs();
+                                if (data?.report) {
+                                    const created = unwrapCreatedDpr(data.report);
+                                    if (created && reportIdKey(created.id)) {
+                                        const normalized = normalizeReport(created);
+                                        setReports((prev) => {
+                                            const rest = prev.filter(
+                                                (report) => reportIdKey(report.id) !== reportIdKey(normalized.id),
+                                            );
+                                            return [normalized, ...rest];
+                                        });
+                                        setSelectedReport(normalized);
+                                    }
+                                }
+                                void fetchDPRs({ silent: true });
                             }}
                             assignedProjects={accessibleProjects}
                             existingDPR={selectedReport?.status?.toLowerCase() === 'rejected' ? selectedReport : undefined}

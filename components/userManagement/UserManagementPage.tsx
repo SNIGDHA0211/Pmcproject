@@ -39,6 +39,7 @@ import DashboardToastStack, { type DashboardToastItem } from '../DashboardToastS
 import TutorialVideosPanel from '../tutorialVideos/TutorialVideosPanel';
 import TutorialWatchButton from '../tutorialVideos/TutorialWatchButton';
 import { getThemeClasses, useTheme } from '../../utils/theme';
+import { InlineLoader, SectionLoadingPanel } from '../WorkspaceStatusPanels';
 import { useDebouncedValue } from '../../hooks/useDebouncedValue';
 import { isAbortError } from '../../utils/isAbortError';
 
@@ -293,7 +294,7 @@ const UserManagementPage: React.FC<UserManagementPageProps> = ({
 
   const [items, setItems] = useState<ManagedUser[]>([]);
   const [count, setCount] = useState(0);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const [toasts, setToasts] = useState<DashboardToastItem[]>([]);
@@ -865,9 +866,7 @@ const UserManagementPage: React.FC<UserManagementPageProps> = ({
         </div>
 
         {loading ? (
-          <div className="flex min-h-[200px] items-center justify-center">
-            <div className="h-8 w-8 animate-spin rounded-full border-2 border-indigo-500 border-t-transparent" />
-          </div>
+          <SectionLoadingPanel label="Loading users" minHeight={200} />
         ) : items.length === 0 ? (
           <div className={`px-4 py-16 text-center text-sm font-semibold ${themeClasses.textSecondary}`}>
             No users found.
@@ -1355,7 +1354,7 @@ const UserManagementPage: React.FC<UserManagementPageProps> = ({
               </div>
               {viewLoading ? (
                 <div className="flex justify-center py-8">
-                  <div className="h-7 w-7 animate-spin rounded-full border-2 border-indigo-500 border-t-transparent" />
+                  <InlineLoader label="Loading user details" />
                 </div>
               ) : (
                 <dl className="space-y-3 text-sm">

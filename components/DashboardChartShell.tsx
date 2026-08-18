@@ -9,6 +9,7 @@ import {
   DASHBOARD_CHART_SHELL_PADDING,
   dashboardChartShellBorder,
 } from '../utils/dashboardCharts';
+import { SectionLoadingPanel } from './WorkspaceStatusPanels';
 
 type DashboardChartShellProps = {
   title: string;
@@ -66,12 +67,7 @@ const DashboardChartShell: React.FC<DashboardChartShellProps> = ({
       </div>
       <div className="flex min-h-0 flex-1 flex-col">
         {isLoading ? (
-          <div
-            className="flex flex-1 items-center justify-center"
-            style={{ minHeight: resolvedMinHeight }}
-          >
-            <div className={`${typo.muted} ${themeClasses.textMuted}`}>{loadingMessage}</div>
-          </div>
+          <SectionLoadingPanel label={loadingMessage} minHeight={resolvedMinHeight} />
         ) : hasData ? (
           <div className="min-h-0 w-full flex-1" style={{ minHeight: resolvedMinHeight }}>
             {children}

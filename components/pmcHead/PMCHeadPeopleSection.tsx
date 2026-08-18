@@ -24,6 +24,7 @@ import MachinerySubmissionsTL from '../MachinerySubmissionsTL';
 import ProjectEquipmentCard from '../ProjectEquipmentCard';
 import { PMCExecutivePanel } from './PMCHeadScheduleSection';
 import { getPmcExecutiveTheme, usePmcExecutiveTheme } from '../../utils/pmcExecutiveTheme';
+import { SectionLoadingPanel } from '../WorkspaceStatusPanels';
 import {
   chartAxisStroke,
   chartAxisTick,
@@ -555,7 +556,9 @@ const PMCHeadPeopleSection: React.FC<PMCHeadPeopleSectionProps> = ({
         )}
 
         {isLoadingEquipment ? (
-          <p className={`px-4 py-8 text-center text-xs font-semibold ${ex.muted}`}>Loading equipment…</p>
+          <div className="px-4 py-4">
+            <SectionLoadingPanel label="Loading equipment" minHeight={160} />
+          </div>
         ) : equipmentSummaryRows.length === 0 ? (
           <div className="flex flex-col items-center justify-center gap-2 px-4 py-10 text-center">
             <div

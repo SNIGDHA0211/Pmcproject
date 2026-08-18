@@ -17,6 +17,8 @@ const SKIP_URL_PARTS = [
   '/projects/init/',
   // Correspondence comments serializer only allows `comment`.
   '/comments/',
+  // DPR serializer rejects actor-stamp keys (created_by_*, sender_*, updated_by_*).
+  '/dpr/',
 ];
 
 function shouldSkipUrl(url?: string): boolean {

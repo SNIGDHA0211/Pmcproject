@@ -23,6 +23,7 @@ import FrequencyChartRegisterModal from "./FrequencyChartRegisterModal";
 import DashboardCardTopAccent from "./DashboardCardTopAccent";
 import { FullScreenCard, FullScreenHeaderToolbar } from "./FullScreenCard";
 import { Icons } from "./Icons";
+import { SectionLoadingPanel } from "./WorkspaceStatusPanels";
 import { useDebouncedValue } from "../hooks/useDebouncedValue";
 import { isAbortError } from "../utils/isAbortError";
 
@@ -187,7 +188,7 @@ export default function FrequencyChartDashboard({
     setContractorFilter(selectedContractorName?.trim() ?? "");
   }, [syncContractorFromDashboard, selectedContractorName]);
 
-  const [loading,    setLoading]    = useState(false);
+  const [loading,    setLoading]    = useState(true);
   const [error,      setError]      = useState<string | null>(null);
   const [reportData, setReportData] = useState<FrequencyChartClientReportData | null>(null);
 
@@ -205,7 +206,10 @@ export default function FrequencyChartDashboard({
   }, []);
 
   const loadData = useCallback(async (signal?: AbortSignal) => {
-    if (!project?.title) return;
+    if (!project?.title) {
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     setError(null);
     try {
@@ -424,9 +428,11 @@ export default function FrequencyChartDashboard({
           )}
 
           {loading && (
-            <div className={`flex flex-1 items-center justify-center ${isEmbedded ? 'py-10' : 'py-16'}`}>
-              <div className={`animate-spin rounded-full border-[3px] border-indigo-500 border-t-transparent ${isEmbedded ? 'h-9 w-9' : 'h-10 w-10'}`} />
-            </div>
+            <SectionLoadingPanel
+              label="Loading frequency chart"
+              minHeight={isEmbedded ? 180 : 240}
+              className={isEmbedded ? 'py-6' : 'py-8'}
+            />
           )}
 
           {!loading && !error && reportData && reportData.rows.length > 0 && (

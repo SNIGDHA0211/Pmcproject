@@ -13,6 +13,7 @@ import {
   toIncidentMetrics,
 } from '../utils/healthSafety';
 import { getThemeClasses, useTheme } from '../utils/theme';
+import { SectionLoadingPanel } from './WorkspaceStatusPanels';
 
 interface QaqcHealthSafetyPanelProps {
   projectName?: string | null;
@@ -107,9 +108,7 @@ const QaqcHealthSafetyPanel: React.FC<QaqcHealthSafetyPanelProps> = ({
       </div>
 
       {loading ? (
-        <div className="flex min-h-[200px] items-center justify-center">
-          <div className="h-8 w-8 animate-spin rounded-full border-2 border-emerald-500 border-t-transparent" />
-        </div>
+        <SectionLoadingPanel label="Loading health and safety" minHeight={200} />
       ) : !record ? (
         <div
           className={`flex min-h-[160px] flex-col items-center justify-center rounded-xl border border-dashed px-4 py-8 text-center ${

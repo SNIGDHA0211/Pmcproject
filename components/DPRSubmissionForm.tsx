@@ -97,6 +97,11 @@ function nestedEntityId(value: unknown): string {
   return String(value);
 }
 
+function dprAlreadyInWorkflow(status: unknown): boolean {
+  const value = String(status ?? '').toLowerCase();
+  return /pending|submitted|awaiting|review/.test(value);
+}
+
 function DPRSubmissionForm({ onClose, onSubmit, assignedProjects, existingDPR }: DPRSubmissionFormProps) {
   const { isDarkTheme } = useTheme();
   const themeClasses = getThemeClasses(isDarkTheme);
@@ -549,19 +554,17 @@ function DPRSubmissionForm({ onClose, onSubmit, assignedProjects, existingDPR }:
       // Submit to DPR API endpoint
       let response;
       if (existingDPR && existingDPR.id) {
-        // Update existing DPR
         response = await dprApi.patchDPR(existingDPR.id, dprPayload);
-        // Re-submit to workflow
-        await dprApi.submitDPR(existingDPR.id, 'Site Engineer');
-        console.log('DPR updated and resubmitted successfully:', response.data);
-      } else {
-        // Create new DPR
-        response = await dprApi.createDPR(dprPayload);
-        // After creating, submit it to the workflow
-        if (response.data && response.data.id) {
-          await dprApi.submitDPR(response.data.id, 'Site Engineer');
+        const wasRejected = String(existingDPR.status ?? '').toLowerCase().includes('reject');
+        if (wasRejected || !dprAlreadyInWorkflow(response.data?.status)) {
+          await dprApi.submitDPR(existingDPR.id, 'Site Engineer');
         }
-        console.log('DPR created and submitted successfully:', response.data);
+      } else {
+        response = await dprApi.createDPR(dprPayload);
+        const createdId = response.data?.id;
+        if (createdId && !dprAlreadyInWorkflow(response.data?.status)) {
+          await dprApi.submitDPR(createdId, 'Site Engineer');
+        }
       }
 
       const submissionData = {
@@ -578,12 +581,12 @@ function DPRSubmissionForm({ onClose, onSubmit, assignedProjects, existingDPR }:
         gfcStatus,
         issuedBy,
         designation,
-        status: 'PENDING'
+        status: 'PENDING',
+        report: response?.data ?? null,
+        dprId: response?.data?.id,
       };
 
       setFormSuccess('DPR submitted successfully.');
-      // Refresh scopes so cumulative_quantity / progress come from the latest API payload
-      await fetchAvailableScopes();
       window.dispatchEvent(
         new CustomEvent('pmc:notification', {
           detail: {
@@ -598,7 +601,6 @@ function DPRSubmissionForm({ onClose, onSubmit, assignedProjects, existingDPR }:
           },
         })
       );
-      // Signal other screens (My Scopes, etc.) to refetch — no React Query/Zustand in this app
       window.dispatchEvent(
         new CustomEvent('pmc:dpr-saved', {
           detail: { projectId: selectedProjectId, dprId: response?.data?.id },
@@ -606,6 +608,7 @@ function DPRSubmissionForm({ onClose, onSubmit, assignedProjects, existingDPR }:
       );
       onSubmit(submissionData);
       onClose();
+      void fetchAvailableScopes();
     } catch (error: unknown) {
       console.error('DPR Submission Error:', error);
       setFormError(

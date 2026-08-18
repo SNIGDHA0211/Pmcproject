@@ -12,6 +12,7 @@ import type {
 import { getThemeClasses, useTheme } from '../utils/theme';
 import { ModalPortal } from './ModalPortal';
 import { Icons } from './Icons';
+import { InlineLoader, SectionLoadingPanel } from './WorkspaceStatusPanels';
 import DashboardCardTopAccent from './DashboardCardTopAccent';
 import {
   downloadDrawingRegisterExcel,
@@ -828,9 +829,8 @@ function RegisterModal({ projectName, editRow, onClose, onSaved }: ModalProps) {
 
           <form onSubmit={handleSubmit} className="px-5 sm:px-6 py-5 space-y-5">
             {loadingDetail && (
-              <div className={`flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-medium ${isDarkTheme ? 'bg-white/5 text-white/70' : 'bg-slate-50 text-slate-600'}`}>
-                <div className="h-4 w-4 animate-spin rounded-full border-2 border-indigo-500 border-t-transparent" />
-                Loading drawing details…
+              <div className={`rounded-xl px-3 py-2 ${isDarkTheme ? 'bg-white/5' : 'bg-slate-50'}`}>
+                <InlineLoader label="Loading drawing details" />
               </div>
             )}
 
@@ -1043,7 +1043,7 @@ export default function DrawingRegisterCard({
     setContractor(selectedContractorName?.trim() ?? '');
   }, [syncContractorFromDashboard, selectedContractorName]);
 
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [reportData, setReportData] = useState<DrawingClientReportData | null>(null);
@@ -1063,7 +1063,10 @@ export default function DrawingRegisterCard({
   }, [isActive]);
 
   const loadData = useCallback(async (signal?: AbortSignal, fresh = false) => {
-    if (!project?.title) return;
+    if (!project?.title) {
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     setError(null);
     try {
@@ -1282,9 +1285,7 @@ export default function DrawingRegisterCard({
         )}
 
         {loading && !reportData?.rows?.length && (
-          <div className="flex items-center justify-center py-16">
-            <div className="h-10 w-10 animate-spin rounded-full border-[3px] border-indigo-500 border-t-transparent" />
-          </div>
+          <SectionLoadingPanel label="Loading drawing register" minHeight={220} />
         )}
 
         {!error && reportData && (!loading || Boolean(reportData.rows.length)) && (

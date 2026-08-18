@@ -26,6 +26,7 @@ import { ROLE_LABELS } from '../constants';
 import TutorialVideosPanel from './tutorialVideos/TutorialVideosPanel';
 import TutorialWatchButton from './tutorialVideos/TutorialWatchButton';
 import { useTheme, getThemeClasses } from '../utils/theme';
+import { CardLoadingSkeleton } from './WorkspaceStatusPanels';
 import { getPmcExecutiveTheme } from '../utils/pmcExecutiveTheme';
 import type { HealthLabel, ProjectVital, ProjectVitalsCard, VitalStatus } from '../utils/projectVitals';
 import { formatHealthLabelDisplay } from '../utils/projectVitals';
@@ -1470,10 +1471,12 @@ const PMCHead360Dashboard: React.FC<PMCHead360DashboardProps> = ({
             {Array.from({ length: 8 }).map((_, i) => (
               <div
                 key={`skeleton-${i}`}
-                className={`h-56 animate-pulse rounded-2xl ${
+                className={`rounded-2xl p-4 ${
                   isDarkTheme ? 'pmc360-glass-dark' : 'pmc360-glass-light'
                 }`}
-              />
+              >
+                <CardLoadingSkeleton metrics={3} chartHeight={96} />
+              </div>
             ))}
           </div>
         ) : (

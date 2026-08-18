@@ -19,6 +19,7 @@ import { usePmcExecutiveTheme } from '../../utils/pmcExecutiveTheme';
 import { plannedValueSectionTitle } from '../../utils/dashboardContractorLabels';
 import { monthYearLabel } from '../../utils/healthSafety';
 import type { PlannedEarnedByPeriodResponse } from '../../services/api';
+import { CardLoadingSkeleton } from '../WorkspaceStatusPanels';
 
 const mapPerformanceTone = (tone: PerformanceStatusTone): DashboardSemanticTone => {
   if (tone === 'success') return 'positive';
@@ -85,9 +86,7 @@ const PerformanceTile: React.FC<{
 
     <div className="flex flex-1 flex-col p-4 sm:p-5">
       {isLoading ? (
-        <div className="flex flex-1 items-center justify-center">
-          <div className={`h-8 w-8 animate-spin rounded-full border-2 border-t-[#1e3a5f] ${ex.isDark ? 'border-white/10' : 'border-slate-200'}`} />
-        </div>
+        <CardLoadingSkeleton metrics={2} chartHeight={72} />
       ) : error ? (
         <p className={`text-sm font-semibold ${ex.roseText}`}>{error}</p>
       ) : empty ? (

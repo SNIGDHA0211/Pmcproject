@@ -13,6 +13,7 @@ import { Icons } from './Icons';
 import { FullScreenCard, FullScreenHeaderToolbar, useFullScreenExpand } from './FullScreenCard';
 import DashboardChartShell from './DashboardChartShell';
 import { SitePhotosCard } from './SitePhotosCard';
+import { WorkspaceLoadingPanel, ProjectsEmptyPanel, SectionLoadingPanel } from './WorkspaceStatusPanels';
 import { formatINR } from '../utils/format';
 import {
   ResponsiveContainer,
@@ -41,6 +42,11 @@ import type { DrawingFormValues } from './DrawingMonthlyForm';
 import type { DrawingMonthlyRecord, DrawingProjectSummary } from '../types';
 import DrawingRegisterCard from './DrawingRegisterCard';
 import { useTheme, getThemeClasses } from '../utils/theme';
+import {
+  useProjectStoreActions,
+  useProjectStoreError,
+  useProjectsBootstrapping,
+} from '../hooks/useProjectStore';
 import {
   ProjectsDashboardTypographyProvider,
   useProjectsDashboardTypo,
@@ -361,7 +367,7 @@ const FinancialProgressChartCard: React.FC<{
         title="FINANCIAL PROGRESS"
         headerActions={<FormulaInfoButton {...DASHBOARD_FORMULAS.projectCostPerformance} />}
         isLoading={isLoading}
-        loadingMessage="Loading financial progress data..."
+        loadingMessage="Loading financial progress"
         hasData={data.length > 0}
         emptyMessage="No financial progress data available for this project"
         borderless
@@ -454,7 +460,7 @@ const PhysicalProgressChartCard: React.FC<{
       <DashboardChartShell
         title="PHYSICAL PROGRESS STATUS"
         isLoading={isLoading}
-        loadingMessage="Loading physical progress data..."
+        loadingMessage="Loading physical progress"
         hasData={data.length > 0}
         emptyMessage="No physical progress data available for this project"
         borderless
@@ -560,7 +566,7 @@ const ManpowerHistogramChartCard: React.FC<{
       chartMinHeight={DASHBOARD_CHART_MIN_HEIGHT_BAR}
       hasData={data.length > 0}
       emptyMessage="No manpower data available for this project"
-      loadingMessage="Loading manpower data..."
+      loadingMessage="Loading manpower"
     >
       <ExecutiveChartWithLegend
         height={DASHBOARD_CHART_MIN_HEIGHT_BAR}
@@ -609,6 +615,9 @@ const Projects: React.FC<ProjectsProps> = ({
   const { isDarkTheme } = useTheme();
   const themeClasses = getThemeClasses(isDarkTheme);
   const typo = useProjectsDashboardTypo();
+  const isProjectsBootstrapping = useProjectsBootstrapping();
+  const projectsLoadError = useProjectStoreError();
+  const { loadProjects } = useProjectStoreActions();
   const isPmcTeamLead = currentUser.role === UserRole.TEAM_LEAD;
   const isPMCHead = isPmcHeadEquivalent(currentUser);
   const allProjects = useMemo(() => {
@@ -683,7 +692,7 @@ const Projects: React.FC<ProjectsProps> = ({
   const [projectDatesBundle, setProjectDatesBundle] = useState<ProjectDatesByProject | null>(null);
   const [projectDatesSectionCache, setProjectDatesSectionCache] =
     useState<ProjectDatesSectionCachePayload | null>(null);
-  const [isLoadingProjectDates, setIsLoadingProjectDates] = useState(false);
+  const [isLoadingProjectDates, setIsLoadingProjectDates] = useState(true);
   const [projectDatesError, setProjectDatesError] = useState<string | null>(null);
   const [isProjectDatesModalOpen, setIsProjectDatesModalOpen] = useState(false);
   const [projectDatesModalMode, setProjectDatesModalMode] = useState<
@@ -734,9 +743,9 @@ const Projects: React.FC<ProjectsProps> = ({
     setShowProjectsAnalyticsTour(false);
   }, [onTourStateChange]);
   const [costPerformanceData, setCostPerformanceData] = useState<any[]>([]);
-  const [isLoadingCostPerformance, setIsLoadingCostPerformance] = useState(false);
+  const [isLoadingCostPerformance, setIsLoadingCostPerformance] = useState(true);
   const [equipmentDataState, setEquipmentDataState] = useState<ProjectEquipmentRecord[]>([]);
-  const [isLoadingEquipment, setIsLoadingEquipment] = useState(false);
+  const [isLoadingEquipment, setIsLoadingEquipment] = useState(true);
   const [equipmentError, setEquipmentError] = useState<string | null>(null);
   const [equipmentFormError, setEquipmentFormError] = useState<string | null>(null);
   const [isSavingEquipment, setIsSavingEquipment] = useState(false);
@@ -747,22 +756,22 @@ const Projects: React.FC<ProjectsProps> = ({
   const [correspondenceDocuments, setCorrespondenceDocuments] = useState<CorrespondenceDocument[]>([]);
   const [correspondenceSelectedMonth, setCorrespondenceSelectedMonth] = useState(() => new Date().getMonth() + 1);
   const [correspondenceSelectedYear, setCorrespondenceSelectedYear] = useState(() => new Date().getFullYear());
-  const [isLoadingCorrespondence, setIsLoadingCorrespondence] = useState(false);
+  const [isLoadingCorrespondence, setIsLoadingCorrespondence] = useState(true);
   const [correspondenceError, setCorrespondenceError] = useState<string | null>(null);
   const [correspondenceFormError, setCorrespondenceFormError] = useState<string | null>(null);
   const [isSavingCorrespondence, setIsSavingCorrespondence] = useState(false);
   const [budgetPerformanceData, setBudgetPerformanceData] = useState<any>(null);
-  const [isLoadingBudgetPerformance, setIsLoadingBudgetPerformance] = useState(false);
+  const [isLoadingBudgetPerformance, setIsLoadingBudgetPerformance] = useState(true);
   const [manpowerDataState, setManpowerDataState] = useState<any[]>([]);
-  const [isLoadingManpower, setIsLoadingManpower] = useState(false);
+  const [isLoadingManpower, setIsLoadingManpower] = useState(true);
   const [cashflowDataState, setCashflowDataState] = useState<any[]>([]);
-  const [isLoadingCashflow, setIsLoadingCashflow] = useState(false);
+  const [isLoadingCashflow, setIsLoadingCashflow] = useState(true);
   const [drawingMonthlyRecord, setDrawingMonthlyRecord] = useState<DrawingMonthlyRecord | null>(null);
   const [drawingProjectSummary, setDrawingProjectSummary] = useState<DrawingProjectSummary | null>(null);
   const [drawingYearRecords, setDrawingYearRecords] = useState<DrawingMonthlyRecord[]>([]);
   const [drawingSelectedMonth, setDrawingSelectedMonth] = useState(() => new Date().getMonth() + 1);
   const [drawingSelectedYear, setDrawingSelectedYear] = useState(() => new Date().getFullYear());
-  const [isLoadingDrawings, setIsLoadingDrawings] = useState(false);
+  const [isLoadingDrawings, setIsLoadingDrawings] = useState(true);
   const [drawingsError, setDrawingsError] = useState<string | null>(null);
   const [isSavingDrawings, setIsSavingDrawings] = useState(false);
   const [drawingsFormError, setDrawingsFormError] = useState<string | null>(null);
@@ -777,17 +786,17 @@ const Projects: React.FC<ProjectsProps> = ({
     month: healthSafetySelectedMonth,
     year: healthSafetySelectedYear,
   };
-  const [isLoadingHealthSafety, setIsLoadingHealthSafety] = useState(false);
+  const [isLoadingHealthSafety, setIsLoadingHealthSafety] = useState(true);
   const [healthSafetyError, setHealthSafetyError] = useState<string | null>(null);
   const [isSavingHealthSafety, setIsSavingHealthSafety] = useState(false);
   const [healthSafetyFormError, setHealthSafetyFormError] = useState<string | null>(null);
   const [projectProgressData, setProjectProgressData] = useState<any[]>([]);
-  const [isLoadingProjectProgress, setIsLoadingProjectProgress] = useState(false);
+  const [isLoadingProjectProgress, setIsLoadingProjectProgress] = useState(true);
   const [invoicingData, setInvoicingData] = useState<Record<InvoiceType, InvoicingRecord | null>>({
     PMC: null,
     Contractor: null,
   });
-  const [isLoadingInvoicing, setIsLoadingInvoicing] = useState(false);
+  const [isLoadingInvoicing, setIsLoadingInvoicing] = useState(true);
   const [invoicingErrors, setInvoicingErrors] = useState<Record<InvoiceType, string | null>>({
     PMC: null,
     Contractor: null,
@@ -796,7 +805,7 @@ const Projects: React.FC<ProjectsProps> = ({
     SCL: null,
     Contractor: null,
   });
-  const [isLoadingContractValues, setIsLoadingContractValues] = useState(false);
+  const [isLoadingContractValues, setIsLoadingContractValues] = useState(true);
   const [contractValuesErrors, setContractValuesErrors] = useState<Record<ContractValueType, string | null>>({
     SCL: null,
     Contractor: null,
@@ -804,17 +813,17 @@ const Projects: React.FC<ProjectsProps> = ({
   const [contractorContractValuesList, setContractorContractValuesList] = useState<ContractValueRecord[]>([]);
   const [contractorInvoicingList, setContractorInvoicingList] = useState<InvoicingRecord[]>([]);
   const [contractPerformanceData, setContractPerformanceData] = useState<ContractPerformanceRecord | null>(null);
-  const [isLoadingContractPerformance, setIsLoadingContractPerformance] = useState(false);
+  const [isLoadingContractPerformance, setIsLoadingContractPerformance] = useState(true);
   const [contractPerformanceError, setContractPerformanceError] = useState<string | null>(null);
   const [plannedEarnedByPeriod, setPlannedEarnedByPeriod] = useState<PlannedEarnedByPeriodResponse | null>(null);
-  const [isLoadingPlannedEarned, setIsLoadingPlannedEarned] = useState(false);
+  const [isLoadingPlannedEarned, setIsLoadingPlannedEarned] = useState(true);
   const [plannedEarnedError, setPlannedEarnedError] = useState<string | null>(null);
   const [pvaVelocityTrend, setPvaVelocityTrend] = useState<ExecutivePvaVelocityData | null>(null);
   const [qualityMonthlyRecord, setQualityMonthlyRecord] = useState<ProjectQualityStatusRecord | null>(null);
   const [qualityYearRecords, setQualityYearRecords] = useState<ProjectQualityStatusRecord[]>([]);
   const [qualitySelectedMonth, setQualitySelectedMonth] = useState(() => new Date().getMonth() + 1);
   const [qualitySelectedYear, setQualitySelectedYear] = useState(() => new Date().getFullYear());
-  const [isLoadingQualityStatus, setIsLoadingQualityStatus] = useState(false);
+  const [isLoadingQualityStatus, setIsLoadingQualityStatus] = useState(true);
   const [qualityStatusError, setQualityStatusError] = useState<string | null>(null);
   const [isSavingQualityStatus, setIsSavingQualityStatus] = useState(false);
   const [qualityStatusFormError, setQualityStatusFormError] = useState<string | null>(null);
@@ -871,6 +880,7 @@ const Projects: React.FC<ProjectsProps> = ({
     if (!selectedProject?.title || !hseCanView) {
       setHealthSafetyDashboard(null);
       setHealthSafetyError(null);
+      setIsLoadingHealthSafety(false);
       return;
     }
 
@@ -1188,6 +1198,7 @@ const Projects: React.FC<ProjectsProps> = ({
     if (!selectedProject?.title) {
       setProjectDatesBundle(null);
       setProjectDatesError(null);
+      setIsLoadingProjectDates(false);
       return;
     }
 
@@ -1389,6 +1400,7 @@ const Projects: React.FC<ProjectsProps> = ({
       setDrawingProjectSummary(null);
       setDrawingYearRecords([]);
       setDrawingsError(null);
+      setIsLoadingDrawings(false);
       return;
     }
 
@@ -1485,6 +1497,7 @@ const Projects: React.FC<ProjectsProps> = ({
       setQualityMonthlyRecord(null);
       setQualityYearRecords([]);
       setQualityStatusError(null);
+      setIsLoadingQualityStatus(false);
       return;
     }
 
@@ -1593,6 +1606,7 @@ const Projects: React.FC<ProjectsProps> = ({
     const fetchCostPerformanceData = async () => {
       if (!selectedProject?.title) {
         setCostPerformanceData([]);
+        setIsLoadingCostPerformance(false);
         return;
       }
 
@@ -1637,6 +1651,7 @@ const Projects: React.FC<ProjectsProps> = ({
     if (!selectedProject?.title) {
       setEquipmentDataState([]);
       setEquipmentError(null);
+      setIsLoadingEquipment(false);
       return;
     }
 
@@ -1749,6 +1764,7 @@ const Projects: React.FC<ProjectsProps> = ({
       setCorrespondenceYearPeriods([]);
       setCorrespondenceDocuments([]);
       setCorrespondenceError(null);
+      setIsLoadingCorrespondence(false);
       return;
     }
 
@@ -1936,6 +1952,7 @@ const Projects: React.FC<ProjectsProps> = ({
     const fetchBudgetPerformanceData = async () => {
       if (!selectedProject?.title) {
         setBudgetPerformanceData(null);
+        setIsLoadingBudgetPerformance(false);
         return;
       }
 
@@ -1971,6 +1988,7 @@ const Projects: React.FC<ProjectsProps> = ({
     const fetchManpowerData = async () => {
       if (!selectedProject?.title) {
         setManpowerDataState([]);
+        setIsLoadingManpower(false);
         return;
       }
 
@@ -2014,6 +2032,7 @@ const Projects: React.FC<ProjectsProps> = ({
     const fetchCashflowData = async () => {
       if (!selectedProject?.title) {
         setCashflowDataState([]);
+        setIsLoadingCashflow(false);
         return;
       }
 
@@ -2079,6 +2098,7 @@ const Projects: React.FC<ProjectsProps> = ({
     const fetchProjectProgressData = async () => {
       if (!selectedProject?.title) {
         setProjectProgressData([]);
+        setIsLoadingProjectProgress(false);
         return;
       }
 
@@ -2112,6 +2132,7 @@ const Projects: React.FC<ProjectsProps> = ({
         setInvoicingData({ PMC: null, Contractor: null });
         setInvoicingErrors({ PMC: null, Contractor: null });
         setContractorInvoicingList([]);
+        setIsLoadingInvoicing(false);
         return;
       }
 
@@ -2173,6 +2194,7 @@ const Projects: React.FC<ProjectsProps> = ({
         setContractValuesData({ SCL: null, Contractor: null });
         setContractValuesErrors({ SCL: null, Contractor: null });
         setContractorContractValuesList([]);
+        setIsLoadingContractValues(false);
         return;
       }
 
@@ -2226,6 +2248,7 @@ const Projects: React.FC<ProjectsProps> = ({
       if (!selectedProject?.title) {
         setContractPerformanceData(null);
         setContractPerformanceError(null);
+        setIsLoadingContractPerformance(false);
         return;
       }
 
@@ -2266,6 +2289,7 @@ const Projects: React.FC<ProjectsProps> = ({
         setPlannedEarnedByPeriod(null);
         setPlannedEarnedError(null);
         setPvaVelocityTrend(null);
+        setIsLoadingPlannedEarned(false);
         return;
       }
 
@@ -3080,19 +3104,18 @@ const Projects: React.FC<ProjectsProps> = ({
     await downloadProjectReportXlsx(input);
   };
 
+  if (isProjectsBootstrapping) {
+    return <WorkspaceLoadingPanel />;
+  }
+
   if (allProjects.length === 0) {
     return (
-      <div className={`flex flex-col items-center justify-center min-h-[400px] text-center p-8 rounded-[3rem] border ${themeClasses.glassCard} ${themeClasses.border}`}>
-        <div className={`p-6 rounded-full mb-6 ${themeClasses.bgSecondary}`}>
-          <Icons.Project className={`${themeClasses.textMuted}`} size={48} />
-        </div>
-        <h3 className={`text-xl font-black uppercase tracking-tighter mb-2 ${themeClasses.textPrimary}`}>
-          No Projects Available
-        </h3>
-        <p className={`text-sm font-bold uppercase tracking-widest max-w-md ${themeClasses.textSecondary}`}>
-          No projects found in the system. Please contact administrator.
-        </p>
-      </div>
+      <ProjectsEmptyPanel
+        error={projectsLoadError}
+        onRetry={() => {
+          void loadProjects(true);
+        }}
+      />
     );
   }
 
@@ -3879,9 +3902,7 @@ const Projects: React.FC<ProjectsProps> = ({
                   <PMCExecutivePanel title="Physical Progress Status" subtitle="Progress S-curve · difference = cumulative plan − actual">
                     <div className="p-3 sm:p-4">
                       {isLoadingProjectProgress ? (
-                        <div className="flex items-center justify-center" style={{ height: DASHBOARD_CHART_MIN_HEIGHT }}>
-                          <div className={`${typo.muted} ${themeClasses.textMuted}`}>Loading physical progress data...</div>
-                        </div>
+                        <SectionLoadingPanel label="Loading physical progress" minHeight={DASHBOARD_CHART_MIN_HEIGHT} />
                       ) : progressSCurveData.length > 0 ? (
                         <>
                         <ExecutiveChartWithLegend
@@ -3924,9 +3945,7 @@ const Projects: React.FC<ProjectsProps> = ({
                   <PMCExecutivePanel title="Financial Progress" subtitle="All saved months · BCWS · BCWP · ACWP · FCST (no filler months)">
                     <div className="p-3 sm:p-4 md:p-5">
                       {isLoadingCostPerformance ? (
-                        <div className="flex items-center justify-center" style={{ height: DASHBOARD_CHART_MIN_HEIGHT }}>
-                          <div className={`${typo.muted} ${themeClasses.textMuted}`}>Loading financial progress data...</div>
-                        </div>
+                        <SectionLoadingPanel label="Loading financial progress" minHeight={DASHBOARD_CHART_MIN_HEIGHT} />
                       ) : costPerformanceData.length > 0 ? (
                         <ExecutiveChartWithLegend
                           height={DASHBOARD_CHART_MIN_HEIGHT}
@@ -4012,9 +4031,7 @@ const Projects: React.FC<ProjectsProps> = ({
                         <div className={`relative overflow-hidden rounded-2xl border p-0 ${themeClasses.glassCard} ${themeClasses.border}`}>
                           <DashboardCardTopAccent />
                           {isLoadingEquipment ? (
-                            <p className={`px-4 py-6 text-center text-xs font-semibold ${themeClasses.textMuted}`}>
-                              Loading equipment…
-                            </p>
+                            <SectionLoadingPanel label="Loading equipment" minHeight={160} className="px-4 py-4" />
                           ) : equipmentDataState.length === 0 ? (
                             <p className={`px-4 py-6 text-center text-xs font-semibold ${themeClasses.textMuted}`}>
                               No equipment records from backend for this project.
@@ -4098,9 +4115,7 @@ const Projects: React.FC<ProjectsProps> = ({
                       >
                         <div className="relative p-3 sm:p-4">
                           {isLoadingBudgetPerformance ? (
-                            <div className="flex h-[140px] items-center justify-center">
-                              <div className={`${themeClasses.textMuted} ${typo.muted}`}>Loading budget performance data...</div>
-                            </div>
+                            <SectionLoadingPanel label="Loading budget performance" minHeight={140} />
                           ) : budgetPerformanceData ? (
                             <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
                               {[
@@ -4164,9 +4179,7 @@ const Projects: React.FC<ProjectsProps> = ({
                         </div>
                         <div className="relative min-h-0 flex-1 overflow-y-auto">
                           {isLoadingBudgetPerformance ? (
-                            <div className="flex items-center justify-center h-[140px]">
-                              <div className={`${themeClasses.textMuted} ${typo.muted}`}>Loading budget performance data...</div>
-                            </div>
+                            <SectionLoadingPanel label="Loading budget performance" minHeight={140} />
                           ) : budgetPerformanceData ? (
                             <div className="space-y-2">
                               {[

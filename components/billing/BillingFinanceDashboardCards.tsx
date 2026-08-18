@@ -40,6 +40,7 @@ import {
 } from '../../utils/dashboardContractorLabels';
 import { DASHBOARD_FORMULAS } from '../../utils/dashboardFormulas';
 import { formatINR, formatIndianCurrencyCompact } from '../../utils/format';
+import { SectionLoadingPanel } from '../WorkspaceStatusPanels';
 import {
   ProjectsDashboardTypographyProvider,
   useProjectsDashboardTypo,
@@ -180,7 +181,7 @@ const BillingFinanceDashboardCardsInner: React.FC<BillingFinanceDashboardCardsPr
           title="FINANCIAL PROGRESS"
           headerActions={<FormulaInfoButton {...DASHBOARD_FORMULAS.projectCostPerformance} />}
           isLoading={data.isLoadingCostPerformance}
-          loadingMessage="Loading financial progress data..."
+          loadingMessage="Loading financial progress"
           hasData={data.costPerformanceData.length > 0}
           emptyMessage="No financial progress data available for this project"
         >
@@ -206,9 +207,7 @@ const BillingFinanceDashboardCardsInner: React.FC<BillingFinanceDashboardCardsPr
           </div>
           <div className="p-4">
             {data.isLoadingCashflow ? (
-              <div className="flex min-h-[200px] items-center justify-center">
-                <div className={`${typo.muted} ${themeClasses.textMuted}`}>Loading cashflow data...</div>
-              </div>
+              <SectionLoadingPanel label="Loading cashflow" minHeight={200} />
             ) : data.cashflowChartData.length > 0 ? (
               <>
                 <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
@@ -274,9 +273,7 @@ const BillingFinanceDashboardCardsInner: React.FC<BillingFinanceDashboardCardsPr
           </div>
           <div className="relative min-h-0 flex-1 overflow-y-auto">
             {data.isLoadingBudgetPerformance ? (
-              <div className="flex h-[140px] items-center justify-center">
-                <div className={`${themeClasses.textMuted} ${typo.muted}`}>Loading budget performance data...</div>
-              </div>
+              <SectionLoadingPanel label="Loading budget performance" minHeight={140} />
             ) : data.budgetPerformanceData ? (
               <div className="space-y-2">
                 {[

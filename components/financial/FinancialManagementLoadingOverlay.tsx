@@ -1,15 +1,15 @@
 import React from 'react';
-import { getThemeClasses, useTheme } from '../../utils/theme';
+import { useTheme } from '../../utils/theme';
+import { InlineLoader } from '../WorkspaceStatusPanels';
 
 interface FinancialManagementLoadingOverlayProps {
   message?: string;
 }
 
 const FinancialManagementLoadingOverlay: React.FC<FinancialManagementLoadingOverlayProps> = ({
-  message = 'Loading financial data…',
+  message = 'Loading financial data',
 }) => {
   const { isDarkTheme } = useTheme();
-  const themeClasses = getThemeClasses(isDarkTheme);
 
   return (
     <div
@@ -20,18 +20,7 @@ const FinancialManagementLoadingOverlay: React.FC<FinancialManagementLoadingOver
       aria-live="polite"
       aria-busy="true"
     >
-      <div
-        className={`h-11 w-11 animate-spin rounded-full border-[3px] border-t-transparent ${
-          isDarkTheme ? 'border-white/30 border-t-white' : 'border-indigo-200 border-t-indigo-600'
-        }`}
-      />
-      <p
-        className={`mt-4 text-center text-[10px] font-black uppercase tracking-[0.2em] ${
-          isDarkTheme ? 'text-slate-200' : themeClasses.textSecondary
-        }`}
-      >
-        {message}
-      </p>
+      <InlineLoader label={message} />
     </div>
   );
 };

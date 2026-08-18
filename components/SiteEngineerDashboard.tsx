@@ -35,13 +35,15 @@ const SiteEngineerDashboard: React.FC<SiteEngineerDashboardProps> = ({
   );
 
   const [projectName, setProjectName] = useState('');
-    const [loading, setLoading] = useState(false);
+    const [loading, setLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [snapshot, setSnapshot] = useState<SiteEngineerDashboardSnapshot | null>(null);
 
   useEffect(() => {
     if (!projectName && projectOptions.length > 0) {
       setProjectName(projectOptions[0]);
+    } else if (!projectName && projectOptions.length === 0) {
+      setLoading(false);
     }
   }, [projectName, projectOptions]);
 

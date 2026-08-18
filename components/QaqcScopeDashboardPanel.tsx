@@ -15,6 +15,7 @@ import FrequencyChartDashboard from './FrequencyChartDashboard';
 import { computeQaqcScopeSummary } from '../utils/qaqcScopeAnalytics';
 import type { AssignedProjectOption } from '../utils/roleProjectAssignments';
 import { getThemeClasses, useTheme } from '../utils/theme';
+import { SectionLoadingPanel } from './WorkspaceStatusPanels';
 
 interface QaqcScopeDashboardPanelProps {
   scopes: MonthlyScope[];
@@ -248,9 +249,7 @@ const QaqcScopeDashboardPanel: React.FC<QaqcScopeDashboardPanelProps> = ({
             Project Quality Snapshot
           </h3>
           {qualityLoading ? (
-            <div className="flex min-h-[100px] items-center justify-center">
-              <div className="h-7 w-7 animate-spin rounded-full border-2 border-indigo-500 border-t-transparent" />
-            </div>
+            <SectionLoadingPanel label="Loading quality snapshot" minHeight={100} />
           ) : qualityRecord ? (
             <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-5">
               {[

@@ -16,6 +16,7 @@ import {
   qualityStatusBadgeClasses,
 } from '../utils/qualityStatus';
 import { DASHBOARD_STATUS_CARD_PADDING, getThemeClasses, useTheme } from '../utils/theme';
+import { CardLoadingSkeleton } from './WorkspaceStatusPanels';
 import { useProjectsDashboardTypo } from '../utils/projectsDashboardTypography';
 
 interface ProjectQualityStatusCardProps {
@@ -161,27 +162,9 @@ const ProjectQualityStatusCard: React.FC<ProjectQualityStatusCardProps> = ({
   const renderContent = (mode: 'compact' | 'expanded') => {
     if (isLoading) {
       if (mode === 'compact') {
-        return (
-          <div className="space-y-3 py-1">
-            <div className="grid grid-cols-3 gap-2">
-              {Array.from({ length: 3 }).map((_, i) => (
-                <div key={i} className={`h-14 animate-pulse rounded-lg ${themeClasses.bgSecondary}`} />
-              ))}
-            </div>
-            <div className={`h-28 animate-pulse rounded-xl ${themeClasses.bgSecondary}`} />
-          </div>
-        );
+        return <CardLoadingSkeleton metrics={3} chartHeight={112} />;
       }
-      return (
-        <div className="space-y-3 py-1">
-          <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
-            {Array.from({ length: 4 }).map((_, i) => (
-              <div key={i} className={`h-20 animate-pulse rounded-xl ${themeClasses.bgSecondary}`} />
-            ))}
-          </div>
-          <div className={`h-48 animate-pulse rounded-xl ${themeClasses.bgSecondary}`} />
-        </div>
-      );
+      return <CardLoadingSkeleton metrics={4} chartHeight={192} />;
     }
 
     if (error) {

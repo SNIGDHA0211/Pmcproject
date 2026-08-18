@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { Joyride, Step, STATUS, ACTIONS, EVENTS, EventData } from 'react-joyride';
 import { useTheme, getThemeClasses } from '../utils/theme';
 import { Icons } from './Icons';
+import { InlineLoader, SectionLoadingPanel } from './WorkspaceStatusPanels';
 import { manpowerApi, unwrapList, normalizeManpowerRecord } from '../services/api';
 import { Project, User, UserRole } from '../types';
 import { formatReportPercent, formatReportTodayDate } from '../utils/csvReport';
@@ -269,7 +270,7 @@ const ManpowerManagement: React.FC<ManpowerManagementProps> = ({ projects = [], 
 
   // Data state
   const [records, setRecords] = useState<ManpowerRecord[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   // Form state
@@ -1622,19 +1623,17 @@ const ManpowerManagement: React.FC<ManpowerManagementProps> = ({ projects = [], 
             )}
           </div>
           {isLoading && (
-            <div
-              className={`flex items-center gap-2 text-sm font-medium ${
-                isDarkTheme ? themeClasses.textSecondary : 'text-[#64748B]'
-              }`}
-            >
-              <Icons.History className="animate-spin" size={14} /> Loading...
-            </div>
+            <InlineLoader label="Loading manpower records" className="text-sm font-medium" />
           )}
         </div>
 
         {error && <div className="px-6 py-3 text-sm font-semibold text-rose-500">{error}</div>}
 
-        {filteredRecords.length === 0 && !isLoading ? (
+        {isLoading && filteredRecords.length === 0 ? (
+          <div className="px-4 py-8">
+            <SectionLoadingPanel label="Loading manpower records" minHeight={200} />
+          </div>
+        ) : filteredRecords.length === 0 ? (
           <div className="px-4 py-12 text-center sm:p-16">
             <Icons.User size={48} className={`mx-auto mb-4 ${themeClasses.textMuted}`} />
             <p className={`text-lg font-bold ${themeClasses.textPrimary}`}>No manpower records found</p>
