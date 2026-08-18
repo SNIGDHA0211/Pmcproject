@@ -742,7 +742,7 @@ const DPRReviewDashboard: React.FC<DPRReviewDashboardProps> = ({
                     )}
                     <p className={`${isWarning ? themeClasses.warning : themeClasses.danger} font-bold mb-4`}>{error}</p>
                     <button
-                        onClick={fetchDPRs}
+                        onClick={() => void fetchDPRs()}
                         className={`px-6 py-2 ${themeClasses.bgHover} border ${themeClasses.border} rounded-xl text-sm font-bold transition-all ${themeClasses.textPrimary}`}
                     >
                         Retry
