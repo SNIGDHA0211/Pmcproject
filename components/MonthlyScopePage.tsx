@@ -48,10 +48,14 @@ const MonthlyScopePage: React.FC<MonthlyScopePageProps> = ({ user, projects }) =
   const { isDarkTheme } = useTheme();
   const themeClasses = getThemeClasses(isDarkTheme);
 
-  const accessibleProjects = useMemo(
+  const assignedProjects = useMemo(
     () => projectsAssignedToMonthlyScopeUser(projects, user),
     [projects, user],
   );
+
+  // If assignment matching fails (backend sends id while frontend stores username, etc.)
+  // fall back to all projects so the dropdown isn't blank.
+  const accessibleProjects = assignedProjects.length > 0 ? assignedProjects : projects;
 
   const defaultProjectId = useMemo(() => {
     const first = accessibleProjects[0];
@@ -60,7 +64,7 @@ const MonthlyScopePage: React.FC<MonthlyScopePageProps> = ({ user, projects }) =
     return Number.isFinite(id) ? id : undefined;
   }, [accessibleProjects]);
 
-  const lockToAssignedProject = user.role === UserRole.TEAM_LEAD;
+  const lockToAssignedProject = user.role === UserRole.TEAM_LEAD && assignedProjects.length > 0;
 
   const [scopes, setScopes] = useState<MonthlyScope[]>([]);
   const [loading, setLoading] = useState(false);

@@ -6,8 +6,17 @@ import { User, UserRole, Project } from "../types";
 import DPRSubmissionForm from "./DPRSubmissionForm";
 import { useTheme, getThemeClasses } from "../utils/theme";
 import { monthlyScopeApi } from "../services/api";
+import { invalidateApiGetCache } from "../utils/apiGetCache";
+import { userMatchesAssignee } from "../utils/roleProjectAssignments";
 import DprReviewKpiCards from "./dprReview/DprReviewKpiCards";
-import { isPmcHeadEquivalent } from "../utils/pmcRoleAccess";
+import {
+    canUserApproveDprStep,
+    dprApproveBusyLabel,
+    dprApproveButtonLabel,
+    dprApproveStepHint,
+    getDprStatusAfterApproval,
+    getDprWorkflowSteps,
+} from "../utils/dprApprovalFlow";
 import TutorialVideosPanel from "./tutorialVideos/TutorialVideosPanel";
 import TutorialWatchButton from "./tutorialVideos/TutorialWatchButton";
 import {
@@ -75,7 +84,7 @@ interface DPRReviewDashboardProps {
     api: any;
     user: User | null;
     projects?: Project[];
-    onApprove?: (id: string) => void;
+    onApprove?: (id: string, currentStatus?: string) => void | Promise<void>;
     onReject?: (id: string, reason: string) => void;
 }
 
@@ -101,10 +110,7 @@ function unwrapCreatedDpr(payload: unknown): Record<string, unknown> | null {
 
 function isTeamLeadAssignedToProject(project: Project, user: User): boolean {
     if (!project.teamLeadId) return false;
-    return (
-        project.teamLeadId === user.id ||
-        (!!user.username && project.teamLeadId === user.username)
-    );
+    return userMatchesAssignee(user, project.teamLeadId);
 }
 
 const DPRReviewDashboard: React.FC<DPRReviewDashboardProps> = ({
@@ -134,12 +140,17 @@ const DPRReviewDashboard: React.FC<DPRReviewDashboardProps> = ({
     const [isExpanded, setIsExpanded] = useState(false);
     const [successMessage, setSuccessMessage] = useState<string | null>(null);
     const [localStatusOverrides, setLocalStatusOverrides] = useState<Record<string, string>>({});
+    const [reviewActionBusy, setReviewActionBusy] = useState<
+        'approve' | 'revision' | 'reject' | 'submit' | null
+    >(null);
+    const [isRefreshingSection, setIsRefreshingSection] = useState(false);
 
     const isTeamLead = user?.role === UserRole.TEAM_LEAD;
 
     const accessibleProjects = useMemo(() => {
         if (!isTeamLead || !user) return projects;
-        return projects.filter((project) => isTeamLeadAssignedToProject(project, user));
+        const assigned = projects.filter((project) => isTeamLeadAssignedToProject(project, user));
+        return assigned.length > 0 ? assigned : projects;
     }, [projects, isTeamLead, user]);
 
     const assignedProjectNames = useMemo(
@@ -410,8 +421,9 @@ const DPRReviewDashboard: React.FC<DPRReviewDashboardProps> = ({
         );
     };
 
-    const fetchDPRs = useCallback(async (options?: { silent?: boolean }) => {
+    const fetchDPRs = useCallback(async (options?: { silent?: boolean; fresh?: boolean }) => {
         const silent = Boolean(options?.silent);
+        const fresh = Boolean(options?.fresh);
         if (!silent) {
             setLoading(true);
             setError(null);
@@ -426,11 +438,15 @@ const DPRReviewDashboard: React.FC<DPRReviewDashboardProps> = ({
             if (projectFilter) params.project_name = projectFilter;
             if (filters.date) params.date = filters.date;
 
+            if (fresh) {
+                invalidateApiGetCache(['/dpr']);
+            }
+
             let response;
             if (typeof api.getDPRs === 'function') {
-                response = await api.getDPRs(params);
+                response = await api.getDPRs(params, { skipGetCache: fresh });
             } else {
-                response = await api.get("/dpr/", { params });
+                response = await api.get("/dpr/", { params, skipGetCache: fresh });
             }
 
             const data = response.data.results || response.data;
@@ -542,6 +558,16 @@ const DPRReviewDashboard: React.FC<DPRReviewDashboardProps> = ({
         void fetchDPRs();
     }, [fetchDPRs]);
 
+    const refreshDprSection = async () => {
+        if (isRefreshingSection) return;
+        setIsRefreshingSection(true);
+        try {
+            await fetchDPRs({ silent: true, fresh: true });
+        } finally {
+            setIsRefreshingSection(false);
+        }
+    };
+
     const [reportScopes, setReportScopes] = useState<any[]>([]);
     const [loadingScopes, setLoadingScopes] = useState(false);
 
@@ -568,12 +594,6 @@ const DPRReviewDashboard: React.FC<DPRReviewDashboardProps> = ({
         fetchReportScopes();
     }, [selectedReport?.project, selectedReport?.id]);
 
-    const getNextApprovalStatus = useCallback((): string => {
-        if (user?.role === UserRole.TEAM_LEAD) return 'pending_coordinator';
-        if (isPmcHeadEquivalent(user)) return 'approved';
-        return 'approved';
-    }, [user?.role]);
-
     const formatDate = (dateString: string) => {
         try {
             return new Date(dateString).toLocaleDateString("en-GB");
@@ -582,18 +602,7 @@ const DPRReviewDashboard: React.FC<DPRReviewDashboardProps> = ({
         }
     };
 
-    const canUserReview = () => {
-        if (!user || !selectedReport || !selectedReport.status) return false;
-
-        const status = selectedReport.status.toLowerCase();
-
-        // Check if it's the current user's turn to review
-        if (user.role === UserRole.TEAM_LEAD && (status === 'pending_team_lead' || status === 'pending' || status === 'submitted')) return true;
-        // PMC Manager has Head-level access — can clear coordinator + head queues
-        if (isPmcHeadEquivalent(user) && (status === 'pending_coordinator' || status === 'pending_pmc_head')) return true;
-
-        return false;
-    };
+    const canUserReview = () => canUserApproveDprStep(user, selectedReport?.status);
 
     const getStatusMessage = (status?: string) => {
         if (!status) return 'Awaiting Submission by Site Engineer';
@@ -611,31 +620,39 @@ const DPRReviewDashboard: React.FC<DPRReviewDashboardProps> = ({
     };
 
     const handleApprove = async () => {
-        if (selectedReport && onApprove) {
-            try {
-                const reportId = reportIdKey(selectedReport.id);
-                if (!reportId) return;
-                const nextStatus = getNextApprovalStatus();
-                await onApprove(reportId);
-                setLocalStatusOverrides((prev) => ({
-                    ...prev,
-                    [reportId]: nextStatus,
-                }));
-                setSelectedReport((prev) =>
-                    prev && String(prev.id) === reportId ? { ...prev, status: nextStatus } : prev
-                );
-                setReports((prev) =>
-                    prev.map((report) =>
-                        String(report.id) === reportId ? { ...report, status: nextStatus } : report
-                    )
-                );
-                setSuccessMessage("DPR Approved Successfully");
-                setTimeout(() => setSuccessMessage(null), 3000);
-                // Refresh data to update status and hide buttons
-                void fetchDPRs({ silent: true });
-            } catch (err) {
-                // Error handled in App.tsx
-            }
+        if (!selectedReport || !onApprove || reviewActionBusy) return;
+        const reportId = reportIdKey(selectedReport.id);
+        if (!reportId) return;
+        setReviewActionBusy('approve');
+        try {
+            const currentStatus = selectedReport.status;
+            const nextStatus = getDprStatusAfterApproval(currentStatus);
+            await onApprove(reportId, currentStatus);
+            setLocalStatusOverrides((prev) => ({
+                ...prev,
+                [reportId]: nextStatus,
+            }));
+            setSelectedReport((prev) =>
+                prev && String(prev.id) === reportId ? { ...prev, status: nextStatus } : prev
+            );
+            setReports((prev) =>
+                prev.map((report) =>
+                    String(report.id) === reportId ? { ...report, status: nextStatus } : report
+                )
+            );
+            const successText =
+                nextStatus === "pending_coordinator"
+                    ? "Approved — sent to PMC Manager"
+                    : nextStatus === "pending_pmc_head"
+                      ? "Approved — sent to PMC Head"
+                      : "DPR Approved Successfully";
+            setSuccessMessage(successText);
+            setTimeout(() => setSuccessMessage(null), 3000);
+            void fetchDPRs({ silent: true, fresh: true });
+        } catch (err) {
+            // Error handled in App.tsx
+        } finally {
+            setReviewActionBusy(null);
         }
     };
 
@@ -650,73 +667,76 @@ const DPRReviewDashboard: React.FC<DPRReviewDashboardProps> = ({
             alert("Please enter review comments before requesting a revision.");
             return;
         }
+        if (!selectedReport || !onReject || reviewActionBusy) return;
+        const reportId = reportIdKey(selectedReport.id);
+        if (!reportId) return;
         setRejectReason(reviewComments);
-        if (selectedReport && onReject) {
-            try {
-                const reportId = reportIdKey(selectedReport.id);
-                if (!reportId) return;
-                await onReject(reportId, reviewComments);
-                setLocalStatusOverrides((prev) => ({ ...prev, [reportId]: "rejected" }));
-                setSelectedReport((prev) =>
-                    prev && String(prev.id) === reportId ? { ...prev, status: "rejected" } : prev
-                );
-                setReports((prev) =>
-                    prev.map((report) =>
-                        String(report.id) === reportId ? { ...report, status: "rejected" } : report
-                    )
-                );
-                setSuccessMessage("Revision Requested — DPR returned to Site Engineer");
-                setTimeout(() => setSuccessMessage(null), 3000);
-                void fetchDPRs({ silent: true });
-            } catch {
-                // handled in App.tsx
-            }
+        setReviewActionBusy('revision');
+        try {
+            await onReject(reportId, reviewComments);
+            setLocalStatusOverrides((prev) => ({ ...prev, [reportId]: "rejected" }));
+            setSelectedReport((prev) =>
+                prev && String(prev.id) === reportId ? { ...prev, status: "rejected" } : prev
+            );
+            setReports((prev) =>
+                prev.map((report) =>
+                    String(report.id) === reportId ? { ...report, status: "rejected" } : report
+                )
+            );
+            setSuccessMessage("Revision Requested — DPR returned to Site Engineer");
+            setTimeout(() => setSuccessMessage(null), 3000);
+            void fetchDPRs({ silent: true });
+        } catch {
+            // handled in App.tsx
+        } finally {
+            setReviewActionBusy(null);
         }
     };
 
     const handleReject = async () => {
-        if (selectedReport && onReject && rejectReason.trim()) {
-            try {
-                const reportId = reportIdKey(selectedReport.id);
-                if (!reportId) return;
-                await onReject(reportId, rejectReason);
-                setLocalStatusOverrides((prev) => ({
-                    ...prev,
-                    [reportId]: 'rejected',
-                }));
-                setSelectedReport((prev) =>
-                    prev && String(prev.id) === reportId ? { ...prev, status: 'rejected' } : prev
-                );
-                setReports((prev) =>
-                    prev.map((report) =>
-                        String(report.id) === reportId ? { ...report, status: 'rejected' } : report
-                    )
-                );
-                setShowRejectModal(false);
-                setRejectReason("");
-                setSuccessMessage("DPR Rejected Successfully");
-                setTimeout(() => setSuccessMessage(null), 3000);
-                // Refresh data to update status and hide buttons
-                void fetchDPRs({ silent: true });
-            } catch (err) {
-                // Error handled in App.tsx
-            }
+        if (!selectedReport || !onReject || !rejectReason.trim() || reviewActionBusy) return;
+        const reportId = reportIdKey(selectedReport.id);
+        if (!reportId) return;
+        setReviewActionBusy('reject');
+        try {
+            await onReject(reportId, rejectReason);
+            setLocalStatusOverrides((prev) => ({
+                ...prev,
+                [reportId]: 'rejected',
+            }));
+            setSelectedReport((prev) =>
+                prev && String(prev.id) === reportId ? { ...prev, status: 'rejected' } : prev
+            );
+            setReports((prev) =>
+                prev.map((report) =>
+                    String(report.id) === reportId ? { ...report, status: 'rejected' } : report
+                )
+            );
+            setShowRejectModal(false);
+            setRejectReason("");
+            setSuccessMessage("DPR Rejected Successfully");
+            setTimeout(() => setSuccessMessage(null), 3000);
+            void fetchDPRs({ silent: true });
+        } catch (err) {
+            // Error handled in App.tsx
+        } finally {
+            setReviewActionBusy(null);
         }
     };
 
     const handleSubmitDraft = async () => {
-        if (selectedReport) {
-            try {
-                // Use the dprApi.submitDPR directly if available or handle it via a prop
-                // For simplicity, we can use the api object passed via props
-                await api.submitDPR(selectedReport.id, 'Site Engineer');
-                setSuccessMessage("DPR Submitted for Approval");
-                setTimeout(() => setSuccessMessage(null), 3000);
-                void fetchDPRs({ silent: true });
-            } catch (err: any) {
-                console.error("Failed to submit draft:", err);
-                alert(err.response?.data?.error || "Failed to submit DPR. Please try again.");
-            }
+        if (!selectedReport || reviewActionBusy) return;
+        setReviewActionBusy('submit');
+        try {
+            await api.submitDPR(selectedReport.id, 'Site Engineer');
+            setSuccessMessage("DPR Submitted for Approval");
+            setTimeout(() => setSuccessMessage(null), 3000);
+            void fetchDPRs({ silent: true });
+        } catch (err: any) {
+            console.error("Failed to submit draft:", err);
+            alert(err.response?.data?.error || "Failed to submit DPR. Please try again.");
+        } finally {
+            setReviewActionBusy(null);
         }
     };
 
@@ -769,6 +789,16 @@ const DPRReviewDashboard: React.FC<DPRReviewDashboardProps> = ({
                     </div>
                     <div className="flex items-center gap-3">
                         <TutorialWatchButton section="dpr_review" variant="panel" isDark={isDarkTheme} />
+                        <button
+                            type="button"
+                            onClick={() => void refreshDprSection()}
+                            disabled={isRefreshingSection}
+                            title="Reload this DPR section only"
+                            className={`flex items-center gap-2 px-4 py-2 border rounded-xl text-xs font-bold transition-all ${themeClasses.buttonSecondary} ${themeClasses.border} disabled:cursor-wait disabled:opacity-70`}
+                        >
+                            <Icons.History size={16} className={isRefreshingSection ? 'animate-spin' : ''} />
+                            {isRefreshingSection ? 'Refreshing…' : 'Refresh'}
+                        </button>
                         {user?.role === UserRole.SITE_ENGINEER && (
                             <button
                                 onClick={() => setShowSubmissionForm(true)}
@@ -854,7 +884,7 @@ const DPRReviewDashboard: React.FC<DPRReviewDashboardProps> = ({
                             <option value="">— Select DPR —</option>
                             {reports.map((report) => (
                                 <option key={report.id} value={report.id}>
-                                    {report.project_name} · {report.job_no} · {formatDate(report.report_date)}
+                                    {report.project_name} · {formatDate(report.report_date)} · {getStatusMessage(report.status)}
                                 </option>
                             ))}
                         </select>
@@ -1030,8 +1060,9 @@ const DPRReviewDashboard: React.FC<DPRReviewDashboardProps> = ({
                                         value={reviewComments}
                                         onChange={(e) => setReviewComments(e.target.value)}
                                         rows={5}
+                                        disabled={Boolean(reviewActionBusy)}
                                         placeholder="Add review notes for the site engineer…"
-                                        className={`${dprTy.textarea} ${themeClasses.input} ${themeClasses.border} ${themeClasses.textPrimary} ${isDarkTheme ? "focus:ring-indigo-500/30" : "focus:ring-indigo-500/20"}`}
+                                        className={`${dprTy.textarea} ${themeClasses.input} ${themeClasses.border} ${themeClasses.textPrimary} ${isDarkTheme ? "focus:ring-indigo-500/30" : "focus:ring-indigo-500/20"} disabled:opacity-60`}
                                     />
                                 </div>
 
@@ -1040,23 +1071,51 @@ const DPRReviewDashboard: React.FC<DPRReviewDashboardProps> = ({
                                         <button
                                             type="button"
                                             onClick={handleApprove}
-                                            className="flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 py-2.5 text-xs font-semibold text-white transition-all hover:bg-emerald-500"
+                                            disabled={Boolean(reviewActionBusy)}
+                                            aria-busy={reviewActionBusy === 'approve'}
+                                            className="flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 py-2.5 text-xs font-semibold text-white transition-all hover:bg-emerald-500 disabled:cursor-wait disabled:opacity-80"
                                         >
-                                            <Icons.Approve size={16} />
-                                            Approve DPR
+                                            {reviewActionBusy === 'approve' ? (
+                                                <>
+                                                    <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                                                    {dprApproveBusyLabel(selectedReport.status)}
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <Icons.Approve size={16} />
+                                                    {dprApproveButtonLabel(selectedReport.status)}
+                                                </>
+                                            )}
                                         </button>
+                                        {dprApproveStepHint(selectedReport.status) && (
+                                            <p className={`px-1 text-center text-[11px] leading-snug ${themeClasses.textSecondary}`}>
+                                                {dprApproveStepHint(selectedReport.status)}
+                                            </p>
+                                        )}
                                         <button
                                             type="button"
                                             onClick={handleRequestRevision}
-                                            className="flex w-full items-center justify-center gap-2 rounded-xl bg-amber-600 py-2.5 text-xs font-semibold text-white transition-all hover:bg-amber-500"
+                                            disabled={Boolean(reviewActionBusy)}
+                                            aria-busy={reviewActionBusy === 'revision'}
+                                            className="flex w-full items-center justify-center gap-2 rounded-xl bg-amber-600 py-2.5 text-xs font-semibold text-white transition-all hover:bg-amber-500 disabled:cursor-wait disabled:opacity-80"
                                         >
-                                            <Icons.Document size={16} />
-                                            Request Revision
+                                            {reviewActionBusy === 'revision' ? (
+                                                <>
+                                                    <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                                                    Sending revision…
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <Icons.Document size={16} />
+                                                    Request Revision
+                                                </>
+                                            )}
                                         </button>
                                         <button
                                             type="button"
                                             onClick={() => openRejectModal("reject")}
-                                            className="flex w-full items-center justify-center gap-2 rounded-xl bg-rose-600 py-2.5 text-xs font-semibold text-white transition-all hover:bg-rose-500"
+                                            disabled={Boolean(reviewActionBusy)}
+                                            className="flex w-full items-center justify-center gap-2 rounded-xl bg-rose-600 py-2.5 text-xs font-semibold text-white transition-all hover:bg-rose-500 disabled:cursor-wait disabled:opacity-80"
                                         >
                                             <Icons.Reject size={16} />
                                             Reject DPR
@@ -1077,15 +1136,63 @@ const DPRReviewDashboard: React.FC<DPRReviewDashboardProps> = ({
                                     <button
                                         type="button"
                                         onClick={handleSubmitDraft}
-                                        className="flex w-full items-center justify-center gap-2 rounded-xl bg-indigo-600 py-2.5 text-xs font-semibold text-white"
+                                        disabled={Boolean(reviewActionBusy)}
+                                        aria-busy={reviewActionBusy === 'submit'}
+                                        className="flex w-full items-center justify-center gap-2 rounded-xl bg-indigo-600 py-2.5 text-xs font-semibold text-white disabled:cursor-wait disabled:opacity-80"
                                     >
-                                        <Icons.Upload size={16} />
-                                        Submit for Review
+                                        {reviewActionBusy === 'submit' ? (
+                                            <>
+                                                <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                                                Submitting…
+                                            </>
+                                        ) : (
+                                            <>
+                                                <Icons.Upload size={16} />
+                                                Submit for Review
+                                            </>
+                                        )}
                                     </button>
                                 ) : null}
 
                                 <div className={`rounded-xl border p-3 text-center ${themeClasses.bgSecondary} ${themeClasses.border}`}>
                                     <label className={`mb-2 block ${dprTy.panelSectionTitle}`}>Workflow Status</label>
+                                    <div className="mb-3 flex items-center justify-between gap-1">
+                                        {getDprWorkflowSteps(selectedReport.status).map((step, index, steps) => {
+                                            const active =
+                                                step.state === "current"
+                                                    ? "bg-amber-500 text-white"
+                                                    : step.state === "done"
+                                                      ? "bg-emerald-600 text-white"
+                                                      : isDarkTheme
+                                                        ? "bg-slate-700 text-slate-300"
+                                                        : "bg-slate-200 text-slate-600";
+                                            return (
+                                                <React.Fragment key={step.id}>
+                                                    <div className="flex min-w-0 flex-1 flex-col items-center gap-1">
+                                                        <span
+                                                            className={`flex h-6 w-6 items-center justify-center rounded-full text-[10px] font-bold ${active}`}
+                                                        >
+                                                            {step.state === "done" ? "✓" : index + 1}
+                                                        </span>
+                                                        <span className={`text-[10px] font-semibold leading-tight ${themeClasses.textSecondary}`}>
+                                                            {step.label}
+                                                        </span>
+                                                    </div>
+                                                    {index < steps.length - 1 && (
+                                                        <div
+                                                            className={`mb-4 h-px w-3 flex-shrink-0 ${
+                                                                step.state === "done"
+                                                                    ? "bg-emerald-500"
+                                                                    : isDarkTheme
+                                                                      ? "bg-slate-600"
+                                                                      : "bg-slate-300"
+                                                            }`}
+                                                        />
+                                                    )}
+                                                </React.Fragment>
+                                            );
+                                        })}
+                                    </div>
                                     <span
                                         className={`inline-block rounded-full border px-3 py-1.5 ${dprTy.workflowStatus} ${
                                             selectedReport.status?.toUpperCase() === "APPROVED"
@@ -1207,23 +1314,38 @@ const DPRReviewDashboard: React.FC<DPRReviewDashboardProps> = ({
                             placeholder="E.g. Daily excavation logs show 20 units, but report says 25. Please verify site attendance records..."
                             value={rejectReason}
                             onChange={(e) => setRejectReason(e.target.value)}
+                            disabled={Boolean(reviewActionBusy)}
                         />
                         <div className="flex gap-3 mt-4">
                             <button
+                                type="button"
                                 onClick={() => {
+                                    if (reviewActionBusy) return;
                                     setShowRejectModal(false);
                                     setRejectReason("");
                                 }}
-                                className={`flex-1 px-4 py-3 font-black text-xs uppercase border rounded-xl transition-colors ${themeClasses.buttonSecondary} ${themeClasses.border}`}
+                                disabled={Boolean(reviewActionBusy)}
+                                className={`flex-1 px-4 py-3 font-black text-xs uppercase border rounded-xl transition-colors ${themeClasses.buttonSecondary} ${themeClasses.border} disabled:opacity-50`}
                             >
                                 Cancel
                             </button>
                             <button
+                                type="button"
                                 onClick={handleReject}
-                                disabled={!rejectReason.trim()}
-                                className="flex-1 px-4 py-3 bg-rose-600 text-white font-black text-xs uppercase rounded-xl hover:bg-rose-500 transition-all disabled:opacity-50"
+                                disabled={!rejectReason.trim() || Boolean(reviewActionBusy)}
+                                aria-busy={reviewActionBusy === 'reject'}
+                                className="flex flex-1 items-center justify-center gap-2 px-4 py-3 bg-rose-600 text-white font-black text-xs uppercase rounded-xl hover:bg-rose-500 transition-all disabled:opacity-50 disabled:cursor-wait"
                             >
-                                {rejectModalMode === "revision" ? "Send Revision Request" : "Reject & Send"}
+                                {reviewActionBusy === 'reject' ? (
+                                    <>
+                                        <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                                        {rejectModalMode === "revision" ? "Sending…" : "Rejecting…"}
+                                    </>
+                                ) : rejectModalMode === "revision" ? (
+                                    "Send Revision Request"
+                                ) : (
+                                    "Reject & Send"
+                                )}
                             </button>
                         </div>
                     </div>

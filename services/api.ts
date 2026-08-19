@@ -515,7 +515,7 @@ export const dprApi = {
     page?: number;
     page_size?: number;
     ordering?: string;
-  }) => {
+  }, options?: { skipGetCache?: boolean }) => {
     return dprApiInstance.get(API_ENDPOINTS.DPR.LIST, {
       params: {
         page: 1,
@@ -523,7 +523,8 @@ export const dprApi = {
         ordering: '-id',
         ...params,
       },
-    });
+      ...(options?.skipGetCache ? { skipGetCache: true } : {}),
+    } as import('axios').AxiosRequestConfig & { skipGetCache?: boolean });
   },
   // Get single DPR by ID
   getDPR: (id: string | number) => {

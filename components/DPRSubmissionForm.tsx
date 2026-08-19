@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Icons } from './Icons';
 import { Project, MonthlyScope, MonthlyScopeCategory, MonthlyScopeSubcategory } from '../types';
 import { authApi, dprApi, monthlyScopeApi } from '../services/api';
@@ -305,6 +305,9 @@ function DPRSubmissionForm({ onClose, onSubmit, assignedProjects, existingDPR }:
   };
 
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitProgress, setSubmitProgress] = useState(0);
+  const [submitStage, setSubmitStage] = useState('');
+  const submitTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [formError, setFormError] = useState('');
   const [formSuccess, setFormSuccess] = useState('');
 
@@ -547,11 +550,35 @@ function DPRSubmissionForm({ onClose, onSubmit, assignedProjects, existingDPR }:
     }
 
     setIsSubmitting(true);
+    setSubmitProgress(0);
+    setSubmitStage('Preparing DPR data…');
+
+    // Simulated progress — crawls from 0 → 85% over ~18s, pauses to wait for API
+    const startTime = Date.now();
+    submitTimerRef.current = setInterval(() => {
+      const elapsed = (Date.now() - startTime) / 1000;
+      let pct: number;
+      let stage: string;
+      if (elapsed < 2) {
+        pct = Math.min(15, elapsed * 7.5);
+        stage = 'Preparing DPR data…';
+      } else if (elapsed < 6) {
+        pct = 15 + (elapsed - 2) * 7.5;
+        stage = 'Saving activities to server…';
+      } else if (elapsed < 12) {
+        pct = 45 + (elapsed - 6) * 5;
+        stage = 'Processing on server…';
+      } else {
+        pct = Math.min(85, 75 + (elapsed - 12) * 1);
+        stage = 'Waiting for confirmation…';
+      }
+      setSubmitProgress(Math.round(pct));
+      setSubmitStage(stage);
+    }, 250);
 
     try {
       const dprPayload = buildPayload();
 
-      // Submit to DPR API endpoint
       let response;
       if (existingDPR && existingDPR.id) {
         response = await dprApi.patchDPR(existingDPR.id, dprPayload);
@@ -566,6 +593,11 @@ function DPRSubmissionForm({ onClose, onSubmit, assignedProjects, existingDPR }:
           await dprApi.submitDPR(createdId, 'Site Engineer');
         }
       }
+
+      // API responded — immediately jump to 100%
+      if (submitTimerRef.current) { clearInterval(submitTimerRef.current); submitTimerRef.current = null; }
+      setSubmitProgress(100);
+      setSubmitStage('DPR submitted successfully!');
 
       const submissionData = {
         projectId: selectedProjectId,
@@ -606,10 +638,17 @@ function DPRSubmissionForm({ onClose, onSubmit, assignedProjects, existingDPR }:
           detail: { projectId: selectedProjectId, dprId: response?.data?.id },
         }),
       );
+
+      // Brief pause at 100% so user sees success before modal closes
+      await new Promise((r) => setTimeout(r, 800));
+
       onSubmit(submissionData);
       onClose();
       void fetchAvailableScopes();
     } catch (error: unknown) {
+      if (submitTimerRef.current) { clearInterval(submitTimerRef.current); submitTimerRef.current = null; }
+      setSubmitProgress(0);
+      setSubmitStage('');
       console.error('DPR Submission Error:', error);
       setFormError(
         formatUserFacingError(error, {
@@ -618,6 +657,7 @@ function DPRSubmissionForm({ onClose, onSubmit, assignedProjects, existingDPR }:
         }),
       );
     } finally {
+      if (submitTimerRef.current) { clearInterval(submitTimerRef.current); submitTimerRef.current = null; }
       setIsSubmitting(false);
     }
   };
@@ -672,8 +712,57 @@ function DPRSubmissionForm({ onClose, onSubmit, assignedProjects, existingDPR }:
       }`}
     >
       <div
-        className={`w-full max-w-5xl rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[94vh] ${themeClasses.glassCard} ${themeClasses.border}`}
+        className={`relative w-full max-w-5xl rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[94vh] ${themeClasses.glassCard} ${themeClasses.border}`}
       >
+        {/* Submitting overlay */}
+        {isSubmitting && (
+          <div className="absolute inset-0 z-50 flex flex-col items-center justify-center gap-5 rounded-2xl bg-black/60 backdrop-blur-sm">
+            <div className="flex w-[340px] flex-col items-center gap-5 rounded-2xl border border-white/10 bg-slate-900/90 px-8 py-8 shadow-2xl">
+              {submitProgress < 100 ? (
+                <div className="relative flex h-16 w-16 items-center justify-center">
+                  <span className="absolute inset-0 animate-spin rounded-full border-4 border-white/10 border-t-indigo-400" />
+                  <span className="text-sm font-black text-indigo-300">{submitProgress}%</span>
+                </div>
+              ) : (
+                <div className="flex h-16 w-16 items-center justify-center rounded-full bg-emerald-500/20">
+                  <Icons.Approve size={28} className="text-emerald-400" />
+                </div>
+              )}
+
+              <div className="w-full">
+                <div className="mb-1.5 flex items-center justify-between">
+                  <span className="text-[11px] font-bold uppercase tracking-widest text-slate-400">
+                    {submitProgress < 100 ? 'Submitting DPR' : 'Complete'}
+                  </span>
+                  <span className="text-sm font-black text-white">{submitProgress}%</span>
+                </div>
+                <div className="h-2.5 w-full overflow-hidden rounded-full bg-slate-700">
+                  <div
+                    className={`h-full rounded-full transition-all duration-300 ease-out ${
+                      submitProgress >= 100 ? 'bg-emerald-500' : 'bg-indigo-500'
+                    }`}
+                    style={{ width: `${submitProgress}%` }}
+                  />
+                </div>
+              </div>
+
+              <p className="text-center text-xs font-semibold text-slate-400">{submitStage}</p>
+
+              {submitProgress < 100 && (
+                <div className="flex gap-1.5">
+                  {[0, 150, 300].map((delay) => (
+                    <span
+                      key={delay}
+                      className="inline-block h-1.5 w-1.5 animate-bounce rounded-full bg-indigo-400"
+                      style={{ animationDelay: `${delay}ms` }}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* Header */}
         <div
           className={`shrink-0 px-5 py-4 md:px-6 ${themeClasses.border} flex items-start justify-between gap-4 ${themeClasses.bgSecondary}`}

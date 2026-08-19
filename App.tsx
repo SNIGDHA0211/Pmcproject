@@ -54,6 +54,7 @@ import {
   isProjectCompleted,
 } from "./utils/projectCompletion";
 import { getLoginFailureMessage } from "./utils/loginCredentials";
+import { getDprApprovalStep, getDprStatusAfterApproval } from "./utils/dprApprovalFlow";
 import { makeNavReturn, type NavReturnContext } from "./utils/navReturn";
 import { useAuth } from "./contexts/AuthContext";
 import { websocketService, NotificationData } from "./services/websocket";
@@ -1155,18 +1156,24 @@ const App: React.FC = () => {
     }
   };
 
-  const handleApproveDPR = async (id: string) => {
+  const handleApproveDPR = async (id: string, currentStatus?: string) => {
     try {
       // If we are on the new DPR Review dashboard, use the dprApi instead
       if (activeTab === "dpr_records") {
+        const step = getDprApprovalStep(currentStatus);
         if (currentUser?.role === UserRole.TEAM_LEAD) {
+          if (step && step !== "team_lead") {
+            throw new Error("This DPR is not waiting for Team Leader approval.");
+          }
           await dprApi.approveTeamLead(id);
-        } else if (isPmcHeadEquivalent(currentUser)) {
-          // PMC Manager has Head access — finalize like PMC Head
+        } else if (step === "coordinator") {
+          await dprApi.approveCoordinator(id);
+        } else if (step === "pmc_head") {
           await dprApi.approvePMCHead(id);
         } else {
-          // Default fallback for Site Engineer or other roles if they can somehow trigger this
-          await dprApi.approveTeamLead(id);
+          throw new Error(
+            "This DPR is not waiting for PMC Manager or PMC Head approval.",
+          );
         }
       } else {
         // Old system
@@ -1187,8 +1194,10 @@ const App: React.FC = () => {
 
             let nextStatus: DPR['status'] = "APPROVED";
             if (activeTab === "dpr_records") {
-              if (currentUser?.role === UserRole.TEAM_LEAD) nextStatus = "PENDING_COORDINATOR";
-              else if (isPmcHeadEquivalent(currentUser)) nextStatus = "APPROVED";
+              const next = getDprStatusAfterApproval(currentStatus);
+              if (next === "pending_coordinator") nextStatus = "PENDING_COORDINATOR";
+              else if (next === "pending_pmc_head") nextStatus = "PENDING_PMC_HEAD";
+              else nextStatus = "APPROVED";
             }
 
             return {
@@ -1202,14 +1211,10 @@ const App: React.FC = () => {
           return d;
         })
       );
-
-      // Refresh projects if in new system to update the list
-      if (activeTab === "dpr_records") {
-        void fetchData();
-      }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Failed to approve DPR:", error);
-      alert(error.response?.data?.error || "Failed to approve DPR. Please try again.");
+      alert(getApiErrorMessage(error, "Failed to approve DPR. Please try again."));
+      throw error;
     }
   };
 
