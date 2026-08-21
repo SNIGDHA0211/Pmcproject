@@ -117,6 +117,7 @@ function formatDateTime(iso?: string | null): string {
 type UserFormState = {
   fullName: string;
   username: string;
+  email: string;
   role: ManageableUserRole | '';
   projectIds: number[];
   password: string;
@@ -127,6 +128,7 @@ type UserFormState = {
 const emptyForm = (): UserFormState => ({
   fullName: '',
   username: '',
+  email: '',
   role: '',
   projectIds: [],
   password: '',
@@ -135,6 +137,7 @@ const emptyForm = (): UserFormState => ({
 });
 
 const USERNAME_PATTERN = /^[a-zA-Z0-9._-]{3,50}$/;
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 function summarizeFieldErrors(fields: Record<string, string>): string {
   const unique = [...new Set(Object.values(fields).filter(Boolean))];
@@ -145,6 +148,7 @@ function focusFirstInvalidField(fields: Record<string, string>) {
   const order = [
     'full_name',
     'username',
+    'email',
     'role',
     'project_ids',
     'projects',
@@ -176,6 +180,13 @@ function validateUserForm(
   } else if (!USERNAME_PATTERN.test(username)) {
     next.username =
       'Username must be 3–50 characters (letters, numbers, . _ -).';
+  }
+  const email = form.email.trim();
+  if (!email) {
+    next.email =
+      'Email is required so the backend can send assignment and DPR notifications.';
+  } else if (!EMAIL_PATTERN.test(email)) {
+    next.email = 'Enter a valid email address.';
   }
   if (!form.role) {
     next.role = 'Please select a role.';
@@ -452,6 +463,7 @@ const UserManagementPage: React.FC<UserManagementPageProps> = ({
     setForm({
       fullName: user.fullName,
       username: user.username,
+      email: user.email || '',
       role: (MANAGEABLE_ROLES.includes(user.role as ManageableUserRole)
         ? user.role
         : '') as ManageableUserRole | '',
@@ -502,6 +514,7 @@ const UserManagementPage: React.FC<UserManagementPageProps> = ({
         const result = await updateUser(editing.id, {
           full_name: form.fullName.trim(),
           username: form.username.trim(),
+          email: form.email.trim(),
           role: form.role,
           project_ids: form.projectIds,
           is_active: form.isActive,
@@ -522,6 +535,7 @@ const UserManagementPage: React.FC<UserManagementPageProps> = ({
         const result = await createUser({
           full_name: form.fullName.trim(),
           username: form.username.trim(),
+          email: form.email.trim(),
           role: form.role,
           project_ids: form.projectIds,
           password: form.password,
@@ -884,6 +898,7 @@ const UserManagementPage: React.FC<UserManagementPageProps> = ({
                 >
                   <th className="px-4 py-3">Full Name</th>
                   <th className="px-4 py-3">Username</th>
+                  <th className="px-4 py-3">Email</th>
                   <th className="px-4 py-3">Role</th>
                   <th className="px-4 py-3">Projects</th>
                   <th className="px-4 py-3">Status</th>
@@ -905,6 +920,15 @@ const UserManagementPage: React.FC<UserManagementPageProps> = ({
                     </td>
                     <td className={`px-4 py-3 font-semibold ${themeClasses.textSecondary}`}>
                       {user.username}
+                    </td>
+                    <td className={`px-4 py-3 font-semibold ${themeClasses.textSecondary}`}>
+                      {user.email ? (
+                        user.email
+                      ) : (
+                        <span className="text-amber-500" title="No email — assignment/DPR emails will not send">
+                          Missing
+                        </span>
+                      )}
                     </td>
                     <td className={`px-4 py-3 font-semibold ${themeClasses.textPrimary}`}>
                       {user.role || '—'}
@@ -1139,6 +1163,34 @@ const UserManagementPage: React.FC<UserManagementPageProps> = ({
                 )}
               </div>
               <div>
+                <label className={labelCls} htmlFor="create-user-email">
+                  Email <span className="text-rose-400">*</span>
+                </label>
+                <input
+                  id="create-user-email"
+                  data-user-field="email"
+                  type="email"
+                  className={fieldInputCls(Boolean(fieldErrors.email))}
+                  value={form.email}
+                  aria-invalid={Boolean(fieldErrors.email)}
+                  autoComplete="off"
+                  placeholder="name@company.com"
+                  onChange={(e) => {
+                    clearFieldError('email');
+                    setForm((prev) => ({ ...prev, email: e.target.value }));
+                  }}
+                />
+                {fieldErrors.email ? (
+                  <p className="mt-1 text-xs font-semibold text-rose-500">
+                    {fieldErrors.email}
+                  </p>
+                ) : (
+                  <p className={`mt-1 text-[11px] font-medium ${themeClasses.textSecondary}`}>
+                    Required for assignment and DPR email notifications (sent by backend).
+                  </p>
+                )}
+              </div>
+              <div>
                 <label className={labelCls} htmlFor="create-user-role">
                   Role <span className="text-rose-400">*</span>
                 </label>
@@ -1361,6 +1413,7 @@ const UserManagementPage: React.FC<UserManagementPageProps> = ({
                   {[
                     ['Full Name', viewUser.fullName],
                     ['Username', viewUser.username],
+                    ['Email', viewUser.email || '— (no email — notifications skipped)'],
                     ['Role', viewUser.role],
                     ['Status', viewUser.isActive ? 'Active' : 'Inactive'],
                     ['Created', formatDateTime(viewUser.createdAt)],

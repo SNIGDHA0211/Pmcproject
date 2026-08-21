@@ -393,9 +393,17 @@ export const API_ENDPOINTS = {
       `/site-images/project/${encodeURIComponent(projectName)}/month/${month}/year/${year}/`,
   },
 
-  // Notifications
+  // Notifications (optional Chrome/push helpers — emails are backend-driven on normal APIs)
+  // Prefer NOT calling these for create/assign/submit/approve/reject (backend already queues email + WS).
+  // Never call /api/internal/dpr/executive-digest/ from the frontend (cron secret only).
   NOTIFICATIONS: {
     CH_NOTIFICATION: '/notifications/ch-notification/',
+    PROJECT_CREATED: '/notifications/project-created/',
+    TEAM_LEAD_ASSIGNED: '/notifications/team-lead-assigned/',
+    SITE_ENGINEER_ASSIGNED: '/notifications/site-engineer-assigned/',
+    DPR_SUBMITTED: '/notifications/dpr-submitted/',
+    DPR_APPROVED: '/notifications/dpr-approved/',
+    DPR_REJECTED: '/notifications/dpr-rejected/',
   },
 
   // Alerts (billing updates → team leader)

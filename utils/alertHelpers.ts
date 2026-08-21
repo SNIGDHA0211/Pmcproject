@@ -235,8 +235,16 @@ export function mapAlertType(notificationType?: string, actionType?: string): Ap
   const type = (notificationType || '').toUpperCase();
   const action = (actionType || '').toUpperCase();
   if (type.includes('BILLING')) return 'UPDATE';
-  if (action === 'DELETE') return 'ALERT';
-  if (action === 'CREATE') return 'SUCCESS';
+  if (type.includes('REJECT') || action === 'DELETE') return 'ALERT';
+  if (
+    type.includes('APPROVE') ||
+    type.includes('SUBMIT') ||
+    type.includes('CREATED') ||
+    type.includes('ASSIGNED') ||
+    action === 'CREATE'
+  ) {
+    return 'SUCCESS';
+  }
   if (action === 'UPDATE') return 'UPDATE';
   return 'INFO';
 }
@@ -276,6 +284,11 @@ export function normalizeWsAlertPayload(
   const message = String(payload.message || '').trim();
   if (!title && !message) return null;
 
+  const nested =
+    payload.data && typeof payload.data === 'object' && !Array.isArray(payload.data)
+      ? (payload.data as Record<string, unknown>)
+      : {};
+
   const id = payload.id != null ? String(payload.id) : `ws-${Date.now()}`;
   const createdAt =
     typeof payload.created_at === 'string'
@@ -284,21 +297,23 @@ export function normalizeWsAlertPayload(
         ? payload.timestamp
         : new Date().toISOString();
 
+  const projectName =
+    String(payload.project_name || nested.project_name || '').trim() || undefined;
+  const nestedProjectId =
+    nested.project_id != null ? String(nested.project_id) : undefined;
+  const dprId = nested.dpr_id != null ? String(nested.dpr_id) : undefined;
+  const notifType = String(payload.notification_type || payload.type || '');
+
   return {
     id,
     userId,
     projectId:
       projectId ||
       (payload.project_id != null ? String(payload.project_id) : undefined) ||
-      (payload.data && typeof payload.data === 'object'
-        ? String((payload.data as Record<string, unknown>).project_id ?? '')
-        : undefined),
+      nestedProjectId,
     title: title || 'Notification',
     message: message || 'You have a new update.',
-    type: mapAlertType(
-      String(payload.notification_type || payload.type || ''),
-      String(payload.action_type || ''),
-    ),
+    type: mapAlertType(notifType, String(payload.action_type || '')),
     timestamp: formatAlertTimestampLabel(createdAt),
     createdAt,
     isRead: false,
@@ -307,10 +322,16 @@ export function normalizeWsAlertPayload(
     senderRole: resolveRoleLabel(
       String(payload.sender_role || payload.senderRole || ''),
     ),
-    moduleName: String(payload.module_name || ''),
-    projectName: String(payload.project_name || ''),
-    actionType: String(payload.action_type || ''),
-    notificationType: String(payload.notification_type || payload.type || ''),
+    moduleName:
+      String(payload.module_name || '').trim() ||
+      (notifType.toLowerCase().includes('dpr')
+        ? 'DPR'
+        : notifType.toLowerCase().includes('project')
+          ? 'Project'
+          : ''),
+    projectName,
+    actionType: String(payload.action_type || '').trim() || (dprId ? `dpr:${dprId}` : ''),
+    notificationType: notifType,
   };
 }
 
@@ -366,6 +387,8 @@ const MODULE_NAV_MAP: Record<string, AlertNavigationTarget> = {
   'manpower management': { tab: 'manpower_management', returnTab: 'team_projects' },
   reminders: { tab: 'reminders', returnTab: 'alerts' },
   reminder: { tab: 'reminders', returnTab: 'alerts' },
+  dpr: { tab: 'dpr_records', returnTab: 'alerts' },
+  project: { tab: 'team_projects', returnTab: 'alerts' },
 };
 
 export function resolveAlertNavigation(
@@ -374,6 +397,21 @@ export function resolveAlertNavigation(
   const type = (notification.notificationType || '').trim().toUpperCase();
   if (type === 'REMINDER_DUE' || (notification.actionType || '').toUpperCase() === 'REMINDER_DUE') {
     return { tab: 'reminders', returnTab: 'alerts' };
+  }
+  if (
+    type.includes('DPR') ||
+    type === 'DPR_SUBMITTED' ||
+    type === 'DPR_APPROVED' ||
+    type === 'DPR_REJECTED'
+  ) {
+    return { tab: 'dpr_records', returnTab: 'alerts' };
+  }
+  if (
+    type === 'PROJECT_CREATED' ||
+    type === 'PROJECT_ASSIGNED' ||
+    type.includes('SITE_ENGINEER_ASSIGNED')
+  ) {
+    return { tab: 'team_projects', returnTab: 'alerts' };
   }
   const key = (notification.moduleName || '').trim().toLowerCase();
   if (!key) return null;

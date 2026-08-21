@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { Icons } from './Icons';
 import {
     projectApi,
-    notificationApi,
     projectDatesApi,
     saveContractValueRecord,
 } from '../services/api';
@@ -347,14 +346,8 @@ const ProjectInit: React.FC<ProjectInitProps> = ({ user, onProjectCreated }) => 
                         : 'Project initialized successfully!';
                 setSuccess(successMsg);
 
-                // Send notification to PMC Coordinators
-                try {
-                    if (projectId) {
-                        await notificationApi.sendProjectCreatedNotification(projectId);
-                    }
-                } catch (notificationError) {
-                    console.error('Failed to send project created notification:', notificationError);
-                }
+                // Emails + Chrome/WebSocket notify are queued by the backend on project create.
+                // Do not call /notifications/ch-notification/ here — avoids double emails.
 
                 setFormData({ ...EMPTY_FORM });
                 loadProjects();

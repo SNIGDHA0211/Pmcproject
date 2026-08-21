@@ -71,6 +71,8 @@ const RoleAssignRow: React.FC<{
   loadingOptions,
 }) => {
   const themeClasses = getThemeClasses(isDark);
+  const selectedUser = options.find((u) => u.id === selectedId);
+  const missingEmail = Boolean(selectedId && selectedUser && !selectedUser.email?.trim());
   return (
     <div
       className={`rounded-2xl border p-4 ${
@@ -115,7 +117,7 @@ const RoleAssignRow: React.FC<{
           {options.map((u) => (
             <option key={u.id} value={u.id}>
               {u.name}
-              {u.email ? ` · ${u.email}` : ''}
+              {u.email ? ` · ${u.email}` : ' · (no email)'}
             </option>
           ))}
         </select>
@@ -129,6 +131,11 @@ const RoleAssignRow: React.FC<{
           {assignLabel}
         </button>
       </div>
+      {missingEmail && (
+        <p className="mt-2 text-[11px] font-semibold text-amber-500">
+          This user has no email — assignment email will not be sent. Update their profile in User Management.
+        </p>
+      )}
     </div>
   );
 };

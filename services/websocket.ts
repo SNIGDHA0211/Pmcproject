@@ -1,8 +1,19 @@
 /**
  * WebSocket Service for Real-time Notifications
  *
- * Handles WebSocket connection to Django Channels backend
- * Manages connection lifecycle and message parsing
+ * Connects to Django Channels: wss://<host>/ws/notifications/
+ *
+ * Emails are backend-driven on normal DPR/project APIs. This socket carries
+ * in-app alerts only (toast / badge). Typical payload:
+ * {
+ *   type: "dpr_submitted" | "project_created" | "project_assigned" | "dpr_approved" | "dpr_rejected" | ...,
+ *   title: string,
+ *   message: string,
+ *   timestamp: string,
+ *   data?: { dpr_id?, project_name?, report_date?, project_id? }
+ * }
+ *
+ * Do not call /api/internal/dpr/executive-digest/ from the frontend.
  */
 
 export interface NotificationData {

@@ -42,7 +42,7 @@ import TutorialVideosPanel from "./components/tutorialVideos/TutorialVideosPanel
 import TutorialWatchButton from "./components/tutorialVideos/TutorialWatchButton";
 import { parseSiteDeleteDependencies } from "./components/ProjectSiteList";
 import { STATUS_COLORS } from "./constants";
-import { projectApi, operationsApi, dprApi, notificationApi, getApiErrorMessage, unwrapList } from "./services/api";
+import { projectApi, operationsApi, dprApi, getApiErrorMessage, unwrapList } from "./services/api";
 import { invalidateApiGetCache } from "./utils/apiGetCache";
 import axios from "axios";
 import { canCompleteProject, canDeleteProjectSite } from "./utils/userManagementAccess";
@@ -1415,9 +1415,17 @@ const App: React.FC = () => {
 
       const payload = parseIncomingNotification(data);
       const merged = { ...(data as unknown as Record<string, unknown>), ...payload };
+      const nestedData =
+        merged.data && typeof merged.data === 'object' && !Array.isArray(merged.data)
+          ? (merged.data as Record<string, unknown>)
+          : {};
+      const projectNameHint = String(
+        merged.project_name || nestedData.project_name || '',
+      );
       const projectId =
-        resolveProjectIdByName(String(merged.project_name || "")) ||
-        (merged.project_id != null ? String(merged.project_id) : undefined);
+        resolveProjectIdByName(projectNameHint) ||
+        (merged.project_id != null ? String(merged.project_id) : undefined) ||
+        (nestedData.project_id != null ? String(nestedData.project_id) : undefined);
 
       const alert = normalizeWsAlertPayload(merged, user.id, projectId);
       if (alert) {

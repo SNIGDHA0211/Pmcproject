@@ -25,6 +25,7 @@ export interface UserListParams {
 export interface UserCreatePayload {
   full_name: string;
   username: string;
+  email?: string;
   role: ManageableUserRole | string;
   project_ids: number[];
   password: string;
@@ -34,6 +35,7 @@ export interface UserCreatePayload {
 export interface UserUpdatePayload {
   full_name?: string;
   username?: string;
+  email?: string;
   role?: ManageableUserRole | string;
   project_ids?: number[];
   is_active?: boolean;
