@@ -1,15 +1,14 @@
 /**
  * Optional Chrome / channel notification service.
  *
- * Day-to-day Project & DPR emails are backend-driven: create / assign / submit /
- * approve / reject APIs already queue email + WebSocket. Prefer NOT calling this
- * service after those actions (avoids duplicate emails).
+ * DPR emails (preferred path — do NOT call this after normal actions):
+ * - New DPR → POST /api/dpr/ only (initial email when status → pending_team_lead)
+ * - Resubmit draft/rejected → POST /api/dpr/{id}/submit/
+ * - Approve / reject → POST /api/dpr/{id}/approve_* / reject/
  *
- * Use only when a confirmed backend path does NOT already notify.
+ * Never call /api/notifications/... after create for a new DPR.
  * Never call /api/internal/dpr/executive-digest/ from the frontend.
- * Never block UI waiting for SMTP — fire-and-forget only.
- *
- * Auth: same JWT as other APIs (`Authorization: Bearer <access_token>`).
+ * Optional notify endpoints are manual/test only; fire-and-forget if used.
  */
 import axios from 'axios';
 import {

@@ -1,11 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Icons } from './Icons';
 import { Project, MonthlyScope, MonthlyScopeCategory, MonthlyScopeSubcategory } from '../types';
-import { authApi, dprApi, monthlyScopeApi, getApiErrorMessage } from '../services/api';
-import {
-  notifyOptionalSafe,
-  sendDprSubmittedNotification,
-} from '../services/notificationService';
+import { authApi, dprApi, monthlyScopeApi } from '../services/api';
 import { useTheme, getThemeClasses } from '../utils/theme';
 import {
   readScopeCumulativeQuantity,
@@ -17,7 +13,6 @@ import {
   toScopeNumber,
 } from '../utils/scopeProgressFields';
 import { formatUserFacingError } from '../utils/formErrors';
-import axios from 'axios';
 
 interface ScopeActivity {
   id: string;
@@ -135,34 +130,10 @@ function resolveDprStatusFromResponse(data: unknown): string {
   return String(obj.status ?? nested?.status ?? '').trim();
 }
 
-function isAlreadySubmittedError(error: unknown): boolean {
-  const status = axios.isAxiosError(error) ? error.response?.status : undefined;
-  const msg = getApiErrorMessage(error, '').toLowerCase();
-  if (status === 400 || status === 409) {
-    return /already|pending|submitted|awaiting|not draft|cannot submit/.test(msg);
-  }
-  return false;
-}
-
-/**
- * Submit is what queues approver email on the backend.
- * Always attempt it after create/patch. If DPR is already in workflow,
- * nudge the optional notify API so email/Chrome notify still fire when
- * create left it pending without going through /submit/.
- */
-async function ensureDprSubmittedForApproval(dprId: string | number): Promise<void> {
-  try {
-    await dprApi.submitDPR(dprId, 'Site Engineer');
-  } catch (error) {
-    if (isAlreadySubmittedError(error)) {
-      notifyOptionalSafe(
-        () => sendDprSubmittedNotification(dprId),
-        'dpr_submitted fallback',
-      );
-      return;
-    }
-    throw error;
-  }
+/** Backend: POST /dpr/{id}/submit/ is only for draft / rejected resubmit (not new create). */
+function isDraftOrRejectedStatus(status: unknown): boolean {
+  const s = String(status ?? '').toLowerCase();
+  return s === 'draft' || s.includes('reject');
 }
 
 function DPRSubmissionForm({ onClose, onSubmit, assignedProjects, existingDPR }: DPRSubmissionFormProps) {
@@ -644,25 +615,33 @@ function DPRSubmissionForm({ onClose, onSubmit, assignedProjects, existingDPR }:
 
       let response;
       let dprId = '';
+      const priorStatus = existingDPR?.status;
+      const needsResubmitApi = Boolean(
+        existingDPR?.id && isDraftOrRejectedStatus(priorStatus),
+      );
 
       if (existingDPR && existingDPR.id) {
+        // Update existing row (rejected / draft / same-day merge).
         response = await dprApi.patchDPR(existingDPR.id, dprPayload);
         dprId = resolveDprIdFromResponse(response.data, existingDPR.id);
       } else {
+        // New DPR — POST /api/dpr/ already queues initial submission email
+        // when status becomes pending_team_lead. Do NOT call /submit/ or notify.
         response = await dprApi.createDPR(dprPayload);
         dprId = resolveDprIdFromResponse(response.data);
       }
 
       if (!dprId) {
         throw new Error(
-          'DPR was saved but the server did not return an ID, so it could not be submitted for approval.',
+          'DPR was saved but the server did not return an ID.',
         );
       }
 
-      // Backend queues approver email on /submit/ — do not skip this step.
-      // (Create/patch may return nested pending status without having emailed.)
-      setSubmitStage('Submitting for approval & notifying…');
-      await ensureDprSubmittedForApproval(dprId);
+      // Resubmit email path: draft / rejected only → POST /dpr/{id}/submit/
+      if (needsResubmitApi) {
+        setSubmitStage('Resubmitting for approval…');
+        await dprApi.submitDPR(dprId, 'Site Engineer');
+      }
 
       // API responded — immediately jump to 100%
       if (submitTimerRef.current) { clearInterval(submitTimerRef.current); submitTimerRef.current = null; }
@@ -671,7 +650,7 @@ function DPRSubmissionForm({ onClose, onSubmit, assignedProjects, existingDPR }:
 
       const nextStatus =
         resolveDprStatusFromResponse(response?.data) ||
-        'pending_team_lead';
+        (needsResubmitApi ? 'pending_team_lead' : 'pending_team_lead');
 
       const submissionData = {
         projectId: selectedProjectId,
