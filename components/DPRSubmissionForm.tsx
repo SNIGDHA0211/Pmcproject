@@ -1,7 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Icons } from './Icons';
 import { Project, MonthlyScope, MonthlyScopeCategory, MonthlyScopeSubcategory } from '../types';
-import { authApi, dprApi, monthlyScopeApi } from '../services/api';
+import { authApi, dprApi, monthlyScopeApi, getApiErrorMessage } from '../services/api';
+import {
+  notifyOptionalSafe,
+  sendDprSubmittedNotification,
+} from '../services/notificationService';
 import { useTheme, getThemeClasses } from '../utils/theme';
 import {
   readScopeCumulativeQuantity,
@@ -13,6 +17,7 @@ import {
   toScopeNumber,
 } from '../utils/scopeProgressFields';
 import { formatUserFacingError } from '../utils/formErrors';
+import axios from 'axios';
 
 interface ScopeActivity {
   id: string;
@@ -97,9 +102,67 @@ function nestedEntityId(value: unknown): string {
   return String(value);
 }
 
-function dprAlreadyInWorkflow(status: unknown): boolean {
-  const value = String(status ?? '').toLowerCase();
-  return /pending|submitted|awaiting|review/.test(value);
+/** Create/patch responses nest id under dpr_id / dpr.id — top-level id is often missing. */
+function resolveDprIdFromResponse(
+  data: unknown,
+  fallbackId?: string | number | null,
+): string {
+  if (data && typeof data === 'object') {
+    const obj = data as Record<string, unknown>;
+    const nested = [obj.dpr, obj.data, obj.record, obj.result].find(
+      (item) => item && typeof item === 'object' && !Array.isArray(item),
+    ) as Record<string, unknown> | undefined;
+    const candidates = [
+      obj.id,
+      obj.dpr_id,
+      nested?.id,
+      nested?.dpr_id,
+    ];
+    for (const c of candidates) {
+      if (c != null && String(c).trim() !== '') return String(c);
+    }
+  }
+  if (fallbackId != null && String(fallbackId).trim() !== '') return String(fallbackId);
+  return '';
+}
+
+function resolveDprStatusFromResponse(data: unknown): string {
+  if (!data || typeof data !== 'object') return '';
+  const obj = data as Record<string, unknown>;
+  const nested = [obj.dpr, obj.data, obj.record].find(
+    (item) => item && typeof item === 'object' && !Array.isArray(item),
+  ) as Record<string, unknown> | undefined;
+  return String(obj.status ?? nested?.status ?? '').trim();
+}
+
+function isAlreadySubmittedError(error: unknown): boolean {
+  const status = axios.isAxiosError(error) ? error.response?.status : undefined;
+  const msg = getApiErrorMessage(error, '').toLowerCase();
+  if (status === 400 || status === 409) {
+    return /already|pending|submitted|awaiting|not draft|cannot submit/.test(msg);
+  }
+  return false;
+}
+
+/**
+ * Submit is what queues approver email on the backend.
+ * Always attempt it after create/patch. If DPR is already in workflow,
+ * nudge the optional notify API so email/Chrome notify still fire when
+ * create left it pending without going through /submit/.
+ */
+async function ensureDprSubmittedForApproval(dprId: string | number): Promise<void> {
+  try {
+    await dprApi.submitDPR(dprId, 'Site Engineer');
+  } catch (error) {
+    if (isAlreadySubmittedError(error)) {
+      notifyOptionalSafe(
+        () => sendDprSubmittedNotification(dprId),
+        'dpr_submitted fallback',
+      );
+      return;
+    }
+    throw error;
+  }
 }
 
 function DPRSubmissionForm({ onClose, onSubmit, assignedProjects, existingDPR }: DPRSubmissionFormProps) {
@@ -580,24 +643,35 @@ function DPRSubmissionForm({ onClose, onSubmit, assignedProjects, existingDPR }:
       const dprPayload = buildPayload();
 
       let response;
+      let dprId = '';
+
       if (existingDPR && existingDPR.id) {
         response = await dprApi.patchDPR(existingDPR.id, dprPayload);
-        const wasRejected = String(existingDPR.status ?? '').toLowerCase().includes('reject');
-        if (wasRejected || !dprAlreadyInWorkflow(response.data?.status)) {
-          await dprApi.submitDPR(existingDPR.id, 'Site Engineer');
-        }
+        dprId = resolveDprIdFromResponse(response.data, existingDPR.id);
       } else {
         response = await dprApi.createDPR(dprPayload);
-        const createdId = response.data?.id;
-        if (createdId && !dprAlreadyInWorkflow(response.data?.status)) {
-          await dprApi.submitDPR(createdId, 'Site Engineer');
-        }
+        dprId = resolveDprIdFromResponse(response.data);
       }
+
+      if (!dprId) {
+        throw new Error(
+          'DPR was saved but the server did not return an ID, so it could not be submitted for approval.',
+        );
+      }
+
+      // Backend queues approver email on /submit/ — do not skip this step.
+      // (Create/patch may return nested pending status without having emailed.)
+      setSubmitStage('Submitting for approval & notifying…');
+      await ensureDprSubmittedForApproval(dprId);
 
       // API responded — immediately jump to 100%
       if (submitTimerRef.current) { clearInterval(submitTimerRef.current); submitTimerRef.current = null; }
       setSubmitProgress(100);
       setSubmitStage('DPR submitted successfully!');
+
+      const nextStatus =
+        resolveDprStatusFromResponse(response?.data) ||
+        'pending_team_lead';
 
       const submissionData = {
         projectId: selectedProjectId,
@@ -613,9 +687,9 @@ function DPRSubmissionForm({ onClose, onSubmit, assignedProjects, existingDPR }:
         gfcStatus,
         issuedBy,
         designation,
-        status: 'PENDING',
+        status: nextStatus || 'PENDING',
         report: response?.data ?? null,
-        dprId: response?.data?.id,
+        dprId,
       };
 
       setFormSuccess('DPR submitted successfully.');
@@ -628,14 +702,14 @@ function DPRSubmissionForm({ onClose, onSubmit, assignedProjects, existingDPR }:
             timestamp: new Date().toISOString(),
             data: {
               project_id: selectedProjectId,
-              dpr_id: response?.data?.id,
+              dpr_id: dprId,
             },
           },
         })
       );
       window.dispatchEvent(
         new CustomEvent('pmc:dpr-saved', {
-          detail: { projectId: selectedProjectId, dprId: response?.data?.id },
+          detail: { projectId: selectedProjectId, dprId },
         }),
       );
 

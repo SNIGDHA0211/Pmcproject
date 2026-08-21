@@ -20,6 +20,18 @@ const firstEnvUrl = (...candidates: (string | undefined)[]): string | undefined 
   return undefined;
 };
 
+/** Derive wss://host from https://host/api (or any http(s) API base). */
+function deriveWsBaseFromApiUrl(apiBaseUrl: string): string | undefined {
+  try {
+    const parsed = new URL(apiBaseUrl);
+    const protocol = parsed.protocol === 'https:' ? 'wss:' : parsed.protocol === 'http:' ? 'ws:' : '';
+    if (!protocol) return undefined;
+    return `${protocol}//${parsed.host}`;
+  } catch {
+    return undefined;
+  }
+}
+
 export const API_CONFIG = {
   MAIN_API_BASE_URL:
     firstEnvUrl(import.meta.env.VITE_MAIN_API_BASE_URL, import.meta.env.VITE_API_BASE_URL) ??
@@ -34,7 +46,13 @@ export const API_CONFIG = {
 };
 
 export const WS_CONFIG = {
-  BASE_URL: firstEnvUrl(import.meta.env.VITE_WS_BASE_URL) ?? DEFAULT_WS_BASE_URL,
+  BASE_URL:
+    firstEnvUrl(import.meta.env.VITE_WS_BASE_URL) ??
+    deriveWsBaseFromApiUrl(
+      firstEnvUrl(import.meta.env.VITE_MAIN_API_BASE_URL, import.meta.env.VITE_API_BASE_URL) ??
+        DEFAULT_MAIN_API_BASE_URL,
+    ) ??
+    DEFAULT_WS_BASE_URL,
 };
 
 /** In-app notifications WebSocket URL (derived from env / API host — never hardcode per call site). */
