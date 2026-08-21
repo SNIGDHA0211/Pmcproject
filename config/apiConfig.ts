@@ -37,6 +37,12 @@ export const WS_CONFIG = {
   BASE_URL: firstEnvUrl(import.meta.env.VITE_WS_BASE_URL) ?? DEFAULT_WS_BASE_URL,
 };
 
+/** In-app notifications WebSocket URL (derived from env / API host — never hardcode per call site). */
+export const getNotificationsWsUrl = (): string => {
+  const base = trimTrailingSlashes(WS_CONFIG.BASE_URL);
+  return `${base}/ws/notifications/`;
+};
+
 /**
  * API Endpoints
  * 

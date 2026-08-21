@@ -1,4 +1,4 @@
-import React, { useState, useEffect, lazy, Suspense } from "react";
+import React, { useState, useEffect, useCallback, lazy, Suspense } from "react";
 import Layout from "./components/Layout";
 
 import {
@@ -58,6 +58,7 @@ import { getDprApprovalStep, getDprStatusAfterApproval } from "./utils/dprApprov
 import { makeNavReturn, type NavReturnContext } from "./utils/navReturn";
 import { useAuth } from "./contexts/AuthContext";
 import { websocketService, NotificationData } from "./services/websocket";
+import { useNotificationSocket } from "./hooks/useNotificationSocket";
 import { alertsApi, fetchAllAlerts } from "./services/alertsApi";
 import { fetchReminderBadgeCounts, listReminders } from "./services/remindersApi";
 import {
@@ -1396,84 +1397,70 @@ const App: React.FC = () => {
   useEffect(() => {
     if (!currentUser) {
       websocketService.disconnect();
+    }
+  }, [currentUser]);
+
+  const handleWebSocketMessage = useCallback((data: NotificationData) => {
+    const user = currentUserRef.current;
+    if (!user) return;
+
+    const payload = parseIncomingNotification(data);
+    const merged = { ...(data as unknown as Record<string, unknown>), ...payload };
+    const nestedData =
+      merged.data && typeof merged.data === 'object' && !Array.isArray(merged.data)
+        ? (merged.data as Record<string, unknown>)
+        : {};
+    const projectNameHint = String(
+      merged.project_name || nestedData.project_name || '',
+    );
+    const projectId =
+      resolveProjectIdByName(projectNameHint) ||
+      (merged.project_id != null ? String(merged.project_id) : undefined) ||
+      (nestedData.project_id != null ? String(nestedData.project_id) : undefined);
+
+    const alert = normalizeWsAlertPayload(merged, user.id, projectId);
+    if (alert) {
+      upsertNotification(alert);
+      showAlertToast(alert.title, alert.message);
+      showBrowserNotification(alert.title, alert.message);
       return;
     }
 
-    if (typeof window === "undefined" || !("WebSocket" in window)) return;
+    const title = data.title || "Notification";
+    const message = data.message || "You have a new update.";
+    const type = mapNotificationType(data.type || data.notification_type);
+    const timestamp = data.timestamp || data.created_at
+      ? new Date(String(data.timestamp || data.created_at)).toLocaleString("en-IN")
+      : new Date().toLocaleString("en-IN");
 
-    // Request notification permission
-    if ("Notification" in window && Notification.permission === "default") {
-      Notification.requestPermission().catch(() => {
-        // Ignore browser permission errors and keep in-app notifications working.
-      });
-    }
-
-    // Handle incoming WebSocket messages
-    const handleWebSocketMessage = (data: NotificationData) => {
-      const user = currentUserRef.current;
-      if (!user) return;
-
-      const payload = parseIncomingNotification(data);
-      const merged = { ...(data as unknown as Record<string, unknown>), ...payload };
-      const nestedData =
-        merged.data && typeof merged.data === 'object' && !Array.isArray(merged.data)
-          ? (merged.data as Record<string, unknown>)
-          : {};
-      const projectNameHint = String(
-        merged.project_name || nestedData.project_name || '',
-      );
-      const projectId =
-        resolveProjectIdByName(projectNameHint) ||
-        (merged.project_id != null ? String(merged.project_id) : undefined) ||
-        (nestedData.project_id != null ? String(nestedData.project_id) : undefined);
-
-      const alert = normalizeWsAlertPayload(merged, user.id, projectId);
-      if (alert) {
-        upsertNotification(alert);
-        showAlertToast(alert.title, alert.message);
-        showBrowserNotification(alert.title, alert.message);
-        return;
-      }
-
-      const title = data.title || "Notification";
-      const message = data.message || "You have a new update.";
-      const type = mapNotificationType(data.type || data.notification_type);
-      const timestamp = data.timestamp || data.created_at
-        ? new Date(String(data.timestamp || data.created_at)).toLocaleString("en-IN")
-        : new Date().toLocaleString("en-IN");
-
-      const wsNotification: AppNotification = {
-        id: data.id != null ? String(data.id) : `ws-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
-        userId: user.id,
-        projectId,
-        title,
-        message,
-        type,
-        timestamp,
-        isRead: false,
-        senderName: data.sender || "System",
-        senderUsername: data.sender_username,
-        senderRole: resolveRoleLabel(String(data.sender_role || "")),
-        moduleName: data.module_name,
-        projectName: data.project_name,
-        actionType: data.action_type,
-        notificationType: data.notification_type || data.type,
-        createdAt: data.created_at || data.timestamp,
-      };
-
-      upsertNotification(wsNotification);
-      showAlertToast(title, message);
-      showBrowserNotification(title, message);
+    const wsNotification: AppNotification = {
+      id: data.id != null ? String(data.id) : `ws-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
+      userId: user.id,
+      projectId,
+      title,
+      message,
+      type,
+      timestamp,
+      isRead: false,
+      senderName: data.sender || "System",
+      senderUsername: data.sender_username,
+      senderRole: resolveRoleLabel(String(data.sender_role || "")),
+      moduleName: data.module_name,
+      projectName: data.project_name || String(nestedData.project_name || '') || undefined,
+      actionType: data.action_type,
+      notificationType: data.notification_type || data.type,
+      createdAt: data.created_at || data.timestamp,
     };
 
-    // Connect to WebSocket and listen for messages
-    websocketService.onMessage(handleWebSocketMessage);
-    websocketService.connect();
+    upsertNotification(wsNotification);
+    showAlertToast(title, message);
+    showBrowserNotification(title, message);
+  }, []);
 
-    return () => {
-      websocketService.removeMessageListener(handleWebSocketMessage);
-    };
-  }, [currentUser?.id]);
+  useNotificationSocket({
+    enabled: Boolean(currentUser?.id),
+    onMessage: handleWebSocketMessage,
+  });
 
   const goToLandingPage = () => {
     syncAppRoutePath(LANDING_ROUTE, "push");

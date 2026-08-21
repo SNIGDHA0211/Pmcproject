@@ -1,20 +1,12 @@
 /**
- * WebSocket Service for Real-time Notifications
+ * In-app notification WebSocket for Project / DPR events.
  *
- * Connects to Django Channels: wss://<host>/ws/notifications/
- *
- * Emails are backend-driven on normal DPR/project APIs. This socket carries
- * in-app alerts only (toast / badge). Typical payload:
- * {
- *   type: "dpr_submitted" | "project_created" | "project_assigned" | "dpr_approved" | "dpr_rejected" | ...,
- *   title: string,
- *   message: string,
- *   timestamp: string,
- *   data?: { dpr_id?, project_name?, report_date?, project_id? }
- * }
- *
- * Do not call /api/internal/dpr/executive-digest/ from the frontend.
+ * Emails remain backend-driven on normal APIs. This socket only feeds toast /
+ * badge / panel UI. Derive host from VITE_WS_BASE_URL / API config — do not
+ * hardcode per call site. Never call executive-digest from the frontend.
  */
+import { getNotificationsWsUrl } from '../config/apiConfig';
+import { getAccessToken } from '../utils/authStorage';
 
 export interface NotificationData {
   id?: string | number;
@@ -48,31 +40,44 @@ class WebSocketServiceImpl implements WebSocketService {
   private reconnectTimer: number | null = null;
   private reconnectDelay = 3000;
   private messageListeners: ((data: NotificationData) => void)[] = [];
-  private devTunnelUrl = 'wss://pms-backend-production-4438.up.railway.app/ws/notifications/';
+  /** When true, onclose must not schedule reconnect (logout / unmount). */
+  private intentionalClose = false;
+
+  private buildUrl(): string {
+    const base = getNotificationsWsUrl();
+    const token = getAccessToken();
+    if (!token) return base;
+    const sep = base.includes('?') ? '&' : '?';
+    return `${base}${sep}token=${encodeURIComponent(token)}`;
+  }
 
   connect(): void {
-    if (this.socket && this.socket.readyState === WebSocket.OPEN) {
-      console.log('WebSocket already connected');
+    if (typeof window === 'undefined' || !('WebSocket' in window)) return;
+
+    if (
+      this.socket &&
+      (this.socket.readyState === WebSocket.OPEN ||
+        this.socket.readyState === WebSocket.CONNECTING)
+    ) {
       return;
     }
 
-    try {
-      console.log('Connecting to WebSocket:', this.devTunnelUrl);
-      this.socket = new WebSocket(this.devTunnelUrl);
+    this.intentionalClose = false;
 
-      this.socket.onopen = (event) => {
-        console.log('WebSocket connected successfully');
-        // Reset reconnect delay on successful connection
+    try {
+      const url = this.buildUrl();
+      // Never log the JWT query string.
+      console.log('Connecting to WebSocket:', getNotificationsWsUrl());
+      this.socket = new WebSocket(url);
+
+      this.socket.onopen = () => {
         this.reconnectDelay = 3000;
       };
 
       this.socket.onmessage = (event) => {
         try {
           const data = JSON.parse(event.data) as NotificationData;
-          console.log('Received WebSocket message:', data);
-
-          // Notify all listeners
-          this.messageListeners.forEach(callback => {
+          this.messageListeners.forEach((callback) => {
             try {
               callback(data);
             } catch (error) {
@@ -80,44 +85,37 @@ class WebSocketServiceImpl implements WebSocketService {
             }
           });
         } catch (error) {
-          console.error('Error parsing WebSocket message:', error, 'Raw data:', event.data);
+          console.error('Error parsing WebSocket message:', error);
         }
       };
 
-      this.socket.onerror = (error) => {
-        console.error('WebSocket error:', error);
+      this.socket.onerror = () => {
+        // Browser surfaces details in DevTools; avoid noisy / sensitive logs.
       };
 
-      this.socket.onclose = (event) => {
-        console.log('WebSocket disconnected, code:', event.code, 'reason:', event.reason);
+      this.socket.onclose = () => {
         this.socket = null;
+        if (this.intentionalClose) return;
+        if (this.reconnectTimer) return;
 
-        // Attempt to reconnect
-        if (!this.reconnectTimer) {
-          console.log(`Reconnecting in ${this.reconnectDelay}ms...`);
-          this.reconnectTimer = window.setTimeout(() => {
-            this.reconnectTimer = null;
-            this.connect();
-          }, this.reconnectDelay);
-
-          // Exponential backoff
-          this.reconnectDelay = Math.min(this.reconnectDelay * 2, 30000);
-        }
+        this.reconnectTimer = window.setTimeout(() => {
+          this.reconnectTimer = null;
+          this.connect();
+        }, this.reconnectDelay);
+        this.reconnectDelay = Math.min(this.reconnectDelay * 2, 30000);
       };
-
     } catch (error) {
       console.error('Failed to create WebSocket connection:', error);
     }
   }
 
   disconnect(): void {
+    this.intentionalClose = true;
     if (this.reconnectTimer) {
       window.clearTimeout(this.reconnectTimer);
       this.reconnectTimer = null;
     }
-
     if (this.socket) {
-      console.log('Disconnecting WebSocket');
       this.socket.close();
       this.socket = null;
     }
@@ -128,7 +126,9 @@ class WebSocketServiceImpl implements WebSocketService {
   }
 
   onMessage(callback: (data: NotificationData) => void): void {
-    this.messageListeners.push(callback);
+    if (!this.messageListeners.includes(callback)) {
+      this.messageListeners.push(callback);
+    }
   }
 
   removeMessageListener(callback: (data: NotificationData) => void): void {
@@ -139,5 +139,6 @@ class WebSocketServiceImpl implements WebSocketService {
   }
 }
 
-// Export singleton instance
 export const websocketService = new WebSocketServiceImpl();
+/** Alias matching integration naming. */
+export const notificationSocketService = websocketService;
