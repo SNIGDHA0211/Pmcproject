@@ -139,6 +139,10 @@ const emptyForm = (): UserFormState => ({
 const USERNAME_PATTERN = /^[a-zA-Z0-9._-]{3,50}$/;
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+function isTeamLeaderRole(role: string): boolean {
+  return role.trim().toLowerCase() === 'team leader';
+}
+
 function summarizeFieldErrors(fields: Record<string, string>): string {
   const unique = [...new Set(Object.values(fields).filter(Boolean))];
   return unique.join(' ');
@@ -181,15 +185,15 @@ function validateUserForm(
     next.username =
       'Username must be 3–50 characters (letters, numbers, . _ -).';
   }
-  const email = form.email.trim();
-  if (!email) {
-    next.email =
-      'Email is required so the backend can send assignment and DPR notifications.';
-  } else if (!EMAIL_PATTERN.test(email)) {
-    next.email = 'Enter a valid email address.';
-  }
   if (!form.role) {
     next.role = 'Please select a role.';
+  } else if (isTeamLeaderRole(form.role)) {
+    const email = form.email.trim();
+    if (!email) {
+      next.email = 'Email is required for Team Leader (one project, one email).';
+    } else if (!EMAIL_PATTERN.test(email)) {
+      next.email = 'Enter a valid email address.';
+    }
   }
   if (form.projectIds.length === 0) {
     next.project_ids = 'Please select at least one project.';
@@ -510,11 +514,14 @@ const UserManagementPage: React.FC<UserManagementPageProps> = ({
     setFormError(null);
     setFieldErrors({});
     try {
+      const teamLeader = isTeamLeaderRole(form.role);
+      const emailForApi = teamLeader ? form.email.trim() : '';
+
       if (editing) {
         const result = await updateUser(editing.id, {
           full_name: form.fullName.trim(),
           username: form.username.trim(),
-          email: form.email.trim(),
+          ...(teamLeader ? { email: emailForApi } : {}),
           role: form.role,
           project_ids: form.projectIds,
           is_active: form.isActive,
@@ -535,7 +542,7 @@ const UserManagementPage: React.FC<UserManagementPageProps> = ({
         const result = await createUser({
           full_name: form.fullName.trim(),
           username: form.username.trim(),
-          email: form.email.trim(),
+          email: emailForApi,
           role: form.role,
           project_ids: form.projectIds,
           password: form.password,
@@ -1163,34 +1170,6 @@ const UserManagementPage: React.FC<UserManagementPageProps> = ({
                 )}
               </div>
               <div>
-                <label className={labelCls} htmlFor="create-user-email">
-                  Email <span className="text-rose-400">*</span>
-                </label>
-                <input
-                  id="create-user-email"
-                  data-user-field="email"
-                  type="email"
-                  className={fieldInputCls(Boolean(fieldErrors.email))}
-                  value={form.email}
-                  aria-invalid={Boolean(fieldErrors.email)}
-                  autoComplete="off"
-                  placeholder="name@company.com"
-                  onChange={(e) => {
-                    clearFieldError('email');
-                    setForm((prev) => ({ ...prev, email: e.target.value }));
-                  }}
-                />
-                {fieldErrors.email ? (
-                  <p className="mt-1 text-xs font-semibold text-rose-500">
-                    {fieldErrors.email}
-                  </p>
-                ) : (
-                  <p className={`mt-1 text-[11px] font-medium ${themeClasses.textSecondary}`}>
-                    Required for assignment and DPR email notifications (sent by backend).
-                  </p>
-                )}
-              </div>
-              <div>
                 <label className={labelCls} htmlFor="create-user-role">
                   Role <span className="text-rose-400">*</span>
                 </label>
@@ -1201,10 +1180,13 @@ const UserManagementPage: React.FC<UserManagementPageProps> = ({
                   value={form.role}
                   aria-invalid={Boolean(fieldErrors.role)}
                   onChange={(e) => {
+                    const role = e.target.value as ManageableUserRole | '';
                     clearFieldError('role');
+                    clearFieldError('email');
                     setForm((prev) => ({
                       ...prev,
-                      role: e.target.value as ManageableUserRole | '',
+                      role,
+                      email: isTeamLeaderRole(role) ? prev.email : '',
                     }));
                   }}
                 >
@@ -1218,6 +1200,46 @@ const UserManagementPage: React.FC<UserManagementPageProps> = ({
                 {fieldErrors.role && (
                   <p className="mt-1 text-xs font-semibold text-rose-500">
                     {fieldErrors.role}
+                  </p>
+                )}
+              </div>
+              <div>
+                <label className={labelCls} htmlFor="create-user-email">
+                  Email
+                  {isTeamLeaderRole(form.role) && (
+                    <span className="text-rose-400"> *</span>
+                  )}
+                </label>
+                <input
+                  id="create-user-email"
+                  data-user-field="email"
+                  type="text"
+                  disabled={!isTeamLeaderRole(form.role)}
+                  className={`${fieldInputCls(Boolean(fieldErrors.email))} disabled:cursor-not-allowed disabled:opacity-50`}
+                  value={form.email}
+                  aria-invalid={Boolean(fieldErrors.email)}
+                  autoComplete="off"
+                  placeholder={
+                    isTeamLeaderRole(form.role)
+                      ? 'name@company.com'
+                      : 'Not required for this role'
+                  }
+                  onChange={(e) => {
+                    clearFieldError('email');
+                    setForm((prev) => ({ ...prev, email: e.target.value }));
+                  }}
+                />
+                {fieldErrors.email ? (
+                  <p className="mt-1 text-xs font-semibold text-rose-500">
+                    {fieldErrors.email}
+                  </p>
+                ) : isTeamLeaderRole(form.role) ? (
+                  <p className={`mt-1 text-[11px] font-medium ${themeClasses.textSecondary}`}>
+                    Required for Team Leader — one email per project assignment and DPR notifications.
+                  </p>
+                ) : (
+                  <p className={`mt-1 text-[11px] font-medium ${themeClasses.textSecondary}`}>
+                    Select Team Leader above to enter email. Not needed for site engineer roles.
                   </p>
                 )}
               </div>
