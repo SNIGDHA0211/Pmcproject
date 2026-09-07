@@ -775,12 +775,17 @@ export function normalizeBackendProjectRow(row: Record<string, unknown>): Projec
     pmcHeadName: String(row.pmc_head_name ?? '').trim() || undefined,
     teamLeadId: extractAssigneeId(row.team_lead) || '',
     teamLeadName: String(row.team_lead_name ?? '').trim() || undefined,
-    teamLeadUsername:
-      String(row.team_lead_username ?? '').trim() ||
-      (row.team_lead &&
-      typeof row.team_lead === 'object' &&
-      String((row.team_lead as Record<string, unknown>).username ?? '').trim()) ||
-      undefined,
+    teamLeadUsername: (() => {
+      const fromField = String(row.team_lead_username ?? '').trim();
+      if (fromField) return fromField;
+      if (row.team_lead && typeof row.team_lead === 'object') {
+        const nested = String(
+          (row.team_lead as Record<string, unknown>).username ?? '',
+        ).trim();
+        if (nested) return nested;
+      }
+      return undefined;
+    })(),
     siteEngineerIds: (Array.isArray(row.site_engineers) ? row.site_engineers : [])
       .map((id: unknown) => extractAssigneeId(id))
       .filter(Boolean),
