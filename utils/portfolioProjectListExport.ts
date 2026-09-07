@@ -1,9 +1,14 @@
 import ExcelJS from 'exceljs';
-import type { Project } from '../types';
+import type { ManagedUser, Project } from '../types';
 import type { ProjectVitalsCard } from './projectVitals';
 import { formatHealthLabelDisplay } from './projectVitals';
 import { loadUserDirectory } from './userDirectory';
-import { areDuplicateProjectTitles, normalizeProjectTitleKey } from './hseSiteEngineerProjects';
+import {
+  areDuplicateProjectTitles,
+  normalizeProjectTitleKey,
+  resolvePortfolioTeamLeaderUsername,
+} from './hseSiteEngineerProjects';
+import { getUsers } from '../services/userManagementApi';
 
 const TITLE_FILL: ExcelJS.Fill = {
   type: 'pattern',
@@ -47,9 +52,36 @@ export type PortfolioProjectListRow = {
   overallScore: string;
 };
 
+/** Shown in Excel when no Team Leader is linked to the project. */
+export const TL_MSG_NOT_ASSIGNED = 'Not Assigned';
+/** Shown when a person/name exists but login username is missing. */
+export const TL_MSG_USERNAME_MISSING = 'Username not available';
+
+type ProjectTeamLeaderRef = {
+  fullName: string;
+  username: string;
+};
+
 function looksLikeUsername(value: string): boolean {
   const v = value.trim();
   return /^[a-z0-9._-]{3,50}$/i.test(v) && !/\s/.test(v);
+}
+
+function isBlankLeadLabel(value: string): boolean {
+  const v = value.trim().toLowerCase();
+  return (
+    !v ||
+    v === '—' ||
+    v === '-' ||
+    v === 'not assigned' ||
+    v === 'n/a' ||
+    v === 'na' ||
+    v === 'tbd'
+  );
+}
+
+function isTeamLeaderRole(role: string): boolean {
+  return role.trim().toLowerCase() === 'team leader';
 }
 
 function findMatchingProject(
@@ -66,11 +98,150 @@ function findMatchingProject(
   );
 }
 
-async function resolveTeamLeaderUsername(
+/** Load all Team Leaders and index them by assigned project id + project name. */
+async function loadTeamLeadersByProject(): Promise<{
+  byProjectId: Map<string, ProjectTeamLeaderRef>;
+  byProjectName: Map<string, ProjectTeamLeaderRef>;
+}> {
+  const byProjectId = new Map<string, ProjectTeamLeaderRef>();
+  const byProjectName = new Map<string, ProjectTeamLeaderRef>();
+
+  const absorb = (user: ManagedUser) => {
+    if (!isTeamLeaderRole(user.role) || !user.isActive) return;
+    const username = String(user.username ?? '').trim();
+    if (!username) return;
+    const ref: ProjectTeamLeaderRef = {
+      fullName: String(user.fullName ?? '').trim() || username,
+      username,
+    };
+    for (const project of user.projects ?? []) {
+      const id = String(project.id ?? '').trim();
+      if (id) {
+        const existing = byProjectId.get(id);
+        // Prefer pmc_tl* style logins when multiple TLs exist on one project.
+        if (!existing || /^pmc_tl/i.test(username)) {
+          byProjectId.set(id, ref);
+        }
+      }
+      const nameKey = normalizeProjectTitleKey(project.name);
+      if (nameKey) {
+        const existing = byProjectName.get(nameKey);
+        if (!existing || /^pmc_tl/i.test(username)) {
+          byProjectName.set(nameKey, ref);
+        }
+      }
+    }
+  };
+
+  try {
+    let page = 1;
+    let guard = 0;
+    while (guard < 30) {
+      guard += 1;
+      const result = await getUsers({
+        role: 'Team Leader',
+        status: 'active',
+        page,
+        page_size: 100,
+      });
+      if (!result.success) break;
+      result.results.forEach(absorb);
+      if (!result.next || result.results.length === 0) break;
+      page += 1;
+    }
+  } catch {
+    // Optional enrichment — export still works without UM list.
+  }
+
+  return { byProjectId, byProjectName };
+}
+
+function findAssignedTeamLeader(
+  card: ProjectVitalsCard,
+  project: Project | undefined,
+  byProjectId: Map<string, ProjectTeamLeaderRef>,
+  byProjectName: Map<string, ProjectTeamLeaderRef>,
+): ProjectTeamLeaderRef | null {
+  const ids = [
+    String(card.projectId ?? '').trim(),
+    String(project?.id ?? '').trim(),
+  ].filter(Boolean);
+
+  for (const id of ids) {
+    if (isNaN(Number(id))) continue;
+    const hit = byProjectId.get(id);
+    if (hit) return hit;
+  }
+
+  const titles = [card.title, project?.title].map((t) => String(t ?? '').trim()).filter(Boolean);
+  for (const title of titles) {
+    const key = normalizeProjectTitleKey(title);
+    const exact = byProjectName.get(key);
+    if (exact) return exact;
+
+    for (const [nameKey, ref] of byProjectName.entries()) {
+      if (
+        areDuplicateProjectTitles(nameKey, title) ||
+        nameKey.includes(key) ||
+        key.includes(nameKey)
+      ) {
+        // Avoid tiny false matches (e.g. "ko")
+        if (Math.min(nameKey.length, key.length) >= 5) return ref;
+      }
+    }
+  }
+
+  return null;
+}
+
+function lookupDirectoryUsername(
+  directory: Awaited<ReturnType<typeof loadUserDirectory>>,
+  leadId: string,
+  leadName: string,
+): string {
+  const nameLower = leadName.trim().toLowerCase();
+  const match = directory.find((user) => {
+    if (leadId && String(user.id) === leadId) return true;
+    const userName = String(user.name ?? '').trim().toLowerCase();
+    const userLogin = String(user.username ?? '').trim().toLowerCase();
+    if (nameLower && userName === nameLower) return true;
+    if (nameLower && userLogin === nameLower) return true;
+    if (nameLower && userName && (userName.includes(nameLower) || nameLower.includes(userName))) {
+      if (nameLower.length >= 5 && userName.length >= 5) return true;
+    }
+    return false;
+  });
+  return String(match?.username ?? '').trim();
+}
+
+function resolveTeamLeaderDisplayName(
+  card: ProjectVitalsCard,
+  project: Project | undefined,
+  assigned: ProjectTeamLeaderRef | null,
+): string {
+  if (assigned?.fullName) return assigned.fullName;
+
+  const raw =
+    String(project?.teamLeadName ?? '').trim() ||
+    String(card.pmName ?? '').trim();
+
+  if (isBlankLeadLabel(raw)) return TL_MSG_NOT_ASSIGNED;
+  return raw;
+}
+
+/**
+ * Resolve Team Leader login for Excel.
+ * Prefer User Management assignment (source of truth), then project/overview fields.
+ */
+function resolveTeamLeaderUsername(
   card: ProjectVitalsCard,
   project: Project | undefined,
   directory: Awaited<ReturnType<typeof loadUserDirectory>>,
-): Promise<string> {
+  teamLeaderName: string,
+  assigned: ProjectTeamLeaderRef | null,
+): string {
+  if (assigned?.username) return assigned.username;
+
   const fromCard = String(card.teamLeadUsername ?? '').trim();
   if (fromCard) return fromCard;
 
@@ -78,26 +249,41 @@ async function resolveTeamLeaderUsername(
   if (fromProject) return fromProject;
 
   const pmName = String(card.pmName ?? '').trim();
-  if (pmName && looksLikeUsername(pmName) && pmName.toLowerCase() !== 'not assigned') {
+  if (pmName && looksLikeUsername(pmName) && !isBlankLeadLabel(pmName)) {
     return pmName;
   }
 
   const leadId = String(project?.teamLeadId ?? '').trim();
-  const leadName = String(project?.teamLeadName ?? card.pmName ?? '').trim();
-  if (!leadId && (!leadName || leadName === 'Not Assigned')) return '—';
+  const leadName = isBlankLeadLabel(teamLeaderName) ? '' : teamLeaderName;
 
-  const match = directory.find((user) => {
-    if (leadId && String(user.id) === leadId) return true;
-    if (leadName && String(user.name ?? '').trim().toLowerCase() === leadName.toLowerCase()) {
-      return true;
-    }
-    if (leadName && String(user.username ?? '').trim().toLowerCase() === leadName.toLowerCase()) {
-      return true;
-    }
-    return false;
-  });
-  const username = String(match?.username ?? '').trim();
-  return username || '—';
+  if (leadId || leadName) {
+    const fromDirectory = lookupDirectoryUsername(directory, leadId, leadName);
+    if (fromDirectory) return fromDirectory;
+  }
+
+  if (leadName && looksLikeUsername(leadName)) {
+    return leadName;
+  }
+
+  const fromPortfolio =
+    resolvePortfolioTeamLeaderUsername(card.title) ||
+    resolvePortfolioTeamLeaderUsername(project?.title);
+  if (fromPortfolio) return fromPortfolio;
+
+  if (isBlankLeadLabel(teamLeaderName) || teamLeaderName === TL_MSG_NOT_ASSIGNED) {
+    return TL_MSG_NOT_ASSIGNED;
+  }
+
+  return TL_MSG_USERNAME_MISSING;
+}
+
+function isUsernameStatusMessage(value: string): boolean {
+  return (
+    value === TL_MSG_NOT_ASSIGNED ||
+    value === TL_MSG_USERNAME_MISSING ||
+    value === '—' ||
+    value === '-'
+  );
 }
 
 export async function buildPortfolioProjectListRows(
@@ -108,30 +294,38 @@ export async function buildPortfolioProjectListRows(
     a.title.localeCompare(b.title, undefined, { sensitivity: 'base' }),
   );
 
-  let directory: Awaited<ReturnType<typeof loadUserDirectory>> = [];
-  try {
-    directory = await loadUserDirectory();
-  } catch {
-    directory = [];
-  }
+  const [directory, tlIndex] = await Promise.all([
+    loadUserDirectory().catch(() => []),
+    loadTeamLeadersByProject(),
+  ]);
 
   const rows: PortfolioProjectListRow[] = [];
   for (let i = 0; i < sorted.length; i += 1) {
     const card = sorted[i];
     const project = findMatchingProject(card, projects);
-    const teamLeaderName =
-      String(project?.teamLeadName ?? card.pmName ?? '').trim() || 'Not Assigned';
-    const teamLeaderUsername = await resolveTeamLeaderUsername(card, project, directory);
+    const assigned = findAssignedTeamLeader(
+      card,
+      project,
+      tlIndex.byProjectId,
+      tlIndex.byProjectName,
+    );
+    const teamLeaderName = resolveTeamLeaderDisplayName(card, project, assigned);
+    const teamLeaderUsername = resolveTeamLeaderUsername(
+      card,
+      project,
+      directory,
+      teamLeaderName,
+      assigned,
+    );
     const status =
       String(card.projectStatusLabel ?? '').trim() ||
       formatHealthLabelDisplay(card.healthLabel) ||
-      '—';
+      'No Data';
 
     rows.push({
       serial: i + 1,
       projectName: String(card.title ?? '').trim() || `Project ${card.projectId}`,
-      teamLeaderName:
-        teamLeaderName.toLowerCase() === 'not assigned' ? 'Not Assigned' : teamLeaderName,
+      teamLeaderName,
       teamLeaderUsername,
       client: String(card.client ?? '').trim() || '—',
       location: String(card.location ?? '').trim() || '—',
@@ -174,7 +368,7 @@ export async function downloadPortfolioProjectListExcel(
     hour: '2-digit',
     minute: '2-digit',
   });
-  metaCell.value = `Total projects: ${rows.length}  ·  Generated: ${generatedAt}  ·  Columns show which Team Leader handles each project`;
+  metaCell.value = `Total projects: ${rows.length}  ·  Generated: ${generatedAt}  ·  Team Leader usernames from User Management assignments`;
   metaCell.font = { size: 10, color: { argb: 'FF334155' }, italic: true };
   metaCell.alignment = { vertical: 'middle', horizontal: 'left', wrapText: true };
   sheet.getRow(2).height = 22;
@@ -222,37 +416,46 @@ export async function downloadPortfolioProjectListExcel(
         wrapText: true,
       };
       if (index % 2 === 1) cell.fill = ALT_ROW_FILL;
-      if (colIndex === 3 && value !== '—') {
-        cell.font = { name: 'Consolas', size: 11, bold: true, color: { argb: 'FF1D4ED8' } };
+      if (colIndex === 3) {
+        if (isUsernameStatusMessage(String(value))) {
+          cell.font = { italic: true, size: 10, color: { argb: 'FFB45309' } };
+        } else {
+          cell.font = { name: 'Consolas', size: 11, bold: true, color: { argb: 'FF1D4ED8' } };
+        }
       }
-      if (colIndex === 2 && value === 'Not Assigned') {
+      if (colIndex === 2 && (value === TL_MSG_NOT_ASSIGNED || value === 'Not Assigned')) {
         cell.font = { italic: true, color: { argb: 'FF94A3B8' } };
       }
     });
     excelRow.height = 20;
   });
 
-  const widths = [6, 42, 26, 22, 22, 24, 14, 12];
+  const widths = [6, 42, 28, 28, 22, 24, 14, 12];
   widths.forEach((width, index) => {
     sheet.getColumn(index + 1).width = width;
   });
 
   const legend = workbook.addWorksheet('How to read');
   legend.addRow(['Column', 'Meaning']);
-  legend.getRow(1).font = { bold: true };
   legend.getRow(1).fill = HEADER_FILL;
   legend.getRow(1).font = HEADER_FONT;
   [
     ['Project Name', 'Official project title in the live portfolio'],
-    ['Team Leader (Full Name)', 'Person responsible for handling this project'],
-    ['Team Leader Username', 'Login username used in PMC Portal (e.g. pmc_tl29)'],
+    [
+      'Team Leader (Full Name)',
+      'From User Management Team Leader assigned to this project (e.g. Chandrashekhar Society → Pmc_tl31)',
+    ],
+    [
+      'Team Leader Username',
+      'Login from User Management. If a TL is assigned → username (pmc_tl31). If TL exists without login → "Username not available". If nobody assigned → "Not Assigned".',
+    ],
     ['Client', 'Client / agency name when available'],
     ['Location', 'Project site location'],
     ['Status', 'Current portfolio health / overview status'],
     ['Overall Score', 'Health score out of 100 when KPI data exists'],
   ].forEach((pair) => legend.addRow(pair));
   legend.getColumn(1).width = 28;
-  legend.getColumn(2).width = 70;
+  legend.getColumn(2).width = 90;
 
   const buffer = await workbook.xlsx.writeBuffer();
   const blob = new Blob([buffer], {

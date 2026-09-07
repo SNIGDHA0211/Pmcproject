@@ -28,12 +28,14 @@ import { canAccessUserManagement } from '../../utils/userManagementAccess';
 import {
   buildAssignableProjectSelectOptions,
   buildLiveAssignableProjects,
-  clearProjectRowCache,
+  fetchAssignableBackendProjects,
   isExcludedPmcTlProjectTitle,
-  normalizeBackendProjectRow,
-  seedProjectRowCache,
+  isSyntheticExecutiveProjectId,
+  mergeProjectListsById,
+  projectsFromOverviewCards,
 } from '../../utils/pmcHeadExecutiveProjects';
-import { projectApi, unwrapList } from '../../services/api';
+import { getProjectOverview } from '../../services/projectOverviewService';
+import { HSE_SITE_ENGINEER_ACCOUNTS, pickProjectByHseTitle } from '../../utils/hseSiteEngineerProjects';
 import { projectStore } from '../../stores/projectStore';
 import { ModalPortal } from '../ModalPortal';
 import DashboardToastStack, { type DashboardToastItem } from '../DashboardToastStack';
@@ -46,41 +48,73 @@ import { isAbortError } from '../../utils/isAbortError';
 
 const PAGE_SIZE = 10;
 
-/** Prefer Global Project Store; fall back to paginated GET only if store is empty. */
+/**
+ * Load every assignable backend project for Create/Assign checkboxes.
+ * Merges projects-data + init-list + 360° overview cards (so titles visible on
+ * Project 360° with a real id also appear here — e.g. KOPRI).
+ */
 async function fetchAllBackendProjects(): Promise<Project[]> {
+  let fromApi: Project[] = [];
+  try {
+    fromApi = await fetchAssignableBackendProjects();
+  } catch {
+    fromApi = [];
+  }
+
+  let fromOverview: Project[] = [];
+  try {
+    const cards = await projectStore.loadOverview(false);
+    fromOverview = projectsFromOverviewCards(cards);
+  } catch {
+    fromOverview = projectsFromOverviewCards(projectStore.getState().overview);
+  }
+
+  let merged = mergeProjectListsById(fromApi, fromOverview);
+
+  // Official portfolio titles still missing (KOPRI, OSMANABAD PWD, …) — search overview API.
+  const missingTitles = HSE_SITE_ENGINEER_ACCOUNTS.map((row) => row.projectTitle).filter(
+    (title) =>
+      !isExcludedPmcTlProjectTitle(title) &&
+      !pickProjectByHseTitle(merged, title),
+  );
+
+  if (missingTitles.length > 0) {
+    const searched: Project[] = [];
+    await Promise.all(
+      missingTitles.map(async (title) => {
+        try {
+          const result = await getProjectOverview({ search: title });
+          searched.push(...projectsFromOverviewCards(result.cards));
+        } catch {
+          // optional
+        }
+      }),
+    );
+    if (searched.length > 0) {
+      merged = mergeProjectListsById(merged, searched);
+    }
+  }
+
+  if (merged.length > 0) {
+    return merged.filter(
+      (p) =>
+        Boolean(p?.id && p?.title?.trim()) &&
+        !isExcludedPmcTlProjectTitle(p.title) &&
+        !isSyntheticExecutiveProjectId(String(p.id)),
+    );
+  }
+
   try {
     const fromStore = await projectStore.loadProjects(false);
-    if (fromStore.length > 0) {
-      return fromStore.filter((p) => Boolean(p?.id && p?.title?.trim()));
-    }
+    return fromStore.filter(
+      (p) =>
+        Boolean(p?.id && p?.title?.trim()) &&
+        !isExcludedPmcTlProjectTitle(p.title) &&
+        !isSyntheticExecutiveProjectId(String(p.id)),
+    );
   } catch {
-    // fall through to paginated fetch
+    return [];
   }
-
-  const collected: Record<string, unknown>[] = [];
-  let page = 1;
-  let guard = 0;
-
-  while (guard < 50) {
-    guard += 1;
-    const response = await projectApi.getProjects({ page_size: 200, page });
-    const payload = response.data as Record<string, unknown> | unknown[];
-    const rows = unwrapList<Record<string, unknown>>(payload);
-    collected.push(...rows.filter((row) => row && typeof row === 'object'));
-
-    const next =
-      payload && typeof payload === 'object' && !Array.isArray(payload)
-        ? (payload as Record<string, unknown>).next
-        : null;
-    if (!next || rows.length === 0) break;
-    page += 1;
-  }
-
-  clearProjectRowCache();
-  seedProjectRowCache(collected);
-  return collected
-    .map((row) => normalizeBackendProjectRow(row))
-    .filter((p) => Boolean(p?.id && p?.title?.trim()) && !isExcludedPmcTlProjectTitle(p.title));
 }
 
 export const MANAGEABLE_ROLES: ManageableUserRole[] = [
@@ -253,8 +287,7 @@ const UserManagementPage: React.FC<UserManagementPageProps> = ({
 
   const refreshAssignableProjects = useCallback(async () => {
     try {
-      const mapped = await projectStore.refreshProjects();
-      // Live Registry (App) + store list — completed/deleted excluded inside builder.
+      const mapped = await fetchAllBackendProjects();
       setPortfolioProjects(buildLiveAssignableProjects(mapped, projects));
     } catch {
       setPortfolioProjects(buildLiveAssignableProjects(projects, projects));
@@ -360,6 +393,34 @@ const UserManagementPage: React.FC<UserManagementPageProps> = ({
       a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }),
     );
   }, [projectOptions, form.projectIds, editing]);
+
+  /** Official portfolio titles visible on 360° as stubs but not yet assignable (no backend id). */
+  const missingOfficialTitles = useMemo(() => {
+    const asProjects = assignableProjectOptions.map(
+      (p) => ({ id: String(p.id), title: p.name }) as Project,
+    );
+    return HSE_SITE_ENGINEER_ACCOUNTS.map((row) => row.projectTitle).filter(
+      (title) =>
+        !isExcludedPmcTlProjectTitle(title) && !pickProjectByHseTitle(asProjects, title),
+    );
+  }, [assignableProjectOptions]);
+
+  const formProjectListItems = useMemo(() => {
+    const items: Array<
+      | { kind: 'ok'; id: number; name: string }
+      | { kind: 'missing'; name: string }
+    > = assignableProjectOptions.map((p) => ({
+      kind: 'ok' as const,
+      id: p.id,
+      name: p.name,
+    }));
+    for (const title of missingOfficialTitles) {
+      items.push({ kind: 'missing', name: title });
+    }
+    return items.sort((a, b) =>
+      a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }),
+    );
+  }, [assignableProjectOptions, missingOfficialTitles]);
 
   const filterProjectOptions = assignableProjectOptions;
 
@@ -1257,26 +1318,48 @@ const UserManagementPage: React.FC<UserManagementPageProps> = ({
                       : themeClasses.border
                   }`}
                 >
-                  {assignableProjectOptions.length === 0 ? (
+                  {formProjectListItems.length === 0 ? (
                     <p className={`text-xs font-semibold ${themeClasses.textSecondary}`}>
                       No projects available
                     </p>
                   ) : (
-                    assignableProjectOptions.map((p) => (
-                      <label
-                        key={`${p.id}-${p.name}`}
-                        className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-xs font-semibold hover:bg-black/5 dark:hover:bg-white/5"
-                      >
-                        <input
-                          type="checkbox"
-                          checked={form.projectIds.includes(p.id)}
-                          onChange={() => toggleProjectId(p.id)}
-                        />
-                        <span className="truncate">{p.name}</span>
-                      </label>
-                    ))
+                    formProjectListItems.map((item) =>
+                      item.kind === 'ok' ? (
+                        <label
+                          key={`ok-${item.id}-${item.name}`}
+                          className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-xs font-semibold hover:bg-black/5 dark:hover:bg-white/5"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={form.projectIds.includes(item.id)}
+                            onChange={() => toggleProjectId(item.id)}
+                          />
+                          <span className="truncate">{item.name}</span>
+                        </label>
+                      ) : (
+                        <div
+                          key={`missing-${item.name}`}
+                          className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-xs font-semibold opacity-60"
+                          title="Visible on Project 360°, but not created on the server yet — open Initiate Project and create it with this exact name to assign users."
+                        >
+                          <input type="checkbox" disabled checked={false} />
+                          <span className="truncate">
+                            {item.name}{' '}
+                            <span className="font-medium text-amber-500">
+                              (create in Initiate Project to assign)
+                            </span>
+                          </span>
+                        </div>
+                      ),
+                    )
                   )}
                 </div>
+                {missingOfficialTitles.length > 0 && (
+                  <p className={`mt-1 text-[11px] font-medium ${themeClasses.textSecondary}`}>
+                    Greyed projects (e.g. KOPRI) show on Project 360° as placeholders. Create them
+                    under <strong>Initiate Project</strong> with the same name to enable assignment.
+                  </p>
+                )}
                 {(fieldErrors.project_ids || fieldErrors.projects) && (
                   <p className="mt-1 text-xs font-semibold text-rose-500">
                     {fieldErrors.project_ids || fieldErrors.projects}

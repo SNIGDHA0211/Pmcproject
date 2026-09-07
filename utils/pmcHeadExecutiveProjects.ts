@@ -8,9 +8,11 @@ import {
   areDuplicateProjectTitles,
   normalizeProjectTitleKey,
   pickProjectByHseTitle,
+  projectTitleMatchesHseAssignment,
   sanitizeProjectDisplayName,
 } from './hseSiteEngineerProjects';
 import { extractCompletionFields, isProjectCompleted } from './projectCompletion';
+import type { ProjectVitalsCard } from './projectVitals';
 
 /** Exact login id — not pmc_tl1, pmc_tl19, etc. */
 export const PMC_TL_USERNAME = 'pmc_tl';
@@ -127,8 +129,10 @@ export function getHseExecutiveProjectStubs(existingProjects: Project[]): Projec
 /** True when title matches the Head / HO / Manager portfolio allowlist. */
 export function isClientPortfolioProjectTitle(title?: string | null): boolean {
   if (!String(title ?? '').trim()) return false;
-  return HSE_SITE_ENGINEER_ACCOUNTS.some((row) =>
-    areDuplicateProjectTitles(row.projectTitle, title),
+  return HSE_SITE_ENGINEER_ACCOUNTS.some(
+    (row) =>
+      areDuplicateProjectTitles(row.projectTitle, title) ||
+      projectTitleMatchesHseAssignment(title, row.projectTitle),
   );
 }
 
@@ -229,10 +233,9 @@ export function buildPmcHeadDropdownProjects(...lists: Project[][]): Project[] {
     (project) => !isExcludedPmcTlProjectTitle(project.title),
   );
 
-  const allowlisted = merged.filter((project) =>
-    isClientPortfolioProjectTitle(project.title),
-  );
-  const withOfficialStubs = ensureHsePortfolioProjects(allowlisted);
+  // Match allowlist titles against the full backend pool (not only already-allowlisted
+  // rows), so names like "KOPRI" / "OSMANABAD PWD" resolve to real project ids.
+  const withOfficialStubs = ensureHsePortfolioProjects(merged);
   const initiatedExtras = merged.filter(isAdditionalInitiatedPortfolioProject);
 
   const combined = dedupePmcHeadDropdownProjects([...withOfficialStubs, ...initiatedExtras]);
@@ -447,18 +450,14 @@ export function buildLiveAssignableProjects(
     }
   }
 
-  // 3) Any remaining active initiated / allowlist rows from the API pool.
+  // 3) Every remaining active backend project with a real id (all created projects).
   for (const project of pool) {
     if (isProjectCompleted(project)) continue;
     if (isExcludedPmcTlProjectTitle(project.title)) continue;
     if (isSyntheticExecutiveProjectId(String(project.id ?? ''))) continue;
-
-    if (
-      isClientPortfolioProjectTitle(project.title) ||
-      isAdditionalInitiatedPortfolioProject(project)
-    ) {
-      absorb(project);
-    }
+    const numericId = Number(project.id);
+    if (!Number.isFinite(numericId) || numericId <= 0) continue;
+    absorb(project);
   }
 
   return [...byKey.values()].sort((a, b) =>
@@ -680,12 +679,29 @@ export async function fetchAllProjectRows(forceRefresh = false): Promise<Record<
 
   inflightProjectRows = (async () => {
     try {
-      const response = await projectApi.getProjects({ page_size: 1000 });
-      const rows = unwrapList(response.data).filter(
-        (row): row is Record<string, unknown> => Boolean(row) && typeof row === 'object',
-      );
-      seedProjectRowCache(rows);
-      return cachedProjectRows ?? rows;
+      const collected: Record<string, unknown>[] = [];
+      let page = 1;
+      let guard = 0;
+
+      while (guard < 50) {
+        guard += 1;
+        const response = await projectApi.getProjects({ page_size: 200, page });
+        const payload = response.data as Record<string, unknown> | unknown[];
+        const rows = unwrapList(response.data).filter(
+          (row): row is Record<string, unknown> => Boolean(row) && typeof row === 'object',
+        );
+        collected.push(...rows);
+
+        const next =
+          payload && typeof payload === 'object' && !Array.isArray(payload)
+            ? (payload as Record<string, unknown>).next
+            : null;
+        if (!next || rows.length === 0) break;
+        page += 1;
+      }
+
+      seedProjectRowCache(collected);
+      return cachedProjectRows ?? collected;
     } catch {
       return cachedProjectRows ?? [];
     } finally {
@@ -694,6 +710,143 @@ export async function fetchAllProjectRows(forceRefresh = false): Promise<Record<
   })();
 
   return inflightProjectRows;
+}
+
+/**
+ * Full project pool for User Management assign checkboxes:
+ * - every page of projects-data
+ * - init-list rows with a real project id
+ * - targeted search for any official portfolio title still missing (e.g. KOPRI)
+ */
+export async function fetchAssignableBackendProjects(): Promise<Project[]> {
+  const rows = await fetchAllProjectRows(true);
+  let projects = rows
+    .map((row) => normalizeBackendProjectRow(row))
+    .filter(
+      (p) =>
+        Boolean(p?.id && p?.title?.trim()) &&
+        !isExcludedPmcTlProjectTitle(p.title) &&
+        !isSyntheticExecutiveProjectId(String(p.id)),
+    );
+
+  try {
+    const initRes = await projectApi.getInitProjects();
+    const initRows = unwrapList<Record<string, unknown>>(initRes.data);
+    const fromInit = initRows
+      .map((row) => {
+        const id = row.id ?? row.project_id ?? row.project;
+        if (id == null) return null;
+        return normalizeBackendProjectRow({
+          ...row,
+          id,
+          name: row.name ?? row.title ?? row.project_name,
+        });
+      })
+      .filter((p): p is Project => {
+        if (!p?.id || !p?.title?.trim()) return false;
+        if (isExcludedPmcTlProjectTitle(p.title)) return false;
+        if (isSyntheticExecutiveProjectId(String(p.id))) return false;
+        const numericId = Number(p.id);
+        return Number.isFinite(numericId) && numericId > 0;
+      });
+    projects = mergeProjectListsById(projects, fromInit);
+  } catch {
+    // init-list optional
+  }
+
+  const missingTitles = HSE_SITE_ENGINEER_ACCOUNTS.map((row) => row.projectTitle).filter(
+    (title) =>
+      !isExcludedPmcTlProjectTitle(title) &&
+      !pickProjectByHseTitle(projects, title) &&
+      !pickProjectByTitle(projects, title),
+  );
+
+  if (missingTitles.length > 0) {
+    const found: Project[] = [];
+    await Promise.all(
+      missingTitles.map(async (title) => {
+        try {
+          const response = await projectApi.getProjects({ search: title, page_size: 50 });
+          const searched = unwrapList<Record<string, unknown>>(response.data)
+            .map((row) => normalizeBackendProjectRow(row))
+            .filter(
+              (p) =>
+                Boolean(p?.id && p?.title?.trim()) &&
+                !isExcludedPmcTlProjectTitle(p.title) &&
+                !isSyntheticExecutiveProjectId(String(p.id)),
+            );
+          let match =
+            pickProjectByTitle(searched, title) || pickProjectByHseTitle(searched, title);
+          if (!match) {
+            const byTitle = await fetchProjectsByTitle(title, projects);
+            if (
+              byTitle &&
+              !isSyntheticExecutiveProjectId(String(byTitle.id)) &&
+              Number(byTitle.id) > 0
+            ) {
+              match = byTitle;
+            }
+          }
+          if (match) found.push(match);
+          seedProjectRowCache(
+            searched.map((p) => ({ id: p.id, name: p.apiName || p.title, title: p.title })),
+          );
+        } catch {
+          // keep going
+        }
+      }),
+    );
+    if (found.length > 0) {
+      projects = mergeProjectListsById(projects, found);
+    }
+  }
+
+  seedProjectRowCache(
+    projects.map((p) => ({
+      id: p.id,
+      name: p.apiName || p.title,
+      title: p.title,
+      team_lead: p.teamLeadId,
+      team_lead_name: p.teamLeadName,
+      team_lead_username: p.teamLeadUsername,
+    })),
+  );
+
+  return projects.sort((a, b) =>
+    a.title.localeCompare(b.title, undefined, { sensitivity: 'base' }),
+  );
+}
+
+/**
+ * Turn 360° overview cards into assignable Project rows.
+ * Uses real numeric `projectId` only — synthetic stubs (executive-hse-*) are skipped
+ * because User Management cannot assign users without a backend project id.
+ */
+export function projectsFromOverviewCards(cards: ProjectVitalsCard[]): Project[] {
+  const out: Project[] = [];
+  for (const card of cards) {
+    const title = String(card.title ?? '').trim();
+    if (!title || isExcludedPmcTlProjectTitle(title)) continue;
+    if (card.isCompleted) continue;
+
+    const rawId = String(card.projectId ?? '').trim();
+    if (!rawId || isSyntheticExecutiveProjectId(rawId)) continue;
+    const numericId = Number(rawId);
+    if (!Number.isFinite(numericId) || numericId <= 0) continue;
+
+    const stub = buildKnownExecutiveProjectStub(title);
+    out.push({
+      ...stub,
+      id: String(numericId),
+      title,
+      client: card.client && card.client !== '—' ? card.client : '',
+      location: card.location && card.location !== '—' ? card.location : '',
+      teamLeadName:
+        card.pmName && card.pmName !== 'Not Assigned' ? card.pmName : undefined,
+      teamLeadUsername: card.teamLeadUsername,
+    });
+  }
+  return out;
 }
 
 async function resolveProjectFromDatesEndpoint(title: string): Promise<Project | null> {

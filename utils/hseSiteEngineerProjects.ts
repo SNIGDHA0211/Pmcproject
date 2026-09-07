@@ -40,6 +40,8 @@ export const HSE_SITE_ENGINEER_ACCOUNTS: ReadonlyArray<{
     username: 'pmc_hse27',
     projectTitle: 'B3482 RGSL: Rajeev Gandhi Sea Link',
   },
+  { index: 28, username: 'pmc_hse28', projectTitle: 'KOPRI' },
+  { index: 29, username: 'pmc_hse29', projectTitle: 'OSMANABAD PWD' },
 ] as const;
 
 const HSE_USERNAME_PATTERN = /^pmc_hse(\d+)$/i;
@@ -173,4 +175,24 @@ export function projectTitleMatchesHseAssignment(
   const targetKey = normalizeProjectTitleKey(canonicalTitle);
   if (!rowKey || !targetKey) return false;
   return rowKey === targetKey || rowKey.includes(targetKey) || targetKey.includes(rowKey);
+}
+
+/** Match a live project title to its official portfolio credential index (e.g. KOPRI → 28). */
+export function resolvePortfolioCredentialAccount(projectTitle?: string | null) {
+  const title = String(projectTitle ?? '').trim();
+  if (!title) return null;
+  return (
+    HSE_SITE_ENGINEER_ACCOUNTS.find(
+      (row) =>
+        areDuplicateProjectTitles(row.projectTitle, title) ||
+        projectTitleMatchesHseAssignment(title, row.projectTitle),
+    ) ?? null
+  );
+}
+
+/** Standard Team Leader login for an official portfolio project (e.g. KOPRI → pmc_tl28). */
+export function resolvePortfolioTeamLeaderUsername(projectTitle?: string | null): string | null {
+  const account = resolvePortfolioCredentialAccount(projectTitle);
+  if (!account) return null;
+  return `pmc_tl${account.index}`;
 }

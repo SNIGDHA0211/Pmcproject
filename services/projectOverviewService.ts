@@ -5,6 +5,7 @@ import type { HealthLabel, ProjectVital, ProjectVitalsCard, VitalStatus } from '
 import { extractCompletionFields, isProjectCompleted, normalizeBillingStatus } from '../utils/projectCompletion';
 import { areDuplicateProjectTitles, normalizeProjectTitleKey } from '../utils/hseSiteEngineerProjects';
 import {
+  isClientPortfolioProjectTitle,
   isExcludedPmcTlProjectTitle,
   isSyntheticExecutiveProjectId,
 } from '../utils/pmcHeadExecutiveProjects';
@@ -483,6 +484,15 @@ export function mergeOverviewCardsWithLiveProjects(
     if (hasRealId) {
       if (seenIds.has(rawId)) continue;
       seenIds.add(rawId);
+      merged.push(buildEmptyOverviewVitalsCard(project));
+      continue;
+    }
+
+    // Official allowlist stub (e.g. KOPRI) — still show on 360° until a real backend id resolves
+    if (isClientPortfolioProjectTitle(project.title)) {
+      const stubKey = `stub:${normalizeProjectTitleKey(project.title)}`;
+      if (seenIds.has(stubKey)) continue;
+      seenIds.add(stubKey);
       merged.push(buildEmptyOverviewVitalsCard(project));
     }
   }
