@@ -8,6 +8,7 @@ import {
 import { User } from '../types';
 import { useTheme, getThemeClasses } from '../utils/theme';
 import { sanitizeProjectDisplayName } from '../utils/hseSiteEngineerProjects';
+import { isExcludedPmcTlProjectTitle } from '../utils/pmcHeadExecutiveProjects';
 import { formatUserFacingError } from '../utils/formErrors';
 import TutorialVideosPanel from './tutorialVideos/TutorialVideosPanel';
 import TutorialWatchButton from './tutorialVideos/TutorialWatchButton';
@@ -56,14 +57,24 @@ function parseOptionalMoney(raw: string): number | undefined {
 
 /** The init list arrives as a bare array, a paginated page, or a wrapped envelope. */
 function unwrapInitProjects(data: unknown): any[] {
-    if (Array.isArray(data)) return data;
-    if (data && typeof data === 'object') {
+    let list: any[] = [];
+    if (Array.isArray(data)) list = data;
+    else if (data && typeof data === 'object') {
         const record = data as Record<string, unknown>;
         for (const key of ['results', 'data', 'projects']) {
-            if (Array.isArray(record[key])) return record[key] as any[];
+            if (Array.isArray(record[key])) {
+                list = record[key] as any[];
+                break;
+            }
         }
     }
-    return [];
+    // Hide local scratch projects after production deploy.
+    return list.filter((project) => {
+        const title = String(
+            project?.name ?? project?.title ?? project?.project_name ?? '',
+        ).trim();
+        return !isExcludedPmcTlProjectTitle(title);
+    });
 }
 
 /** The created row can arrive under `project`, under `data`, or as the body itself. */

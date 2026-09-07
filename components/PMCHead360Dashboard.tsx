@@ -45,6 +45,10 @@ import {
   pmcHead360CompareFilename,
 } from '../utils/pmcHead360CompareExport';
 import {
+  downloadPortfolioProjectListExcel,
+  portfolioProjectListFilename,
+} from '../utils/portfolioProjectListExport';
+import {
   getApiErrorMessage,
   mergeOverviewCardsWithLiveProjects,
 } from '../services/projectOverviewService';
@@ -741,6 +745,7 @@ const PMCHead360Dashboard: React.FC<PMCHead360DashboardProps> = ({
   const [ordering, setOrdering] = useState('name');
   const [compareIds, setCompareIds] = useState<string[]>([]);
   const [isExportingCompare, setIsExportingCompare] = useState(false);
+  const [isExportingList, setIsExportingList] = useState(false);
   const [showScoreFormulas, setShowScoreFormulas] = useState(false);
   const [showCardGuide, setShowCardGuide] = useState(false);
 
@@ -977,6 +982,23 @@ const PMCHead360Dashboard: React.FC<PMCHead360DashboardProps> = ({
       window.alert('Failed to export comparison. Please try again.');
     } finally {
       setIsExportingCompare(false);
+    }
+  };
+
+  const handleExportProjectList = async () => {
+    if (filteredCards.length === 0) return;
+    setIsExportingList(true);
+    try {
+      await downloadPortfolioProjectListExcel(
+        filteredCards,
+        projects,
+        portfolioProjectListFilename(),
+      );
+    } catch (error) {
+      console.error('Project list export failed:', error);
+      window.alert('Failed to download project list. Please try again.');
+    } finally {
+      setIsExportingList(false);
     }
   };
 
@@ -1361,10 +1383,24 @@ const PMCHead360Dashboard: React.FC<PMCHead360DashboardProps> = ({
               {filteredCards.length} project{filteredCards.length === 1 ? '' : 's'}
             </p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <p className={`hidden text-[10px] font-semibold sm:inline ${ex.muted}`}>
               Live portfolio · overview scores when available
             </p>
+            <button
+              type="button"
+              onClick={() => void handleExportProjectList()}
+              disabled={filteredCards.length === 0 || isExportingList}
+              className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-2 text-[10px] font-black uppercase tracking-wide transition-all disabled:cursor-not-allowed disabled:opacity-40 ${
+                isDarkTheme
+                  ? 'border border-emerald-400/35 bg-emerald-500/15 text-emerald-200 hover:bg-emerald-500/25'
+                  : 'border border-emerald-500/35 bg-emerald-50 text-emerald-800 hover:bg-emerald-100'
+              }`}
+              title="Download Excel list with project name, Team Leader, and username"
+            >
+              <Download size={14} strokeWidth={2.2} className={isExportingList ? 'animate-pulse' : ''} />
+              {isExportingList ? 'Preparing Excel…' : 'Download Excel'}
+            </button>
             <button
               type="button"
               onClick={() => setShowCardGuide((v) => !v)}

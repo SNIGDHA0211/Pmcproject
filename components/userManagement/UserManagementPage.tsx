@@ -29,6 +29,7 @@ import {
   buildAssignableProjectSelectOptions,
   buildLiveAssignableProjects,
   clearProjectRowCache,
+  isExcludedPmcTlProjectTitle,
   normalizeBackendProjectRow,
   seedProjectRowCache,
 } from '../../utils/pmcHeadExecutiveProjects';
@@ -79,7 +80,7 @@ async function fetchAllBackendProjects(): Promise<Project[]> {
   seedProjectRowCache(collected);
   return collected
     .map((row) => normalizeBackendProjectRow(row))
-    .filter((p) => Boolean(p?.id && p?.title?.trim()));
+    .filter((p) => Boolean(p?.id && p?.title?.trim()) && !isExcludedPmcTlProjectTitle(p.title));
 }
 
 export const MANAGEABLE_ROLES: ManageableUserRole[] = [

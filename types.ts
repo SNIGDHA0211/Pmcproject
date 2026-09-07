@@ -589,6 +589,8 @@ export interface Project {
   pmcHeadName?: string;
   teamLeadId?: string;
   teamLeadName?: string;
+  /** Login username for Team Leader when provided by API (e.g. pmc_tl29). */
+  teamLeadUsername?: string;
   siteEngineerIds: string[];
   siteEngineerNames?: string[];
   billingEngineerId?: string;

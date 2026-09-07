@@ -33,6 +33,23 @@ export const PMC_TL_DROPDOWN_EXCLUDE_TITLES = [
   'AVISSA',
 ] as const;
 
+/**
+ * Developer / QA scratch projects. Visible only during local Vite DEV (`npm run dev`).
+ * Hidden everywhere after production build / deploy (dropdowns, overview, assign lists, etc.).
+ */
+export const LOCAL_DEV_ONLY_PROJECT_TITLES = [
+  'demo testing Project',
+  'testing project1',
+  'testing1',
+  'testing8',
+] as const;
+
+function isViteDevMode(): boolean {
+  return Boolean(
+    (import.meta as ImportMeta & { env?: { DEV?: boolean } }).env?.DEV,
+  );
+}
+
 export function isExactPmcTlLogin(value?: string | null): boolean {
   return String(value ?? '').trim().toLowerCase() === PMC_TL_USERNAME;
 }
@@ -46,7 +63,27 @@ function normalizeTitleKey(title?: string | null): string {
   return String(title ?? '').trim().toLowerCase();
 }
 
+/** Exact match against LOCAL_DEV_ONLY_PROJECT_TITLES (case / spacing insensitive). */
+export function isLocalDevOnlyProjectTitle(title?: string | null): boolean {
+  const key = normalizeProjectTitleKey(title);
+  if (!key) return false;
+  return LOCAL_DEV_ONLY_PROJECT_TITLES.some(
+    (t) => normalizeProjectTitleKey(t) === key,
+  );
+}
+
+/**
+ * True when this title must be hidden in the current environment.
+ * Local DEV: keep LOCAL_DEV_ONLY titles. Production / preview builds: hide them.
+ */
+export function shouldHideLocalDevOnlyProject(title?: string | null): boolean {
+  if (isViteDevMode()) return false;
+  return isLocalDevOnlyProjectTitle(title);
+}
+
 export function isExcludedPmcTlProjectTitle(title?: string | null): boolean {
+  if (shouldHideLocalDevOnlyProject(title)) return true;
+
   const key = normalizeProjectTitleKey(title);
   if (!key) return false;
   return PMC_TL_DROPDOWN_EXCLUDE_TITLES.some((t) => {
@@ -272,10 +309,12 @@ export function buildExecutiveProjectSelectOptions(
 }
 
 /**
- * Non-allowlist projects created via Initiate Project (e.g. "testing1").
+ * Non-allowlist projects created via Initiate Project (e.g. local scratch titles).
  * Includes completed projects so they remain visible in Enterprise Portfolio /
  * 360 Overview after Mark as Complete. User Management assign lists still
  * exclude completed via `isAssignableUserManagementProject`.
+ * Note: LOCAL_DEV_ONLY_PROJECT_TITLES are already dropped by
+ * `isExcludedPmcTlProjectTitle` in production builds.
  */
 export function isAdditionalInitiatedPortfolioProject(project: Project): boolean {
   if (!project?.title?.trim()) return false;
@@ -736,6 +775,12 @@ export function normalizeBackendProjectRow(row: Record<string, unknown>): Projec
     pmcHeadName: String(row.pmc_head_name ?? '').trim() || undefined,
     teamLeadId: extractAssigneeId(row.team_lead) || '',
     teamLeadName: String(row.team_lead_name ?? '').trim() || undefined,
+    teamLeadUsername:
+      String(row.team_lead_username ?? '').trim() ||
+      (row.team_lead &&
+      typeof row.team_lead === 'object' &&
+      String((row.team_lead as Record<string, unknown>).username ?? '').trim()) ||
+      undefined,
     siteEngineerIds: (Array.isArray(row.site_engineers) ? row.site_engineers : [])
       .map((id: unknown) => extractAssigneeId(id))
       .filter(Boolean),

@@ -35,6 +35,8 @@ export interface ProjectVitalsCard {
   title: string;
   location: string;
   pmName: string;
+  /** Login username for the assigned Team Leader (e.g. pmc_tl29). */
+  teamLeadUsername?: string;
   client: string;
   overallScore: number | null;
   healthLabel: HealthLabel;

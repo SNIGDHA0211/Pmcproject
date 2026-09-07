@@ -165,6 +165,10 @@ function teamLeaderDisplayName(tl: ProjectOverviewTeamLeader | null | undefined)
   return 'Not Assigned';
 }
 
+function teamLeaderUsername(tl: ProjectOverviewTeamLeader | null | undefined): string {
+  return String(tl?.username ?? '').trim();
+}
+
 /**
  * Map KPI { percentage, status }.
  * Missing module data: percentage 0 + status "No Data" → treat percent as null
@@ -243,6 +247,7 @@ export function mapOverviewItemToVitalsCard(item: ProjectOverviewItem): ProjectV
     title: String(item.project_name ?? '').trim() || `Project ${item.project_id}`,
     location: String(item.location ?? '').trim() || '—',
     pmName: teamLeaderDisplayName(item.team_leader),
+    teamLeadUsername: teamLeaderUsername(item.team_leader) || undefined,
     client: String(item.client ?? '').trim() || '—',
     // Do not let stub low scores on empty/new projects drag the portfolio average.
     overallScore: isNoDataProject ? null : overallScore,
@@ -375,6 +380,7 @@ export function buildEmptyOverviewVitalsCard(project: Project): ProjectVitalsCar
     title: String(project.title ?? '').trim() || `Project ${project.id}`,
     location: String(project.location ?? '').trim() || '—',
     pmName: String(project.teamLeadName ?? '').trim() || 'Not Assigned',
+    teamLeadUsername: String(project.teamLeadUsername ?? '').trim() || undefined,
     client: String(project.client ?? '').trim() || '—',
     overallScore: null,
     healthLabel: 'NO DATA',
@@ -455,6 +461,10 @@ export function mergeOverviewCardsWithLiveProjects(
         location: String(project.location ?? '').trim() || overviewCard.location,
         pmName:
           String(project.teamLeadName ?? '').trim() || overviewCard.pmName,
+        teamLeadUsername:
+          String(project.teamLeadUsername ?? '').trim() ||
+          overviewCard.teamLeadUsername ||
+          undefined,
         isCompleted: isProjectCompleted(project) || Boolean(overviewCard.isCompleted),
         completedAt: project.completedAt ?? overviewCard.completedAt ?? null,
         completedBy: project.completedBy ?? overviewCard.completedBy ?? null,

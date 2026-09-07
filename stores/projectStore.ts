@@ -109,7 +109,7 @@ function isFresh(last: number | null, ttl: number, stale: boolean): boolean {
 function mapProjectRows(rows: unknown[]): Project[] {
   return rows
     .map((p) => normalizeBackendProjectRow(p as Record<string, unknown>))
-    .filter((project) => project.id);
+    .filter((project) => project.id && !isExcludedPmcTlProjectTitle(project.title));
 }
 
 function buildDropdownFromProjects(backendProjects: Project[], isPmcHead: boolean): Project[] {
@@ -180,6 +180,7 @@ export const projectStore = {
   },
 
   addProject(project: Project): void {
+    if (isExcludedPmcTlProjectTitle(project.title)) return;
     const id = String(project.id);
     const exists = state.projects.some((p) => String(p.id) === id);
     const projects = exists
@@ -194,9 +195,10 @@ export const projectStore = {
 
   /** Replace portfolio lists (optimistic App updates). */
   replaceProjects(projects: Project[]): void {
+    const visible = projects.filter((p) => !isExcludedPmcTlProjectTitle(p.title));
     setState({
-      projects,
-      dropdownProjects: projects,
+      projects: visible,
+      dropdownProjects: visible,
       lastFetched: Date.now(),
       lastDropdownFetched: Date.now(),
       projectsStale: false,
@@ -206,7 +208,13 @@ export const projectStore = {
 
   /** Replace overview cards locally (e.g. after delete) without refetch. */
   replaceOverview(cards: ProjectVitalsCard[]): void {
-    setState({ overview: cards });
+    setState({
+      overview: cards.filter(
+        (card) =>
+          !isExcludedPmcTlProjectTitle(card.title) &&
+          !isExcludedPmcTlProjectTitle(card.client),
+      ),
+    });
   },
 
   invalidateProjects(): void {
