@@ -132,7 +132,7 @@ export function isClientPortfolioProjectTitle(title?: string | null): boolean {
   return HSE_SITE_ENGINEER_ACCOUNTS.some(
     (row) =>
       areDuplicateProjectTitles(row.projectTitle, title) ||
-      projectTitleMatchesHseAssignment(title, row.projectTitle),
+      projectTitleMatchesHseAssignment(title ?? undefined, row.projectTitle),
   );
 }
 
