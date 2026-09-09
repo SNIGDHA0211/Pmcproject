@@ -46,6 +46,10 @@ import {
   mergeAssignedProjectOptions,
   type AssignedProjectOption,
 } from '../utils/roleProjectAssignments';
+import {
+  resolveHseSiteEngineerProjectTitle,
+  projectTitleMatchesHseAssignment,
+} from '../utils/hseSiteEngineerProjects';
 
 interface MyScopesPageProps {
   user: User;
@@ -65,8 +69,14 @@ const MyScopesPage: React.FC<MyScopesPageProps> = ({
   const { isDarkTheme } = useTheme();
   const themeClasses = getThemeClasses(isDarkTheme);
 
+  const isQaqcEngineer = user.role === UserRole.QAQC_SITE_ENGINEER;
+  const isHseEngineer = user.role === UserRole.HSE_SITE_ENGINEER;
+  const isBillingEngineer = user.role === UserRole.BILLING_SITE_ENGINEER;
+  const isSiteEngineer = user.role === UserRole.SITE_ENGINEER;
+  const showsHseDashboard = isHseEngineer;
+
   const [scopes, setScopes] = useState<MonthlyScope[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!isBillingEngineer);
   const [filters, setFilters] = useState<MonthlyScopeFilters>({});
   const [sortField, setSortField] = useState<string>('created_at');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
@@ -91,12 +101,6 @@ const MyScopesPage: React.FC<MyScopesPageProps> = ({
   const [billingAssignments, setBillingAssignments] = useState<AssignedProjectOption[]>([]);
   const [qaqcProjectSelection, setQaqcProjectSelection] = useState<string | null>(null);
   const [qaqcAssignments, setQaqcAssignments] = useState<AssignedProjectOption[]>([]);
-
-  const isQaqcEngineer = user.role === UserRole.QAQC_SITE_ENGINEER;
-  const isHseEngineer = user.role === UserRole.HSE_SITE_ENGINEER;
-  const isBillingEngineer = user.role === UserRole.BILLING_SITE_ENGINEER;
-  const isSiteEngineer = user.role === UserRole.SITE_ENGINEER;
-  const showsHseDashboard = isHseEngineer;
 
   const assignedQaqcProjects = useMemo(
     () =>
@@ -134,14 +138,20 @@ const MyScopesPage: React.FC<MyScopesPageProps> = ({
     assignedHseProjects,
   ]);
 
-  const assignedBillingProjects = useMemo(
-    () =>
-      mergeAssignedProjectOptions(
-        billingAssignments,
-        assignedProjectsFromList(projects, user, 'billing'),
-      ),
-    [billingAssignments, projects, user],
-  );
+  const assignedBillingProjects = useMemo(() => {
+    const list = mergeAssignedProjectOptions(
+      billingAssignments,
+      assignedProjectsFromList(projects, user, 'billing'),
+    );
+    if (list.length > 0) return list;
+    const canonicalTitle = resolveHseSiteEngineerProjectTitle(user.username);
+    if (canonicalTitle) {
+      const match = projects.find((p) => projectTitleMatchesHseAssignment(p.title, canonicalTitle));
+      if (match) return [{ id: match.id, title: match.title }];
+      return [{ id: `bse-${user.username ?? '10'}`, title: canonicalTitle }];
+    }
+    return projects.map((p) => ({ id: p.id, title: p.title }));
+  }, [billingAssignments, projects, user]);
 
   const activeBillingProject = useMemo(() => {
     if (!isBillingEngineer) return null;
@@ -445,6 +455,12 @@ const MyScopesPage: React.FC<MyScopesPageProps> = ({
   );
 
   const fetchMyScopes = useCallback(async (isBackgroundRefresh = false) => {
+    if (isBillingEngineer) {
+      setLoading(false);
+      setIsRefreshing(false);
+      return;
+    }
+
     if (isBackgroundRefresh) {
       setIsRefreshing(true);
     } else {
@@ -553,6 +569,7 @@ const MyScopesPage: React.FC<MyScopesPageProps> = ({
 
   // WebSocket message handler for real-time scope updates
   const handleWebSocketMessage = useCallback((data: NotificationData) => {
+    if (isBillingEngineer) return;
     console.log('MyScopesPage received WebSocket message:', data);
 
     // Check if this is a scope-related notification
@@ -564,12 +581,14 @@ const MyScopesPage: React.FC<MyScopesPageProps> = ({
       console.log('Scope-related notification detected, refreshing data...');
       fetchMyScopes(true); // Background refresh
     }
-  }, [fetchMyScopes]);
+  }, [fetchMyScopes, isBillingEngineer]);
 
   useEffect(() => {
-    if (!isBillingEngineer) {
-      fetchMyScopes();
+    if (isBillingEngineer) {
+      setLoading(false);
+      return;
     }
+    fetchMyScopes();
   }, [fetchMyScopes, isBillingEngineer]);
 
   useEffect(() => {
@@ -578,6 +597,7 @@ const MyScopesPage: React.FC<MyScopesPageProps> = ({
 
   // WebSocket setup for real-time updates
   useEffect(() => {
+    if (isBillingEngineer) return;
     console.log('Setting up WebSocket listener for My Scopes page');
 
     // Add WebSocket message listener
@@ -585,7 +605,7 @@ const MyScopesPage: React.FC<MyScopesPageProps> = ({
 
     // Handle visibility change (when user switches tabs)
     const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible') {
+      if (document.visibilityState === 'visible' && !isBillingEngineer) {
         // Refresh immediately when tab becomes visible
         console.log('Tab became visible, refreshing My Scopes data');
         fetchMyScopes(true);
@@ -595,7 +615,9 @@ const MyScopesPage: React.FC<MyScopesPageProps> = ({
     document.addEventListener('visibilitychange', handleVisibilityChange);
 
     const handleDprSaved = () => {
-      fetchMyScopes(true);
+      if (!isBillingEngineer) {
+        fetchMyScopes(true);
+      }
     };
     window.addEventListener('pmc:dpr-saved', handleDprSaved);
 
@@ -606,7 +628,7 @@ const MyScopesPage: React.FC<MyScopesPageProps> = ({
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       window.removeEventListener('pmc:dpr-saved', handleDprSaved);
     };
-  }, [handleWebSocketMessage, fetchMyScopes]);
+  }, [handleWebSocketMessage, fetchMyScopes, isBillingEngineer]);
 
   const handleSort = (field: string) => {
     if (sortField === field) {
@@ -654,7 +676,7 @@ const MyScopesPage: React.FC<MyScopesPageProps> = ({
 
   const showAssignedScopesSection = !isBillingEngineer && !isHseEngineer && !isQaqcEngineer;
 
-  if (loading) {
+  if (loading && !isBillingEngineer) {
     return (
       <div className="space-y-8 animate-in fade-in duration-500">
         <div className="flex items-center justify-between">

@@ -15,7 +15,7 @@ import {
   buildMonthlyScopeQueryParams,
   normalizeScopeStatus,
 } from '../utils/monthlyScopeFilters';
-import { userMatchesAssignee } from '../utils/roleProjectAssignments';
+import { isTeamLeadAssignedToProject } from '../utils/roleProjectAssignments';
 import { useDebouncedValue } from '../hooks/useDebouncedValue';
 import { isAbortError } from '../utils/isAbortError';
 
@@ -27,10 +27,7 @@ interface MonthlyScopePageProps {
 /** Projects this user may manage on Monthly Scope (assigned only). */
 function projectsAssignedToMonthlyScopeUser(projects: Project[], user: User): Project[] {
   if (user.role === UserRole.TEAM_LEAD) {
-    return projects.filter(
-      (project) =>
-        Boolean(project.teamLeadId) && userMatchesAssignee(user, project.teamLeadId),
-    );
+    return projects.filter((project) => isTeamLeadAssignedToProject(project, user));
   }
   return projects;
 }

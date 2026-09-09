@@ -2,10 +2,12 @@ import type { Project, User } from '../types';
 import { UserRole } from '../types';
 import {
   isHseSiteEngineerUsername,
+  parseTeamLeaderIndex,
   pickProjectByHseTitle,
   projectTitleMatchesHseAssignment,
   resolveHseSiteEngineerAccount,
   resolveHseSiteEngineerProjectTitle,
+  resolveTeamLeaderProjectTitle,
 } from './hseSiteEngineerProjects';
 
 export interface AssignedProjectOption {
@@ -39,7 +41,20 @@ export function userMatchesAssignee(user: User, assignee: unknown): boolean {
     .map(normalizeToken)
     .filter(Boolean);
 
-  return targets.some((target) => candidates.some((c) => c === target));
+  const userTlMatch = String(user.username ?? '').match(/^(?:pmc_)?tl(\d+)$/i);
+  if (userTlMatch) {
+    candidates.push(`tl${userTlMatch[1]}`, `pmc_tl${userTlMatch[1]}`);
+  }
+
+  return targets.some((target) => {
+    const targetTlMatch = target.match(/^(?:pmc_)?tl(\d+)$/i);
+    if (targetTlMatch) {
+      if (candidates.some((c) => c === `tl${targetTlMatch[1]}` || c === `pmc_tl${targetTlMatch[1]}`)) {
+        return true;
+      }
+    }
+    return candidates.some((c) => c === target);
+  });
 }
 
 export function userMatchesAnyAssignee(user: User, assignees: unknown[]): boolean {
@@ -63,7 +78,13 @@ export function rawProjectAssignedToUser(
     return userMatchesAssignee(user, row.qaqc_site_engineer ?? row.qaqcSiteEngineer);
   }
   if (role === 'billing') {
-    return userMatchesAssignee(user, row.billing_site_engineer ?? row.billingSiteEngineer);
+    if (userMatchesAssignee(user, row.billing_site_engineer ?? row.billingSiteEngineer)) {
+      return true;
+    }
+    const canonicalTitle = resolveHseSiteEngineerProjectTitle(user.username);
+    if (!canonicalTitle) return false;
+    const rowTitle = String(row.name ?? row.title ?? row.project_name ?? '').trim();
+    return projectTitleMatchesHseAssignment(rowTitle, canonicalTitle);
   }
   if (role === 'hse') {
     return rawProjectAssignedToHseUser(row, user);
@@ -84,7 +105,10 @@ export function projectAssignedToUser(
     return userMatchesAssignee(user, project.qaqcEngineerId);
   }
   if (role === 'billing') {
-    return userMatchesAssignee(user, project.billingEngineerId);
+    if (userMatchesAssignee(user, project.billingEngineerId)) return true;
+    const canonicalTitle = resolveHseSiteEngineerProjectTitle(user.username);
+    if (!canonicalTitle) return false;
+    return projectTitleMatchesHseAssignment(project.title, canonicalTitle);
   }
   if (role === 'hse') {
     if (userMatchesAssignee(user, project.hseEngineerId)) return true;
@@ -196,4 +220,41 @@ export function rawProjectAssignedToHseUser(
 
   const rowTitle = String(row.name ?? row.title ?? row.project_name ?? '').trim();
   return projectTitleMatchesHseAssignment(rowTitle, canonicalTitle);
+}
+
+export function assignedTeamLeaderProjectsFromUsername(
+  username: string | undefined,
+  projects: Project[],
+): AssignedProjectOption[] {
+  const canonicalTitle = resolveTeamLeaderProjectTitle(username);
+  if (!canonicalTitle) return [];
+
+  const matched = pickProjectByHseTitle(projects, canonicalTitle);
+  if (matched?.title) {
+    return [{ id: matched.id, title: matched.title }];
+  }
+
+  const tlIndex = parseTeamLeaderIndex(username) ?? 10;
+  return [{ id: `tl-${tlIndex}`, title: canonicalTitle }];
+}
+
+export function isTeamLeadAssignedToProject(project: Project, user: User): boolean {
+  if (project.teamLeadId && userMatchesAssignee(user, project.teamLeadId)) return true;
+  if (project.teamLeadUsername && userMatchesAssignee(user, project.teamLeadUsername)) return true;
+  const canonicalTitle = resolveTeamLeaderProjectTitle(user.username);
+  if (canonicalTitle && projectTitleMatchesHseAssignment(project.title, canonicalTitle)) {
+    return true;
+  }
+  return false;
+}
+
+export function assignedTeamLeaderProjectsForUser(
+  projects: Project[],
+  user: User,
+): AssignedProjectOption[] {
+  const matched = projects.filter((p) => isTeamLeadAssignedToProject(p, user));
+  if (matched.length > 0) {
+    return matched.map((p) => ({ id: p.id, title: p.title }));
+  }
+  return assignedTeamLeaderProjectsFromUsername(user.username, projects);
 }

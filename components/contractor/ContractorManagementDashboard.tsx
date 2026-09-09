@@ -148,7 +148,7 @@ const ContractorManagementDashboard: React.FC<ContractorManagementDashboardProps
               }
             : undefined
         }
-        onAddContractor={datesAccess.canAddContractor ? onAddContractorSchedule : undefined}
+        onAddContractor={onAddContractorSchedule ?? (datesAccess.canAddContractor ? onAddContractorSchedule : undefined)}
         onDeleteContractor={
           datesAccess.canDeleteContractor ? onDeleteContractorSchedule : undefined
         }

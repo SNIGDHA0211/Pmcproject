@@ -10,7 +10,8 @@ import { contractValuesApi, contractPerformanceApi, projectProgressApi, manpower
 import { fetchCostPerformanceChart } from '../utils/costPerformance';
 import { isPmcHeadEquivalent } from '../utils/pmcRoleAccess';
 import { getSiteEngineerProjects } from '../utils/siteEngineerProjects';
-import { projectAssignedToUser } from '../utils/roleProjectAssignments';
+import { isTeamLeadAssignedToProject, projectAssignedToUser } from '../utils/roleProjectAssignments';
+import { projectTitleMatchesHseAssignment, resolveTeamLeaderProjectTitle } from '../utils/hseSiteEngineerProjects';
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, BarChart, Bar, Cell, PieChart, Pie,
@@ -128,10 +129,21 @@ const Dashboard: React.FC<DashboardProps> = ({ user, projects, dprs, projectDocu
   const projectsLoadError = useProjectStoreError();
   const { loadProjects } = useProjectStoreActions();
 
-  // For PMC Head / Manager, use selected project; for Team Lead, use first project
+  // For PMC Head / Manager, use selected project; for Team Lead, resolve their assigned project (e.g. Miyapur Flyover for tl10)
   const leadProject = isPmcHeadEquivalent(user)
     ? projects.find(p => p.id === selectedProjectId) || projects[0]
-    : projects[0];
+    : (() => {
+        if (user.role === UserRole.TEAM_LEAD) {
+          const canonical = resolveTeamLeaderProjectTitle(user.username);
+          if (canonical) {
+            const matched = projects.find(p => projectTitleMatchesHseAssignment(p.title, canonical));
+            if (matched) return matched;
+          }
+          const assigned = projects.find(p => isTeamLeadAssignedToProject(p, user));
+          if (assigned) return assigned;
+        }
+        return projects[0];
+      })();
 
   if (isProjectsBootstrapping) {
     return <WorkspaceLoadingPanel />;

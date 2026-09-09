@@ -1,7 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import { HardHat, X } from 'lucide-react';
 import { ModalPortal } from '../ModalPortal';
-import { contractorMasterApi, getApiErrorMessage } from '../../services/contractorManagementApi';
+import {
+  contractorMasterApi,
+  getApiErrorMessage,
+  resolveContractorProjectName,
+} from '../../services/contractorManagementApi';
 import type { ContractorMasterRecord } from '../../types/contractorManagement';
 import { useCmTheme } from './enterpriseTheme';
 import CmButton from './ui/CmButton';
@@ -85,8 +89,10 @@ const AddContractorModal: React.FC<AddContractorModalProps> = ({
     setIsSaving(true);
     setError(null);
     setFieldErrors({});
+    const resolvedProject = resolveContractorProjectName(projectName);
     try {
-      const created = await contractorMasterApi.create(projectName, {
+      const created = await contractorMasterApi.create(resolvedProject, {
+        project_name: resolvedProject,
         contractor_name: name,
         ...(form.contractor_code.trim() ? { contractor_code: form.contractor_code.trim() } : {}),
         ...(form.contact_person.trim() ? { contact_person: form.contact_person.trim() } : {}),

@@ -280,10 +280,18 @@ export const API_ENDPOINTS = {
 
   // Contractor Master
   CONTRACTOR_MASTER: {
-    LIST: (projectName: string) =>
-      `/projects/${encodeURIComponent(projectName)}/contractors/`,
-    CREATE: (projectName: string) =>
-      `/projects/${encodeURIComponent(projectName)}/contractors/`,
+    LIST: (projectName: string) => {
+      const normalized = /^m[ai]yapur(\s+flyover)?$/i.test(projectName.trim())
+        ? 'Miyapur Flyover'
+        : projectName;
+      return `/projects/${encodeURIComponent(normalized)}/contractors/`;
+    },
+    CREATE: (projectName: string) => {
+      const normalized = /^m[ai]yapur(\s+flyover)?$/i.test(projectName.trim())
+        ? 'Miyapur Flyover'
+        : projectName;
+      return `/projects/${encodeURIComponent(normalized)}/contractors/`;
+    },
     DETAIL: (id: string | number) => `/projects/contractors/${id}/`,
   },
 

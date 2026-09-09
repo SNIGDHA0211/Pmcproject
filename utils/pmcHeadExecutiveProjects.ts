@@ -167,7 +167,7 @@ function preferProjectForDropdown(a: Project, b: Project): Project {
 
 /**
  * Remove duplicate PMC Head dropdown entries caused by spelling variants
- * (Mayapur/Miyapur) or backend titles with extra location suffixes.
+ * (Miyapur/Mayapur) or backend titles with extra location suffixes.
  * Display titles prefer the client PDF wording when known.
  */
 export function dedupePmcHeadDropdownProjects(projects: Project[]): Project[] {

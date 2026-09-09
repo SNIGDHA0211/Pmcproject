@@ -33,6 +33,22 @@ function isMissingEndpointError(error: unknown): boolean {
   return status === 404 || status === 405;
 }
 
+/**
+ * Resolves project name for contractor management APIs and request bodies.
+ * Maps 'Mayapur Flyover' (and variants) to canonical backend project 'Miyapur Flyover'.
+ */
+export function resolveContractorProjectName(name?: string | null): string {
+  const trimmed = String(name ?? '').trim();
+  if (!trimmed) return '';
+  if (/^m[ai]yapur(\s+flyover)?$/i.test(trimmed)) {
+    return 'Miyapur Flyover';
+  }
+  if (/\bm[ai]yapur\b/i.test(trimmed) && /\bflyover\b/i.test(trimmed)) {
+    return trimmed.replace(/\bmayapur\b/gi, 'Miyapur');
+  }
+  return trimmed;
+}
+
 function sumContractValuesSummary(
   rows: ContractValueApiRecord[],
 ): ContractValuesContractorSummary {
@@ -191,6 +207,7 @@ function deriveContractorMastersFromDashboards(
   projectDates: ProjectDatesDashboard | null,
 ): ContractorMasterRecord[] {
   const byId = new Map<number, ContractorMasterRecord>();
+  const resolvedProject = resolveContractorProjectName(projectName);
 
   const add = (id: number, name: string, contractor?: ApiContractorRef | null) => {
     const contractorName = name.trim();
@@ -200,7 +217,7 @@ function deriveContractorMastersFromDashboards(
     if (!byId.has(masterId)) {
       byId.set(masterId, {
         id: masterId,
-        project_name: projectName,
+        project_name: resolvedProject,
         contractor_name: contractorName,
         status: 'ACTIVE',
         contractor: contractor ?? { id: masterId, contractor_name: contractorName },
@@ -265,9 +282,10 @@ export function normalizeContractorMaster(raw: unknown): ContractorMasterRecord 
   const id = toNum(r.id);
   const name = String(r.contractor_name ?? r.contractorName ?? '').trim();
   if (!id || !name) return null;
+  const rawProject = String(r.project_name ?? r.projectName ?? '');
   return {
     id,
-    project_name: String(r.project_name ?? r.projectName ?? ''),
+    project_name: resolveContractorProjectName(rawProject) || rawProject,
     contractor_name: name,
     contractor_code: (r.contractor_code ?? r.contractorCode ?? null) as string | null,
     contact_person: (r.contact_person ?? r.contactPerson ?? null) as string | null,
@@ -529,8 +547,9 @@ export function normalizeProjectDatesDashboard(raw: unknown): ProjectDatesDashbo
 
 export const contractorMasterApi = {
   list: async (projectName: string, params?: { include_inactive?: boolean; status?: string }) => {
+    const resolvedProjectName = resolveContractorProjectName(projectName);
     try {
-      const res = await api.get(API_ENDPOINTS.CONTRACTOR_MASTER.LIST(projectName), {
+      const res = await api.get(API_ENDPOINTS.CONTRACTOR_MASTER.LIST(resolvedProjectName), {
         params: {
           ...(params?.include_inactive ? { include_inactive: 'true' } : {}),
           ...(params?.status ? { status: params.status } : {}),
@@ -555,10 +574,27 @@ export const contractorMasterApi = {
       phone?: string;
       email?: string;
       address?: string;
+      project_name?: string;
+      project?: string;
     },
   ) => {
+    const rawProject = body.project_name || projectName || body.project || '';
+    const resolvedProjectName = resolveContractorProjectName(rawProject);
+    const payload = {
+      project_name: resolvedProjectName,
+      ...body,
+      ...(body.project_name ? { project_name: resolveContractorProjectName(body.project_name) } : {}),
+      ...(body.project ? { project: resolveContractorProjectName(body.project) } : {}),
+    };
+    if (!payload.project_name && resolvedProjectName) {
+      payload.project_name = resolvedProjectName;
+    }
+
     try {
-      const res = await api.post(API_ENDPOINTS.CONTRACTOR_MASTER.CREATE(projectName), body);
+      const res = await api.post(
+        API_ENDPOINTS.CONTRACTOR_MASTER.CREATE(resolvedProjectName),
+        payload,
+      );
       return normalizeContractorMaster(unwrapData(res.data));
     } catch (error) {
       if (isMissingEndpointError(error)) {
@@ -570,8 +606,18 @@ export const contractorMasterApi = {
     }
   },
 
-  patch: async (id: number, body: Partial<ContractorMasterRecord>) => {
-    const res = await api.patch(API_ENDPOINTS.CONTRACTOR_MASTER.DETAIL(id), body);
+  patch: async (
+    id: number,
+    body: Partial<ContractorMasterRecord> & { project_name?: string; project?: string },
+  ) => {
+    const payload = { ...body };
+    if (payload.project_name) {
+      payload.project_name = resolveContractorProjectName(payload.project_name);
+    }
+    if (payload.project) {
+      payload.project = resolveContractorProjectName(payload.project);
+    }
+    const res = await api.patch(API_ENDPOINTS.CONTRACTOR_MASTER.DETAIL(id), payload);
     return normalizeContractorMaster(unwrapData(res.data));
   },
 
@@ -584,12 +630,14 @@ export const contractorMasterApi = {
 
 export const contractValuesDashboardApi = {
   getDashboard: async (projectName: string) => {
-    const res = await api.get(API_ENDPOINTS.CONTRACT_VALUES.PROJECT_DASHBOARD(projectName));
+    const resolvedProject = resolveContractorProjectName(projectName);
+    const res = await api.get(API_ENDPOINTS.CONTRACT_VALUES.PROJECT_DASHBOARD(resolvedProject));
     return normalizeContractValuesDashboard(res.data);
   },
 
   getByContractor: async (projectName: string, contractorId: number) => {
-    const res = await api.get(API_ENDPOINTS.CONTRACT_VALUES.BY_TYPE(projectName, 'CONTRACTOR'), {
+    const resolvedProject = resolveContractorProjectName(projectName);
+    const res = await api.get(API_ENDPOINTS.CONTRACT_VALUES.BY_TYPE(resolvedProject, 'CONTRACTOR'), {
       params: { contractor_id: contractorId },
     });
     const data = unwrapData<unknown>(res.data);
@@ -606,9 +654,11 @@ export const contractValuesDashboardApi = {
     saving?: string | number;
     cos?: string | number;
   }) => {
+    const resolvedProject = resolveContractorProjectName(body.project_name);
     const cos = body.cos ?? 0;
     const res = await api.post(API_ENDPOINTS.CONTRACT_VALUES.LIST, {
       ...body,
+      project_name: resolvedProject,
       cos,
       Cos: cos,
     });
@@ -631,12 +681,14 @@ export const contractValuesDashboardApi = {
 
 export const invoicingDashboardApi = {
   getDashboard: async (projectName: string) => {
-    const res = await api.get(API_ENDPOINTS.INVOICING.PROJECT_DASHBOARD(projectName));
+    const resolvedProject = resolveContractorProjectName(projectName);
+    const res = await api.get(API_ENDPOINTS.INVOICING.PROJECT_DASHBOARD(resolvedProject));
     return normalizeInvoicingDashboard(res.data);
   },
 
   getByContractor: async (projectName: string, contractorId: number) => {
-    const res = await api.get(API_ENDPOINTS.INVOICING.BY_TYPE(projectName, 'CONTRACTOR'), {
+    const resolvedProject = resolveContractorProjectName(projectName);
+    const res = await api.get(API_ENDPOINTS.INVOICING.BY_TYPE(resolvedProject, 'CONTRACTOR'), {
       params: { contractor_id: contractorId },
     });
     const data = unwrapData<unknown>(res.data);
@@ -651,7 +703,11 @@ export const invoicingDashboardApi = {
     gross_billed?: string | number;
     gross_certified_billed?: string | number;
   }) => {
-    const res = await api.post(API_ENDPOINTS.INVOICING.LIST, body);
+    const resolvedProject = resolveContractorProjectName(body.project_name);
+    const res = await api.post(API_ENDPOINTS.INVOICING.LIST, {
+      ...body,
+      project_name: resolvedProject,
+    });
     return normalizeInvoicingRecord(unwrapData(res.data));
   },
 
@@ -663,7 +719,8 @@ export const invoicingDashboardApi = {
 
 export const projectDatesDashboardApi = {
   getDashboard: async (projectName: string) => {
-    const res = await api.get(API_ENDPOINTS.PROJECT_DATES.PROJECT(projectName));
+    const resolvedProject = resolveContractorProjectName(projectName);
+    const res = await api.get(API_ENDPOINTS.PROJECT_DATES.PROJECT(resolvedProject));
     return normalizeProjectDatesDashboard(res.data);
   },
 
@@ -676,7 +733,11 @@ export const projectDatesDashboardApi = {
     forecast_finish: string;
     eot_date: string;
   }) => {
-    const res = await api.post(API_ENDPOINTS.PROJECT_DATES.LIST, body);
+    const resolvedProject = resolveContractorProjectName(body.project_name);
+    const res = await api.post(API_ENDPOINTS.PROJECT_DATES.LIST, {
+      ...body,
+      project_name: resolvedProject,
+    });
     return normalizeProjectDatesRecord(unwrapData(res.data));
   },
 
@@ -692,7 +753,8 @@ export const projectDatesDashboardApi = {
 
 export const bgStatusDashboardApi = {
   get: async (projectName: string, contractorId?: number) => {
-    const res = await api.get(API_ENDPOINTS.PROJECT_DATES.BG_STATUS(projectName), {
+    const resolvedProject = resolveContractorProjectName(projectName);
+    const res = await api.get(API_ENDPOINTS.PROJECT_DATES.BG_STATUS(resolvedProject), {
       params: contractorId ? { contractor_id: contractorId } : undefined,
     });
     return normalizeBgStatusBundle(res.data);
@@ -707,9 +769,14 @@ export const bgStatusDashboardApi = {
       contractor_id?: number;
       updated_date?: string;
       remarks?: string;
+      project_name?: string;
     },
   ) => {
-    const res = await api.post(API_ENDPOINTS.PROJECT_DATES.BG_STATUS(projectName), body);
+    const resolvedProject = resolveContractorProjectName(projectName || body.project_name);
+    const res = await api.post(API_ENDPOINTS.PROJECT_DATES.BG_STATUS(resolvedProject), {
+      ...body,
+      project_name: resolvedProject,
+    });
     return normalizeBgEntry(unwrapData(res.data));
   },
 
@@ -735,12 +802,13 @@ function emptyProjectDatesDashboard(projectName: string): ProjectDatesDashboard 
 }
 
 export async function fetchContractorManagementBundle(projectName: string) {
+  const resolvedProject = resolveContractorProjectName(projectName);
   const [mastersResult, contractValuesResult, invoicingResult, projectDatesResult] =
     await Promise.allSettled([
-      contractorMasterApi.list(projectName),
-      fetchContractValuesDashboardWithFallback(projectName),
-      fetchInvoicingDashboardWithFallback(projectName),
-      fetchProjectDatesDashboardWithFallback(projectName),
+      contractorMasterApi.list(resolvedProject),
+      fetchContractValuesDashboardWithFallback(resolvedProject),
+      fetchInvoicingDashboardWithFallback(resolvedProject),
+      fetchProjectDatesDashboardWithFallback(resolvedProject),
     ]);
 
   let masters = mastersResult.status === 'fulfilled' ? mastersResult.value : [];

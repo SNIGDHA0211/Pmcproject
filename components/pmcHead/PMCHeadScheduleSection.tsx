@@ -104,7 +104,7 @@ const PMCHeadScheduleSection: React.FC<PMCHeadScheduleSectionProps> = ({
         contractorError={error}
         onEditScl={access.canEditDates ? onEditScl : undefined}
         onEditContractor={access.canEditDates ? onEditContractor : undefined}
-        onAddContractor={access.canAddContractor ? onAddContractor : undefined}
+        onAddContractor={onAddContractor ?? (access.canAddContractor ? onAddContractor : undefined)}
         onDeleteContractor={access.canDeleteContractor ? onDeleteContractor : undefined}
         onManageBg={access.canManageBg ? onManageBg : undefined}
       />

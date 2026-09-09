@@ -6,8 +6,8 @@ import { User, UserRole, Project } from "../types";
 import DPRSubmissionForm from "./DPRSubmissionForm";
 import { useTheme, getThemeClasses } from "../utils/theme";
 import { monthlyScopeApi } from "../services/api";
+import { userMatchesAssignee, isTeamLeadAssignedToProject } from "../utils/roleProjectAssignments";
 import { invalidateApiGetCache } from "../utils/apiGetCache";
-import { userMatchesAssignee } from "../utils/roleProjectAssignments";
 import DprReviewKpiCards from "./dprReview/DprReviewKpiCards";
 import {
     canUserApproveDprStep,
@@ -108,10 +108,6 @@ function unwrapCreatedDpr(payload: unknown): Record<string, unknown> | null {
     return null;
 }
 
-function isTeamLeadAssignedToProject(project: Project, user: User): boolean {
-    if (!project.teamLeadId) return false;
-    return userMatchesAssignee(user, project.teamLeadId);
-}
 
 const DPRReviewDashboard: React.FC<DPRReviewDashboardProps> = ({
     api,

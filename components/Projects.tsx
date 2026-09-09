@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import { ContractPerformanceRecord, ContractValueRecord, ContractValueType, InvoicingRecord, InvoiceType, Project, ProjectEquipmentRecord, ProjectQualityStatusRecord, UserRole, ProjectStatus } from '../types';
+import { Plus } from 'lucide-react';
+import { ContractPerformanceRecord, ContractValueRecord, ContractValueType, InvoicingRecord, InvoiceType, Project, ProjectEquipmentRecord, ProjectQualityStatusRecord, UserRole, ProjectStatus, User } from '../types';
 import type {
   CorrespondenceDocument,
   CorrespondenceMonthlyPeriod,
@@ -62,8 +63,10 @@ import {
   preserveContractorNames,
 } from '../utils/projectDatesMulti';
 import ContractorManagementDashboard from './contractor/ContractorManagementDashboard';
-import { contractorMasterApi } from '../services/contractorManagementApi';
+import { contractorMasterApi, resolveContractorProjectName } from '../services/contractorManagementApi';
 import type { ContractorMasterRecord, ProjectDatesApiRecord } from '../types/contractorManagement';
+import { isTeamLeadAssignedToProject } from '../utils/roleProjectAssignments';
+import { projectTitleMatchesHseAssignment, resolveTeamLeaderProjectTitle } from '../utils/hseSiteEngineerProjects';
 import { pickRecordForContractor, aggregateContractValueRecords, aggregateInvoicingRecords } from '../utils/contractorFinancialRecords';
 import {
   contractorDisplayName,
@@ -192,7 +195,7 @@ import {
 
 interface ProjectsProps {
   projects: Project[];
-  currentUser: { id: string; role: UserRole };
+  currentUser: User;
   onViewProject: (id: string) => void;
   onNavigate?: (
     tab: string | { tab: string; section?: SubTab; returnTab?: string; projectId?: string },
@@ -678,9 +681,19 @@ const Projects: React.FC<ProjectsProps> = ({
     return best;
   };
 
-  const [selectedProjectId, setSelectedProjectId] = useState<string>(
-    globalSelectedProjectId || (allProjects.length > 0 ? allProjects[0].id : '')
-  );
+  const [selectedProjectId, setSelectedProjectId] = useState<string>(() => {
+    if (globalSelectedProjectId) return globalSelectedProjectId;
+    if (currentUser.role === UserRole.TEAM_LEAD) {
+      const canonical = resolveTeamLeaderProjectTitle(currentUser.username);
+      if (canonical) {
+        const match = allProjects.find((p) => projectTitleMatchesHseAssignment(p.title, canonical));
+        if (match) return match.id;
+      }
+      const assigned = allProjects.find((p) => isTeamLeadAssignedToProject(p, currentUser));
+      if (assigned) return assigned.id;
+    }
+    return allProjects.length > 0 ? allProjects[0].id : '';
+  });
 
   // Sync with global state from header
   useEffect(() => {
@@ -721,6 +734,7 @@ const Projects: React.FC<ProjectsProps> = ({
   );
   const [newContractorMasterName, setNewContractorMasterName] = useState('');
   const [isCreatingContractorMaster, setIsCreatingContractorMaster] = useState(false);
+  const [isAddingNewContractorInline, setIsAddingNewContractorInline] = useState(false);
   // BG Status modal state
   const [isBgStatusModalOpen, setIsBgStatusModalOpen] = useState(false);
   const [bgModalScope, setBgModalScope] = useState<BgModalScope>({ mode: 'all' });
@@ -1114,6 +1128,7 @@ const Projects: React.FC<ProjectsProps> = ({
       contractorMasters.find((m) => m.status === 'ACTIVE' && !scheduledIds.has(m.id)) ??
       contractorMasters.find((m) => m.status === 'ACTIVE') ??
       null;
+    setIsAddingNewContractorInline(mode === 'add_contractor' && !firstAvailableMaster);
     setProjectDatesForm({
       contractor_id:
         (record as ProjectDatesApiRecord | null)?.contractor?.id ??
@@ -1139,6 +1154,7 @@ const Projects: React.FC<ProjectsProps> = ({
 
   const openAddContractorModal = () => {
     setNewContractorMasterName('');
+    setIsAddingNewContractorInline(false);
     loadProjectDatesFormContractor(null, 'add_contractor');
     setIsProjectDatesModalOpen(true);
   };
@@ -1157,8 +1173,10 @@ const Projects: React.FC<ProjectsProps> = ({
       delete next.contractor_name;
       return next;
     });
+    const resolvedProject = resolveContractorProjectName(selectedProject.title);
     try {
-      const record = await contractorMasterApi.create(selectedProject.title, {
+      const record = await contractorMasterApi.create(resolvedProject, {
+        project_name: resolvedProject,
         contractor_name: newContractorMasterName.trim(),
       });
       if (!record) {
@@ -1260,8 +1278,11 @@ const Projects: React.FC<ProjectsProps> = ({
     setProjectDatesSectionCache(null);
   }, [selectedProject?.id, currentUser.id]);
 
-  const handleProjectDatesSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleProjectDatesSubmit = async (
+    e?: React.FormEvent,
+    addAnotherSchedule: boolean = false,
+  ) => {
+    if (e) e.preventDefault();
     if (!selectedProject?.title) return;
 
     const { project_start, contract_finish, forecast_finish, eot_date, contractor_id } =
@@ -1296,7 +1317,7 @@ const Projects: React.FC<ProjectsProps> = ({
     const selectedMaster = contractorMasters.find((m) => m.id === contractor_id);
 
     const payload = {
-      project_name: selectedProject.title,
+      project_name: resolveContractorProjectName(selectedProject.title),
       date_type: (isScl ? 'SCL' : 'CONTRACTOR') as ProjectDateType,
       project_start,
       contract_finish,
@@ -1344,12 +1365,37 @@ const Projects: React.FC<ProjectsProps> = ({
         setSelectedContractorId(savedContractorId);
       }
 
-      showToast(
-        projectDatesModalMode === 'add_contractor'
-          ? `Schedule added for "${selectedMaster?.contractor_name ?? 'contractor'}"`
-          : 'Project dates saved successfully',
-      );
-      setIsProjectDatesModalOpen(false);
+      if (addAnotherSchedule && projectDatesModalMode === 'add_contractor') {
+        showToast(
+          `Schedule added for "${selectedMaster?.contractor_name ?? 'contractor'}". You can now add the next contractor schedule.`,
+        );
+        const remaining = contractorMasters.filter(
+          (m) =>
+            m.status === 'ACTIVE' &&
+            m.id !== contractor_id &&
+            !(projectDatesBundle?.contractors ?? []).some((c) => {
+              const cid = (c as ProjectDatesApiRecord).contractor?.id;
+              return cid === m.id || c.contractor_name === m.contractor_name;
+            }),
+        );
+        setProjectDatesForm({
+          contractor_id: remaining[0]?.id ?? null,
+          project_start: toDateInputValue(projectDatesForm.project_start),
+          contract_finish: toDateInputValue(projectDatesForm.contract_finish),
+          forecast_finish: toDateInputValue(projectDatesForm.forecast_finish),
+          eot_date: toDateInputValue(projectDatesForm.eot_date),
+        });
+        if (remaining.length === 0) {
+          setIsAddingNewContractorInline(true);
+        }
+      } else {
+        showToast(
+          projectDatesModalMode === 'add_contractor'
+            ? `Schedule added for "${selectedMaster?.contractor_name ?? 'contractor'}"`
+            : 'Project dates saved successfully',
+        );
+        setIsProjectDatesModalOpen(false);
+      }
     } catch (error) {
       console.error('Failed to save project dates:', error);
       const message = getApiErrorMessage(error, 'Failed to save project dates.');
@@ -3706,9 +3752,26 @@ const Projects: React.FC<ProjectsProps> = ({
                     <form onSubmit={handleProjectDatesSubmit} className="space-y-4">
                       {projectDatesModalMode !== 'edit_scl' && (
                         <div>
-                          <label className={`mb-1 block text-[10px] font-black uppercase tracking-widest ${themeClasses.textSecondary}`}>
-                            Contractor (from Master) <span className="text-rose-400">*</span>
-                          </label>
+                          <div className="mb-1.5 flex items-center justify-between gap-2">
+                            <label className={`block text-[10px] font-black uppercase tracking-widest ${themeClasses.textSecondary}`}>
+                              Contractor (from Master) <span className="text-rose-400">*</span>
+                            </label>
+                            {projectDatesModalMode === 'add_contractor' && (
+                              <button
+                                type="button"
+                                onClick={() => setIsAddingNewContractorInline((prev) => !prev)}
+                                className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-[11px] font-black uppercase tracking-wider transition-all ${
+                                  isAddingNewContractorInline
+                                    ? isDarkTheme ? 'bg-white/10 text-white' : 'bg-slate-200 text-slate-800'
+                                    : 'border border-emerald-500/30 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20'
+                                }`}
+                              >
+                                <Plus size={13} strokeWidth={2.5} />
+                                <span>{isAddingNewContractorInline ? 'Select Existing Contractor' : 'Add New Contractor'}</span>
+                              </button>
+                            )}
+                          </div>
+
                           {projectDatesModalMode === 'edit_contractor' ? (
                             <div
                               className={`w-full rounded-2xl border px-4 py-3 text-sm font-bold ${themeClasses.input} ${themeClasses.border} opacity-80`}
@@ -3718,40 +3781,24 @@ const Projects: React.FC<ProjectsProps> = ({
                                 editingContractorRecord?.contractor_name ??
                                 '—'}
                             </div>
-                          ) : availableContractorMasters.length > 0 ? (
-                            <select
-                              value={projectDatesForm.contractor_id ?? ''}
-                              onChange={(e) => {
-                                setProjectDatesFieldErrors((prev) => {
-                                  const next = { ...prev };
-                                  delete next.contractor_id;
-                                  return next;
-                                });
-                                setProjectDatesFormError(null);
-                                setProjectDatesForm((prev) => ({
-                                  ...prev,
-                                  contractor_id: Number(e.target.value),
-                                }));
-                              }}
-                              className={`w-full rounded-2xl border px-4 py-3 text-sm font-bold outline-none ${themeClasses.input} ${
-                                projectDatesFieldErrors.contractor_id
-                                  ? 'border-rose-500 ring-2 ring-rose-500/30'
-                                  : themeClasses.border
-                              }`}
-                            >
-                              <option value="" disabled>
-                                Select contractor
-                              </option>
-                              {availableContractorMasters.map((m) => (
-                                <option key={m.id} value={m.id}>
-                                  {m.contractor_name}
-                                </option>
-                              ))}
-                            </select>
-                          ) : (
-                            <div className={`space-y-3 rounded-2xl border px-4 py-3 ${themeClasses.border} ${isDarkTheme ? 'bg-white/[0.03]' : 'bg-slate-50'}`}>
-                              <p className={`text-[11px] font-bold ${themeClasses.textSecondary}`}>
-                                No contractors in master yet. Create one to attach a schedule.
+                          ) : isAddingNewContractorInline ? (
+                            <div className={`space-y-2.5 rounded-2xl border p-3.5 ${themeClasses.border} ${isDarkTheme ? 'bg-white/[0.03]' : 'bg-slate-50'}`}>
+                              <div className="flex items-center justify-between">
+                                <p className={`text-xs font-black uppercase tracking-wider ${themeClasses.textPrimary}`}>
+                                  Add Contractor to Master
+                                </p>
+                                {availableContractorMasters.length > 0 && (
+                                  <button
+                                    type="button"
+                                    onClick={() => setIsAddingNewContractorInline(false)}
+                                    className="text-xs font-bold text-blue-500 hover:underline"
+                                  >
+                                    Back to dropdown
+                                  </button>
+                                )}
+                              </div>
+                              <p className={`text-[11px] ${themeClasses.textSecondary}`}>
+                                Enter contractor name and click <strong>Add to Master</strong>. You can add multiple contractors one after another.
                               </p>
                               <div className="flex flex-col gap-2 sm:flex-row">
                                 <input
@@ -3766,7 +3813,13 @@ const Projects: React.FC<ProjectsProps> = ({
                                     });
                                     setProjectDatesFormError(null);
                                   }}
-                                  placeholder="Contractor name"
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter') {
+                                      e.preventDefault();
+                                      void handleCreateContractorMaster();
+                                    }
+                                  }}
+                                  placeholder="Enter contractor name..."
                                   className={`min-w-0 flex-1 rounded-xl border px-3 py-2.5 text-sm font-bold outline-none ${themeClasses.input} ${
                                     projectDatesFieldErrors.contractor_name
                                       ? 'border-rose-500 ring-2 ring-rose-500/30'
@@ -3776,9 +3829,10 @@ const Projects: React.FC<ProjectsProps> = ({
                                 <button
                                   type="button"
                                   onClick={() => void handleCreateContractorMaster()}
-                                  disabled={isCreatingContractorMaster}
-                                  className="shrink-0 rounded-xl bg-emerald-600 px-4 py-2.5 text-xs font-black uppercase tracking-widest text-white hover:bg-emerald-500 disabled:opacity-60"
+                                  disabled={isCreatingContractorMaster || !newContractorMasterName.trim()}
+                                  className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-xl bg-emerald-600 px-4 py-2.5 text-xs font-black uppercase tracking-wider text-white hover:bg-emerald-500 disabled:opacity-50 transition-all"
                                 >
+                                  <Plus size={14} strokeWidth={2.5} />
                                   {isCreatingContractorMaster ? 'Adding…' : 'Add to Master'}
                                 </button>
                               </div>
@@ -3788,19 +3842,51 @@ const Projects: React.FC<ProjectsProps> = ({
                                 </p>
                               )}
                             </div>
+                          ) : (
+                            <div>
+                              <select
+                                value={projectDatesForm.contractor_id ?? ''}
+                                onChange={(e) => {
+                                  if (e.target.value === '__new__') {
+                                    setIsAddingNewContractorInline(true);
+                                    return;
+                                  }
+                                  setProjectDatesFieldErrors((prev) => {
+                                    const next = { ...prev };
+                                    delete next.contractor_id;
+                                    return next;
+                                  });
+                                  setProjectDatesFormError(null);
+                                  setProjectDatesForm((prev) => ({
+                                    ...prev,
+                                    contractor_id: Number(e.target.value),
+                                  }));
+                                }}
+                                className={`w-full rounded-2xl border px-4 py-3 text-sm font-bold outline-none ${themeClasses.input} ${
+                                  projectDatesFieldErrors.contractor_id
+                                    ? 'border-rose-500 ring-2 ring-rose-500/30'
+                                    : themeClasses.border
+                                }`}
+                              >
+                                <option value="" disabled>
+                                  {availableContractorMasters.length > 0
+                                    ? 'Select contractor'
+                                    : 'No contractor available — click Add New'}
+                                </option>
+                                {availableContractorMasters.map((m) => (
+                                  <option key={m.id} value={m.id}>
+                                    {m.contractor_name}
+                                  </option>
+                                ))}
+                                <option value="__new__">+ Add New Contractor to Master...</option>
+                              </select>
+                            </div>
                           )}
                           {projectDatesFieldErrors.contractor_id && (
                             <p className="mt-1 text-xs font-semibold text-rose-500">
                               {projectDatesFieldErrors.contractor_id}
                             </p>
                           )}
-                          {projectDatesModalMode === 'add_contractor' &&
-                            availableContractorMasters.length === 0 &&
-                            contractorMasters.some((m) => m.status === 'ACTIVE') && (
-                              <p className="mt-2 text-[11px] font-bold text-amber-600">
-                                All active contractors already have schedules. Add a new contractor to master first.
-                              </p>
-                            )}
                         </div>
                       )}
 
@@ -3860,6 +3946,16 @@ const Projects: React.FC<ProjectsProps> = ({
                         >
                           Cancel
                         </button>
+                        {projectDatesModalMode === 'add_contractor' && (
+                          <button
+                            type="button"
+                            onClick={(e) => void handleProjectDatesSubmit(e, true)}
+                            disabled={isSavingProjectDates}
+                            className="flex-1 rounded-2xl border border-emerald-500/30 bg-emerald-600/15 px-4 py-3 font-bold text-emerald-400 transition-colors hover:bg-emerald-600/25 disabled:opacity-60"
+                          >
+                            {isSavingProjectDates ? 'Saving...' : 'Create & Add Another'}
+                          </button>
+                        )}
                         <button
                           type="submit"
                           disabled={isSavingProjectDates}

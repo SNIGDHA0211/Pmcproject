@@ -459,6 +459,7 @@ export const ProjectDatesGroupCard: React.FC<ProjectDatesGroupCardProps> = ({
             <button
               type="button"
               onClick={onAddContractor}
+              title="Add Contractor Schedule"
               className={`flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-[11px] font-bold uppercase tracking-wide transition-all hover:scale-[1.03] active:scale-[0.97] ${
                 isDarkTheme
                   ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500/20'
@@ -466,7 +467,7 @@ export const ProjectDatesGroupCard: React.FC<ProjectDatesGroupCardProps> = ({
               }`}
             >
               <Plus size={13} strokeWidth={2.5} />
-              <span className="hidden sm:inline">Add Contractor</span>
+              <span className="inline">Add Contractor</span>
             </button>
           )}
           {onManageBg && (

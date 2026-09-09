@@ -48,8 +48,33 @@ export function getProjectDatesSectionAccess(
       ? ROLE_LABELS[role as UserRole]
       : 'Unknown role';
 
+  const rawToken =
+    roleOrUser == null
+      ? ''
+      : typeof roleOrUser === 'object'
+        ? String(roleOrUser.role ?? '')
+        : String(roleOrUser);
+  const token = normalizeRoleToken(rawToken);
+
+  const isTeamLead =
+    token === 'team_lead' ||
+    token === 'team_leader' ||
+    token === 'pmc_tl' ||
+    role === UserRole.TEAM_LEAD;
+
+  const isPmcHeadOrManager =
+    token === 'pmc_head' ||
+    token === 'pmc_head_office' ||
+    token === 'coordinator' ||
+    token === 'pmc_manager' ||
+    token === 'ceo' ||
+    role === UserRole.PMC_HEAD ||
+    role === UserRole.PMC_HEAD_OFFICE ||
+    role === UserRole.COORDINATOR ||
+    role === UserRole.CEO;
+
   // Team Lead operates & updates schedule / BG
-  if (role === UserRole.TEAM_LEAD) {
+  if (isTeamLead) {
     return {
       roleLabel,
       canView: true,
@@ -61,21 +86,16 @@ export function getProjectDatesSectionAccess(
     };
   }
 
-  // PMC Head / Head Office / PMC Manager / CEO — oversight (view only)
-  if (
-    role === UserRole.PMC_HEAD ||
-    role === UserRole.PMC_HEAD_OFFICE ||
-    role === UserRole.COORDINATOR ||
-    role === UserRole.CEO
-  ) {
+  // PMC Head / Head Office / PMC Manager / CEO — oversight & contractor scheduling
+  if (isPmcHeadOrManager) {
     return {
       roleLabel,
       canView: true,
-      canEditDates: false,
-      canAddContractor: false,
+      canEditDates: true,
+      canAddContractor: true,
       canDeleteContractor: false,
-      canManageBg: false,
-      summary: 'View-only · milestones, delay & BG status (no edit)',
+      canManageBg: true,
+      summary: 'Can view milestones, delay, add contractors, and manage BG status',
     };
   }
 

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from "react";
 import { Icons } from "./Icons";
 import { WorkspaceLoadingPanel } from "./WorkspaceStatusPanels";
 import { Project, User, UserRole } from "../types";
+import { isTeamLeadAssignedToProject } from "../utils/roleProjectAssignments";
 import { wprApi } from "../services/api";
 import { ProgressBar } from "./wpr/ProgressBar";
 import {
@@ -275,15 +276,11 @@ const WPRReviewDashboard: React.FC<WPRReviewDashboardProps> = ({
 
   const accessibleProjects = useMemo(() => {
     if (currentUser?.role !== UserRole.TEAM_LEAD) return projects;
-    const assigned = projects.filter(
-      (project) =>
-        project.teamLeadId &&
-        (project.teamLeadId === currentUser.id ||
-          (currentUser.username &&
-            project.teamLeadId === currentUser.username)),
+    const assigned = projects.filter((project) =>
+      isTeamLeadAssignedToProject(project, currentUser),
     );
     return assigned.length > 0 ? assigned : projects;
-  }, [projects, currentUser?.role, currentUser?.id, currentUser?.username]);
+  }, [projects, currentUser]);
 
   const [records, setRecords] = useState<WPRRecord[]>([]);
   const [loading, setLoading] = useState(true);

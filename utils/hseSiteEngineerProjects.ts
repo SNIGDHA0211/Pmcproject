@@ -21,7 +21,7 @@ export const HSE_SITE_ENGINEER_ACCOUNTS: ReadonlyArray<{
   { index: 7, username: 'pmc_hse7', projectTitle: 'KBR Park -I Flyover – Hyderabad (GHMC)' },
   { index: 8, username: 'pmc_hse8', projectTitle: 'KBR Park -II Flyover – Hyderabad (GHMC)' },
   { index: 9, username: 'pmc_hse9', projectTitle: 'FOX SAGAR – Hyderabad' },
-  { index: 10, username: 'pmc_hse10', projectTitle: 'Mayapur Flyover' },
+  { index: 10, username: 'pmc_hse10', projectTitle: 'Miyapur Flyover' },
   { index: 11, username: 'pmc_hse11', projectTitle: 'Nongstoin-Rambrai Road, Meghalaya (NHIDCL)' },
   { index: 12, username: 'pmc_hse12', projectTitle: 'Satis Thane' },
   { index: 13, username: 'pmc_hse13', projectTitle: '4-Lane ROB – Rawanfonda, Margao, Goa (GSIDC)' },
@@ -91,8 +91,8 @@ export function projectApiName(project: Pick<Project, 'title' | 'apiName'>): str
 export function coreProjectTitleKey(title?: string | null): string {
   let key = normalizeProjectTitleKey(title);
   if (!key) return '';
-  // PDF canonical is Mayapur; treat Miyapur as the same project spelling variant
-  key = key.replace(/\bmiyapur\b/g, 'mayapur');
+  // Canonical is Miyapur Flyover; treat Mayapur as the same project spelling variant
+  key = key.replace(/\bmayapur\b/g, 'miyapur');
   key = key.replace(/\s*\([^)]*\)\s*/g, ' ');
   key = key.replace(/[^a-z0-9]+/g, ' ').replace(/\s+/g, ' ').trim();
   return key;
@@ -195,4 +195,27 @@ export function resolvePortfolioTeamLeaderUsername(projectTitle?: string | null)
   const account = resolvePortfolioCredentialAccount(projectTitle);
   if (!account) return null;
   return `pmc_tl${account.index}`;
+}
+
+const TL_USERNAME_PATTERN = /^(?:pmc_)?tl(\d+)$/i;
+
+export function isTeamLeaderUsername(username?: string | null): boolean {
+  return TL_USERNAME_PATTERN.test(String(username ?? '').trim());
+}
+
+export function parseTeamLeaderIndex(username?: string | null): number | null {
+  const match = String(username ?? '').trim().match(TL_USERNAME_PATTERN);
+  if (!match) return null;
+  const index = Number(match[1]);
+  return Number.isFinite(index) && index > 0 ? index : null;
+}
+
+export function resolveTeamLeaderAccount(username?: string | null) {
+  const index = parseTeamLeaderIndex(username);
+  if (index == null) return null;
+  return HSE_SITE_ENGINEER_ACCOUNTS.find((row) => row.index === index) ?? null;
+}
+
+export function resolveTeamLeaderProjectTitle(username?: string | null): string | null {
+  return resolveTeamLeaderAccount(username)?.projectTitle ?? null;
 }

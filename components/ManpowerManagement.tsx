@@ -5,6 +5,7 @@ import { Icons } from './Icons';
 import { InlineLoader, SectionLoadingPanel } from './WorkspaceStatusPanels';
 import { manpowerApi, unwrapList, normalizeManpowerRecord } from '../services/api';
 import { Project, User, UserRole } from '../types';
+import { isTeamLeadAssignedToProject } from '../utils/roleProjectAssignments';
 import { formatReportPercent, formatReportTodayDate } from '../utils/csvReport';
 import { downloadSectionsExcel } from '../utils/projectReportExcel';
 import { useDebouncedValue } from '../hooks/useDebouncedValue';
@@ -168,13 +169,6 @@ function normalizeProjectKey(name: string): string {
   return name.trim().toLowerCase();
 }
 
-function isTeamLeadAssignedToProject(project: Project, user: User): boolean {
-  if (!project.teamLeadId) return false;
-  return (
-    project.teamLeadId === user.id ||
-    (!!user.username && project.teamLeadId === user.username)
-  );
-}
 
 function parseEfficiencyPercent(efficiency: number | null | undefined): number | null {
   if (efficiency == null || !Number.isFinite(efficiency)) return null;
