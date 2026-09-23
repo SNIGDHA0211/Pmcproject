@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, lazy, Suspense } from "react";
+import { usePageTracking } from "./hooks/usePageTracking";
 import Layout from "./components/Layout";
 
 import {
@@ -159,6 +160,7 @@ const TabSuspenseFallback: React.FC = () => (
 );
 
 const App: React.FC = () => {
+  usePageTracking(); // Track page views in Google Analytics
   const { user: currentUser, loading: authLoading, login, logout: authLogout } = useAuth();
   const [activeTab, setActiveTab] = useState("dashboard");
   const currentUserRef = React.useRef(currentUser);
