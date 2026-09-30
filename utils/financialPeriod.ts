@@ -78,6 +78,36 @@ export function pickCostPerformanceRecord<T extends { month_year?: string; month
     })[0];
 }
 
+export function invoicingRecordMatchesPeriod(
+  record: { monthYear?: string; month_year?: string; month?: number; year?: number; reporting_period?: string },
+  month: number,
+  year: number,
+): boolean {
+  if (record.month != null && record.year != null) {
+    if (Number(record.month) === month && Number(record.year) === year) return true;
+  }
+  const my = record.monthYear ?? record.month_year ?? record.reporting_period;
+  if (my) {
+    return costRecordMatchesPeriod(my, month, year);
+  }
+  return false;
+}
+
+export function pickInvoicingRecord<
+  T extends { monthYear?: string; month_year?: string; month?: number; year?: number; reporting_period?: string }
+>(rows: T[], month: number, year: number): T | null {
+  const matches = rows.filter((row) => invoicingRecordMatchesPeriod(row, month, year));
+  if (matches.length === 0) return null;
+  if (matches.length === 1) return matches[0];
+  return matches
+    .slice()
+    .sort((a, b) => {
+      const aUpdated = getRecordUpdatedAtMs(a as Record<string, unknown>);
+      const bUpdated = getRecordUpdatedAtMs(b as Record<string, unknown>);
+      return bUpdated - aUpdated;
+    })[0];
+}
+
 function getRecordUpdatedAtMs(row: Record<string, unknown>): number {
   const raw = row.updated_at ?? row.updatedAt ?? row.created_at ?? row.createdAt;
   if (!raw) return 0;

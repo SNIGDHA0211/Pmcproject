@@ -23,8 +23,10 @@ import {
   extractRecordId,
   formatFinancialMonthYear,
   formatProgressMonthDate,
+  invoicingRecordMatchesPeriod,
   pickBudgetPerformanceRecord,
   pickCostPerformanceRecord,
+  pickInvoicingRecord,
   pickProjectProgressRecord,
 } from "../utils/financialPeriod";
 import {
@@ -3290,6 +3292,9 @@ export type InvoicingPayload = Pick<
   | "netBilledWithoutVAT"
   | "contractorName"
   | "contractorId"
+  | "month"
+  | "year"
+  | "monthYear"
 >;
 
 export function normalizeInvoicingRecord(
@@ -3315,6 +3320,9 @@ export function normalizeInvoicingRecord(
     row?.collectionPercentage,
   );
   const rawNetDue = row?.netDue ?? row?.net_due;
+  const monthYear = row?.month_year ?? row?.monthYear ?? row?.reporting_period ?? row?.reportingPeriod ?? undefined;
+  const month = row?.month != null ? Number(row.month) : undefined;
+  const year = row?.year != null ? Number(row.year) : undefined;
 
   return {
     id: row?.id,
@@ -3332,6 +3340,9 @@ export function normalizeInvoicingRecord(
       rawNetDue === undefined || rawNetDue === null
         ? undefined
         : toNum(rawNetDue),
+    monthYear,
+    month,
+    year,
   };
 }
 
@@ -3349,6 +3360,14 @@ export function toInvoicingApiBody(
     netBilledWithoutVAT: data.netBilledWithoutVAT,
   };
 
+  if (data.month != null) body.month = data.month;
+  if (data.year != null) body.year = data.year;
+  if (data.monthYear) {
+    body.month_year = data.monthYear;
+    body.monthYear = data.monthYear;
+    body.reporting_period = data.monthYear;
+  }
+
   if (data.invoiceType === 'Contractor') {
     if (data.contractorId != null) body.contractor_id = data.contractorId;
     if (data.contractorName) body.contractor_name = data.contractorName;
@@ -3364,6 +3383,10 @@ export const invoicingApi = {
     invoiceType?: InvoiceType;
     contractorName?: string;
     contractorId?: number;
+    month?: number;
+    year?: number;
+    monthYear?: string;
+    reporting_period?: string;
   }) =>
     api.get(API_ENDPOINTS.INVOICING.LIST, {
       params: params
@@ -3379,6 +3402,15 @@ export const invoicingApi = {
           }),
           ...(params.contractorId !== undefined && {
             contractor_id: params.contractorId,
+          }),
+          ...(params.month !== undefined && { month: params.month }),
+          ...(params.year !== undefined && { year: params.year }),
+          ...(params.monthYear !== undefined && {
+            month_year: params.monthYear,
+            reporting_period: params.monthYear,
+          }),
+          ...(params.reporting_period !== undefined && {
+            reporting_period: params.reporting_period,
           }),
         }
         : undefined,
@@ -5028,6 +5060,7 @@ export async function resolveInvoicingId(
   projectName: string,
   invoiceType: InvoiceType,
   contractorScope?: Pick<InvoicingPayload, "contractorName" | "contractorId">,
+  periodScope?: { month?: number; year?: number; monthYear?: string },
 ): Promise<string | number | undefined> {
   const response = await invoicingApi.getInvoicing({
     projectName,
@@ -5035,10 +5068,23 @@ export async function resolveInvoicingId(
     ...(contractorScope?.contractorName
       ? { contractorName: contractorScope.contractorName }
       : {}),
+    ...(periodScope?.month != null ? { month: periodScope.month } : {}),
+    ...(periodScope?.year != null ? { year: periodScope.year } : {}),
+    ...(periodScope?.monthYear ? { monthYear: periodScope.monthYear } : {}),
   });
-  const rows = unwrapList<Record<string, unknown>>(response.data).map((row) =>
+  let rows = unwrapList<Record<string, unknown>>(response.data).map((row) =>
     normalizeInvoicingRecord(row, projectName, invoiceType),
   );
+
+  if (periodScope?.month != null && periodScope?.year != null) {
+    const periodFiltered = rows.filter((r) =>
+      invoicingRecordMatchesPeriod(r, periodScope.month!, periodScope.year!)
+    );
+    if (periodFiltered.length > 0) {
+      rows = periodFiltered;
+    }
+  }
+
   const picked =
     invoiceType === "Contractor" &&
       (contractorScope?.contractorName || contractorScope?.contractorId != null)
@@ -5047,7 +5093,7 @@ export async function resolveInvoicingId(
         contractorScope.contractorName,
         contractorScope.contractorId,
       )
-      : rows[0] ?? null;
+      : rows[rows.length - 1] ?? rows[0] ?? null;
   return extractRecordId(picked);
 }
 
@@ -5062,12 +5108,17 @@ export async function saveInvoicingRecord(
         contractorId: payload.contractorId,
       }
       : undefined;
+  const periodScope =
+    payload.month != null || payload.year != null || payload.monthYear
+      ? { month: payload.month, year: payload.year, monthYear: payload.monthYear }
+      : undefined;
   const id =
     existingId ??
     (await resolveInvoicingId(
       payload.projectName,
       payload.invoiceType,
       contractorScope,
+      periodScope,
     ));
 
   if (id) {
@@ -5399,7 +5450,7 @@ export interface ProjectDatesPayload {
   project_start: string;
   contract_finish: string;
   forecast_finish: string;
-  eot_date: string;
+  eot_date: string | null;
 }
 
 function parseBgDateField(

@@ -28,6 +28,7 @@ import {
   pickCostPerformanceRecord,
   pickProjectProgressRecord,
   pickBudgetPerformanceRecord,
+  pickInvoicingRecord,
   formatFinancialMonthYear,
   formatProgressMonthDate,
 } from '../utils/financialPeriod';
@@ -120,7 +121,15 @@ export async function fetchFinancialDataSnapshot({
       .then((value) => ({ status: 'fulfilled' as const, value }))
       .catch((reason) => ({ status: 'rejected' as const, reason })),
     Promise.allSettled(
-      INVOICE_TYPES.map((invoiceType) => invoicingApi.getInvoicing({ projectName, invoiceType }))
+      INVOICE_TYPES.map((invoiceType) =>
+        invoicingApi.getInvoicing({
+          projectName,
+          invoiceType,
+          month,
+          year,
+          monthYear: formatFinancialMonthYear(month, year),
+        }),
+      )
     ),
     Promise.allSettled(
       CONTRACT_VALUE_TYPES.map((contractType) =>
@@ -221,10 +230,11 @@ export async function fetchFinancialDataSnapshot({
   invoicingResults.forEach((result, index) => {
     const invoiceType = INVOICE_TYPES[index];
     if (result.status === 'fulfilled') {
-      const row = unwrapList<Record<string, unknown>>(result.value.data)[0];
-      invoicingForms[invoiceType] = row
-        ? normalizeInvoicingRecord(row, projectName, invoiceType)
-        : null;
+      const rows = unwrapList<Record<string, unknown>>(result.value.data).map((row) =>
+        normalizeInvoicingRecord(row, projectName, invoiceType),
+      );
+      const picked = pickInvoicingRecord(rows, month, year) ?? rows[rows.length - 1] ?? rows[0] ?? null;
+      invoicingForms[invoiceType] = picked;
     } else {
       invoicingErrors[invoiceType] = getErrorMessage(result.reason);
     }

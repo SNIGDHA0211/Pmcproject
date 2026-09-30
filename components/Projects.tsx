@@ -1296,7 +1296,6 @@ const Projects: React.FC<ProjectsProps> = ({
     if (!project_start) nextErrors.project_start = 'Project start is required.';
     if (!contract_finish) nextErrors.contract_finish = 'Contract finish is required.';
     if (!forecast_finish) nextErrors.forecast_finish = 'Forecast finish is required.';
-    if (!eot_date) nextErrors.eot_date = 'EOT date is required.';
 
     if (project_start && contract_finish && contract_finish < project_start) {
       nextErrors.contract_finish = 'Contract finish must be on or after project start.';
@@ -1322,7 +1321,7 @@ const Projects: React.FC<ProjectsProps> = ({
       project_start,
       contract_finish,
       forecast_finish,
-      eot_date,
+      eot_date: eot_date || null,
       ...(!isScl && contractor_id != null ? { contractor_id } : {}),
     };
 
@@ -3899,7 +3898,12 @@ const Projects: React.FC<ProjectsProps> = ({
                         ] as const).map(([field, label]) => (
                           <div key={field}>
                             <label className={`mb-1 block text-[10px] font-black uppercase tracking-widest ${themeClasses.textSecondary}`}>
-                              {label} <span className="text-rose-400">*</span>
+                              {label}{' '}
+                              {field === 'eot_date' ? (
+                                <span className={`font-semibold normal-case tracking-normal ${themeClasses.textSecondary}`}>(Optional)</span>
+                              ) : (
+                                <span className="text-rose-400">*</span>
+                              )}
                             </label>
                             <input
                               type="date"

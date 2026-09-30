@@ -173,6 +173,12 @@ export interface InvoicingRecord {
   collectionPercentage?: number;
   /** @deprecated legacy API field */
   netDue?: number;
+  /** Reporting period month (1-12) */
+  month?: number;
+  /** Reporting period year (e.g. 2026) */
+  year?: number;
+  /** Reporting period month-year string (e.g. Jul-2026) */
+  monthYear?: string;
 }
 
 export interface ContractPerformanceRecord {

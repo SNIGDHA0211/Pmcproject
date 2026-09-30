@@ -254,7 +254,12 @@ const emptyContractValue = (projectName: string, contractType: ContractValueType
   cosExtraItem: 0,
 });
 
-const emptyInvoicingRecord = (projectName: string, invoiceType: InvoiceType): InvoicingRecord => ({
+const emptyInvoicingRecord = (
+  projectName: string,
+  invoiceType: InvoiceType,
+  month?: number,
+  year?: number,
+): InvoicingRecord => ({
   projectName,
   invoiceType,
   grossBilled: 0,
@@ -262,6 +267,9 @@ const emptyInvoicingRecord = (projectName: string, invoiceType: InvoiceType): In
   netCollected: 0,
   netDue: 0,
   collectionPercentage: 0,
+  ...(month != null ? { month } : {}),
+  ...(year != null ? { year } : {}),
+  ...(month != null && year != null ? { monthYear: formatFinancialMonthYear(month, year) } : {}),
 });
 
 const emptyContractPerformance: ContractPerformanceRecord = {
@@ -650,7 +658,13 @@ const FinancialManagement: React.FC<FinancialManagementProps> = ({
     let cancelled = false;
     setLoadingContractorFinancial(true);
 
-    loadContractorFinancialBuckets(projectName, selectedContractor.contractor_name, selectedContractor.id)
+    loadContractorFinancialBuckets(
+      projectName,
+      selectedContractor.contractor_name,
+      selectedContractor.id,
+      selectedMonthNumber,
+      selectedYearNumber,
+    )
       .then(({ contractValue, invoicing }) => {
         if (cancelled) return;
 
@@ -678,7 +692,7 @@ const FinancialManagement: React.FC<FinancialManagementProps> = ({
             Contractor:
               invoicing ??
               ({
-                ...emptyInvoicingRecord(projectName, 'Contractor'),
+                ...emptyInvoicingRecord(projectName, 'Contractor', selectedMonthNumber, selectedYearNumber),
                 contractorName,
                 contractorId,
               } as InvoicingRecord),
@@ -702,6 +716,8 @@ const FinancialManagement: React.FC<FinancialManagementProps> = ({
   }, [
     projectName,
     selectedContractor,
+    selectedMonthNumber,
+    selectedYearNumber,
     isInitialLoading,
     isForceRefreshing,
     patchFinancialCache,
@@ -1151,7 +1167,7 @@ const FinancialManagement: React.FC<FinancialManagementProps> = ({
     setInvoicingForms(prev => ({
       ...prev,
       [invoiceType]: {
-        ...(prev[invoiceType] || emptyInvoicingRecord(projectName, invoiceType)),
+        ...(prev[invoiceType] || emptyInvoicingRecord(projectName, invoiceType, selectedMonthNumber, selectedYearNumber)),
         [key]: value,
       } as InvoicingRecord,
     }));
@@ -1164,7 +1180,7 @@ const FinancialManagement: React.FC<FinancialManagementProps> = ({
     setInvoicingForms((prev) => ({
       ...prev,
       Contractor: {
-        ...(prev.Contractor || emptyInvoicingRecord(projectName, 'Contractor')),
+        ...(prev.Contractor || emptyInvoicingRecord(projectName, 'Contractor', selectedMonthNumber, selectedYearNumber)),
         contractorId: contractor.id,
         contractorName: contractor.contractor_name,
       },
@@ -1181,7 +1197,9 @@ const FinancialManagement: React.FC<FinancialManagementProps> = ({
       showSaveNotification('Select a contractor before saving contractor invoicing.', 'error');
       return;
     }
-    const form = invoicingForms[invoiceType] || emptyInvoicingRecord(projectName, invoiceType);
+    const form =
+      invoicingForms[invoiceType] ||
+      emptyInvoicingRecord(projectName, invoiceType, selectedMonthNumber, selectedYearNumber);
     const contractorScope =
       invoiceType === 'Contractor' && selectedContractor
         ? {
@@ -1199,6 +1217,9 @@ const FinancialManagement: React.FC<FinancialManagementProps> = ({
       invoiceType,
       grossBilled: parseNumericValue(form.grossBilled),
       netBilledWithoutVAT: parseNumericValue(form.netBilledWithoutVAT),
+      month: selectedMonthNumber,
+      year: selectedYearNumber,
+      monthYear: formatFinancialMonthYear(selectedMonthNumber, selectedYearNumber),
       ...(contractorScope ?? {}),
     };
 
@@ -1684,7 +1705,9 @@ const FinancialManagement: React.FC<FinancialManagementProps> = ({
             {activeSubTab === 'invoicing' && (
               <div className="space-y-5">
                 {invoicingTypesForDisplay.map((invoiceType, index) => {
-                  const form = invoicingForms[invoiceType] || emptyInvoicingRecord(projectName, invoiceType);
+                  const form =
+                    invoicingForms[invoiceType] ||
+                    emptyInvoicingRecord(projectName, invoiceType, selectedMonthNumber, selectedYearNumber);
                   const certificationEfficiency = form.collectionPercentage ?? 0;
 
                   return (
