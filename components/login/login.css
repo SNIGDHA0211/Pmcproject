@@ -288,17 +288,108 @@
 }
 
 .pmc-login__panel {
+  position: relative;
   display: flex;
   flex-direction: column;
-  justify-content: center;
   width: 100%;
   min-width: 0;
   padding:
-    clamp(1.35rem, 4vw, 2.35rem)
-    clamp(1.1rem, 4vw, 2.35rem)
-    clamp(1.35rem, 4vw, 2.35rem);
-  background: var(--login-panel);
+    clamp(1.5rem, 4vw, 2.5rem)
+    clamp(1.25rem, 4vw, 2.5rem)
+    clamp(1.1rem, 3vw, 1.5rem);
+  background:
+    radial-gradient(120% 45% at 100% 0%, rgba(245, 158, 11, 0.09), transparent 60%),
+    var(--login-panel);
 }
+
+.pmc-login__panel::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, var(--login-amber) 30%, var(--login-amber-bright) 70%, transparent);
+  opacity: 0.85;
+  transform-origin: center;
+  animation: pmc-login-line 900ms var(--login-ease) 150ms both;
+}
+
+.pmc-login__panel-body {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  justify-content: center;
+  width: 100%;
+  max-width: 22rem;
+  margin: 0 auto;
+}
+
+.pmc-login__panel-foot {
+  width: 100%;
+  max-width: 22rem;
+  margin: clamp(1.25rem, 3vh, 1.75rem) auto 0;
+  padding-top: 1rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.07);
+  text-align: center;
+  animation: pmc-login-rise 600ms var(--login-ease) 560ms both;
+}
+
+.pmc-login__eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-bottom: 0.85rem;
+  padding: 0.3rem 0.65rem;
+  border-radius: 999px;
+  border: 1px solid rgba(245, 158, 11, 0.3);
+  background: rgba(245, 158, 11, 0.1);
+  color: #ffc46b;
+  font-size: 0.64rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+@keyframes pmc-login-rise {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes pmc-login-line {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
+@keyframes pmc-login-sheen {
+  from {
+    transform: translateX(-130%) skewX(-18deg);
+  }
+  to {
+    transform: translateX(330%) skewX(-18deg);
+  }
+}
+
+.pmc-login__panel-head > *,
+.pmc-login__form > * {
+  animation: pmc-login-rise 560ms var(--login-ease) both;
+}
+.pmc-login__panel-head > :nth-child(2) { animation-delay: 60ms; }
+.pmc-login__panel-head > :nth-child(3) { animation-delay: 110ms; }
+.pmc-login__panel-head > :nth-child(4) { animation-delay: 160ms; }
+.pmc-login__form > :nth-child(1) { animation-delay: 220ms; }
+.pmc-login__form > :nth-child(2) { animation-delay: 280ms; }
+.pmc-login__form > :nth-child(3) { animation-delay: 340ms; }
+.pmc-login__form > :nth-child(4) { animation-delay: 400ms; }
+.pmc-login__form > :nth-child(5) { animation-delay: 460ms; }
 
 @media (min-width: 900px) {
   .pmc-login__panel {
@@ -325,26 +416,40 @@
   }
 }
 
+.pmc-login__panel-head {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+
+@media (min-width: 900px) {
+  .pmc-login__panel-head {
+    align-items: flex-start;
+    text-align: left;
+  }
+}
+
 .pmc-login__heading {
   margin: 0 0 0.4rem;
   font-family: var(--login-display);
-  font-size: clamp(1.4rem, 4.5vw, 1.65rem);
+  font-size: clamp(1.5rem, 4.5vw, 1.85rem);
   font-weight: 800;
   letter-spacing: -0.02em;
+  line-height: 1.15;
   color: #fff;
-  text-align: left;
 }
 
 .pmc-login__subhead {
   margin: 0;
   font-size: clamp(0.82rem, 2.8vw, 0.9rem);
-  line-height: 1.45;
+  line-height: 1.5;
   color: var(--login-steel);
 }
 
 .pmc-login__form {
   display: grid;
-  gap: clamp(0.85rem, 2.5vh, 1rem);
+  gap: clamp(0.95rem, 2.5vh, 1.15rem);
   width: 100%;
 }
 
@@ -387,6 +492,11 @@
   transform: translateY(-50%);
   color: rgba(148, 163, 184, 0.85);
   pointer-events: none;
+  transition: color 0.2s ease;
+}
+
+.pmc-login__control:focus-within .pmc-login__field-icon {
+  color: var(--login-amber-bright);
 }
 
 .pmc-login__control input {
@@ -460,9 +570,10 @@
 }
 
 .pmc-login__legal {
-  margin: 0.15rem 0 0;
+  margin: 0;
   font-size: clamp(0.7rem, 2.5vw, 0.75rem);
-  line-height: 1.45;
+  line-height: 1.5;
+  text-align: center;
   color: rgba(148, 163, 184, 0.92);
 }
 
@@ -495,7 +606,9 @@
   width: 100%;
   height: 3.05rem;
   min-height: 44px;
-  margin-top: 0.15rem;
+  margin-top: 0.35rem;
+  position: relative;
+  overflow: hidden;
   border: none;
   border-radius: 0.4rem;
   font-family: var(--login-body);
@@ -509,10 +622,32 @@
   transition: transform 0.2s ease, box-shadow 0.2s ease, filter 0.2s ease;
 }
 
+.pmc-login__submit::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  width: 35%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.45), transparent);
+  transform: translateX(-130%) skewX(-18deg);
+  pointer-events: none;
+}
+
 .pmc-login__submit:hover:not(:disabled) {
   transform: translateY(-1px);
   box-shadow: 0 14px 32px rgba(230, 138, 0, 0.42);
   filter: brightness(1.03);
+}
+
+.pmc-login__submit:hover:not(:disabled)::after {
+  animation: pmc-login-sheen 800ms ease-out;
+}
+
+.pmc-login__submit-arrow {
+  transition: transform 0.25s var(--login-ease);
+}
+
+.pmc-login__submit:hover:not(:disabled) .pmc-login__submit-arrow {
+  transform: translateX(3px);
 }
 
 .pmc-login__submit:active:not(:disabled) {
@@ -536,7 +671,7 @@
 }
 
 .pmc-login__footer-link {
-  margin: clamp(1rem, 3vh, 1.25rem) 0 0;
+  margin: 0;
   text-align: center;
   font-size: clamp(0.72rem, 2.5vw, 0.78rem);
   color: rgba(148, 163, 184, 0.9);
@@ -564,7 +699,7 @@
 }
 
 .pmc-login__copyright {
-  margin: 1rem 0 0;
+  margin: 0.55rem 0 0;
   text-align: center;
   font-size: clamp(0.62rem, 2.2vw, 0.68rem);
   font-weight: 600;
@@ -620,11 +755,17 @@
     transition: none;
   }
 
-  .pmc-login__spin {
+  .pmc-login__spin,
+  .pmc-login__panel::before,
+  .pmc-login__panel-foot,
+  .pmc-login__panel-head > *,
+  .pmc-login__form > *,
+  .pmc-login__submit:hover:not(:disabled)::after {
     animation: none;
   }
 
-  .pmc-login__submit:hover:not(:disabled) {
+  .pmc-login__submit:hover:not(:disabled),
+  .pmc-login__submit:hover:not(:disabled) .pmc-login__submit-arrow {
     transform: none;
   }
 }

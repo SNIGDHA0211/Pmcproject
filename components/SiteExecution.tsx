@@ -1,10 +1,11 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Project } from '../types';
 import { Icons } from './Icons';
 import { useTheme, getThemeClasses } from '../utils/theme';
 import { fetchProjectProgressChart } from '../services/financialDataService';
 import TutorialVideosPanel from './tutorialVideos/TutorialVideosPanel';
 import TutorialWatchButton from './tutorialVideos/TutorialWatchButton';
+import './siteDprMotion.css';
 
 interface SiteExecutionProps {
   projects: Project[];
@@ -15,6 +16,13 @@ interface ProgressState {
   actual: number;   // latest cumulativeActual %
   loading: boolean;
 }
+
+const progressAccent = (actual: number, isDark: boolean): string => {
+  if (actual >= 80) return '#10b981';
+  if (actual >= 50) return isDark ? '#60a5fa' : '#4f46e5';
+  if (actual > 0) return '#f59e0b';
+  return isDark ? '#64748b' : '#94a3b8';
+};
 
 const SiteExecution: React.FC<SiteExecutionProps> = ({ projects, onViewProject }) => {
   const { isDarkTheme } = useTheme();
@@ -57,27 +65,89 @@ const SiteExecution: React.FC<SiteExecutionProps> = ({ projects, onViewProject }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [inProgressProjects.length]);
 
+  const summary = useMemo(() => {
+    const loaded = inProgressProjects
+      .map((p) => progressMap[p.id])
+      .filter((s): s is ProgressState => Boolean(s && !s.loading));
+    const avg =
+      loaded.length > 0 ? loaded.reduce((sum, s) => sum + s.actual, 0) / loaded.length : null;
+    return {
+      active: inProgressProjects.length,
+      avg,
+      advanced: loaded.filter((s) => s.actual >= 80).length,
+      notStarted: loaded.filter((s) => s.actual <= 0).length,
+    };
+  }, [inProgressProjects, progressMap]);
+
+  const summaryTiles = [
+    { label: 'Active sites', value: String(summary.active), accent: '#6366f1', icon: Icons.Execution },
+    {
+      label: 'Avg. site progress',
+      value: summary.avg == null ? '—' : `${summary.avg.toFixed(1)}%`,
+      accent: '#0ea5e9',
+      icon: Icons.Activity,
+    },
+    { label: '80%+ complete', value: String(summary.advanced), accent: '#10b981', icon: Icons.Approve },
+    { label: 'Not started', value: String(summary.notStarted), accent: '#f59e0b', icon: Icons.Calendar },
+  ];
+
   return (
-    <div className="space-y-6 animate-in fade-in duration-500">
+    <div className="pmc-se-page space-y-6 animate-in fade-in duration-500">
       {/* Header */}
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h2 className={`text-xl font-black uppercase tracking-tight sm:text-2xl ${themeClasses.textPrimary}`}>
-            Site Execution Overview
-          </h2>
-          <p className={`text-[10px] font-black uppercase tracking-widest ${themeClasses.textSecondary}`}>
-            Live progress of all active construction sites
-          </p>
+      <div className="pmc-se-head flex flex-wrap items-start justify-between gap-3">
+        <div className="flex min-w-0 items-start gap-3">
+          <span className="pmc-se-head-icon flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl text-white">
+            <Icons.Execution size={20} />
+          </span>
+          <div className="min-w-0">
+            <h2 className={`text-xl font-black uppercase tracking-tight sm:text-2xl ${themeClasses.textPrimary}`}>
+              Site Execution Overview
+            </h2>
+            <p
+              className={`mt-0.5 flex items-center gap-2 text-[10px] font-black uppercase tracking-widest ${themeClasses.textSecondary}`}
+            >
+              <span className="pmc-se-live" aria-hidden />
+              Live progress of all active construction sites
+            </p>
+          </div>
         </div>
         <TutorialWatchButton section="site_progress" variant="panel" isDark={isDarkTheme} />
       </div>
 
+      {inProgressProjects.length > 0 && (
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+          {summaryTiles.map((tile, index) => {
+            const TileIcon = tile.icon;
+            return (
+              <div
+                key={tile.label}
+                className={`pmc-se-stat flex items-center gap-3 rounded-2xl border px-4 py-3 ${themeClasses.glassCard} ${themeClasses.border}`}
+                style={{ '--se-accent': tile.accent, '--se-delay': `${index * 70}ms` } as React.CSSProperties}
+              >
+                <span className="pmc-se-stat-icon flex h-9 w-9 shrink-0 items-center justify-center rounded-xl">
+                  <TileIcon size={17} />
+                </span>
+                <div className="min-w-0">
+                  <p className={`truncate text-[10px] font-black uppercase tracking-widest ${themeClasses.textSecondary}`}>
+                    {tile.label}
+                  </p>
+                  <p className={`text-lg font-black tabular-nums leading-tight ${themeClasses.textPrimary}`}>
+                    {tile.value}
+                  </p>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
       {/* Cards Grid */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-5 lg:grid-cols-3 lg:gap-6">
-        {inProgressProjects.map((project) => {
+        {inProgressProjects.map((project, index) => {
           const prog = progressMap[project.id];
           const actual = prog?.actual ?? 0;
           const isLoading = prog?.loading ?? true;
+          const accent = progressAccent(isLoading ? 0 : actual, isDarkTheme);
 
           const progressColor =
             actual >= 80
@@ -100,21 +170,38 @@ const SiteExecution: React.FC<SiteExecutionProps> = ({ projects, onViewProject }
           return (
             <div
               key={project.id}
+              role="button"
+              tabIndex={0}
               onClick={() => onViewProject(project.id)}
-              className={`group flex cursor-pointer flex-col rounded-2xl border p-4 shadow-md transition-all hover:shadow-xl hover:border-indigo-500/50 sm:rounded-[2rem] sm:p-5 lg:p-6 ${themeClasses.glassCard} ${themeClasses.border}`}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  onViewProject(project.id);
+                }
+              }}
+              className={`pmc-se-card group flex cursor-pointer flex-col rounded-2xl border p-4 shadow-md sm:rounded-[2rem] sm:p-5 lg:p-6 ${themeClasses.glassCard} ${themeClasses.border}${
+                index >= 9 ? ' is-deferred' : ''
+              }`}
+              style={
+                {
+                  '--se-accent': accent,
+                  '--se-delay': `${Math.min(index, 8) * 60}ms`,
+                } as React.CSSProperties
+              }
             >
               {/* Card Header */}
               <div className="mb-4 flex items-start justify-between gap-3">
                 <div className="min-w-0 flex-1">
-                  <h3 className={`font-black uppercase tracking-tight transition-colors group-hover:text-indigo-400 text-sm sm:text-base lg:text-lg ${themeClasses.textPrimary}`}>
+                  <h3 className={`pmc-se-title font-black uppercase tracking-tight text-sm sm:text-base lg:text-lg ${themeClasses.textPrimary}`}>
                     {project.title}
                   </h3>
-                  <p className={`mt-0.5 truncate text-xs font-semibold ${themeClasses.textSecondary}`}>
-                    {project.location}
+                  <p className={`mt-0.5 flex items-center gap-1 truncate text-xs font-semibold ${themeClasses.textSecondary}`}>
+                    <Icons.MapPin size={12} className="shrink-0 opacity-70" />
+                    <span className="truncate">{project.location || '—'}</span>
                   </p>
                 </div>
-                <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${themeClasses.bgSecondary}`}>
-                  <Icons.Execution size={18} className="text-indigo-400" />
+                <div className="pmc-se-card-icon flex h-10 w-10 shrink-0 items-center justify-center rounded-xl">
+                  <Icons.Execution size={18} />
                 </div>
               </div>
 
@@ -135,7 +222,7 @@ const SiteExecution: React.FC<SiteExecutionProps> = ({ projects, onViewProject }
                 ) : (
                   <div className={`h-2 overflow-hidden rounded-full ${isDarkTheme ? 'bg-white/10' : 'bg-slate-200'}`}>
                     <div
-                      className={`h-full rounded-full transition-all duration-700 ${barColor}`}
+                      className={`pmc-se-bar h-full rounded-full transition-all duration-700 ${barColor}`}
                       style={{ width: `${Math.min(100, Math.max(0, actual))}%` }}
                     />
                   </div>
@@ -148,7 +235,7 @@ const SiteExecution: React.FC<SiteExecutionProps> = ({ projects, onViewProject }
                   <p className={`text-[10px] font-black uppercase tracking-widest ${themeClasses.textSecondary}`}>
                     Manpower
                   </p>
-                  <p className={`mt-0.5 text-sm font-black ${themeClasses.textPrimary}`}>
+                  <p className={`mt-0.5 text-sm font-black tabular-nums ${themeClasses.textPrimary}`}>
                     {project.safety?.totalManhours || 0}
                   </p>
                 </div>
@@ -156,19 +243,33 @@ const SiteExecution: React.FC<SiteExecutionProps> = ({ projects, onViewProject }
                   <p className={`text-[10px] font-black uppercase tracking-widest ${themeClasses.textSecondary}`}>
                     Status
                   </p>
-                  <p className={`mt-0.5 text-sm font-black ${themeClasses.success}`}>
+                  <p
+                    className={`pmc-se-status mt-1 inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-xs font-black ${
+                      isDarkTheme
+                        ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300'
+                        : 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                    }`}
+                  >
+                    <span className="pmc-se-status-dot" aria-hidden />
                     On Track
                   </p>
                 </div>
               </div>
+
+              <span className="pmc-se-open" aria-hidden>
+                Open project
+                <Icons.ArrowRight size={12} />
+              </span>
             </div>
           );
         })}
 
         {/* Empty State */}
         {inProgressProjects.length === 0 && (
-          <div className={`col-span-1 flex flex-col items-center justify-center rounded-2xl border py-16 text-center sm:col-span-2 sm:rounded-[2rem] lg:col-span-3 ${themeClasses.glassCard} ${themeClasses.border}`}>
-            <Icons.Execution size={44} className={`mb-4 opacity-20 ${themeClasses.textMuted}`} />
+          <div className={`pmc-se-empty col-span-1 flex flex-col items-center justify-center rounded-2xl border py-16 text-center sm:col-span-2 sm:rounded-[2rem] lg:col-span-3 ${themeClasses.glassCard} ${themeClasses.border}`}>
+            <span className="pmc-se-empty-icon mb-4 flex h-16 w-16 items-center justify-center rounded-2xl">
+              <Icons.Execution size={30} />
+            </span>
             <h3 className={`text-base font-black uppercase sm:text-lg ${themeClasses.textPrimary}`}>
               No Active Sites
             </h3>

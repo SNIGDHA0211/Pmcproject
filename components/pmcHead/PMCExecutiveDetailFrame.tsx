@@ -1,6 +1,7 @@
 import React from 'react';
 import type { PMCExecutiveTab } from './PMCHeadExecutiveShell';
 import { usePmcExecutiveTheme } from '../../utils/pmcExecutiveTheme';
+import './executiveShell.css';
 
 const TAB_LABELS: Record<Exclude<PMCExecutiveTab, 'overview'>, string> = {
   schedule: 'Schedule & Dates',
@@ -49,7 +50,7 @@ export const PMCExecutiveDetailFrame: React.FC<PMCExecutiveDetailFrameProps> = (
   }
 
   return (
-    <div className={ex.detailFrame}>
+    <div className={`pmc-xs-detail ${ex.isDark ? 'is-dark' : 'is-light'} ${ex.detailFrame}`}>
       <div
         className={`pmc-executive-detail-wash ${ex.isDark ? 'pmc-executive-detail-wash-dark' : ''}`}
         aria-hidden

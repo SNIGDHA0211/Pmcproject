@@ -53,6 +53,7 @@ import type { PMCExecutiveTab } from './PMCHeadExecutiveShell';
 import PMCExecutiveTimeline from './PMCExecutiveTimeline';
 import PMCExecutiveDecisionDashboard from './PMCExecutiveDecisionDashboard';
 import type { BottleneckItem } from '../../utils/bottleneck';
+import './executiveOverview.css';
 
 export type { ExecutiveContractSnapshot, ExecutiveQualitySnapshot };
 
@@ -231,21 +232,26 @@ const SectionHeader: React.FC<{
   action?: { label: string; onClick: () => void };
   isDark: boolean;
 }> = ({ icon, title, subtitle, accent, action, isDark }) => (
-  <div className="mb-2 flex items-start justify-between gap-2">
+  <div className="mb-3 flex items-start justify-between gap-2">
     <div className="flex min-w-0 items-start gap-2.5">
       <span
-        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-white shadow-sm"
-        style={{ background: `linear-gradient(135deg, ${accent}, ${PALETTE.navy})` }}
+        className="pmc-ov-icon flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-white"
+        style={{ background: `linear-gradient(135deg, ${accent} 0%, ${PALETTE.navy} 130%)` }}
       >
         {icon}
       </span>
-      <div className="min-w-0">
+      <div className="min-w-0 pt-0.5">
         <h3
-          className={`text-[11px] font-black uppercase tracking-wider ${isDark ? 'text-slate-100' : 'text-slate-800'}`}
+          className={`flex items-center gap-1.5 text-[11.5px] font-black uppercase tracking-wider ${
+            isDark ? 'text-slate-100' : 'text-slate-800'
+          }`}
         >
           {title}
+          <span className="pmc-ov-live" aria-hidden />
         </h3>
-        <p className={`text-[10px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>{subtitle}</p>
+        <p className={`mt-0.5 text-[10px] font-medium ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+          {subtitle}
+        </p>
       </div>
     </div>
     {action && (
@@ -255,10 +261,10 @@ const SectionHeader: React.FC<{
           e.stopPropagation();
           action.onClick();
         }}
-        className={`inline-flex shrink-0 items-center gap-0.5 rounded-full px-2 py-1 text-[10px] font-bold transition ${
+        className={`pmc-ov-action inline-flex shrink-0 items-center gap-1 rounded-full border px-2.5 py-1 text-[10px] font-bold transition-all duration-200 ${
           isDark
-            ? 'bg-white/10 text-sky-300 hover:bg-white/15'
-            : 'bg-slate-100 text-[#1e3a5f] hover:bg-slate-200'
+            ? 'border-white/10 bg-white/[0.06] text-sky-300 hover:border-sky-400/40 hover:bg-sky-500/15'
+            : 'border-slate-200/80 bg-white text-[#1e3a5f] shadow-sm hover:border-sky-300 hover:bg-sky-50 hover:text-sky-700'
         }`}
       >
         {action.label}
@@ -271,11 +277,15 @@ const SectionHeader: React.FC<{
 const ChartLegend: React.FC<{ items: { label: string; color: string; dashed?: boolean }[] }> = ({
   items,
 }) => (
-  <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1">
+  <div className="mt-2 flex flex-wrap gap-1.5">
     {items.map((item) => (
-      <span key={item.label} className="inline-flex items-center gap-1.5 text-[9px] font-semibold text-slate-500">
+      <span
+        key={item.label}
+        className="inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[9px] font-semibold text-slate-500"
+        style={{ backgroundColor: `${item.color}12`, boxShadow: `inset 0 0 0 1px ${item.color}26` }}
+      >
         <span
-          className={`h-0.5 w-4 rounded-full ${item.dashed ? 'border-t-2 border-dashed bg-transparent' : ''}`}
+          className={`h-[3px] w-3.5 rounded-full ${item.dashed ? 'border-t-2 border-dashed bg-transparent' : ''}`}
           style={
             item.dashed
               ? { borderColor: item.color }
@@ -288,6 +298,39 @@ const ChartLegend: React.FC<{ items: { label: string; color: string; dashed?: bo
   </div>
 );
 
+/** Vertical gradient fills for bar charts — render as a direct chart child. */
+const barGradientDefs = (prefix: string, colors: Record<string, string>) => (
+  <defs>
+    {Object.entries(colors).map(([key, color]) => (
+      <linearGradient key={key} id={`${prefix}-${key}`} x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stopColor={color} stopOpacity={1} />
+        <stop offset="100%" stopColor={color} stopOpacity={0.55} />
+      </linearGradient>
+    ))}
+  </defs>
+);
+
+const EmptyState: React.FC<{
+  icon: React.ReactNode;
+  message: string;
+  hint?: string;
+  isDark: boolean;
+  minHeight?: number;
+}> = ({ icon, message, hint, isDark, minHeight = EMPTY_STATE_H + 24 }) => (
+  <div
+    className="pmc-ov-empty flex flex-col items-center justify-center gap-2 rounded-xl px-4 py-4 text-center"
+    style={{ minHeight }}
+  >
+    <span className="pmc-ov-empty-icon flex h-9 w-9 items-center justify-center rounded-full">{icon}</span>
+    <p className={`text-[11px] font-bold ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>{message}</p>
+    {hint && (
+      <p className={`max-w-[18rem] text-[10px] font-medium ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
+        {hint}
+      </p>
+    )}
+  </div>
+);
+
 const contractMetricCell = (
   label: string,
   value: string,
@@ -296,8 +339,8 @@ const contractMetricCell = (
   accent?: string,
 ) => (
   <div
-    className={`rounded-xl border px-2.5 py-2 ${
-      isDark ? 'border-white/10 bg-white/[0.06] backdrop-blur-sm' : 'border-cyan-100/60 bg-white/55 backdrop-blur-md shadow-sm'
+    className={`pmc-ov-tile rounded-xl border px-2.5 py-2 ${
+      isDark ? 'border-white/10 bg-white/[0.06] backdrop-blur-sm' : 'border-slate-200/70 bg-white shadow-sm'
     }`}
     style={accent ? { borderLeftWidth: 3, borderLeftColor: accent } : undefined}
   >
@@ -384,10 +427,11 @@ const SnapshotInsightBar: React.FC<{
       }`}
     >
       <div
-        className="h-full rounded-full transition-all duration-500"
+        className="pmc-ov-bar-fill h-full rounded-full transition-all duration-500"
         style={{
           width: `${Math.min(100, Math.max(0, fillPct))}%`,
           backgroundColor: color,
+          boxShadow: `0 0 10px -2px ${color}`,
         }}
       />
     </div>
@@ -395,6 +439,18 @@ const SnapshotInsightBar: React.FC<{
 );
 
 type MiniPieSlice = { name: string; value: number; fill: string; label?: string };
+
+type StatusTone = 'good' | 'warn' | 'bad' | 'empty';
+
+const STATUS_TONE: Record<StatusTone, { label: string; color: string }> = {
+  good: { label: 'On track', color: PALETTE.emerald },
+  warn: { label: 'Needs attention', color: PALETTE.amber },
+  bad: { label: 'Critical', color: PALETTE.rose },
+  empty: { label: 'No data', color: PALETTE.slate },
+};
+
+const toneFromPct = (pct: number, goodAt: number, warnAt: number): StatusTone =>
+  pct >= goodAt ? 'good' : pct >= warnAt ? 'warn' : 'bad';
 
 const MiniStatusPie: React.FC<{
   title: string;
@@ -405,102 +461,173 @@ const MiniStatusPie: React.FC<{
   subtitle: string;
   slices: MiniPieSlice[];
   empty?: boolean;
+  tone?: StatusTone;
+  accent: string;
+  ctaLabel?: string;
+  emptyCtaLabel?: string;
   isDark: boolean;
   onClick?: () => void;
-}> = ({ title, icon, center, meaning, subtitle, slices, empty = false, isDark, onClick }) => (
-  <button
-    type="button"
-    onClick={onClick}
-    title={`${title}: ${meaning}`}
-    className={`flex min-h-[9.5rem] flex-col items-center rounded-xl border p-2.5 text-center transition-all hover:-translate-y-0.5 hover:shadow-md ${
-      onClick ? 'cursor-pointer' : 'cursor-default'
-    } ${
-      isDark
-        ? 'border-white/10 bg-white/[0.03] hover:bg-white/[0.06]'
-        : 'border-slate-200/80 bg-white hover:border-slate-300'
-    }`}
-  >
-    <div className="mb-1 flex w-full items-center justify-center gap-1.5">
-      <span className={isDark ? 'text-slate-400' : 'text-slate-500'}>{icon}</span>
-      <p
-        className={`truncate text-[9px] font-black uppercase tracking-wide ${
-          isDark ? 'text-slate-300' : 'text-slate-600'
-        }`}
-      >
-        {title}
-      </p>
-    </div>
-    <div className="relative h-[68px] w-[68px] shrink-0">
-      <ResponsiveContainer width="100%" height="100%">
-        <PieChart>
-          <Pie
-            data={slices}
-            dataKey="value"
-            innerRadius={20}
-            outerRadius={32}
-            startAngle={90}
-            endAngle={-270}
-            stroke="none"
-            isAnimationActive={false}
-          >
-            {slices.map((entry, i) => (
-              <Cell key={`${entry.name}-${i}`} fill={entry.fill} />
-            ))}
-          </Pie>
-        </PieChart>
-      </ResponsiveContainer>
-      <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center px-1">
+}> = ({
+  title,
+  icon,
+  center,
+  meaning,
+  subtitle,
+  slices,
+  empty = false,
+  tone = 'good',
+  accent,
+  ctaLabel = 'View details',
+  emptyCtaLabel = 'Add data',
+  isDark,
+  onClick,
+}) => {
+  const status = STATUS_TONE[empty ? 'empty' : tone];
+  const valueColor = empty ? (isDark ? '#64748b' : '#94a3b8') : status.color;
+  const legend = empty ? [] : slices.filter((s) => s.label);
+
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      title={`${title}: ${meaning}`}
+      className={`group relative flex min-h-[13.5rem] flex-col overflow-hidden rounded-2xl border p-3 text-left transition-all duration-300 hover:-translate-y-0.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-400/50 ${
+        onClick ? 'cursor-pointer' : 'cursor-default'
+      } ${
+        isDark
+          ? 'border-white/10 bg-slate-900/40 hover:border-white/20 hover:shadow-[0_10px_30px_-12px_rgba(0,0,0,0.6)]'
+          : 'border-slate-200/70 bg-white/90 shadow-sm hover:border-slate-300 hover:shadow-[0_12px_28px_-14px_rgba(15,39,68,0.35)]'
+      }`}
+      style={{
+        backgroundImage: `radial-gradient(120% 70% at 100% 0%, ${accent}${isDark ? '26' : '14'} 0%, transparent 60%)`,
+      }}
+    >
+      <span
+        aria-hidden
+        className="absolute inset-x-0 top-0 h-[3px]"
+        style={{ background: `linear-gradient(90deg, ${accent}, ${accent}55)` }}
+      />
+
+      <div className="flex min-w-0 items-center gap-1.5">
         <span
-          className={`text-[12px] font-black leading-none tabular-nums ${
-            empty
-              ? isDark
-                ? 'text-slate-500'
-                : 'text-slate-400'
-              : isDark
-                ? 'text-slate-100'
-                : 'text-slate-900'
+          className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg"
+          style={{ backgroundColor: `${accent}${isDark ? '33' : '1a'}`, color: accent }}
+        >
+          {icon}
+        </span>
+        <p
+          className={`truncate text-[10px] font-black uppercase tracking-wider ${
+            isDark ? 'text-slate-200' : 'text-slate-700'
           }`}
         >
-          {center}
-        </span>
+          {title}
+        </p>
       </div>
-    </div>
-    <p
-      className={`mt-1.5 line-clamp-2 px-0.5 text-[10px] font-bold leading-snug ${
-        empty
-          ? isDark
-            ? 'text-slate-500'
-            : 'text-slate-400'
-          : isDark
-            ? 'text-slate-200'
-            : 'text-slate-700'
-      }`}
-    >
-      {meaning}
-    </p>
-    <p
-      className={`mt-0.5 line-clamp-2 px-0.5 text-[9px] font-semibold leading-snug ${
-        isDark ? 'text-slate-500' : 'text-slate-500'
-      }`}
-    >
-      {subtitle}
-    </p>
-    {!empty && slices.some((s) => s.label) && (
-      <ul className="mt-1.5 w-full space-y-0.5 border-t pt-1.5 text-left" style={{ borderColor: isDark ? 'rgba(255,255,255,0.08)' : '#e2e8f0' }}>
-        {slices
-          .filter((s) => s.label)
-          .map((s) => (
-            <li key={s.name} className="flex items-center gap-1.5">
+
+      <span
+        className="mt-2 inline-flex w-fit items-center gap-1 rounded-full px-2 py-0.5 text-[8.5px] font-black uppercase tracking-wide"
+        style={{
+          color: status.color,
+          backgroundColor: `${status.color}${isDark ? '26' : '14'}`,
+          boxShadow: `inset 0 0 0 1px ${status.color}40`,
+        }}
+      >
+        <span
+          className={`h-1.5 w-1.5 rounded-full ${!empty && tone === 'bad' ? 'animate-pulse' : ''}`}
+          style={{ backgroundColor: status.color }}
+        />
+        {status.label}
+      </span>
+
+      <div className="relative mx-auto mt-2 h-[84px] w-[84px] shrink-0">
+        <div
+          aria-hidden
+          className="absolute inset-2 rounded-full blur-md transition-opacity duration-300 group-hover:opacity-80"
+          style={{ backgroundColor: empty ? 'transparent' : `${status.color}22`, opacity: 0.6 }}
+        />
+        <ResponsiveContainer width="100%" height="100%">
+          <PieChart>
+            <Pie
+              data={slices}
+              dataKey="value"
+              innerRadius={28}
+              outerRadius={40}
+              startAngle={90}
+              endAngle={-270}
+              paddingAngle={slices.length > 1 ? 2 : 0}
+              cornerRadius={slices.length > 1 ? 4 : 0}
+              stroke="none"
+              isAnimationActive={false}
+            >
+              {slices.map((entry, i) => (
+                <Cell key={`${entry.name}-${i}`} fill={entry.fill} />
+              ))}
+            </Pie>
+          </PieChart>
+        </ResponsiveContainer>
+        <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center px-2">
+          <span
+            className={`font-black leading-none tabular-nums ${center.length > 4 ? 'text-[11px]' : 'text-[16px]'}`}
+            style={{ color: valueColor }}
+          >
+            {center}
+          </span>
+        </div>
+      </div>
+
+      <p
+        className={`mt-2 line-clamp-2 text-center text-[10.5px] font-bold leading-snug ${
+          empty
+            ? isDark
+              ? 'text-slate-400'
+              : 'text-slate-500'
+            : isDark
+              ? 'text-slate-100'
+              : 'text-slate-800'
+        }`}
+      >
+        {meaning}
+      </p>
+      <p
+        className={`mt-0.5 line-clamp-2 text-center text-[9px] font-medium leading-snug ${
+          isDark ? 'text-slate-400' : 'text-slate-500'
+        }`}
+      >
+        {subtitle}
+      </p>
+
+      {legend.length > 0 && (
+        <div className="mt-2 flex flex-wrap justify-center gap-1">
+          {legend.map((s) => (
+            <span
+              key={s.name}
+              className={`inline-flex max-w-full items-center gap-1 rounded-md px-1.5 py-0.5 text-[8.5px] font-semibold ${
+                isDark ? 'bg-white/[0.06] text-slate-300' : 'bg-slate-100/90 text-slate-600'
+              }`}
+            >
               <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: s.fill }} />
-              <span className={`truncate text-[8px] font-semibold ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                {s.label}
-              </span>
-            </li>
+              <span className="truncate">{s.label}</span>
+            </span>
           ))}
-      </ul>
-    )}
-  </button>
-);
+        </div>
+      )}
+
+      {onClick && (
+        <div className="mt-auto w-full pt-2.5">
+          <span
+            className={`flex items-center justify-center gap-1 border-t pt-2 text-[9px] font-black uppercase tracking-wider ${
+              isDark ? 'border-white/10' : 'border-slate-100'
+            }`}
+            style={{ color: accent }}
+          >
+            {empty ? emptyCtaLabel : ctaLabel}
+            <ArrowRight size={11} className="transition-transform duration-300 group-hover:translate-x-0.5" />
+          </span>
+        </div>
+      )}
+    </button>
+  );
+};
 
 const PMCExecutiveOverviewPanel: React.FC<PMCExecutiveOverviewPanelProps> = ({
   metrics,
@@ -725,9 +852,10 @@ const PMCExecutiveOverviewPanel: React.FC<PMCExecutiveOverviewPanelProps> = ({
     if (total <= 0) {
       return {
         center: '—',
-        meaning: 'No bank guarantee data yet',
-        subtitle: 'Add BG records in Schedule',
+        meaning: 'No bank guarantees tracked yet',
+        subtitle: 'Add BG records in Schedule to monitor validity',
         empty: true,
+        tone: 'empty' as StatusTone,
         slices: [{ name: 'No data', value: 1, fill: track }],
       };
     }
@@ -736,9 +864,15 @@ const PMCExecutiveOverviewPanel: React.FC<PMCExecutiveOverviewPanelProps> = ({
     );
     return {
       center: `${compliance}%`,
-      meaning: `${updated} of ${total} BGs updated`,
-      subtitle: 'Share of guarantees kept current',
+      meaning: `${updated} of ${total} BG${total === 1 ? '' : 's'} up to date`,
+      subtitle:
+        notUpdated > 0
+          ? `${notUpdated} overdue — renew to avoid lapses`
+          : yet > 0
+            ? `${yet} awaiting update`
+            : 'All guarantees are current',
       empty: false,
+      tone: toneFromPct(compliance, 80, 50),
       slices: [
         {
           name: 'Updated',
@@ -768,9 +902,10 @@ const PMCExecutiveOverviewPanel: React.FC<PMCExecutiveOverviewPanelProps> = ({
     if (planned <= 0 && actual <= 0) {
       return {
         center: '—',
-        meaning: 'No cash inflow data yet',
-        subtitle: 'Update cashflow in Financial',
+        meaning: 'No cash inflow recorded yet',
+        subtitle: 'Update cashflow in Financial to track receipts',
         empty: true,
+        tone: 'empty' as StatusTone,
         slices: [{ name: 'No data', value: 1, fill: track }],
       };
     }
@@ -779,11 +914,10 @@ const PMCExecutiveOverviewPanel: React.FC<PMCExecutiveOverviewPanelProps> = ({
     const ahead = actual > planned;
     return {
       center: `${pct}%`,
-      meaning: ahead
-        ? `${pct}% of planned cash received (ahead)`
-        : `${pct}% of planned cash received`,
-      subtitle: `${formatIndianCurrencyCompact(actual)} received of ${formatIndianCurrencyCompact(planned)} plan`,
+      meaning: ahead ? 'Collections ahead of plan' : `${pct}% of planned cash received`,
+      subtitle: `${formatIndianCurrencyCompact(actual)} of ${formatIndianCurrencyCompact(planned)} planned`,
       empty: false,
+      tone: toneFromPct(pct, 90, 60),
       slices: [
         {
           name: 'Actual inflow',
@@ -809,8 +943,9 @@ const PMCExecutiveOverviewPanel: React.FC<PMCExecutiveOverviewPanelProps> = ({
       return {
         center: '—',
         meaning: 'No safety records yet',
-        subtitle: 'Log HSE monthly data',
+        subtitle: 'Log monthly HSE data to see site safety',
         empty: true,
+        tone: 'empty' as StatusTone,
         slices: [{ name: 'No data', value: 1, fill: track }],
       };
     }
@@ -820,15 +955,16 @@ const PMCExecutiveOverviewPanel: React.FC<PMCExecutiveOverviewPanelProps> = ({
       label === 'SAFE' ? PALETTE.emerald : label === 'CRITICAL' ? PALETTE.rose : PALETTE.amber;
     const meaning =
       label === 'SAFE'
-        ? 'Site safety is good'
+        ? 'Site is operating safely'
         : label === 'CRITICAL'
-          ? 'Critical — incidents need action'
-          : 'Watch — safety needs attention';
+          ? 'Incidents need immediate action'
+          : 'Safety needs a closer watch';
     return {
-      center: label === 'SAFE' ? 'SAFE' : label === 'CRITICAL' ? 'Critical' : 'Watch',
+      center: label === 'SAFE' ? 'SAFE' : label === 'CRITICAL' ? 'RISK' : 'WATCH',
       meaning,
-      subtitle: `Safety health score ${score}/100`,
+      subtitle: metrics.healthSafetySublabel || `Safety health score ${score}/100`,
       empty: false,
+      tone: (label === 'SAFE' ? 'good' : label === 'CRITICAL' ? 'bad' : 'warn') as StatusTone,
       slices: [
         { name: 'Safety', value: Math.max(1, score), fill, label: `Score ${score}` },
         {
@@ -852,6 +988,7 @@ const PMCExecutiveOverviewPanel: React.FC<PMCExecutiveOverviewPanelProps> = ({
         meaning: 'No drawing / quality data yet',
         subtitle: 'Update drawings or quality records',
         empty: true,
+        tone: 'empty' as StatusTone,
         slices: [{ name: 'No data', value: 1, fill: track }],
       };
     }
@@ -872,11 +1009,12 @@ const PMCExecutiveOverviewPanel: React.FC<PMCExecutiveOverviewPanelProps> = ({
             ? 'Drawing approval rate'
             : 'Quality performance',
       empty: false,
+      tone: toneFromPct(avg, 80, 50),
       slices: [
         {
           name: 'Complete',
           value: Math.max(1, avg),
-          fill: PALETTE.indigo,
+          fill: PALETTE.violet,
           label: `Achieved ${avg}%`,
         },
         {
@@ -905,14 +1043,16 @@ const PMCExecutiveOverviewPanel: React.FC<PMCExecutiveOverviewPanelProps> = ({
   }, [metrics.cpiPct, track, cpiAccent]);
 
   const cardBase = ex.isDark
-    ? 'rounded-2xl pmc360-glass-panel-dark'
-    : 'rounded-2xl pmc360-glass-panel-light';
+    ? 'pmc-ov-card rounded-2xl pmc360-glass-panel-dark'
+    : 'pmc-ov-card rounded-2xl pmc360-glass-panel-light';
 
-  const emptyStateClass = `flex items-center justify-center px-3 text-center text-[11px] font-medium ${ex.muted}`;
+  /** Per-card accent colour + staggered entrance delay. */
+  const cardStyle = (accent: string, order: number) =>
+    ({ '--ov-accent': accent, '--ov-delay': `${order * 70}ms` }) as React.CSSProperties;
 
   return (
     <section
-      className={`max-h-[calc(100vh-10.5rem)] overflow-y-auto rounded-2xl p-2.5 scrollbar-thin sm:p-3 ${
+      className={`pmc-ov-surface max-h-[calc(100vh-10.5rem)] overflow-y-auto rounded-2xl p-2.5 scrollbar-thin sm:p-3 ${
         ex.isDark ? 'pmc360-glass-panel-dark' : 'pmc360-glass-panel-light'
       }`}
       aria-label="Executive overview dashboard"
@@ -944,7 +1084,7 @@ const PMCExecutiveOverviewPanel: React.FC<PMCExecutiveOverviewPanelProps> = ({
       {/* Row 1 — hero progress + side metrics */}
       <div className="mb-3 grid grid-cols-1 gap-3 xl:grid-cols-12">
         <div className="grid gap-3 xl:col-span-8">
-        <article className={`p-3 sm:p-4 ${cardBase}`}>
+        <article className={`p-3 sm:p-4 ${cardBase}`} style={cardStyle(PALETTE.teal, 0)}>
           <SectionHeader
             icon={<TrendingUp size={15} />}
             title="Progress curve"
@@ -983,7 +1123,9 @@ const PMCExecutiveOverviewPanel: React.FC<PMCExecutiveOverviewPanelProps> = ({
                   strokeWidth={2}
                   name="Monthly Planned"
                   dot={false}
-                  isAnimationActive={false}
+                  activeDot={{ r: 4.5, strokeWidth: 2, stroke: '#ffffff' }}
+                  animationDuration={1200}
+                  animationEasing="ease-out"
                   connectNulls
                 />
                 <Line
@@ -993,7 +1135,9 @@ const PMCExecutiveOverviewPanel: React.FC<PMCExecutiveOverviewPanelProps> = ({
                   strokeWidth={2}
                   name="Monthly Actual"
                   dot={false}
-                  isAnimationActive={false}
+                  activeDot={{ r: 4.5, strokeWidth: 2, stroke: '#ffffff' }}
+                  animationDuration={1200}
+                  animationEasing="ease-out"
                   connectNulls
                 />
                 <Line
@@ -1004,7 +1148,9 @@ const PMCExecutiveOverviewPanel: React.FC<PMCExecutiveOverviewPanelProps> = ({
                   strokeDasharray="6 4"
                   name="Cumulative Planned"
                   dot={false}
-                  isAnimationActive={false}
+                  activeDot={{ r: 4.5, strokeWidth: 2, stroke: '#ffffff' }}
+                  animationDuration={1200}
+                  animationEasing="ease-out"
                   connectNulls
                 />
                 <Line
@@ -1014,7 +1160,9 @@ const PMCExecutiveOverviewPanel: React.FC<PMCExecutiveOverviewPanelProps> = ({
                   strokeWidth={2.5}
                   name="Cumulative Actual"
                   dot={false}
-                  isAnimationActive={false}
+                  activeDot={{ r: 4.5, strokeWidth: 2, stroke: '#ffffff' }}
+                  animationDuration={1200}
+                  animationEasing="ease-out"
                   connectNulls
                 />
               </LineChart>
@@ -1045,7 +1193,7 @@ const PMCExecutiveOverviewPanel: React.FC<PMCExecutiveOverviewPanelProps> = ({
           </div>
         </article>
 
-        <article className={`p-3 sm:p-4 ${cardBase}`}>
+        <article className={`p-3 sm:p-4 ${cardBase}`} style={cardStyle(PALETTE.indigo, 2)}>
           <SectionHeader
             icon={<IndianRupee size={15} />}
             title="Financial progress"
@@ -1063,10 +1211,28 @@ const PMCExecutiveOverviewPanel: React.FC<PMCExecutiveOverviewPanelProps> = ({
                     <XAxis dataKey="month" tick={chartAxisTick(ex.isDark, 9)} axisLine={false} tickLine={false} interval="preserveStartEnd" />
                     <YAxis tick={chartAxisTick(ex.isDark, 9)} axisLine={false} tickLine={false} width={48} tickFormatter={formatChartCurrencyAxisTick} />
                     <Tooltip contentStyle={chartTooltipStyle(ex.isDark)} />
-                    <Line type="monotone" dataKey="bcws" stroke={PALETTE.indigo} strokeWidth={2} name="BCWS" dot={false} />
-                    <Line type="monotone" dataKey="bcwp" stroke={PALETTE.amber} strokeWidth={2} name="BCWP" dot={false} />
-                    <Line type="monotone" dataKey="acwp" stroke={PALETTE.rose} strokeWidth={2} name="ACWP" dot={false} />
-                    <Line type="monotone" dataKey="fcst" stroke={PALETTE.emerald} strokeWidth={2} strokeDasharray="5 4" name="FCST" dot={false} />
+                    {(
+                      [
+                        { key: 'bcws', name: 'BCWS', color: PALETTE.indigo },
+                        { key: 'bcwp', name: 'BCWP', color: PALETTE.amber },
+                        { key: 'acwp', name: 'ACWP', color: PALETTE.rose },
+                        { key: 'fcst', name: 'FCST', color: PALETTE.emerald, dashed: true },
+                      ] as const
+                    ).map((line) => (
+                      <Line
+                        key={line.key}
+                        type="monotone"
+                        dataKey={line.key}
+                        stroke={line.color}
+                        strokeWidth={2.25}
+                        strokeDasharray={'dashed' in line ? '5 4' : undefined}
+                        name={line.name}
+                        dot={false}
+                        activeDot={{ r: 4.5, strokeWidth: 2, stroke: '#ffffff' }}
+                        animationDuration={1200}
+                        animationEasing="ease-out"
+                      />
+                    ))}
                   </LineChart>
                 </ResponsiveContainer>
               </div>
@@ -1080,65 +1246,84 @@ const PMCExecutiveOverviewPanel: React.FC<PMCExecutiveOverviewPanelProps> = ({
               />
             </>
           ) : (
-            <p className={emptyStateClass} style={{ minHeight: EMPTY_STATE_H }}>
-              No financial progress trend data yet
-            </p>
+            <EmptyState
+              icon={<IndianRupee size={16} />}
+              message="No financial progress trend yet"
+              hint="Save monthly BCWS / BCWP / ACWP values in Financial to plot the curve."
+              isDark={ex.isDark}
+            />
           )}
         </article>
         </div>
 
         <div className="grid gap-3 xl:col-span-4">
-          <article className={`p-3 sm:p-4 ${cardBase}`}>
+          <article className={`p-3 sm:p-4 ${cardBase}`} style={cardStyle(PALETTE.navy, 1)}>
             <SectionHeader
               icon={<Shield size={15} />}
               title="Status snapshot"
-              subtitle="What each number means — BG, cash, safety, drawings/quality"
+              subtitle="Guarantees, cash, safety & compliance at a glance"
               accent={PALETTE.navy}
               action={{ label: 'Compliance', onClick: () => onNavigate('compliance', 'hse') }}
               isDark={ex.isDark}
             />
-            <div className="mt-1 grid grid-cols-2 gap-2">
+            <div className="mt-2 grid grid-cols-2 gap-2.5">
               <MiniStatusPie
                 title="BG Status"
-                icon={<FileText size={12} />}
+                icon={<FileText size={13} />}
+                accent={PALETTE.indigo}
                 center={bgStatusPie.center}
                 meaning={bgStatusPie.meaning}
                 subtitle={bgStatusPie.subtitle}
                 slices={bgStatusPie.slices}
                 empty={bgStatusPie.empty}
+                tone={bgStatusPie.tone}
+                ctaLabel="Review BGs"
+                emptyCtaLabel="Add BG"
                 isDark={ex.isDark}
                 onClick={() => onNavigate('schedule', 'schedule')}
               />
               <MiniStatusPie
                 title="Cash Inflow"
-                icon={<IndianRupee size={12} />}
+                icon={<IndianRupee size={13} />}
+                accent={PALETTE.teal}
                 center={cashInflowPie.center}
                 meaning={cashInflowPie.meaning}
                 subtitle={cashInflowPie.subtitle}
                 slices={cashInflowPie.slices}
                 empty={cashInflowPie.empty}
+                tone={cashInflowPie.tone}
+                ctaLabel="View cashflow"
+                emptyCtaLabel="Update cashflow"
                 isDark={ex.isDark}
                 onClick={() => onNavigate('money', 'financial')}
               />
               <MiniStatusPie
                 title="Safety"
-                icon={<HardHat size={12} />}
+                icon={<HardHat size={13} />}
+                accent={PALETTE.emerald}
                 center={safetyPie.center}
                 meaning={safetyPie.meaning}
                 subtitle={safetyPie.subtitle}
                 slices={safetyPie.slices}
                 empty={safetyPie.empty}
+                tone={safetyPie.tone}
+                ctaLabel="Open HSE"
+                emptyCtaLabel="Log HSE data"
                 isDark={ex.isDark}
                 onClick={() => onNavigate('compliance', 'hse')}
               />
               <MiniStatusPie
                 title="Compliance"
-                icon={<Shield size={12} />}
+                icon={<Shield size={13} />}
+                accent={PALETTE.violet}
                 center={complianceDrawingPie.center}
                 meaning={complianceDrawingPie.meaning}
                 subtitle={complianceDrawingPie.subtitle}
                 slices={complianceDrawingPie.slices}
                 empty={complianceDrawingPie.empty}
+                tone={complianceDrawingPie.tone}
+                ctaLabel="View drawings"
+                emptyCtaLabel="Update records"
                 isDark={ex.isDark}
                 onClick={() => onNavigate('compliance', 'drawings')}
               />
@@ -1159,7 +1344,8 @@ const PMCExecutiveOverviewPanel: React.FC<PMCExecutiveOverviewPanelProps> = ({
               onNavigate('money', 'planned-vs-actual');
             }
           }}
-          className={`cursor-pointer p-3 transition-shadow hover:shadow-md sm:p-4 ${cardBase}`}
+          className={`cursor-pointer p-3 sm:p-4 ${cardBase}`}
+          style={cardStyle(PALETTE.indigo, 3)}
           aria-label="Open Planned vs Actual Value full view"
         >
           <SectionHeader
@@ -1215,6 +1401,7 @@ const PMCExecutiveOverviewPanel: React.FC<PMCExecutiveOverviewPanelProps> = ({
                     barGap={2}
                     barCategoryGap="18%"
                   >
+                    {barGradientDefs('ov-mv', { planned: PALETTE.indigo, actual: PALETTE.teal })}
                     <CartesianGrid strokeDasharray="3 6" stroke={chartGridStroke(ex.isDark)} vertical={false} />
                     <XAxis
                       dataKey="month"
@@ -1243,17 +1430,20 @@ const PMCExecutiveOverviewPanel: React.FC<PMCExecutiveOverviewPanelProps> = ({
                     />
                     <Bar
                       dataKey="planned"
-                      fill={PALETTE.indigo}
-                      radius={[4, 4, 0, 0]}
+                      fill="url(#ov-mv-planned)"
+                      radius={[5, 5, 0, 0]}
                       maxBarSize={18}
                       name="planned"
+                      animationDuration={900}
                     />
                     <Bar
                       dataKey="actual"
-                      fill={PALETTE.teal}
-                      radius={[4, 4, 0, 0]}
+                      fill="url(#ov-mv-actual)"
+                      radius={[5, 5, 0, 0]}
                       maxBarSize={18}
                       name="actual"
+                      animationDuration={900}
+                      animationBegin={150}
                     />
                   </BarChart>
                 </ResponsiveContainer>
@@ -1272,7 +1462,13 @@ const PMCExecutiveOverviewPanel: React.FC<PMCExecutiveOverviewPanelProps> = ({
                     { label: 'SCL now', snap: pvaVelocity.current.scl },
                     { label: 'Contractor now', snap: pvaVelocity.current.contractor },
                   ].map((row) => (
-                    <div key={row.label} className="min-w-0">
+                    <div
+                      key={row.label}
+                      className={`pmc-ov-tile min-w-0 rounded-lg border px-2 py-1.5 ${
+                        ex.isDark ? 'border-white/10 bg-white/5' : 'border-slate-100 bg-slate-50/80'
+                      }`}
+                      style={{ borderLeftWidth: 3, borderLeftColor: PALETTE.indigo }}
+                    >
                       <p className={`text-[9px] font-bold uppercase ${ex.isDark ? 'text-slate-400' : 'text-slate-500'}`}>
                         {row.label}
                       </p>
@@ -1287,13 +1483,16 @@ const PMCExecutiveOverviewPanel: React.FC<PMCExecutiveOverviewPanelProps> = ({
               )}
             </>
           ) : (
-            <p className={emptyStateClass} style={{ minHeight: EMPTY_STATE_H }}>
-              No Planned vs Actual data for this project yet
-            </p>
+            <EmptyState
+              icon={<Activity size={16} />}
+              message="No Planned vs Actual data yet"
+              hint="Monthly planned and actual values will appear here once recorded."
+              isDark={ex.isDark}
+            />
           )}
         </article>
 
-        <article className={`flex flex-col p-3 sm:p-4 ${cardBase}`}>
+        <article className={`flex flex-col p-3 sm:p-4 ${cardBase}`} style={cardStyle(PALETTE.emerald, 4)}>
           <SectionHeader
             icon={<Shield size={15} />}
             title="Compliance pulse"
@@ -1302,43 +1501,59 @@ const PMCExecutiveOverviewPanel: React.FC<PMCExecutiveOverviewPanelProps> = ({
             action={{ label: 'Details', onClick: () => onNavigate('compliance', 'hse') }}
             isDark={ex.isDark}
           />
-          <ul className="mt-1 flex flex-1 flex-col justify-center gap-2.5">
-            {complianceBars.map((row) => {
+          <ul className="flex flex-1 flex-col justify-center gap-1">
+            {complianceBars.map((row, index) => {
               const widthPct = row.empty ? 0 : Math.min(100, Math.max(0, row.score));
               return (
-                <li key={row.name}>
+                <li
+                  key={row.name}
+                  className="pmc-ov-row"
+                  style={{ '--ov-row-delay': `${index * 80}ms` } as React.CSSProperties}
+                >
                   <button
                     type="button"
                     onClick={() => onNavigate('compliance', row.anchor)}
-                    className="group w-full text-left"
+                    className={`group w-full rounded-xl px-2 py-1.5 text-left transition-colors duration-200 ${
+                      ex.isDark ? 'hover:bg-white/[0.05]' : 'hover:bg-slate-50'
+                    }`}
                   >
-                    <div className="mb-1 flex items-center justify-between gap-2">
+                    <div className="mb-1.5 flex items-center justify-between gap-2">
                       <span
-                        className={`text-[11px] font-bold tracking-wide ${
+                        className={`inline-flex items-center gap-1.5 text-[11px] font-bold tracking-wide ${
                           ex.isDark ? 'text-slate-200 group-hover:text-white' : 'text-slate-700 group-hover:text-slate-900'
                         }`}
                       >
+                        <span
+                          className="h-2 w-2 rounded-full"
+                          style={{ backgroundColor: row.empty ? (ex.isDark ? '#475569' : '#cbd5e1') : row.fill }}
+                        />
                         {row.name}
                       </span>
                       <span
-                        className={`tabular-nums text-[11px] font-black ${
-                          ex.isDark ? 'text-slate-100' : 'text-slate-800'
+                        className={`inline-flex items-center gap-1 tabular-nums text-[11px] font-black ${
+                          row.empty ? (ex.isDark ? 'text-slate-500' : 'text-slate-400') : ''
                         }`}
+                        style={row.empty ? undefined : { color: row.fill }}
                       >
-                        {row.empty ? '—' : `${row.score}%`}
+                        {row.empty ? 'No data' : `${row.score}%`}
+                        <ArrowRight
+                          size={10}
+                          className="opacity-0 transition-all duration-200 group-hover:translate-x-0.5 group-hover:opacity-70"
+                        />
                       </span>
                     </div>
                     <div
-                      className={`h-2.5 overflow-hidden rounded-full ${
+                      className={`h-2 overflow-hidden rounded-full ${
                         ex.isDark ? 'bg-white/10' : 'bg-slate-100'
                       }`}
                     >
                       <div
-                        className="h-full rounded-full transition-[width] duration-300"
+                        className="pmc-ov-bar-fill h-full rounded-full transition-[width] duration-500"
                         style={{
                           width: `${widthPct}%`,
                           backgroundColor: row.fill,
                           minWidth: widthPct > 0 ? 6 : 0,
+                          boxShadow: widthPct > 0 ? `0 0 10px -2px ${row.fill}` : undefined,
                         }}
                       />
                     </div>
@@ -1349,7 +1564,10 @@ const PMCExecutiveOverviewPanel: React.FC<PMCExecutiveOverviewPanelProps> = ({
           </ul>
         </article>
 
-        <article className={`flex flex-col p-3 sm:p-4 md:col-span-2 xl:col-span-1 ${cardBase}`}>
+        <article
+          className={`flex flex-col p-3 sm:p-4 md:col-span-2 xl:col-span-1 ${cardBase}`}
+          style={cardStyle(PALETTE.sky, 5)}
+        >
           <SectionHeader
             icon={<MessageSquare size={15} />}
             title="Correspondence & delivery"
@@ -1368,6 +1586,11 @@ const PMCExecutiveOverviewPanel: React.FC<PMCExecutiveOverviewPanelProps> = ({
                     barGap={3}
                     barCategoryGap="28%"
                   >
+                    {barGradientDefs('ov-cr', {
+                      received: PALETTE.indigo,
+                      delivered: PALETTE.teal,
+                      pending: PALETTE.amber,
+                    })}
                     <CartesianGrid strokeDasharray="3 6" stroke={chartGridStroke(ex.isDark)} vertical={false} />
                     <XAxis
                       dataKey="party"
@@ -1389,24 +1612,29 @@ const PMCExecutiveOverviewPanel: React.FC<PMCExecutiveOverviewPanelProps> = ({
                     />
                     <Bar
                       dataKey="received"
-                      fill={PALETTE.indigo}
-                      radius={[4, 4, 0, 0]}
+                      fill="url(#ov-cr-received)"
+                      radius={[5, 5, 0, 0]}
                       maxBarSize={20}
                       name="Received"
+                      animationDuration={900}
                     />
                     <Bar
                       dataKey="delivered"
-                      fill={PALETTE.teal}
-                      radius={[4, 4, 0, 0]}
+                      fill="url(#ov-cr-delivered)"
+                      radius={[5, 5, 0, 0]}
                       maxBarSize={20}
                       name="Delivered"
+                      animationDuration={900}
+                      animationBegin={120}
                     />
                     <Bar
                       dataKey="pending"
-                      fill={PALETTE.amber}
-                      radius={[4, 4, 0, 0]}
+                      fill="url(#ov-cr-pending)"
+                      radius={[5, 5, 0, 0]}
                       maxBarSize={20}
                       name="Pending"
+                      animationDuration={900}
+                      animationBegin={240}
                     />
                   </BarChart>
                 </ResponsiveContainer>
@@ -1426,7 +1654,10 @@ const PMCExecutiveOverviewPanel: React.FC<PMCExecutiveOverviewPanelProps> = ({
                 {correspondenceBars.map((row) => (
                   <div
                     key={row.party}
-                    className={`rounded-lg px-2 py-1.5 ${ex.isDark ? 'bg-white/5' : 'bg-slate-50'}`}
+                    className={`pmc-ov-tile rounded-lg border px-2 py-1.5 ${
+                      ex.isDark ? 'border-white/10 bg-white/5' : 'border-slate-100 bg-slate-50/80'
+                    }`}
+                    style={{ borderLeftWidth: 3, borderLeftColor: row.pending > 0 ? PALETTE.amber : PALETTE.teal }}
                   >
                     <p
                       className={`text-[9px] font-bold uppercase tracking-wide ${
@@ -1447,16 +1678,19 @@ const PMCExecutiveOverviewPanel: React.FC<PMCExecutiveOverviewPanelProps> = ({
               </div>
             </>
           ) : (
-            <p className={emptyStateClass} style={{ minHeight: EMPTY_STATE_H }}>
-              No correspondence data for the selected period
-            </p>
+            <EmptyState
+              icon={<MessageSquare size={16} />}
+              message="No correspondence for this period"
+              hint="Letters received and delivered will be summarised here."
+              isDark={ex.isDark}
+            />
           )}
         </article>
       </div>
 
       {/* Row 3 — manpower and quality */}
       <div className="mb-3 grid grid-cols-1 gap-3 md:grid-cols-2">
-        <article className={`p-3 sm:p-4 ${cardBase}`}>
+        <article className={`p-3 sm:p-4 ${cardBase}`} style={cardStyle(PALETTE.violet, 6)}>
           <SectionHeader
             icon={<Users size={15} />}
             title="Manpower histogram"
@@ -1470,12 +1704,13 @@ const PMCExecutiveOverviewPanel: React.FC<PMCExecutiveOverviewPanelProps> = ({
               <div style={{ height: CHART_H_SM }}>
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={manpowerTrend} margin={{ top: 4, right: 8, left: -16, bottom: 0 }} barGap={2} barCategoryGap="18%">
+                    {barGradientDefs('ov-mp', { planned: PALETTE.indigo, actual: PALETTE.amber })}
                     <CartesianGrid strokeDasharray="3 6" stroke={chartGridStroke(ex.isDark)} vertical={false} />
                     <XAxis dataKey="month" tick={chartAxisTick(ex.isDark, 9)} axisLine={false} tickLine={false} interval="preserveStartEnd" />
                     <YAxis tick={chartAxisTick(ex.isDark, 10)} axisLine={false} tickLine={false} width={28} tickFormatter={formatChartCountAxisTick} />
                     <Tooltip contentStyle={chartTooltipStyle(ex.isDark)} formatter={(v: number) => [v, '']} />
-                    <Bar dataKey="planned" fill={PALETTE.indigo} radius={[4, 4, 0, 0]} maxBarSize={18} name="Planned" />
-                    <Bar dataKey="actual" fill={PALETTE.amber} radius={[4, 4, 0, 0]} maxBarSize={18} name="Actual" />
+                    <Bar dataKey="planned" fill="url(#ov-mp-planned)" radius={[5, 5, 0, 0]} maxBarSize={18} name="Planned" animationDuration={900} />
+                    <Bar dataKey="actual" fill="url(#ov-mp-actual)" radius={[5, 5, 0, 0]} maxBarSize={18} name="Actual" animationDuration={900} animationBegin={150} />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
@@ -1487,13 +1722,16 @@ const PMCExecutiveOverviewPanel: React.FC<PMCExecutiveOverviewPanelProps> = ({
               />
             </>
           ) : (
-            <p className={emptyStateClass} style={{ minHeight: EMPTY_STATE_H }}>
-              No manpower trend data yet
-            </p>
+            <EmptyState
+              icon={<Users size={16} />}
+              message="No manpower trend yet"
+              hint="Add planned and actual headcount in People to see the histogram."
+              isDark={ex.isDark}
+            />
           )}
         </article>
 
-        <article className={`p-3 sm:p-4 ${cardBase}`}>
+        <article className={`p-3 sm:p-4 ${cardBase}`} style={cardStyle(PALETTE.teal, 7)}>
           <SectionHeader
             icon={<HardHat size={15} />}
             title="Project Quality Status"
@@ -1602,9 +1840,12 @@ const PMCExecutiveOverviewPanel: React.FC<PMCExecutiveOverviewPanelProps> = ({
               )}
             </div>
           ) : (
-            <p className={emptyStateClass} style={{ minHeight: EMPTY_STATE_H }}>
-              No Project Quality Status data for this period
-            </p>
+            <EmptyState
+              icon={<HardHat size={16} />}
+              message="No quality tests recorded for this period"
+              hint="Log material tests in Quality to track pass rate and shortfall."
+              isDark={ex.isDark}
+            />
           )}
         </article>
       </div>
@@ -1612,11 +1853,8 @@ const PMCExecutiveOverviewPanel: React.FC<PMCExecutiveOverviewPanelProps> = ({
       {/* Row 4 — contract + decisions */}
       <div className="mb-3 grid grid-cols-1 items-stretch gap-3 xl:grid-cols-12">
         <article
-          className={`flex flex-col xl:col-span-7 p-3.5 sm:p-4 ${cardBase} ${
-            ex.isDark
-              ? 'bg-gradient-to-br from-indigo-950/50 via-[#0b1d36]/95 to-[#071428]/90'
-              : 'bg-gradient-to-br from-indigo-50/90 via-white to-slate-50'
-          }`}
+          className={`flex flex-col xl:col-span-7 p-3.5 sm:p-4 ${cardBase}`}
+          style={cardStyle(PALETTE.indigo, 8)}
         >
           <SectionHeader
             icon={<IndianRupee size={15} />}
@@ -1881,13 +2119,18 @@ const PMCExecutiveOverviewPanel: React.FC<PMCExecutiveOverviewPanelProps> = ({
               </div>
             </div>
           ) : (
-            <p className={`flex flex-1 items-center text-[11px] leading-snug ${ex.muted}`}>
-              Enter SCL contract values and invoicing in Financial to see the summary here.
-            </p>
+            <div className="flex flex-1 flex-col justify-center">
+              <EmptyState
+                icon={<IndianRupee size={16} />}
+                message="No contract values yet"
+                hint="Enter SCL contract values and invoicing in Financial to see the summary here."
+                isDark={ex.isDark}
+              />
+            </div>
           )}
         </article>
 
-        <article className={`flex flex-col xl:col-span-5 p-3.5 sm:p-4 ${cardBase}`}>
+        <article className={`flex flex-col xl:col-span-5 p-3.5 sm:p-4 ${cardBase}`} style={cardStyle(PALETTE.rose, 9)}>
           <SectionHeader
             icon={<AlertTriangle size={15} />}
             title="Bottleneck"
@@ -1897,24 +2140,34 @@ const PMCExecutiveOverviewPanel: React.FC<PMCExecutiveOverviewPanelProps> = ({
             isDark={ex.isDark}
           />
           <ul className="flex min-h-0 flex-1 flex-col gap-2">
-            {decisionQueue.slice(0, 4).map((item) =>
+            {decisionQueue.slice(0, 4).map((item, index) =>
               item.id === 'clear' ? (
-                <li
-                  key={item.id}
-                  className={`flex flex-1 items-center justify-center rounded-xl border border-dashed px-3 py-6 text-center text-[11px] font-medium ${
-                    ex.isDark ? 'border-white/15 text-slate-400' : 'border-slate-200 text-slate-500'
-                  }`}
-                >
-                  {item.title}
+                <li key={item.id} className="flex flex-1 flex-col justify-center">
+                  <EmptyState
+                    icon={<Shield size={16} />}
+                    message={item.title}
+                    hint="No open bottlenecks — the site is running smoothly."
+                    isDark={ex.isDark}
+                  />
                 </li>
               ) : (
                 <li
                   key={item.id}
-                  className={`flex items-start justify-between gap-2 rounded-xl border px-3 py-2.5 transition hover:shadow-sm ${
+                  className={`pmc-ov-row pmc-ov-tile flex items-start justify-between gap-2 rounded-xl border px-3 py-2.5 ${
                     ex.isDark
                       ? 'border-white/10 bg-white/[0.03] hover:bg-white/[0.06]'
                       : 'border-slate-100 bg-white hover:border-slate-200'
                   }`}
+                  style={{
+                    '--ov-row-delay': `${index * 80}ms`,
+                    borderLeftWidth: 3,
+                    borderLeftColor:
+                      item.priority === 'Critical'
+                        ? PALETTE.rose
+                        : item.priority === 'Urgent'
+                          ? PALETTE.amber
+                          : PALETTE.sky,
+                  } as React.CSSProperties}
                 >
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-1.5">
@@ -1943,7 +2196,7 @@ const PMCExecutiveOverviewPanel: React.FC<PMCExecutiveOverviewPanelProps> = ({
       </div>
 
       {/* Full-width schedule timeline — room for SCL + Contractor tracks */}
-      <article className={`p-3.5 sm:p-4 ${cardBase}`}>
+      <article className={`p-3.5 sm:p-4 ${cardBase}`} style={cardStyle(PALETTE.sky, 10)}>
         <SectionHeader
           icon={<Calendar size={15} />}
           title="Schedule timeline"

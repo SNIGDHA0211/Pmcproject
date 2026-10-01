@@ -10,6 +10,7 @@ import {
 import { getThemeClasses, useTheme } from '../utils/theme';
 import { semanticValueClass } from '../utils/dashboardSemanticColors';
 import type { HealthSafetyStatusLevel } from '../utils/healthSafety';
+import './projectsMotion.css';
 
 /** Fixed typography for the top summary strip — isolated from dashboard-wide scale changes. */
 const SUMMARY_KPI_TITLE_CLASS = 'text-[9px] font-black uppercase tracking-[0.06em]';
@@ -105,6 +106,36 @@ function MiniSparkline({ values, stroke = '#2563eb' }: { values: number[]; strok
   );
 }
 
+/** Animates a number from 0 to `value` once on mount / when the value changes. */
+function CountUp({ value, suffix = '', duration = 900 }: { value: number; suffix?: string; duration?: number }) {
+  const [display, setDisplay] = React.useState(0);
+  React.useEffect(() => {
+    const reduce =
+      typeof window !== 'undefined' &&
+      window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    if (reduce || !Number.isFinite(value) || value === 0) {
+      setDisplay(value);
+      return;
+    }
+    let frame = 0;
+    const start = performance.now();
+    const tick = (now: number) => {
+      const t = Math.min(1, (now - start) / duration);
+      const eased = 1 - Math.pow(1 - t, 3);
+      setDisplay(Math.round(value * eased));
+      if (t < 1) frame = requestAnimationFrame(tick);
+    };
+    frame = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(frame);
+  }, [value, duration]);
+  return (
+    <span className="tabular-nums">
+      {display}
+      {suffix}
+    </span>
+  );
+}
+
 interface KpiCardProps {
   title: string;
   value: React.ReactNode;
@@ -117,6 +148,9 @@ interface KpiCardProps {
   isDarkTheme: boolean;
   borderClass: string;
   glassCard: string;
+  accent: string;
+  order: number;
+  alert?: boolean;
 }
 
 const KpiCard: React.FC<KpiCardProps> = ({
@@ -131,12 +165,16 @@ const KpiCard: React.FC<KpiCardProps> = ({
   isDarkTheme,
   borderClass,
   glassCard,
+  accent,
+  order,
+  alert = false,
 }) => (
   <div
-    className={`flex min-h-[88px] flex-col rounded-2xl border p-2.5 shadow-sm sm:min-h-[96px] sm:p-3 ${glassCard} ${borderClass}`}
+    className={`pmc-pm-kpi${alert ? ' pmc-pm-kpi-alert' : ''} flex min-h-[88px] flex-col rounded-2xl border p-2.5 shadow-sm sm:min-h-[96px] sm:p-3 ${glassCard} ${borderClass}`}
+    style={{ '--pm-accent': accent, '--pm-delay': `${order * 70}ms` } as React.CSSProperties}
   >
     <div className="flex items-start justify-between gap-1.5">
-      <div className={`${SUMMARY_KPI_ICON_WRAP_CLASS} ${iconWrapClass}`}>{icon}</div>
+      <div className={`pmc-pm-kpi-icon ${SUMMARY_KPI_ICON_WRAP_CLASS} ${iconWrapClass}`}>{icon}</div>
       {trailing}
     </div>
     <p
@@ -177,6 +215,11 @@ const ProjectDashboardSummary: React.FC<ProjectDashboardSummaryProps> = ({
     <div className="grid grid-cols-1 items-stretch gap-2.5 min-[420px]:grid-cols-2 md:grid-cols-3 lg:grid-cols-3 xl:grid-cols-6 xl:gap-3">
       <KpiCard
         title="Project Health"
+        accent={
+          projectHealth.tone === 'bad' ? '#e11d48' : projectHealth.tone === 'warn' ? '#f97316' : '#059669'
+        }
+        order={0}
+        alert={projectHealth.tone === 'bad'}
         value={projectHealth.label}
         valueClassName={isDarkTheme ? 'text-white' : healthStyle.value}
         icon={<Activity size={16} strokeWidth={2.5} />}
@@ -198,7 +241,9 @@ const ProjectDashboardSummary: React.FC<ProjectDashboardSummaryProps> = ({
 
       <KpiCard
         title="Overall Progress"
-        value={`${progressRounded}%`}
+        accent="#2563eb"
+        order={1}
+        value={<CountUp value={progressRounded} suffix="%" />}
         valueClassName={isDarkTheme ? 'text-white' : 'text-[#1E293B]'}
         icon={<Rocket size={16} strokeWidth={2.5} />}
         iconWrapClass={isDarkTheme ? 'bg-blue-500/15 text-blue-400' : 'bg-blue-100 text-blue-600'}
@@ -215,7 +260,10 @@ const ProjectDashboardSummary: React.FC<ProjectDashboardSummaryProps> = ({
 
       <KpiCard
         title="Delay"
-        value={delayDisplay}
+        accent={delayDisplay > 0 ? '#e11d48' : '#059669'}
+        order={2}
+        alert={delayDisplay > 0}
+        value={<CountUp value={delayDisplay} />}
         valueClassName={isDarkTheme ? 'text-rose-400' : 'text-[#E11D48]'}
         icon={<Calendar size={16} strokeWidth={2.5} />}
         iconWrapClass={isDarkTheme ? 'bg-rose-500/15 text-rose-400' : 'bg-rose-100 text-[#E11D48]'}
@@ -231,7 +279,10 @@ const ProjectDashboardSummary: React.FC<ProjectDashboardSummaryProps> = ({
 
       <KpiCard
         title="Critical Risks"
-        value={criticalRisks}
+        accent={criticalRisks > 0 ? '#e11d48' : '#059669'}
+        order={3}
+        alert={criticalRisks > 0}
+        value={<CountUp value={criticalRisks} />}
         valueClassName={isDarkTheme ? 'text-rose-400' : 'text-[#E11D48]'}
         icon={<AlertTriangle size={16} strokeWidth={2.5} />}
         iconWrapClass={isDarkTheme ? 'bg-rose-500/15 text-rose-400' : 'bg-rose-100 text-[#E11D48]'}
@@ -252,6 +303,17 @@ const ProjectDashboardSummary: React.FC<ProjectDashboardSummaryProps> = ({
 
       <KpiCard
         title="Health & Safety"
+        accent={
+          healthSafetyStatus.sublabel === 'No HSE data'
+            ? '#64748b'
+            : healthSafetyStatus.level === 'critical'
+              ? '#e11d48'
+              : healthSafetyStatus.level === 'warning'
+                ? '#f97316'
+                : '#059669'
+        }
+        order={4}
+        alert={healthSafetyStatus.level === 'critical' && healthSafetyStatus.sublabel !== 'No HSE data'}
         value={
           healthSafetyStatus.sublabel === 'No HSE data' ? '—' : healthSafetyStatus.label
         }
@@ -293,7 +355,9 @@ const ProjectDashboardSummary: React.FC<ProjectDashboardSummaryProps> = ({
 
       <KpiCard
         title="Drawing Approval"
-        value={drawingRounded > 0 ? `${drawingRounded}%` : '—'}
+        accent={drawingRounded <= 0 ? '#64748b' : drawingOnTrack ? '#059669' : '#f97316'}
+        order={5}
+        value={drawingRounded > 0 ? <CountUp value={drawingRounded} suffix="%" /> : '—'}
         valueClassName={
           drawingRounded <= 0
             ? isDarkTheme
@@ -336,10 +400,10 @@ const ProjectDashboardSummary: React.FC<ProjectDashboardSummaryProps> = ({
             }`}
           >
             <div
-              className={`h-full rounded-full transition-all duration-500 ${
+              className={`pmc-pm-bar h-full rounded-full transition-all duration-500 ${
                 drawingOnTrack ? 'bg-[#059669]' : 'bg-orange-500'
               }`}
-              style={{ width: `${drawingRounded}%` }}
+              style={{ width: `${drawingRounded}%`, '--pm-delay': '350ms' } as React.CSSProperties}
             />
           </div>
         }

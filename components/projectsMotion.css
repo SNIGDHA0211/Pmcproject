@@ -1,0 +1,834 @@
+/*
+ * Project dashboard polish & motion — scoped to .pmc-motion-page (Projects.tsx root).
+ * Cards that host inline `fixed` modals only animate opacity / shadow; a lingering
+ * transform would turn them into the modal's containing block.
+ */
+
+@keyframes pmc-pm-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes pmc-pm-rise {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes pmc-pm-flow {
+  from {
+    background-position: 0% 50%;
+  }
+  to {
+    background-position: 200% 50%;
+  }
+}
+
+@keyframes pmc-pm-grow {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
+@keyframes pmc-pm-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-3px);
+  }
+}
+
+@keyframes pmc-pm-ping {
+  0% {
+    transform: scale(1);
+    opacity: 0.6;
+  }
+  80%,
+  100% {
+    transform: scale(2.6);
+    opacity: 0;
+  }
+}
+
+/* ── Section accent colours ─────────────────────────────────── */
+.pmc-motion-page {
+  --pm-accent: #2563eb;
+}
+.pmc-motion-page #tl-section-project-dates,
+.pmc-motion-page #exec-section-schedule {
+  --pm-accent: #0ea5e9;
+}
+.pmc-motion-page #tl-section-contractor {
+  --pm-accent: #6366f1;
+}
+.pmc-motion-page .contract-values-group {
+  --pm-accent: #4f46e5;
+}
+.pmc-motion-page .invoicing-group {
+  --pm-accent: #0d9488;
+}
+.pmc-motion-page .planned-earned-group {
+  --pm-accent: #7c3aed;
+}
+.pmc-motion-page .contract-performance-card {
+  --pm-accent: #059669;
+}
+.pmc-motion-page .cost-performance-card {
+  --pm-accent: #6366f1;
+}
+.pmc-motion-page .exec-section-hse,
+.pmc-motion-page #tl-section-hse {
+  --pm-accent: #10b981;
+}
+.pmc-motion-page #tl-section-quality,
+.pmc-motion-page #exec-section-quality {
+  --pm-accent: #14b8a6;
+}
+.pmc-motion-page #exec-section-drawings {
+  --pm-accent: #8b5cf6;
+}
+.pmc-motion-page #exec-section-correspondence {
+  --pm-accent: #0284c7;
+}
+.pmc-motion-page .pmc-pm-budget-grid,
+.pmc-motion-page .budget-cost-card {
+  --pm-accent: #f59e0b;
+}
+.pmc-motion-page .manpower-histogram-card,
+.pmc-motion-page #tl-section-people {
+  --pm-accent: #a855f7;
+}
+
+/* ── Animated top accent strip (existing DashboardCardTopAccent) ── */
+.pmc-motion-page .dashboard-card-top-accent {
+  height: 3px;
+  background-image: linear-gradient(
+    90deg,
+    var(--pm-accent) 0%,
+    color-mix(in srgb, var(--pm-accent) 45%, #ffffff) 25%,
+    var(--pm-accent) 50%,
+    color-mix(in srgb, var(--pm-accent) 45%, #ffffff) 75%,
+    var(--pm-accent) 100%
+  );
+  background-size: 200% 100%;
+  transform-origin: left center;
+  animation:
+    pmc-pm-grow 900ms cubic-bezier(0.22, 1, 0.36, 1) both,
+    pmc-pm-flow 7s linear infinite;
+}
+
+/* ── Card shells: reveal + hover glow (no transforms) ───────── */
+.pmc-motion-page
+  :is(
+    #tl-section-project-dates > *,
+    #tl-section-contractor header,
+    .contract-values-group,
+    .invoicing-group,
+    .planned-earned-group,
+    .contract-performance-card > *,
+    .cost-performance-card > *,
+    .exec-section-hse > :not(#tl-section-hse),
+    #tl-section-hse > *,
+    #tl-section-quality > *,
+    #exec-section-drawings > *,
+    #exec-section-correspondence > *,
+    #exec-section-quality > *,
+    .pmc-pm-budget-grid > *,
+    .budget-cost-card,
+    .manpower-histogram-card > *
+  ) {
+  animation: pmc-pm-fade 650ms ease-out both;
+  transition:
+    box-shadow 320ms ease,
+    border-color 320ms ease;
+}
+
+@supports (animation-timeline: view()) {
+  .pmc-motion-page
+    :is(
+      #tl-section-project-dates > *,
+      #tl-section-contractor header,
+      .contract-values-group,
+      .invoicing-group,
+      .planned-earned-group,
+      .contract-performance-card > *,
+    .cost-performance-card > *,
+    .exec-section-hse > :not(#tl-section-hse),
+      #tl-section-hse > *,
+      #tl-section-quality > *,
+      #exec-section-drawings > *,
+      #exec-section-correspondence > *,
+      #exec-section-quality > *,
+      .pmc-pm-budget-grid > *,
+      .budget-cost-card,
+      .manpower-histogram-card > *
+    ) {
+    animation: pmc-pm-fade linear both;
+    animation-timeline: view();
+    animation-range: entry 0% entry 45%;
+  }
+}
+
+.pmc-motion-page
+  :is(
+    #tl-section-project-dates > *,
+    #tl-section-contractor header,
+    .contract-values-group,
+    .invoicing-group,
+    .planned-earned-group,
+    .contract-performance-card > *,
+    .cost-performance-card > *,
+    .exec-section-hse > :not(#tl-section-hse),
+    #tl-section-hse > *,
+    #tl-section-quality > *,
+    #exec-section-drawings > *,
+    #exec-section-correspondence > *,
+    #exec-section-quality > *,
+    .pmc-pm-budget-grid > *,
+    .budget-cost-card,
+    .manpower-histogram-card > *
+  ):hover {
+  border-color: color-mix(in srgb, var(--pm-accent) 35%, #e2e8f0);
+  box-shadow:
+    0 1px 2px rgba(15, 23, 42, 0.04),
+    0 16px 36px -20px color-mix(in srgb, var(--pm-accent) 60%, rgba(15, 39, 68, 0.45));
+}
+
+/* ── Light theme boost ──────────────────────────────────────────
+ * On white cards an opacity fade is barely visible, so light mode adds a
+ * coloured ring that "locks in" as the card enters (outline — no transform,
+ * safe for inline modals), tinted borders and a stronger accent hover ring.
+ */
+@keyframes pmc-pm-lock-in {
+  from {
+    opacity: 0;
+    outline-color: color-mix(in srgb, var(--pm-accent) 55%, transparent);
+    outline-offset: 6px;
+  }
+  60% {
+    opacity: 1;
+  }
+  to {
+    opacity: 1;
+    outline-color: transparent;
+    outline-offset: 0px;
+  }
+}
+
+.app-main-scroll-light .pmc-motion-page
+  :is(
+    #tl-section-project-dates > *,
+    #tl-section-contractor header,
+    .contract-values-group,
+    .invoicing-group,
+    .planned-earned-group,
+    .contract-performance-card > *,
+    .cost-performance-card > *,
+    .exec-section-hse > :not(#tl-section-hse),
+    #tl-section-hse > *,
+    #tl-section-quality > *,
+    #exec-section-drawings > *,
+    #exec-section-correspondence > *,
+    #exec-section-quality > *,
+    .pmc-pm-budget-grid > *,
+    .budget-cost-card,
+    .manpower-histogram-card > *
+  ) {
+  outline: 2px solid transparent;
+  border-color: color-mix(in srgb, var(--pm-accent) 14%, #e2e8f0);
+  box-shadow:
+    0 1px 2px rgba(15, 23, 42, 0.04),
+    0 10px 26px -18px color-mix(in srgb, var(--pm-accent) 45%, rgba(15, 39, 68, 0.3));
+  animation: pmc-pm-lock-in 1100ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@supports (animation-timeline: view()) {
+  .app-main-scroll-light .pmc-motion-page
+    :is(
+      #tl-section-project-dates > *,
+      #tl-section-contractor header,
+      .contract-values-group,
+      .invoicing-group,
+      .planned-earned-group,
+      .contract-performance-card > *,
+    .cost-performance-card > *,
+    .exec-section-hse > :not(#tl-section-hse),
+      #tl-section-hse > *,
+      #tl-section-quality > *,
+      #exec-section-drawings > *,
+      #exec-section-correspondence > *,
+      #exec-section-quality > *,
+      .pmc-pm-budget-grid > *,
+      .budget-cost-card,
+      .manpower-histogram-card > *
+    ) {
+    animation: pmc-pm-lock-in linear both;
+    animation-timeline: view();
+    animation-range: entry 0% entry 70%;
+  }
+}
+
+.app-main-scroll-light .pmc-motion-page
+  :is(
+    #tl-section-project-dates > *,
+    #tl-section-contractor header,
+    .contract-values-group,
+    .invoicing-group,
+    .planned-earned-group,
+    .contract-performance-card > *,
+    .cost-performance-card > *,
+    .exec-section-hse > :not(#tl-section-hse),
+    #tl-section-hse > *,
+    #tl-section-quality > *,
+    #exec-section-drawings > *,
+    #exec-section-correspondence > *,
+    #exec-section-quality > *,
+    .pmc-pm-budget-grid > *,
+    .budget-cost-card,
+    .manpower-histogram-card > *
+  ):hover {
+  border-color: color-mix(in srgb, var(--pm-accent) 45%, #e2e8f0);
+  box-shadow:
+    0 0 0 3px color-mix(in srgb, var(--pm-accent) 12%, transparent),
+    0 22px 44px -22px color-mix(in srgb, var(--pm-accent) 65%, rgba(15, 39, 68, 0.35));
+}
+
+.app-main-scroll-light .pmc-motion-page .dashboard-card-top-accent {
+  height: 4px;
+  box-shadow: 0 2px 12px color-mix(in srgb, var(--pm-accent) 55%, transparent);
+}
+
+.app-main-scroll-light .pmc-pm-header {
+  border-color: rgba(99, 102, 241, 0.18);
+  background-image:
+    radial-gradient(55% 160% at 0% 0%, rgba(99, 102, 241, 0.13) 0%, transparent 60%),
+    radial-gradient(45% 160% at 100% 0%, rgba(14, 165, 233, 0.12) 0%, transparent 60%),
+    linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+  box-shadow: 0 12px 30px -20px rgba(79, 70, 229, 0.45);
+}
+
+.app-main-scroll-light .pmc-pm-kpi {
+  border-color: color-mix(in srgb, var(--pm-accent) 20%, #e2e8f0);
+  background-image:
+    radial-gradient(120% 85% at 100% 0%, color-mix(in srgb, var(--pm-accent) 16%, transparent) 0%, transparent 55%),
+    linear-gradient(180deg, #ffffff 0%, #fbfdff 100%);
+  box-shadow: 0 10px 24px -18px color-mix(in srgb, var(--pm-accent) 60%, rgba(15, 39, 68, 0.3));
+}
+
+.app-main-scroll-light .pmc-pm-kpi::before {
+  height: 4px;
+  box-shadow: 0 2px 10px color-mix(in srgb, var(--pm-accent) 55%, transparent);
+}
+
+.app-main-scroll-light .pmc-pm-kpi:hover {
+  transform: translateY(-4px);
+  border-color: color-mix(in srgb, var(--pm-accent) 45%, #e2e8f0);
+  box-shadow:
+    0 0 0 3px color-mix(in srgb, var(--pm-accent) 12%, transparent),
+    0 20px 36px -18px color-mix(in srgb, var(--pm-accent) 70%, rgba(15, 39, 68, 0.35));
+}
+
+.app-main-scroll-light .pmc-pm-kpi-icon {
+  box-shadow: 0 6px 14px -6px color-mix(in srgb, var(--pm-accent) 65%, transparent);
+}
+
+/* ── Charts: bar hover highlight & softer gridlines ─────────── */
+.pmc-motion-page .recharts-bar-rectangle path {
+  transition:
+    filter 200ms ease,
+    opacity 200ms ease;
+}
+.pmc-motion-page .recharts-bar-rectangle:hover path {
+  filter: brightness(1.1) drop-shadow(0 4px 6px rgba(15, 23, 42, 0.18));
+}
+.pmc-motion-page .recharts-active-dot circle {
+  filter: drop-shadow(0 0 4px color-mix(in srgb, var(--pm-accent) 60%, transparent));
+}
+.pmc-motion-page .recharts-tooltip-wrapper {
+  transition: transform 180ms ease-out !important;
+}
+
+/* ── Tables: smooth row hover ───────────────────────────────── */
+.pmc-motion-page :is(#exec-section-drawings, #exec-section-correspondence, .invoicing-group, .contract-values-group)
+  tbody
+  tr {
+  transition: background-color 180ms ease;
+}
+.pmc-motion-page :is(#exec-section-drawings, #exec-section-correspondence, .invoicing-group, .contract-values-group)
+  tbody
+  tr:hover {
+  background-color: color-mix(in srgb, var(--pm-accent) 6%, transparent);
+}
+
+/* ── Header & KPI strip (no modals inside → transforms OK) ──── */
+.pmc-pm-header {
+  position: relative;
+  animation: pmc-pm-rise 560ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  background-image:
+    radial-gradient(60% 140% at 0% 0%, rgba(99, 102, 241, 0.08) 0%, transparent 60%),
+    radial-gradient(50% 140% at 100% 0%, rgba(14, 165, 233, 0.07) 0%, transparent 60%);
+}
+
+.pmc-pm-header-icon {
+  transition: transform 360ms cubic-bezier(0.34, 1.56, 0.64, 1);
+  box-shadow: 0 8px 18px -10px rgba(79, 70, 229, 0.7);
+}
+.pmc-pm-header:hover .pmc-pm-header-icon {
+  transform: rotate(-6deg) scale(1.06);
+}
+
+.pmc-pm-kpi {
+  --pm-accent: #2563eb;
+  position: relative;
+  overflow: hidden;
+  animation: pmc-pm-rise 560ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: var(--pm-delay, 0ms);
+  background-image: radial-gradient(
+    120% 80% at 100% 0%,
+    color-mix(in srgb, var(--pm-accent) 10%, transparent) 0%,
+    transparent 55%
+  );
+  transition:
+    transform 300ms cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 300ms ease,
+    border-color 300ms ease;
+}
+.pmc-pm-kpi::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 3px;
+  background: linear-gradient(90deg, var(--pm-accent), color-mix(in srgb, var(--pm-accent) 40%, transparent));
+  transform-origin: left center;
+  animation: pmc-pm-grow 800ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: calc(var(--pm-delay, 0ms) + 200ms);
+}
+.pmc-pm-kpi:hover {
+  transform: translateY(-3px);
+  border-color: color-mix(in srgb, var(--pm-accent) 35%, #e2e8f0);
+  box-shadow: 0 16px 30px -18px color-mix(in srgb, var(--pm-accent) 70%, rgba(15, 39, 68, 0.4));
+}
+
+.pmc-pm-kpi-icon {
+  transition: transform 360ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.pmc-pm-kpi:hover .pmc-pm-kpi-icon {
+  transform: scale(1.12) rotate(-8deg);
+}
+
+.pmc-pm-kpi-alert .pmc-pm-kpi-icon {
+  position: relative;
+  isolation: isolate;
+}
+.pmc-pm-kpi-alert .pmc-pm-kpi-icon::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 9999px;
+  background: var(--pm-accent);
+  opacity: 0;
+  animation: pmc-pm-ping 2.2s cubic-bezier(0, 0, 0.2, 1) infinite;
+  z-index: -1;
+}
+
+.pmc-pm-tile {
+  transition:
+    transform 260ms ease,
+    box-shadow 260ms ease,
+    border-color 260ms ease,
+    background-color 260ms ease;
+}
+.pmc-pm-tile:hover {
+  transform: translateY(-2px);
+  background-color: #ffffff;
+  border-color: color-mix(in srgb, var(--pm-accent) 40%, #e2e8f0);
+  box-shadow: 0 12px 22px -16px color-mix(in srgb, var(--pm-accent) 70%, rgba(15, 39, 68, 0.4));
+}
+
+.pmc-pm-bar {
+  transform-origin: left center;
+  animation: pmc-pm-grow 1100ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: calc(var(--pm-delay, 0ms) + 250ms);
+}
+
+/* ── Dark theme boost ───────────────────────────────────────────
+ * Glowing accent ring that settles as the card scrolls in, an accent wash
+ * along the top edge and a neon hover rim. Outline/shadow only (modal-safe).
+ */
+@keyframes pmc-pm-glow-in {
+  from {
+    opacity: 0;
+    outline-color: color-mix(in srgb, var(--pm-accent) 70%, transparent);
+    outline-offset: 8px;
+  }
+  55% {
+    opacity: 1;
+  }
+  to {
+    opacity: 1;
+    outline-color: transparent;
+    outline-offset: 0px;
+  }
+}
+
+.app-main-scroll-dark .pmc-motion-page
+  :is(
+    #tl-section-project-dates > *,
+    #tl-section-contractor header,
+    .contract-values-group,
+    .invoicing-group,
+    .planned-earned-group,
+    .contract-performance-card > *,
+    .cost-performance-card > *,
+    .exec-section-hse > :not(#tl-section-hse),
+    #tl-section-hse > *,
+    #tl-section-quality > *,
+    #exec-section-drawings > *,
+    #exec-section-correspondence > *,
+    #exec-section-quality > *,
+    .pmc-pm-budget-grid > *,
+    .budget-cost-card,
+    .manpower-histogram-card > *
+  ) {
+  outline: 2px solid transparent;
+  border-color: color-mix(in srgb, var(--pm-accent) 22%, rgba(148, 163, 184, 0.14));
+  background-image: radial-gradient(
+    90% 140px at 50% 0%,
+    color-mix(in srgb, var(--pm-accent) 13%, transparent) 0%,
+    transparent 100%
+  );
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    0 18px 40px -26px color-mix(in srgb, var(--pm-accent) 55%, rgba(0, 0, 0, 0.6));
+  animation: pmc-pm-glow-in 1100ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@supports (animation-timeline: view()) {
+  .app-main-scroll-dark .pmc-motion-page
+    :is(
+      #tl-section-project-dates > *,
+      #tl-section-contractor header,
+      .contract-values-group,
+      .invoicing-group,
+      .planned-earned-group,
+      .contract-performance-card > *,
+      .cost-performance-card > *,
+      .exec-section-hse > :not(#tl-section-hse),
+      #tl-section-hse > *,
+      #tl-section-quality > *,
+      #exec-section-drawings > *,
+      #exec-section-correspondence > *,
+      #exec-section-quality > *,
+      .pmc-pm-budget-grid > *,
+      .budget-cost-card,
+      .manpower-histogram-card > *
+    ) {
+    animation: pmc-pm-glow-in linear both;
+    animation-timeline: view();
+    animation-range: entry 0% entry 70%;
+  }
+}
+
+.app-main-scroll-dark .pmc-motion-page
+  :is(
+    #tl-section-project-dates > *,
+    #tl-section-contractor header,
+    .contract-values-group,
+    .invoicing-group,
+    .planned-earned-group,
+    .contract-performance-card > *,
+    .cost-performance-card > *,
+    .exec-section-hse > :not(#tl-section-hse),
+    #tl-section-hse > *,
+    #tl-section-quality > *,
+    #exec-section-drawings > *,
+    #exec-section-correspondence > *,
+    #exec-section-quality > *,
+    .pmc-pm-budget-grid > *,
+    .budget-cost-card,
+    .manpower-histogram-card > *
+  ):hover {
+  border-color: color-mix(in srgb, var(--pm-accent) 55%, transparent);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.07),
+    0 0 0 1px color-mix(in srgb, var(--pm-accent) 30%, transparent),
+    0 0 28px -6px color-mix(in srgb, var(--pm-accent) 45%, transparent),
+    0 24px 48px -26px color-mix(in srgb, var(--pm-accent) 70%, rgba(0, 0, 0, 0.7));
+}
+
+.app-main-scroll-dark .pmc-motion-page .dashboard-card-top-accent {
+  box-shadow: 0 0 14px color-mix(in srgb, var(--pm-accent) 70%, transparent);
+}
+
+/* ── Metric tiles (Project Dates summary, Contract Values, Invoicing) ── */
+@keyframes pmc-pm-tile-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes pmc-pm-sweep {
+  from {
+    transform: translateX(-120%) skewX(-18deg);
+  }
+  to {
+    transform: translateX(260%) skewX(-18deg);
+  }
+}
+
+.pmc-pm-metric {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+  animation: pmc-pm-tile-in 520ms cubic-bezier(0.22, 1, 0.36, 1) backwards;
+  animation-delay: calc(var(--pm-delay, 0ms) + 150ms);
+  transition:
+    transform 260ms cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 260ms ease,
+    border-color 260ms ease,
+    background-color 260ms ease;
+}
+.pmc-pm-metric::after {
+  content: '';
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 40%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.35), transparent);
+  transform: translateX(-120%) skewX(-18deg);
+  pointer-events: none;
+  z-index: -1;
+}
+.pmc-pm-metric:hover {
+  transform: translateY(-3px);
+  border-color: color-mix(in srgb, var(--pm-accent) 45%, transparent);
+  box-shadow: 0 14px 26px -16px color-mix(in srgb, var(--pm-accent) 75%, rgba(15, 39, 68, 0.4));
+}
+.pmc-pm-metric:hover::after {
+  animation: pmc-pm-sweep 750ms ease-out;
+}
+.pmc-pm-metric > :first-child > :first-child {
+  transition: transform 360ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.pmc-pm-metric:hover > :first-child > :first-child {
+  transform: scale(1.15) rotate(-8deg);
+}
+
+.app-main-scroll-light .pmc-pm-metric:hover {
+  background-color: #ffffff;
+  box-shadow:
+    0 0 0 3px color-mix(in srgb, var(--pm-accent) 10%, transparent),
+    0 14px 26px -16px color-mix(in srgb, var(--pm-accent) 70%, rgba(15, 39, 68, 0.35));
+}
+.app-main-scroll-light .pmc-pm-metric::after {
+  background: linear-gradient(
+    90deg,
+    transparent,
+    color-mix(in srgb, var(--pm-accent) 14%, transparent),
+    transparent
+  );
+}
+
+.app-main-scroll-dark .pmc-pm-metric {
+  background-image: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--pm-accent) 7%, transparent) 0%,
+    transparent 70%
+  );
+}
+.app-main-scroll-dark .pmc-pm-metric:hover {
+  background-color: rgba(255, 255, 255, 0.07);
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--pm-accent) 30%, transparent),
+    0 0 22px -6px color-mix(in srgb, var(--pm-accent) 55%, transparent);
+}
+.app-main-scroll-dark .pmc-pm-metric::after {
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.1), transparent);
+}
+
+/* ── Progress bars: shimmer on top of the grow-in ───────────── */
+.pmc-pm-bar-shine {
+  position: relative;
+  overflow: hidden;
+}
+.pmc-pm-bar-shine::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  width: 45%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.55), transparent);
+  transform: translateX(-120%) skewX(-18deg);
+  animation: pmc-pm-sweep 2.6s ease-in-out 1.4s infinite;
+}
+
+/* ── Empty state (HSE "no records") ─────────────────────────── */
+@keyframes pmc-pm-breathe {
+  0%,
+  100% {
+    border-color: color-mix(in srgb, var(--pm-accent) 25%, transparent);
+  }
+  50% {
+    border-color: color-mix(in srgb, var(--pm-accent) 60%, transparent);
+  }
+}
+
+.pmc-pm-empty {
+  --pm-accent: #10b981;
+  background-image: radial-gradient(
+    60% 70% at 50% 40%,
+    color-mix(in srgb, var(--pm-accent) 9%, transparent) 0%,
+    transparent 100%
+  );
+  animation: pmc-pm-breathe 3.2s ease-in-out infinite;
+}
+.pmc-pm-empty-icon {
+  color: var(--pm-accent);
+  background: color-mix(in srgb, var(--pm-accent) 14%, transparent);
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--pm-accent) 28%, transparent),
+    0 10px 22px -10px color-mix(in srgb, var(--pm-accent) 70%, transparent);
+  animation: pmc-pm-float 3s ease-in-out infinite;
+}
+.pmc-pm-cta {
+  position: relative;
+  overflow: hidden;
+  background-image: linear-gradient(135deg, #2563eb, #4f46e5);
+  box-shadow: 0 8px 18px -8px rgba(79, 70, 229, 0.7);
+  transition:
+    transform 220ms cubic-bezier(0.34, 1.56, 0.64, 1),
+    box-shadow 220ms ease;
+}
+.pmc-pm-cta::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  width: 40%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.45), transparent);
+  transform: translateX(-120%) skewX(-18deg);
+  animation: pmc-pm-sweep 3s ease-in-out 1s infinite;
+}
+.pmc-pm-cta:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 14px 24px -10px rgba(79, 70, 229, 0.8);
+}
+
+/* ── Contractor Management header: sheen + badge pop ────────── */
+.pmc-pm-cm-header::after {
+  content: '';
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 30%;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    color-mix(in srgb, var(--pm-accent) 14%, transparent),
+    transparent
+  );
+  transform: translateX(-120%) skewX(-18deg);
+  animation: pmc-pm-sweep 1.4s ease-out 400ms both;
+  pointer-events: none;
+}
+.pmc-pm-cm-header:hover::after {
+  animation: pmc-pm-sweep 1s ease-out;
+}
+.pmc-pm-cm-badge {
+  transition:
+    transform 360ms cubic-bezier(0.34, 1.56, 0.64, 1),
+    box-shadow 300ms ease;
+  box-shadow: 0 8px 18px -10px color-mix(in srgb, var(--pm-accent) 80%, transparent);
+}
+.pmc-pm-cm-header:hover .pmc-pm-cm-badge {
+  transform: rotate(-8deg) scale(1.08);
+  box-shadow: 0 10px 22px -8px color-mix(in srgb, var(--pm-accent) 90%, transparent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pmc-pm-metric,
+  .pmc-pm-metric::after,
+  .pmc-pm-bar-shine::after,
+  .pmc-pm-empty,
+  .pmc-pm-empty-icon,
+  .pmc-pm-cta::after,
+  .pmc-pm-cm-header::after,
+  .app-main-scroll-dark .pmc-motion-page
+    :is(
+      #tl-section-project-dates > *,
+      #tl-section-contractor header,
+      .contract-values-group,
+      .invoicing-group,
+      .planned-earned-group,
+      .contract-performance-card > *,
+      .cost-performance-card > *,
+      .exec-section-hse > :not(#tl-section-hse),
+      #tl-section-hse > *,
+      #tl-section-quality > *,
+      #exec-section-drawings > *,
+      #exec-section-correspondence > *,
+      #exec-section-quality > *,
+      .pmc-pm-budget-grid > *,
+      .budget-cost-card,
+      .manpower-histogram-card > *
+    ) {
+    animation: none !important;
+  }
+  .pmc-pm-metric:hover,
+  .pmc-pm-metric:hover > :first-child > :first-child,
+  .pmc-pm-cta:hover:not(:disabled),
+  .pmc-pm-cm-header:hover .pmc-pm-cm-badge {
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pmc-motion-page .dashboard-card-top-accent,
+  .pmc-motion-page
+    :is(
+      #tl-section-project-dates > *,
+      #tl-section-contractor header,
+      .contract-values-group,
+      .invoicing-group,
+      .planned-earned-group,
+      .contract-performance-card > *,
+    .cost-performance-card > *,
+    .exec-section-hse > :not(#tl-section-hse),
+      #tl-section-hse > *,
+      #tl-section-quality > *,
+      #exec-section-drawings > *,
+      #exec-section-correspondence > *,
+      #exec-section-quality > *,
+      .pmc-pm-budget-grid > *,
+      .budget-cost-card,
+      .manpower-histogram-card > *
+    ),
+  .pmc-pm-header,
+  .pmc-pm-kpi,
+  .pmc-pm-kpi::before,
+  .pmc-pm-kpi-icon::after,
+  .pmc-pm-bar {
+    animation: none !important;
+  }
+  .pmc-pm-kpi:hover,
+  .app-main-scroll-light .pmc-pm-kpi:hover,
+  .pmc-pm-kpi:hover .pmc-pm-kpi-icon,
+  .pmc-pm-header:hover .pmc-pm-header-icon {
+    transform: none;
+  }
+}

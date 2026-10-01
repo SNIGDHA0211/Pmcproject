@@ -32,12 +32,12 @@ const CmDashboardHeader: React.FC<CmDashboardHeaderProps> = ({
   const theme = useCmTheme();
 
   return (
-    <header className={theme.shell}>
+    <header className={`pmc-pm-cm-header ${theme.shell}`}>
       <DashboardCardTopAccent />
       <div className="px-4 py-2.5 sm:px-5 sm:py-3">
         <div className="flex flex-col gap-2.5 lg:flex-row lg:items-end lg:justify-between">
           <div className="flex min-w-0 items-start gap-2.5 sm:gap-3">
-            <span className={theme.badge} aria-hidden>
+            <span className={`pmc-pm-cm-badge ${theme.badge}`} aria-hidden>
               <HardHat size={18} strokeWidth={2.25} />
             </span>
             <div className="min-w-0">

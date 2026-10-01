@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { LayoutDashboard } from 'lucide-react';
+import { DollarSign, LayoutDashboard, TrendingUp } from 'lucide-react';
 import { getBillingTheme } from '../utils/billingDashboardTheme';
 import { getThemeClasses, useTheme } from '../utils/theme';
 import BillingFinanceDashboardCards, {
@@ -30,6 +30,10 @@ const BillingEngineerDashboardPanel: React.FC<BillingEngineerDashboardPanelProps
   const themeClasses = getThemeClasses(isDarkTheme);
   const billing = getBillingTheme(isDarkTheme, themeClasses);
 
+  const cardBase = isDarkTheme
+    ? 'pmc-ov-card rounded-2xl pmc360-glass-panel-dark'
+    : 'pmc-ov-card rounded-2xl pmc360-glass-panel-light';
+
   const projectOptions = useMemo(() => {
     const map = new Map<string, BillingProjectOption>();
     for (const p of assignedProjects) {
@@ -42,30 +46,42 @@ const BillingEngineerDashboardPanel: React.FC<BillingEngineerDashboardPanelProps
   }, [assignedProjects, projectName]);
 
   return (
-    <div className={billing.pageShell}>
-      <header className={`${billing.card} !p-4 sm:!p-5`}>
+    <div className="space-y-5 sm:space-y-6">
+      <header
+        className={`p-4 sm:p-5 ${cardBase}`}
+        style={{ '--ov-accent': '#10b981', '--ov-delay': '0ms' } as React.CSSProperties}
+      >
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div className="flex min-w-0 items-center gap-3">
-            <span className={billing.sectionIcon}>
-              <LayoutDashboard size={20} strokeWidth={2.25} />
+            <span
+              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl text-white shadow-md"
+              style={{ background: 'linear-gradient(135deg, #10b981 0%, #1e3a5f 130%)' }}
+            >
+              <DollarSign size={22} strokeWidth={2.2} />
             </span>
             <div className="min-w-0">
-              <h2 className={`text-base font-black uppercase tracking-widest sm:text-lg ${themeClasses.textPrimary}`}>
-                Billing Engineer Dashboard
-              </h2>
-              <p className={billing.sectionSubtitle}>
-                Financial overview · Project billing & performance
+              <div className="flex items-center gap-2">
+                <h2 className={`text-base font-black uppercase tracking-wider sm:text-lg ${themeClasses.textPrimary}`}>
+                  Billing Engineer Dashboard
+                </h2>
+                <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[9px] font-black uppercase text-emerald-600 dark:text-emerald-400">
+                  <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-500" />
+                  EVM &amp; Commercials
+                </span>
+              </div>
+              <p className={`text-[11px] font-medium ${themeClasses.textMuted}`}>
+                Commercial tracking · Cashflow forecasting · Contractor billing analytics
               </p>
             </div>
           </div>
 
           <div className="flex w-full flex-col gap-1.5 sm:w-auto sm:items-end">
-            <label className={billing.label}>Active Project</label>
+            <label className={`text-[10px] font-black uppercase tracking-wider ${themeClasses.textMuted}`}>Active Project</label>
             {projectOptions.length > 0 ? (
               <select
                 value={projectName ?? ''}
                 onChange={(e) => onProjectChange(e.target.value)}
-                className={`${billing.select} w-full sm:min-w-[220px]`}
+                className={`w-full sm:min-w-[240px] rounded-xl border px-3.5 py-2 text-xs font-bold outline-none shadow-sm transition-all ${themeClasses.input}`}
               >
                 {projectOptions.map((p) => (
                   <option key={p.id} value={p.title}>
@@ -89,7 +105,7 @@ const BillingEngineerDashboardPanel: React.FC<BillingEngineerDashboardPanelProps
           onNavigateFinancial={onNavigateFinancial}
         />
       ) : (
-        <div className={`${billing.card} py-12 text-center`}>
+        <div className={`${cardBase} p-12 text-center`} style={{ '--ov-accent': '#64748b' } as React.CSSProperties}>
           <p className={`text-sm font-semibold ${themeClasses.textSecondary}`}>
             Select a project to view financial cards
           </p>

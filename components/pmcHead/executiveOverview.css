@@ -1,0 +1,381 @@
+/* PMC Head executive overview — card polish & motion (scoped to .pmc-ov-*) */
+
+@keyframes pmc-ov-rise {
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes pmc-ov-accent-in {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
+@keyframes pmc-ov-sheen {
+  from {
+    transform: translateX(-120%) skewX(-18deg);
+  }
+  to {
+    transform: translateX(260%) skewX(-18deg);
+  }
+}
+
+@keyframes pmc-ov-grow {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
+@keyframes pmc-ov-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-4px);
+  }
+}
+
+@keyframes pmc-ov-ping {
+  0% {
+    transform: scale(1);
+    opacity: 0.55;
+  }
+  80%,
+  100% {
+    transform: scale(2.4);
+    opacity: 0;
+  }
+}
+
+@keyframes pmc-ov-slide-in {
+  from {
+    opacity: 0;
+    transform: translateX(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* ── Card shell ─────────────────────────────────────────────── */
+.pmc-ov-card {
+  --ov-accent: #14b8a6;
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  animation: pmc-ov-rise 560ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: var(--ov-delay, 0ms);
+  transition:
+    transform 320ms cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 320ms ease,
+    border-color 320ms ease;
+}
+
+.pmc-ov-card.pmc360-glass-panel-light {
+  background-color: #ffffff;
+  background-image:
+    radial-gradient(130% 90% at 100% 0%, color-mix(in srgb, var(--ov-accent) 9%, transparent) 0%, transparent 55%),
+    linear-gradient(180deg, #ffffff 0%, #fbfdff 100%);
+  border-color: rgba(148, 163, 184, 0.28);
+  box-shadow:
+    0 1px 2px rgba(15, 23, 42, 0.04),
+    0 6px 18px -10px rgba(15, 39, 68, 0.18);
+}
+
+.pmc-ov-card.pmc360-glass-panel-dark {
+  background-image: radial-gradient(
+    130% 90% at 100% 0%,
+    color-mix(in srgb, var(--ov-accent) 16%, transparent) 0%,
+    transparent 55%
+  );
+}
+
+.pmc-ov-card:hover {
+  transform: translateY(-3px);
+}
+
+.pmc-ov-card.pmc360-glass-panel-light:hover {
+  border-color: color-mix(in srgb, var(--ov-accent) 38%, transparent);
+  box-shadow:
+    0 2px 4px rgba(15, 23, 42, 0.04),
+    0 18px 38px -18px color-mix(in srgb, var(--ov-accent) 55%, rgba(15, 39, 68, 0.4));
+}
+
+.pmc-ov-card.pmc360-glass-panel-dark:hover {
+  border-color: color-mix(in srgb, var(--ov-accent) 45%, transparent);
+  box-shadow: 0 18px 40px -18px color-mix(in srgb, var(--ov-accent) 60%, rgba(0, 0, 0, 0.7));
+}
+
+/* Accent strip along the top edge */
+.pmc-ov-card::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 3px;
+  z-index: 2;
+  background: linear-gradient(
+    90deg,
+    var(--ov-accent) 0%,
+    color-mix(in srgb, var(--ov-accent) 55%, #ffffff) 60%,
+    transparent 100%
+  );
+  transform-origin: left center;
+  animation: pmc-ov-accent-in 900ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: calc(var(--ov-delay, 0ms) + 180ms);
+  pointer-events: none;
+}
+
+/* Light sheen that sweeps across on hover */
+.pmc-ov-card::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 38%;
+  z-index: 1;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.55),
+    transparent
+  );
+  opacity: 0;
+  transform: translateX(-120%) skewX(-18deg);
+  pointer-events: none;
+}
+
+.pmc-ov-card.pmc360-glass-panel-dark::after {
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.07), transparent);
+}
+
+.pmc-ov-card:hover::after {
+  opacity: 1;
+  animation: pmc-ov-sheen 1100ms ease forwards;
+}
+
+.pmc-ov-card > * {
+  position: relative;
+  z-index: 3;
+}
+
+/* ── Header icon ────────────────────────────────────────────── */
+.pmc-ov-icon {
+  transition:
+    transform 360ms cubic-bezier(0.34, 1.56, 0.64, 1),
+    box-shadow 360ms ease;
+  box-shadow: 0 6px 14px -6px color-mix(in srgb, var(--ov-accent) 70%, transparent);
+}
+
+.pmc-ov-card:hover .pmc-ov-icon {
+  transform: translateY(-1px) rotate(-6deg) scale(1.08);
+  box-shadow: 0 10px 20px -8px color-mix(in srgb, var(--ov-accent) 85%, transparent);
+}
+
+.pmc-ov-live {
+  position: relative;
+  display: inline-flex;
+  height: 6px;
+  width: 6px;
+}
+
+.pmc-ov-live::before,
+.pmc-ov-live::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 9999px;
+  background: var(--ov-accent);
+}
+
+.pmc-ov-live::before {
+  animation: pmc-ov-ping 1.8s cubic-bezier(0, 0, 0.2, 1) infinite;
+}
+
+/* ── Action pill ────────────────────────────────────────────── */
+.pmc-ov-action svg {
+  transition: transform 260ms ease;
+}
+
+.pmc-ov-action:hover svg {
+  transform: translateX(2px);
+}
+
+/* ── Progress / insight bars ────────────────────────────────── */
+.pmc-ov-bar-fill {
+  transform-origin: left center;
+  animation: pmc-ov-grow 1100ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: calc(var(--ov-delay, 0ms) + 260ms);
+  background-image: linear-gradient(90deg, rgba(255, 255, 255, 0) 0%, rgba(255, 255, 255, 0.35) 100%);
+}
+
+/* ── Staggered list rows ────────────────────────────────────── */
+.pmc-ov-row {
+  animation: pmc-ov-slide-in 480ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: calc(var(--ov-delay, 0ms) + var(--ov-row-delay, 0ms) + 220ms);
+}
+
+/* ── Empty state ────────────────────────────────────────────── */
+.pmc-ov-empty {
+  border: 1.5px dashed color-mix(in srgb, var(--ov-accent) 30%, rgba(148, 163, 184, 0.5));
+  background: color-mix(in srgb, var(--ov-accent) 4%, transparent);
+}
+
+.pmc-ov-empty-icon {
+  animation: pmc-ov-float 3.2s ease-in-out infinite;
+  color: var(--ov-accent);
+  background: color-mix(in srgb, var(--ov-accent) 12%, transparent);
+}
+
+/* ── Stat tiles (metric cells) ──────────────────────────────── */
+.pmc-ov-tile {
+  transition:
+    transform 260ms ease,
+    box-shadow 260ms ease;
+}
+
+.pmc-ov-tile:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 20px -14px rgba(15, 39, 68, 0.45);
+}
+
+/* ── Light theme boost ──────────────────────────────────────────
+ * White-on-white hides tints, sheens and soft shadows, so light mode gets
+ * a tinted page surface, stronger accent washes and coloured glow motion.
+ */
+@keyframes pmc-ov-glow-in-light {
+  0% {
+    box-shadow:
+      0 0 0 1px color-mix(in srgb, var(--ov-accent) 40%, transparent),
+      0 26px 50px -18px color-mix(in srgb, var(--ov-accent) 65%, transparent);
+  }
+  100% {
+    box-shadow:
+      0 1px 2px rgba(15, 23, 42, 0.05),
+      0 10px 26px -16px color-mix(in srgb, var(--ov-accent) 40%, rgba(15, 39, 68, 0.3));
+  }
+}
+
+@keyframes pmc-ov-strip-glow {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.65;
+  }
+}
+
+.pmc-ov-surface.pmc360-glass-panel-light {
+  background-color: #f4f8fc;
+  background-image:
+    radial-gradient(45% 35% at 0% 0%, rgba(20, 184, 166, 0.09) 0%, transparent 70%),
+    radial-gradient(40% 30% at 100% 8%, rgba(99, 102, 241, 0.09) 0%, transparent 70%),
+    radial-gradient(50% 35% at 50% 100%, rgba(139, 92, 246, 0.07) 0%, transparent 70%);
+  border-color: rgba(148, 163, 184, 0.25);
+}
+
+.pmc-ov-card.pmc360-glass-panel-light {
+  background-image:
+    radial-gradient(120% 85% at 100% 0%, color-mix(in srgb, var(--ov-accent) 14%, transparent) 0%, transparent 55%),
+    radial-gradient(90% 70% at 0% 100%, color-mix(in srgb, var(--ov-accent) 6%, transparent) 0%, transparent 60%),
+    linear-gradient(180deg, #ffffff 0%, #fbfdff 100%);
+  border-color: color-mix(in srgb, var(--ov-accent) 16%, rgba(148, 163, 184, 0.35));
+  box-shadow:
+    0 1px 2px rgba(15, 23, 42, 0.05),
+    0 10px 26px -16px color-mix(in srgb, var(--ov-accent) 40%, rgba(15, 39, 68, 0.3));
+  animation:
+    pmc-ov-rise 560ms cubic-bezier(0.22, 1, 0.36, 1) both,
+    pmc-ov-glow-in-light 1500ms ease-out backwards;
+  animation-delay: var(--ov-delay, 0ms), var(--ov-delay, 0ms);
+}
+
+.pmc-ov-card.pmc360-glass-panel-light:hover {
+  transform: translateY(-4px);
+  border-color: color-mix(in srgb, var(--ov-accent) 45%, transparent);
+  box-shadow:
+    0 0 0 3px color-mix(in srgb, var(--ov-accent) 12%, transparent),
+    0 24px 46px -20px color-mix(in srgb, var(--ov-accent) 62%, rgba(15, 39, 68, 0.35));
+}
+
+.pmc-ov-card.pmc360-glass-panel-light::before {
+  height: 4px;
+  box-shadow: 0 2px 12px color-mix(in srgb, var(--ov-accent) 55%, transparent);
+}
+
+.pmc-ov-card.pmc360-glass-panel-light:hover::before {
+  animation:
+    pmc-ov-accent-in 900ms cubic-bezier(0.22, 1, 0.36, 1) both,
+    pmc-ov-strip-glow 1.6s ease-in-out infinite;
+}
+
+.pmc-ov-card.pmc360-glass-panel-light::after {
+  width: 45%;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    color-mix(in srgb, var(--ov-accent) 14%, transparent),
+    rgba(255, 255, 255, 0.7),
+    color-mix(in srgb, var(--ov-accent) 14%, transparent),
+    transparent
+  );
+}
+
+.pmc360-glass-panel-light .pmc-ov-icon,
+.pmc-ov-card.pmc360-glass-panel-light .pmc-ov-icon {
+  box-shadow:
+    0 8px 18px -6px color-mix(in srgb, var(--ov-accent) 75%, transparent),
+    inset 0 1px 0 rgba(255, 255, 255, 0.35);
+}
+
+.pmc-ov-card.pmc360-glass-panel-light .pmc-ov-empty {
+  border-color: color-mix(in srgb, var(--ov-accent) 40%, rgba(148, 163, 184, 0.5));
+  background:
+    radial-gradient(60% 80% at 50% 0%, color-mix(in srgb, var(--ov-accent) 9%, transparent) 0%, transparent 70%),
+    color-mix(in srgb, var(--ov-accent) 4%, #ffffff);
+}
+
+.pmc-ov-card.pmc360-glass-panel-light .pmc-ov-tile:hover {
+  box-shadow: 0 12px 22px -14px color-mix(in srgb, var(--ov-accent) 60%, rgba(15, 39, 68, 0.35));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pmc-ov-card.pmc360-glass-panel-light,
+  .pmc-ov-card.pmc360-glass-panel-light:hover::before {
+    animation: none !important;
+  }
+  .pmc-ov-card.pmc360-glass-panel-light:hover {
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pmc-ov-card,
+  .pmc-ov-card::before,
+  .pmc-ov-card:hover::after,
+  .pmc-ov-bar-fill,
+  .pmc-ov-row,
+  .pmc-ov-empty-icon,
+  .pmc-ov-live::before {
+    animation: none !important;
+  }
+  .pmc-ov-card:hover,
+  .pmc-ov-card:hover .pmc-ov-icon,
+  .pmc-ov-tile:hover {
+    transform: none;
+  }
+}

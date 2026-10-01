@@ -109,12 +109,13 @@ const InvoicingSectionBody: React.FC<{
   return (
     <div className="flex flex-col gap-4">
       <div className="grid grid-cols-1 gap-3 min-[380px]:grid-cols-2 2xl:grid-cols-4">
-        {metrics.map((item) => {
+        {metrics.map((item, index) => {
           const MetricIcon = item.icon;
           return (
             <div
               key={item.label}
-              className={`flex min-h-[5.5rem] min-w-0 flex-col overflow-hidden rounded-lg border border-b-[3px] px-2.5 py-2.5 ${item.border
+              style={{ '--pm-delay': `${index * 70}ms` } as React.CSSProperties}
+              className={`pmc-pm-metric flex min-h-[5.5rem] min-w-0 flex-col overflow-hidden rounded-lg border border-b-[3px] px-2.5 py-2.5 ${item.border
                 } ${isDarkTheme ? 'border-white/10 bg-white/5' : 'border-slate-200 bg-white'}`}
             >
               <div className="flex min-w-0 flex-col gap-1">
@@ -152,7 +153,7 @@ const InvoicingSectionBody: React.FC<{
         </div>
         <div className={`mt-2 h-2 overflow-hidden rounded-full ${isDarkTheme ? 'bg-white/10' : 'bg-slate-200'}`}>
           <div
-            className={`h-full rounded-full ${semanticBarFillClass(status.tone)}`}
+            className={`pmc-pm-bar pmc-pm-bar-shine h-full rounded-full ${semanticBarFillClass(status.tone)}`}
             style={{ width: `${barFillPercent}%` }}
           />
         </div>

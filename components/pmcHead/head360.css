@@ -1,0 +1,803 @@
+/*
+ * PMC Head — Project 360° Overview polish & motion.
+ * Per-element accent: --h-accent, stagger: --h-delay.
+ * The compare tray is position: fixed inside the dashboard root, so no
+ * transform is ever applied to the root or the <section> wrappers.
+ */
+
+@keyframes pmc-h360-rise {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes pmc-h360-card-in {
+  from {
+    opacity: 0;
+    transform: translateY(18px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes pmc-h360-grow {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
+@keyframes pmc-h360-flow {
+  from {
+    background-position: 0% 50%;
+  }
+  to {
+    background-position: 200% 50%;
+  }
+}
+
+@keyframes pmc-h360-sweep {
+  from {
+    transform: translateX(-130%) skewX(-18deg);
+  }
+  to {
+    transform: translateX(330%) skewX(-18deg);
+  }
+}
+
+@keyframes pmc-h360-ping {
+  0% {
+    transform: scale(1);
+    opacity: 0.65;
+  }
+  80%,
+  100% {
+    transform: scale(2.8);
+    opacity: 0;
+  }
+}
+
+@keyframes pmc-h360-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-4px);
+  }
+}
+
+@keyframes pmc-h360-kenburns {
+  from {
+    transform: scale(1.03) translate3d(0, 0, 0);
+  }
+  to {
+    transform: scale(1.12) translate3d(-1.5%, -1%, 0);
+  }
+}
+
+@keyframes pmc-h360-aurora {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  50% {
+    transform: translate3d(4%, 6%, 0) scale(1.12);
+  }
+}
+
+@keyframes pmc-h360-ring {
+  from {
+    stroke-dasharray: 0 113.1;
+  }
+}
+
+@keyframes pmc-h360-gauge {
+  from {
+    stroke-dashoffset: var(--g-c);
+  }
+}
+
+@keyframes pmc-h360-breathe {
+  0%,
+  100% {
+    border-color: color-mix(in srgb, var(--h-accent, #06b6d4) 30%, transparent);
+  }
+  50% {
+    border-color: color-mix(in srgb, var(--h-accent, #06b6d4) 70%, transparent);
+  }
+}
+
+@keyframes pmc-h360-alert-glow {
+  0%,
+  100% {
+    box-shadow: 0 0 6px color-mix(in srgb, var(--h-accent) 50%, transparent);
+  }
+  50% {
+    box-shadow: 0 0 16px color-mix(in srgb, var(--h-accent) 95%, transparent);
+  }
+}
+
+/* ── Hero ───────────────────────────────────────────────────── */
+.pmc360-hero.pmc-h360-hero {
+  overflow: visible;
+  z-index: 20;
+  animation: pmc-h360-rise 600ms cubic-bezier(0.22, 1, 0.36, 1) backwards;
+}
+
+.pmc-h360-hero-bg {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  border-radius: inherit;
+  pointer-events: none;
+}
+
+.pmc-h360-hero .pmc360-hero-photo {
+  animation: pmc-h360-kenburns 28s ease-in-out infinite alternate;
+  will-change: transform;
+}
+
+.pmc-h360-hero-aurora {
+  position: absolute;
+  inset: -30%;
+  background:
+    radial-gradient(28% 32% at 22% 30%, rgba(34, 211, 238, 0.22), transparent 70%),
+    radial-gradient(26% 30% at 78% 70%, rgba(99, 102, 241, 0.2), transparent 70%);
+  filter: blur(18px);
+  animation: pmc-h360-aurora 18s ease-in-out infinite;
+}
+.pmc-h360-hero.is-light .pmc-h360-hero-aurora {
+  background:
+    radial-gradient(28% 32% at 22% 30%, rgba(14, 165, 233, 0.18), transparent 70%),
+    radial-gradient(26% 30% at 78% 70%, rgba(99, 102, 241, 0.14), transparent 70%);
+}
+
+.pmc-h360-hero::after {
+  content: '';
+  position: absolute;
+  left: 1.25rem;
+  right: 1.25rem;
+  bottom: 0;
+  height: 2px;
+  border-radius: 999px;
+  background-image: linear-gradient(90deg, transparent, #22d3ee, #6366f1, #22d3ee, transparent);
+  background-size: 200% 100%;
+  transform-origin: center;
+  animation:
+    pmc-h360-grow 1000ms cubic-bezier(0.22, 1, 0.36, 1) 300ms both,
+    pmc-h360-flow 6s linear infinite;
+  opacity: 0.85;
+  pointer-events: none;
+}
+
+.pmc-h360-hero-head {
+  animation: pmc-h360-rise 650ms cubic-bezier(0.22, 1, 0.36, 1) 120ms backwards;
+}
+
+.pmc-h360-title {
+  background-size: 220% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: pmc-h360-flow 9s linear infinite;
+}
+.pmc-h360-hero.is-dark .pmc-h360-title {
+  background-image: linear-gradient(90deg, #f8fafc 0%, #f8fafc 35%, #67e8f9 50%, #f8fafc 65%, #f8fafc 100%);
+}
+.pmc-h360-hero.is-light .pmc-h360-title {
+  background-image: linear-gradient(90deg, #0f172a 0%, #0f172a 35%, #2563eb 50%, #0f172a 65%, #0f172a 100%);
+}
+
+.pmc-h360-live-dot {
+  position: relative;
+}
+.pmc-h360-live-dot::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 999px;
+  background: inherit;
+  animation: pmc-h360-ping 1.8s cubic-bezier(0, 0, 0.2, 1) infinite;
+}
+
+.pmc-h360-refresh svg {
+  transition: transform 500ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.pmc-h360-refresh:hover:not(:disabled) svg {
+  transform: rotate(180deg);
+}
+
+.pmc-h360-filters > * {
+  animation: pmc-h360-rise 520ms cubic-bezier(0.22, 1, 0.36, 1) backwards;
+}
+.pmc-h360-filters > :nth-child(1) { animation-delay: 200ms; }
+.pmc-h360-filters > :nth-child(2) { animation-delay: 240ms; }
+.pmc-h360-filters > :nth-child(3) { animation-delay: 280ms; }
+.pmc-h360-filters > :nth-child(4) { animation-delay: 320ms; }
+.pmc-h360-filters > :nth-child(5) { animation-delay: 360ms; }
+.pmc-h360-filters > :nth-child(6) { animation-delay: 400ms; }
+.pmc-h360-filters > :nth-child(7) { animation-delay: 440ms; }
+
+.pmc-h360-filters :is(input, button) {
+  transition:
+    border-color 200ms ease,
+    box-shadow 200ms ease,
+    background-color 200ms ease;
+}
+.pmc-h360-filters :is(input:focus, button[aria-expanded='true']) {
+  border-color: rgba(34, 211, 238, 0.55);
+  box-shadow: 0 0 0 3px rgba(34, 211, 238, 0.16);
+}
+.pmc-h360-hero.is-light .pmc-h360-filters :is(input:focus, button[aria-expanded='true']) {
+  border-color: rgba(37, 99, 235, 0.5);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.14);
+}
+.pmc-h360-filters [role='listbox'] {
+  animation: pmc-h360-rise 220ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  box-shadow: 0 18px 40px -16px rgba(2, 6, 23, 0.55);
+}
+
+/* ── Theme washes ────────────────────────────────────────────
+ * index.html gives .pmc360-hero-wash-dark the same pale gradient as light,
+ * which greys out the hero/summary in dark mode and kills text contrast.
+ */
+.pmc-h360-hero.is-dark .pmc360-hero-wash-dark {
+  background:
+    radial-gradient(60% 120% at 0% 0%, rgba(34, 211, 238, 0.14), transparent 60%),
+    linear-gradient(
+      110deg,
+      rgba(6, 12, 24, 0.95) 0%,
+      rgba(8, 17, 32, 0.86) 45%,
+      rgba(12, 26, 48, 0.62) 100%
+    );
+}
+.pmc-h360-hero.is-dark {
+  border: 1px solid rgba(148, 163, 184, 0.14);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    0 24px 50px -30px rgba(8, 145, 178, 0.55);
+}
+.pmc-h360-hero.is-light .pmc360-hero-wash-light {
+  background:
+    radial-gradient(60% 120% at 0% 0%, rgba(14, 165, 233, 0.12), transparent 60%),
+    linear-gradient(
+      110deg,
+      rgba(255, 255, 255, 0.96) 0%,
+      rgba(248, 251, 255, 0.88) 45%,
+      rgba(239, 246, 255, 0.7) 100%
+    );
+}
+.pmc-h360-hero.is-light {
+  border: 1px solid rgba(99, 102, 241, 0.16);
+  box-shadow: 0 18px 40px -28px rgba(79, 70, 229, 0.45);
+}
+
+.pmc360-glass-panel-dark.pmc-h360-summary {
+  border-color: rgba(148, 163, 184, 0.14);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.04),
+    0 24px 50px -32px rgba(2, 6, 23, 0.8);
+}
+.pmc360-glass-panel-dark.pmc-h360-summary .pmc360-hero-wash-dark {
+  background:
+    radial-gradient(45% 80% at 12% 0%, rgba(244, 63, 94, 0.1), transparent 60%),
+    radial-gradient(45% 80% at 88% 0%, rgba(59, 130, 246, 0.12), transparent 60%),
+    linear-gradient(180deg, rgba(8, 15, 28, 0.94) 0%, rgba(6, 12, 22, 0.97) 100%);
+}
+.pmc360-glass-panel-light.pmc-h360-summary .pmc360-hero-wash-light {
+  background:
+    radial-gradient(45% 80% at 12% 0%, rgba(244, 63, 94, 0.08), transparent 60%),
+    radial-gradient(45% 80% at 88% 0%, rgba(59, 130, 246, 0.1), transparent 60%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.95) 0%, rgba(244, 248, 252, 0.97) 100%);
+}
+
+/* Live badge: solid enough to read on the photo */
+.pmc-h360-hero.is-dark .pmc-h360-live {
+  background-color: rgba(6, 78, 59, 0.55);
+  border-color: rgba(52, 211, 153, 0.45);
+  color: #6ee7b7;
+  box-shadow: 0 0 14px -4px rgba(16, 185, 129, 0.6);
+}
+
+/* ── Section labels ─────────────────────────────────────────── */
+.pmc-h360-section-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.pmc-app h2.pmc-h360-section-label,
+.pmc-app p.pmc-h360-section-label {
+  font-family: var(--pmc-font-body, inherit) !important;
+  font-size: 0.68rem !important;
+  font-weight: 800 !important;
+  letter-spacing: 0.16em !important;
+  line-height: 1.2 !important;
+  text-transform: uppercase !important;
+}
+.pmc-h360-section-label::before {
+  content: '';
+  width: 1.1rem;
+  height: 3px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #22d3ee, #6366f1);
+  transform-origin: left center;
+  animation: pmc-h360-grow 700ms cubic-bezier(0.22, 1, 0.36, 1) 250ms both;
+}
+
+.pmc-h360-summary {
+  animation: pmc-h360-fade 700ms ease-out 150ms both;
+}
+@keyframes pmc-h360-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* ── KPI cards ──────────────────────────────────────────────── */
+.pmc-h360-kpi {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+  background-image: radial-gradient(
+    120% 90% at 100% 0%,
+    color-mix(in srgb, var(--h-accent) 14%, transparent) 0%,
+    transparent 60%
+  );
+  animation: pmc-h360-rise 600ms cubic-bezier(0.22, 1, 0.36, 1) backwards;
+  animation-delay: calc(var(--h-delay, 0ms) + 150ms);
+  transition:
+    transform 320ms cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 320ms ease,
+    border-color 320ms ease;
+}
+.pmc-h360-kpi::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 3px;
+  background: linear-gradient(90deg, var(--h-accent), color-mix(in srgb, var(--h-accent) 35%, transparent));
+  transform-origin: left center;
+  animation: pmc-h360-grow 900ms cubic-bezier(0.22, 1, 0.36, 1) backwards;
+  animation-delay: calc(var(--h-delay, 0ms) + 400ms);
+}
+.pmc-h360-kpi::after {
+  content: '';
+  position: absolute;
+  right: -2.5rem;
+  bottom: -2.5rem;
+  width: 7rem;
+  height: 7rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--h-accent) 22%, transparent);
+  filter: blur(26px);
+  z-index: -1;
+  transition:
+    transform 500ms cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 500ms ease;
+  opacity: 0.6;
+}
+.pmc-h360-kpi:hover {
+  transform: translateY(-4px);
+  border-color: color-mix(in srgb, var(--h-accent) 50%, transparent);
+  box-shadow: 0 20px 36px -20px color-mix(in srgb, var(--h-accent) 80%, rgba(2, 6, 23, 0.5));
+}
+.pmc-h360-kpi:hover::after {
+  transform: scale(1.5);
+  opacity: 1;
+}
+.pmc-h360-kpi.is-active {
+  border-color: var(--h-accent);
+  box-shadow:
+    inset 0 0 0 1px var(--h-accent),
+    0 0 0 3px color-mix(in srgb, var(--h-accent) 18%, transparent),
+    0 0 26px -4px color-mix(in srgb, var(--h-accent) 55%, transparent);
+}
+.pmc-h360-kpi-dot {
+  position: relative;
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: 999px;
+  background: var(--h-accent);
+  box-shadow: 0 0 8px color-mix(in srgb, var(--h-accent) 70%, transparent);
+}
+.pmc-h360-kpi-dot::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: inherit;
+  animation: pmc-h360-ping 2.4s cubic-bezier(0, 0, 0.2, 1) infinite;
+}
+.pmc-h360-kpi-value {
+  transform-origin: left bottom;
+  transition: transform 320ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.pmc-h360-kpi:hover .pmc-h360-kpi-value {
+  transform: scale(1.08);
+}
+
+/* ── Gauge card ─────────────────────────────────────────────── */
+.pmc-h360-gauge-card {
+  position: relative;
+  background-image: radial-gradient(
+    70% 60% at 50% 35%,
+    color-mix(in srgb, var(--h-accent) 14%, transparent) 0%,
+    transparent 70%
+  );
+  animation: pmc-h360-rise 650ms cubic-bezier(0.22, 1, 0.36, 1) 250ms backwards;
+  transition:
+    box-shadow 320ms ease,
+    border-color 320ms ease;
+}
+.pmc-h360-gauge-card:hover {
+  border-color: color-mix(in srgb, var(--h-accent) 50%, transparent);
+  box-shadow: 0 18px 36px -20px color-mix(in srgb, var(--h-accent) 75%, rgba(2, 6, 23, 0.5));
+}
+.pmc-h360-gauge-arc {
+  animation: pmc-h360-gauge 1600ms cubic-bezier(0.22, 1, 0.36, 1) 450ms backwards;
+}
+
+/* ── Project grid cards ─────────────────────────────────────── */
+.pmc-h360-grid-head {
+  animation: pmc-h360-rise 520ms cubic-bezier(0.22, 1, 0.36, 1) 250ms backwards;
+}
+
+.pmc-h360-card {
+  isolation: isolate;
+  background-image: radial-gradient(
+    110% 70% at 100% 0%,
+    color-mix(in srgb, var(--h-accent) 10%, transparent) 0%,
+    transparent 55%
+  );
+  animation: pmc-h360-card-in 620ms cubic-bezier(0.22, 1, 0.36, 1) backwards;
+  animation-delay: calc(var(--h-delay, 0ms) + 300ms);
+  transition:
+    transform 340ms cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 340ms ease,
+    border-color 340ms ease;
+}
+.pmc-h360-card::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 3px;
+  z-index: 2;
+  background-image: linear-gradient(
+    90deg,
+    var(--h-accent) 0%,
+    color-mix(in srgb, var(--h-accent) 40%, #ffffff) 25%,
+    var(--h-accent) 50%,
+    color-mix(in srgb, var(--h-accent) 40%, #ffffff) 75%,
+    var(--h-accent) 100%
+  );
+  background-size: 200% 100%;
+  box-shadow: 0 0 10px color-mix(in srgb, var(--h-accent) 55%, transparent);
+  transform-origin: left center;
+  animation: pmc-h360-grow 900ms cubic-bezier(0.22, 1, 0.36, 1) backwards;
+  animation-delay: calc(var(--h-delay, 0ms) + 500ms);
+}
+.pmc-h360-card::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 35%;
+  z-index: 1;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.08), transparent);
+  transform: translateX(-130%) skewX(-18deg);
+  pointer-events: none;
+}
+.pmc-h360-card > * {
+  position: relative;
+  z-index: 2;
+}
+.pmc-h360-card:hover {
+  transform: translateY(-5px);
+  border-color: color-mix(in srgb, var(--h-accent) 50%, transparent);
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--h-accent) 25%, transparent),
+    0 24px 44px -24px color-mix(in srgb, var(--h-accent) 80%, rgba(2, 6, 23, 0.6));
+}
+.pmc-h360-card:hover::before {
+  animation: pmc-h360-flow 2.4s linear infinite;
+}
+.pmc-h360-card:hover::after {
+  animation: pmc-h360-sweep 900ms ease-out;
+}
+.pmc-h360-card.is-selected {
+  border-color: #22d3ee;
+  box-shadow:
+    0 0 0 2px rgba(34, 211, 238, 0.55),
+    0 0 26px -6px rgba(34, 211, 238, 0.55);
+}
+.pmc-h360-card.is-critical::before {
+  animation:
+    pmc-h360-grow 900ms cubic-bezier(0.22, 1, 0.36, 1) backwards calc(var(--h-delay, 0ms) + 500ms),
+    pmc-h360-alert-glow 2.2s ease-in-out infinite;
+}
+
+/* Cards far down the grid reveal as they scroll in rather than at load. */
+@supports (animation-timeline: view()) {
+  .pmc-h360-card.is-deferred {
+    animation: pmc-h360-card-in linear backwards;
+    animation-timeline: view();
+    animation-range: entry 0% entry 55%;
+  }
+  .pmc-h360-card.is-deferred .pmc-h360-ring {
+    animation: pmc-h360-ring linear backwards;
+    animation-timeline: view();
+    animation-range: entry 20% cover 35%;
+  }
+  .pmc-h360-card.is-deferred .pmc-h360-bar {
+    animation: pmc-h360-grow linear backwards;
+    animation-timeline: view();
+    animation-range: entry 20% cover 35%;
+  }
+}
+
+.pmc-h360-card-icon {
+  transition:
+    transform 400ms cubic-bezier(0.34, 1.56, 0.64, 1),
+    box-shadow 300ms ease;
+}
+.pmc-h360-card:hover .pmc-h360-card-icon {
+  transform: rotate(-8deg) scale(1.1);
+  box-shadow: 0 10px 20px -10px color-mix(in srgb, var(--h-accent) 85%, transparent);
+}
+
+.pmc-h360-ring {
+  animation: pmc-h360-ring 1200ms cubic-bezier(0.22, 1, 0.36, 1) 500ms backwards;
+  filter: drop-shadow(0 0 3px color-mix(in srgb, var(--h-accent) 60%, transparent));
+}
+
+.pmc-h360-bar {
+  position: relative;
+  overflow: hidden;
+  transform-origin: left center;
+  animation: pmc-h360-grow 1100ms cubic-bezier(0.22, 1, 0.36, 1) 600ms backwards;
+  box-shadow: 0 0 8px color-mix(in srgb, var(--h-bar, transparent) 60%, transparent);
+}
+.pmc-h360-bar::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  width: 40%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.5), transparent);
+  transform: translateX(-130%) skewX(-18deg);
+  animation: pmc-h360-sweep 2.8s ease-in-out 1.8s infinite;
+}
+
+.pmc-h360-vitals {
+  transition:
+    background-color 260ms ease,
+    box-shadow 260ms ease;
+}
+.pmc-h360-card:hover .pmc-h360-vitals {
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--h-accent) 22%, transparent);
+}
+
+.pmc-h360-dot-alert {
+  position: relative;
+}
+.pmc-h360-dot-alert::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 999px;
+  background: inherit;
+  animation: pmc-h360-ping 1.6s cubic-bezier(0, 0, 0.2, 1) infinite;
+}
+
+.pmc-h360-view {
+  position: relative;
+  overflow: hidden;
+}
+.pmc-h360-view svg {
+  transition: transform 260ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.pmc-h360-view:hover svg {
+  transform: translateX(3px);
+}
+.pmc-h360-view::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  width: 45%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.35), transparent);
+  transform: translateX(-130%) skewX(-18deg);
+  pointer-events: none;
+}
+.pmc-h360-view:hover::after {
+  animation: pmc-h360-sweep 700ms ease-out;
+}
+
+/* ── Create-new tile ────────────────────────────────────────── */
+.pmc-h360-init {
+  --h-accent: #06b6d4;
+  animation:
+    pmc-h360-card-in 620ms cubic-bezier(0.22, 1, 0.36, 1) 400ms backwards,
+    pmc-h360-breathe 3.2s ease-in-out infinite;
+}
+.pmc-h360-init:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 24px 44px -24px rgba(6, 182, 212, 0.75);
+}
+.pmc-h360-init-icon {
+  animation: pmc-h360-float 3.2s ease-in-out infinite;
+  transition: box-shadow 300ms ease;
+}
+.pmc-h360-init-icon svg {
+  transition: transform 450ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.pmc-h360-init:hover .pmc-h360-init-icon {
+  box-shadow: 0 12px 26px -10px rgba(6, 182, 212, 0.8);
+}
+.pmc-h360-init:hover .pmc-h360-init-icon svg {
+  transform: rotate(90deg) scale(1.1);
+}
+
+/* ── Card guide ─────────────────────────────────────────────── */
+.pmc-h360-guide-item {
+  animation: pmc-h360-rise 460ms cubic-bezier(0.22, 1, 0.36, 1) backwards;
+  animation-delay: var(--h-delay, 0ms);
+}
+
+/* ── Compare tray (fixed) ───────────────────────────────────── */
+.pmc-h360-tray {
+  animation: pmc-h360-tray-in 700ms cubic-bezier(0.22, 1, 0.36, 1) 500ms backwards;
+  box-shadow: 0 -10px 40px -18px rgba(2, 6, 23, 0.55);
+}
+.pmc-h360-tray::before {
+  content: '';
+  position: absolute;
+  inset: 0 1.5rem auto 1.5rem;
+  height: 2px;
+  border-radius: 999px;
+  background-image: linear-gradient(90deg, transparent, #22d3ee, #6366f1, #22d3ee, transparent);
+  background-size: 200% 100%;
+  animation: pmc-h360-flow 6s linear infinite;
+  pointer-events: none;
+}
+@keyframes pmc-h360-tray-in {
+  from {
+    opacity: 0;
+    transform: translateY(24px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.pmc-h360-tray-item {
+  border-left: 3px solid var(--h-accent);
+  animation: pmc-h360-card-in 420ms cubic-bezier(0.22, 1, 0.36, 1) backwards;
+}
+.pmc-h360-tray-item:hover {
+  box-shadow: 0 14px 28px -18px color-mix(in srgb, var(--h-accent) 80%, transparent);
+}
+.pmc-h360-slot {
+  --h-accent: #64748b;
+  animation: pmc-h360-breathe 3s ease-in-out infinite;
+}
+
+/* ── Light theme boost ──────────────────────────────────────── */
+.pmc360-glass-light.pmc-h360-kpi {
+  border-color: color-mix(in srgb, var(--h-accent) 22%, #e2e8f0);
+  background-image:
+    radial-gradient(120% 90% at 100% 0%, color-mix(in srgb, var(--h-accent) 16%, transparent) 0%, transparent 60%),
+    linear-gradient(180deg, #ffffff 0%, #fbfdff 100%);
+  box-shadow: 0 10px 24px -18px color-mix(in srgb, var(--h-accent) 60%, rgba(15, 39, 68, 0.3));
+}
+.pmc360-glass-light.pmc-h360-kpi:hover {
+  box-shadow:
+    0 0 0 3px color-mix(in srgb, var(--h-accent) 12%, transparent),
+    0 22px 38px -20px color-mix(in srgb, var(--h-accent) 70%, rgba(15, 39, 68, 0.35));
+}
+.pmc360-glass-light.pmc-h360-kpi::before {
+  height: 4px;
+  box-shadow: 0 2px 10px color-mix(in srgb, var(--h-accent) 55%, transparent);
+}
+
+.pmc360-glass-light.pmc-h360-card {
+  border-color: color-mix(in srgb, var(--h-accent) 18%, #e2e8f0);
+  background-image:
+    radial-gradient(110% 70% at 100% 0%, color-mix(in srgb, var(--h-accent) 12%, transparent) 0%, transparent 55%),
+    linear-gradient(180deg, #ffffff 0%, #fbfdff 100%);
+  box-shadow: 0 10px 26px -20px color-mix(in srgb, var(--h-accent) 55%, rgba(15, 39, 68, 0.3));
+}
+.pmc360-glass-light.pmc-h360-card::after {
+  background: linear-gradient(
+    90deg,
+    transparent,
+    color-mix(in srgb, var(--h-accent) 12%, transparent),
+    transparent
+  );
+}
+.pmc360-glass-light.pmc-h360-card:hover {
+  border-color: color-mix(in srgb, var(--h-accent) 45%, #e2e8f0);
+  box-shadow:
+    0 0 0 3px color-mix(in srgb, var(--h-accent) 12%, transparent),
+    0 24px 44px -24px color-mix(in srgb, var(--h-accent) 70%, rgba(15, 39, 68, 0.35));
+}
+.pmc360-glass-light.pmc-h360-card.is-selected {
+  border-color: #0891b2;
+  box-shadow:
+    0 0 0 2px rgba(8, 145, 178, 0.45),
+    0 14px 30px -18px rgba(8, 145, 178, 0.6);
+}
+.pmc360-glass-light.pmc-h360-card::before {
+  height: 4px;
+}
+
+.pmc360-glass-light.pmc-h360-gauge-card {
+  border-color: color-mix(in srgb, var(--h-accent) 20%, #e2e8f0);
+  background-image:
+    radial-gradient(70% 60% at 50% 35%, color-mix(in srgb, var(--h-accent) 14%, transparent) 0%, transparent 70%),
+    linear-gradient(180deg, #ffffff 0%, #fbfdff 100%);
+}
+
+.pmc360-glass-panel-light.pmc-h360-tray {
+  box-shadow: 0 -10px 36px -20px rgba(15, 39, 68, 0.35);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pmc-h360-hero,
+  .pmc-h360-hero .pmc360-hero-photo,
+  .pmc-h360-hero-aurora,
+  .pmc-h360-hero::after,
+  .pmc-h360-hero-head,
+  .pmc-h360-title,
+  .pmc-h360-live-dot::after,
+  .pmc-h360-filters > *,
+  .pmc-h360-filters [role='listbox'],
+  .pmc-h360-section-label::before,
+  .pmc-h360-summary,
+  .pmc-h360-kpi,
+  .pmc-h360-kpi::before,
+  .pmc-h360-kpi-dot::after,
+  .pmc-h360-gauge-card,
+  .pmc-h360-gauge-arc,
+  .pmc-h360-grid-head,
+  .pmc-h360-card,
+  .pmc-h360-card::before,
+  .pmc-h360-card:hover::before,
+  .pmc-h360-card:hover::after,
+  .pmc-h360-ring,
+  .pmc-h360-bar,
+  .pmc-h360-bar::after,
+  .pmc-h360-dot-alert::after,
+  .pmc-h360-view:hover::after,
+  .pmc-h360-init,
+  .pmc-h360-init-icon,
+  .pmc-h360-guide-item,
+  .pmc-h360-tray,
+  .pmc-h360-tray::before,
+  .pmc-h360-tray-item,
+  .pmc-h360-slot {
+    animation: none !important;
+  }
+  .pmc-h360-kpi:hover,
+  .pmc-h360-kpi:hover .pmc-h360-kpi-value,
+  .pmc-h360-card:hover,
+  .pmc-h360-card:hover .pmc-h360-card-icon,
+  .pmc-h360-init:hover,
+  .pmc-h360-init:hover .pmc-h360-init-icon svg,
+  .pmc-h360-refresh:hover:not(:disabled) svg,
+  .pmc-h360-view:hover svg {
+    transform: none;
+  }
+}

@@ -1,6 +1,7 @@
 
 import React, { useState, useEffect, useRef, useCallback, useMemo, Fragment } from 'react';
 import { Icons } from './Icons';
+import './sidebarPolish.css';
 import { User, UserRole, AppNotification, Project } from '../types';
 import { ROLE_LABELS } from '../constants';
 import { useTheme, getThemeClasses, applyDocumentTheme } from '../utils/theme';
@@ -32,6 +33,77 @@ const SIDEBAR_SECTION_META: Record<string, { title: string; hint: string }> = {
   Meetings: { title: 'Meetings', hint: 'MOM and meeting files' },
   Support: { title: 'Support', hint: 'Reminders, alerts, and help' },
 };
+
+export function getRoleBadgeMeta(role: UserRole) {
+  switch (role) {
+    case UserRole.PMC_HEAD:
+    case UserRole.PMC_HEAD_OFFICE:
+    case UserRole.CEO:
+      return {
+        label: ROLE_LABELS[role] ?? 'PMC Executive',
+        gradient: 'linear-gradient(135deg, #2563eb 0%, #1e3a5f 100%)',
+        textColor: '#3b82f6',
+        badgeBgDark: 'bg-blue-500/15 border-blue-500/30 text-blue-300',
+        badgeBgLight: 'bg-blue-50 border-blue-200 text-blue-700',
+      };
+    case UserRole.COORDINATOR:
+      return {
+        label: 'PMC Manager',
+        gradient: 'linear-gradient(135deg, #0d9488 0%, #0f766e 100%)',
+        textColor: '#14b8a6',
+        badgeBgDark: 'bg-teal-500/15 border-teal-500/30 text-teal-300',
+        badgeBgLight: 'bg-teal-50 border-teal-200 text-teal-700',
+      };
+    case UserRole.TEAM_LEAD:
+      return {
+        label: 'Team Leader',
+        gradient: 'linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%)',
+        textColor: '#8b5cf6',
+        badgeBgDark: 'bg-purple-500/15 border-purple-500/30 text-purple-300',
+        badgeBgLight: 'bg-purple-50 border-purple-200 text-purple-700',
+      };
+    case UserRole.SITE_ENGINEER:
+      return {
+        label: 'Site Engineer',
+        gradient: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
+        textColor: '#0284c7',
+        badgeBgDark: 'bg-sky-500/15 border-sky-500/30 text-sky-300',
+        badgeBgLight: 'bg-sky-50 border-sky-200 text-sky-700',
+      };
+    case UserRole.BILLING_SITE_ENGINEER:
+      return {
+        label: 'Billing Engineer',
+        gradient: 'linear-gradient(135deg, #10b981 0%, #047857 100%)',
+        textColor: '#10b981',
+        badgeBgDark: 'bg-emerald-500/15 border-emerald-500/30 text-emerald-300',
+        badgeBgLight: 'bg-emerald-50 border-emerald-200 text-emerald-700',
+      };
+    case UserRole.QAQC_SITE_ENGINEER:
+      return {
+        label: 'QAQC Engineer',
+        gradient: 'linear-gradient(135deg, #f43f5e 0%, #be123c 100%)',
+        textColor: '#f43f5e',
+        badgeBgDark: 'bg-rose-500/15 border-rose-500/30 text-rose-300',
+        badgeBgLight: 'bg-rose-50 border-rose-200 text-rose-700',
+      };
+    case UserRole.HSE_SITE_ENGINEER:
+      return {
+        label: 'HSE Engineer',
+        gradient: 'linear-gradient(135deg, #f59e0b 0%, #b45309 100%)',
+        textColor: '#f59e0b',
+        badgeBgDark: 'bg-amber-500/15 border-amber-500/30 text-amber-300',
+        badgeBgLight: 'bg-amber-50 border-amber-200 text-amber-700',
+      };
+    default:
+      return {
+        label: ROLE_LABELS[role] ?? String(role),
+        gradient: 'linear-gradient(135deg, #64748b 0%, #334155 100%)',
+        textColor: '#64748b',
+        badgeBgDark: 'bg-slate-500/15 border-slate-500/30 text-slate-300',
+        badgeBgLight: 'bg-slate-100 border-slate-200 text-slate-700',
+      };
+  }
+}
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -167,6 +239,7 @@ const Layout: React.FC<LayoutProps> = ({
   const unreadCount = userNotifications.filter((n) => !n.isRead).length;
   const isPMCHead = isPmcHeadEquivalent(user);
   const canViewAlertsPage = isTabAllowedForRole('alerts', user.role, user.username, user);
+  const roleMeta = getRoleBadgeMeta(user.role);
 
   const getTourClassName = (id: string): string => {
     const classMap: Record<string, string> = {
@@ -637,14 +710,15 @@ const Layout: React.FC<LayoutProps> = ({
                 )}
               </div>
               <div
-                className={`sidebar-role-badge sidebar-chrome mt-2 inline-flex max-w-full items-center gap-1.5 rounded-full px-2.5 py-1 ${
-                  isDarkTheme ? 'sidebar-role-badge-dark' : 'sidebar-role-badge-light'
+                className={`sidebar-role-badge sidebar-chrome mt-2.5 inline-flex max-w-full items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-black uppercase tracking-wider shadow-sm transition-all ${
+                  isDarkTheme ? roleMeta.badgeBgDark : roleMeta.badgeBgLight
                 }`}
               >
-                <Icons.Safety size={11} strokeWidth={2.2} className="shrink-0 opacity-90" />
-                <span className="truncate">{ROLE_LABELS[user.role] ?? user.role}</span>
+                <span className="h-1.5 w-1.5 animate-pulse rounded-full" style={{ backgroundColor: roleMeta.textColor }} />
+                <span className="truncate">{roleMeta.label}</span>
               </div>
               <div
+                key={activeNavLabel}
                 className={`sidebar-here-chip sidebar-chrome mt-2 rounded-xl px-2.5 py-1.5 ${
                   isDarkTheme ? 'sidebar-here-chip-dark' : 'sidebar-here-chip-light'
                 }`}
@@ -827,10 +901,8 @@ const Layout: React.FC<LayoutProps> = ({
                     <p className={`truncate pmc-type-card-title ${themeClasses.textPrimary}`}>
                       {user.name}
                     </p>
-                    <p
-                      className={`truncate pmc-type-caption ${themeClasses.textSecondary}`}
-                    >
-                      {ROLE_LABELS[user.role] ?? user.role}
+                    <p className="mt-0.5 truncate text-[10px] font-bold text-sky-600 dark:text-sky-400">
+                      {roleMeta.label}
                     </p>
                   </div>
                 </div>

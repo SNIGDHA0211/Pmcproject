@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { Plus } from 'lucide-react';
+import './projectsMotion.css';
 import { ContractPerformanceRecord, ContractValueRecord, ContractValueType, InvoicingRecord, InvoiceType, Project, ProjectEquipmentRecord, ProjectQualityStatusRecord, UserRole, ProjectStatus, User } from '../types';
 import type {
   CorrespondenceDocument,
@@ -44,6 +45,7 @@ import type { DrawingMonthlyRecord, DrawingProjectSummary } from '../types';
 import DrawingRegisterCard from './DrawingRegisterCard';
 import { useTheme, getThemeClasses } from '../utils/theme';
 import {
+  useOverviewCards,
   useProjectStoreActions,
   useProjectStoreError,
   useProjectsBootstrapping,
@@ -66,7 +68,10 @@ import ContractorManagementDashboard from './contractor/ContractorManagementDash
 import { contractorMasterApi, resolveContractorProjectName } from '../services/contractorManagementApi';
 import type { ContractorMasterRecord, ProjectDatesApiRecord } from '../types/contractorManagement';
 import { isTeamLeadAssignedToProject } from '../utils/roleProjectAssignments';
-import { projectTitleMatchesHseAssignment, resolveTeamLeaderProjectTitle } from '../utils/hseSiteEngineerProjects';
+import {
+  projectTitleMatchesHseAssignment,
+  resolveTeamLeaderProjectTitle,
+} from '../utils/hseSiteEngineerProjects';
 import { pickRecordForContractor, aggregateContractValueRecords, aggregateInvoicingRecords } from '../utils/contractorFinancialRecords';
 import {
   contractorDisplayName,
@@ -117,6 +122,7 @@ import {
   buildPmcHeadDropdownProjects,
   getKnownExecutiveProjectStubs,
   getHseExecutiveProjectStubs,
+  withPortfolioSelection,
 } from '../utils/pmcHeadExecutiveProjects';
 import { isPmcHeadEquivalent } from '../utils/pmcRoleAccess';
 import {
@@ -623,7 +629,8 @@ const Projects: React.FC<ProjectsProps> = ({
   const { loadProjects } = useProjectStoreActions();
   const isPmcTeamLead = currentUser.role === UserRole.TEAM_LEAD;
   const isPMCHead = isPmcHeadEquivalent(currentUser);
-  const allProjects = useMemo(() => {
+  const overviewCards = useOverviewCards();
+  const portfolioProjects = useMemo(() => {
     if (!isPMCHead) return projects;
     return buildPmcHeadDropdownProjects(
       projects,
@@ -631,6 +638,22 @@ const Projects: React.FC<ProjectsProps> = ({
       getHseExecutiveProjectStubs(projects),
     );
   }, [isPMCHead, projects]);
+  const allProjects = useMemo(() => {
+    const targetId = String(globalSelectedProjectId ?? '').trim();
+    if (!isPMCHead || !targetId) return portfolioProjects;
+    const project = projects.find((p) => String(p.id) === targetId);
+    if (project) return withPortfolioSelection(portfolioProjects, { ...project, project });
+    const card = overviewCards.find((c) => String(c.projectId) === targetId);
+    if (!card) return portfolioProjects;
+    return withPortfolioSelection(portfolioProjects, {
+      id: card.projectId,
+      title: card.title,
+      client: card.client,
+      location: card.location,
+      teamLeadName: card.pmName,
+      teamLeadUsername: card.teamLeadUsername,
+    });
+  }, [isPMCHead, portfolioProjects, globalSelectedProjectId, projects, overviewCards]);
   const [execTab, setExecTab] = useState<PMCExecutiveTab>('overview');
   const [complianceSectionMounted, setComplianceSectionMounted] = useState(false);
 
@@ -878,7 +901,11 @@ const Projects: React.FC<ProjectsProps> = ({
     setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 3500);
   };
 
-  const selectedProject = allProjects.find(p => p.id === selectedProjectId) || allProjects[0] || null;
+  const selectedProject =
+    allProjects.find((p) => String(p.id) === String(selectedProjectId)) ||
+    projects.find((p) => String(p.id) === String(selectedProjectId)) ||
+    allProjects[0] ||
+    null;
 
   const hseCanView = useMemo(
     () => canViewHealthSafetyForProject(currentUser, selectedProject),
@@ -3181,7 +3208,7 @@ const Projects: React.FC<ProjectsProps> = ({
   }
 
   return (
-    <div className={`mx-auto max-w-[1680px] -mt-2 md:-mt-4 space-y-2 px-2 pb-2 sm:px-3 sm:pb-3 md:px-0 md:pb-0 animate-in fade-in duration-500 relative${isPMCHead ? ` ${getPmcExecutiveTheme(isDarkTheme).pageShell}` : ''}`}>
+    <div className={`pmc-motion-page mx-auto max-w-[1680px] -mt-2 md:-mt-4 space-y-2 px-2 pb-2 sm:px-3 sm:pb-3 md:px-0 md:pb-0 animate-in fade-in duration-500 relative${isPMCHead ? ` ${getPmcExecutiveTheme(isDarkTheme).pageShell}` : ''}`}>
       <DashboardToastStack toasts={toasts} />
 
       {isPMCHead && (
@@ -3253,13 +3280,13 @@ const Projects: React.FC<ProjectsProps> = ({
       {!isPMCHead && !showTlOverview && (
         <>
           {/* Header — responsive: stacked mobile → 2-row tablet → single row desktop */}
-          <div className={`mt-1 overflow-hidden rounded-2xl border px-3 py-3 sm:px-4 sm:py-3.5 lg:px-5 ${themeClasses.glassCard} ${themeClasses.border} shadow-sm`}>
+          <div className={`pmc-pm-header mt-1 overflow-hidden rounded-2xl border px-3 py-3 sm:px-4 sm:py-3.5 lg:px-5 ${themeClasses.glassCard} ${themeClasses.border} shadow-sm`}>
             <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between lg:gap-4 xl:gap-6">
               {/* Project + date cluster */}
               <div className="flex min-w-0 flex-1 flex-col gap-3 min-[520px]:flex-row min-[520px]:items-center min-[520px]:gap-4 xl:gap-6">
                 {/* Project name */}
                 <div className="flex min-w-0 flex-1 items-center gap-2.5 sm:gap-3">
-                  <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl sm:h-11 sm:w-11 ${isDarkTheme ? 'bg-indigo-500/10 text-indigo-400' : 'bg-indigo-50 text-indigo-600'}`}>
+                  <div className="pmc-pm-header-icon flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-blue-600 text-white sm:h-11 sm:w-11">
                     <Icons.Building size={20} />
                   </div>
                   <div className="min-w-0 flex-1">
@@ -3284,7 +3311,7 @@ const Projects: React.FC<ProjectsProps> = ({
 
                 {/* Report date */}
                 <div className="flex min-w-0 shrink-0 items-center gap-2.5 sm:gap-3 min-[520px]:max-w-[min(100%,16rem)] lg:max-w-none">
-                  <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl sm:h-11 sm:w-11 ${isDarkTheme ? 'bg-indigo-500/10 text-indigo-400' : 'bg-indigo-50 text-indigo-600'}`}>
+                  <div className="pmc-pm-header-icon flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-sky-500 to-cyan-600 text-white sm:h-11 sm:w-11">
                     <Icons.Calendar size={20} />
                   </div>
                   <div className="min-w-0">
@@ -4205,7 +4232,7 @@ const Projects: React.FC<ProjectsProps> = ({
 
             {(tabVisible('money') || (tabVisible('people') && !isPMCHead)) && (
               <section className="space-y-3">
-                <div className="grid grid-cols-1 items-stretch gap-4 lg:grid-cols-2 xl:grid-cols-3">
+                <div className="pmc-pm-budget-grid grid grid-cols-1 items-stretch gap-4 lg:grid-cols-2 xl:grid-cols-3">
                   {tabVisible('money') && (
                     isPMCHead ? (
                       <PMCExecutivePanel
@@ -4227,7 +4254,7 @@ const Projects: React.FC<ProjectsProps> = ({
                               ].map((metric) => {
                                 const MetricIcon = metric.icon;
                                 return (
-                                  <div key={metric.label} className="flex flex-col gap-2 rounded-xl border border-slate-200 bg-slate-50/80 px-3 py-3 sm:flex-row sm:items-center sm:justify-between">
+                                  <div key={metric.label} className="pmc-pm-tile flex flex-col gap-2 rounded-xl border border-slate-200 bg-slate-50/80 px-3 py-3 sm:flex-row sm:items-center sm:justify-between">
                                     <div className="flex min-w-0 items-center gap-2">
                                       <MetricIcon size={16} className="shrink-0 text-[#1e3a5f]" />
                                       <span className="text-xs font-bold text-slate-600 sm:text-sm">{metric.label}</span>

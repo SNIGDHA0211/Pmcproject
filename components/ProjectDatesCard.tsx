@@ -493,10 +493,11 @@ export const ProjectDatesGroupCard: React.FC<ProjectDatesGroupCardProps> = ({
         <div
           className={`grid grid-cols-2 gap-2 border-b px-4 py-3 sm:grid-cols-4 ${themeClasses.border}`}
         >
-          {summaryItems.map((item) => (
+          {summaryItems.map((item, index) => (
             <div
               key={item.label}
-              className={`rounded-lg border px-2.5 py-2 text-center ${
+              style={{ '--pm-delay': `${index * 70}ms` } as React.CSSProperties}
+              className={`pmc-pm-metric rounded-lg border px-2.5 py-2 text-center ${
                 isDarkTheme ? 'border-white/10 bg-white/[0.03]' : 'border-slate-100 bg-slate-50'
               }`}
             >

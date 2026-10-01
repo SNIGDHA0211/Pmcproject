@@ -564,6 +564,56 @@ function buildKnownExecutiveProjectStub(title: string): Project {
   };
 }
 
+export type PortfolioSelectionSource = Pick<Project, 'id' | 'title'> &
+  Partial<Pick<Project, 'client' | 'location' | 'teamLeadName' | 'teamLeadUsername'>> & {
+    project?: Project;
+  };
+
+/**
+ * Guarantees an externally selected project (e.g. a dashboard overview card) exists in the
+ * PMC Head portfolio list under its real backend id, so the dropdown and detail view match it.
+ */
+export function withPortfolioSelection(
+  portfolio: Project[],
+  selection: PortfolioSelectionSource | null,
+): Project[] {
+  const id = String(selection?.id ?? '').trim();
+  const title = String(selection?.title ?? '').trim();
+  if (!selection || !id || !title) return portfolio;
+  if (portfolio.some((p) => String(p.id) === id)) return portfolio;
+
+  const base: Project = selection.project
+    ? { ...selection.project }
+    : {
+        ...buildKnownExecutiveProjectStub(title),
+        client: selection.client && selection.client !== '—' ? selection.client : '',
+        location: selection.location && selection.location !== '—' ? selection.location : '',
+        teamLeadName: selection.teamLeadName || PMC_TL_USERNAME,
+        teamLeadUsername: selection.teamLeadUsername,
+      };
+
+  const index = portfolio.findIndex(
+    (p) =>
+      areDuplicateProjectTitles(p.title, title) ||
+      projectTitleMatchesHseAssignment(title, p.title) ||
+      projectTitleMatchesHseAssignment(p.title, title),
+  );
+  if (index >= 0) {
+    const existing = portfolio[index];
+    const next = [...portfolio];
+    next[index] = {
+      ...existing,
+      ...base,
+      id,
+      title: existing.title || base.title,
+      client: base.client || existing.client,
+      location: base.location || existing.location,
+    };
+    return next;
+  }
+  return [...portfolio, { ...base, id }];
+}
+
 let cachedProjectRows: Record<string, unknown>[] | null = null;
 let cachedProjectRowsAt = 0;
 let inflightProjectRows: Promise<Record<string, unknown>[]> | null = null;

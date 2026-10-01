@@ -3,7 +3,6 @@ import {
   ArrowUpRight,
   Building2,
   Check,
-  ChevronDown,
   Download,
   FileText,
   HardHat,
@@ -27,6 +26,8 @@ import PMCExecutiveOverviewPanel, {
 import { usePmcExecutiveTheme } from '../../utils/pmcExecutiveTheme';
 import TutorialWatchButton from '../tutorialVideos/TutorialWatchButton';
 import type { TutorialSectionKey } from '../../utils/tutorialVideosSections';
+import ExecutiveProjectPicker from './ExecutiveProjectPicker';
+import './executiveShell.css';
 
 const PROJECT_SWITCH_LOGS = [
   { label: 'Open site workspace', detail: 'Linking project registry & access' },
@@ -478,43 +479,29 @@ const PMCHeadExecutiveShell: React.FC<PMCHeadExecutiveShellProps> = ({
         </div>
       )}
 
-      <header className={ex.shellHeader}>
-        <div className="flex flex-col gap-2 p-3 sm:flex-row sm:items-center sm:justify-between sm:px-4 sm:py-2.5">
-          <div className="min-w-0 flex-1 sm:max-w-lg lg:max-w-2xl">
-            <h1 className={ex.shellTitle}>
+      <header className={`pmc-xs-shell ${ex.isDark ? 'is-dark' : 'is-light'} ${ex.shellHeader}`}>
+        <div className="pmc-xs-aurora" aria-hidden />
+        <div className="relative flex flex-col gap-2 p-3 sm:flex-row sm:items-center sm:justify-between sm:px-4 sm:py-2.5">
+          <div className="pmc-xs-head min-w-0 flex-1 sm:max-w-lg lg:max-w-2xl">
+            <h1 className={`pmc-xs-title ${ex.shellTitle}`}>
               PMC Executive Project Review
             </h1>
             <div className="relative mt-1.5 max-w-full">
               <label htmlFor="pmc-exec-project-select" className="sr-only">
                 Select project
               </label>
-              <select
+              <ExecutiveProjectPicker
                 id="pmc-exec-project-select"
-                value={selectedProjectId}
+                projects={projects}
+                selectedProjectId={selectedProjectId}
+                onSelect={handleProjectSelect}
                 disabled={Boolean(projectSwitch)}
-                onChange={(e) => handleProjectSelect(e.target.value)}
-                title={
-                  projects.find((p) => p.id === selectedProjectId)?.title ??
-                  'Select project'
-                }
-                style={{ colorScheme: ex.isDark ? 'dark' : 'light' }}
-                className={ex.shellSelect}
-              >
-                {projects.map((p) => (
-                  <option key={p.id} value={p.id} className={ex.shellSelectOption}>
-                    {p.title}
-                  </option>
-                ))}
-              </select>
-              <ChevronDown
-                size={14}
-                className={`pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 ${ex.shellSelectChevron}`}
-                aria-hidden
+                isDark={ex.isDark}
               />
             </div>
           </div>
 
-          <div className="flex shrink-0 flex-wrap items-center justify-end gap-1.5">
+          <div className="pmc-xs-actions flex shrink-0 flex-wrap items-center justify-end gap-1.5">
             <TutorialWatchButton section={tutorialSection} variant="shell" />
             <button type="button" onClick={onExport} className={ex.shellBtnSecondary}>
               <Download size={14} />
@@ -541,7 +528,7 @@ const PMCHeadExecutiveShell: React.FC<PMCHeadExecutiveShellProps> = ({
           </div>
         </div>
 
-        <nav className={ex.shellNav}>
+        <nav className={`pmc-xs-nav relative ${ex.shellNav}`}>
           {TABS.map((tab) => {
             const alert = tabAlerts[tab.id];
             const badgeCount = alert.count;
@@ -551,9 +538,10 @@ const PMCHeadExecutiveShell: React.FC<PMCHeadExecutiveShellProps> = ({
                 key={tab.id}
                 type="button"
                 onClick={() => onTabChange(tab.id)}
-                className={`relative shrink-0 rounded-full px-3 py-1.5 pr-3 pmc-type-nav transition sm:px-3.5 sm:pr-3.5 ${
-                  activeTab === tab.id ? ex.shellTabActive : ex.shellTabInactive
-                }`}
+                className={`pmc-xs-tab relative shrink-0 rounded-full px-3 py-1.5 pr-3 pmc-type-nav transition sm:px-3.5 sm:pr-3.5 ${
+                  activeTab === tab.id ? `is-active ${ex.shellTabActive}` : ex.shellTabInactive
+                }${isCritical && badgeCount > 0 ? ' is-critical' : ''}`}
+                aria-current={activeTab === tab.id ? 'page' : undefined}
                 aria-label={
                   badgeCount > 0
                     ? `${tab.label}, ${badgeCount} important item${badgeCount === 1 ? '' : 's'}`
@@ -578,7 +566,7 @@ const PMCHeadExecutiveShell: React.FC<PMCHeadExecutiveShellProps> = ({
         </nav>
 
         {activeTabAlert.count > 0 && (
-          <div className={ex.shellUpdates} role="status">
+          <div key={activeTab} className={`pmc-xs-updates ${ex.shellUpdates}`} role="status">
             <span className={ex.shellUpdatesLabel}>
               Updates
               <span className={ex.shellUpdatesCount}>{activeTabAlert.count}</span>

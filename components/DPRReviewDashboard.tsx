@@ -9,6 +9,7 @@ import { monthlyScopeApi } from "../services/api";
 import { userMatchesAssignee, isTeamLeadAssignedToProject } from "../utils/roleProjectAssignments";
 import { invalidateApiGetCache } from "../utils/apiGetCache";
 import DprReviewKpiCards from "./dprReview/DprReviewKpiCards";
+import "./siteDprMotion.css";
 import {
     canUserApproveDprStep,
     dprApproveBusyLabel,
@@ -776,21 +777,27 @@ const DPRReviewDashboard: React.FC<DPRReviewDashboardProps> = ({
         >
             {/* Header */}
             <div className="mb-6 flex-shrink-0">
-                <div className="flex items-center justify-between">
-                    <div>
-                        <h2 className={dprTy.pageTitle}>DPR Review Dashboard</h2>
-                        <p className={`mt-1 ${dprTy.pageSubtitle}`}>
-                            Daily progress reports — review and approval
-                        </p>
+                <div className="pmc-dpr-head flex flex-wrap items-center justify-between gap-3">
+                    <div className="flex min-w-0 items-center gap-3">
+                        <span className="pmc-dpr-head-icon flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl text-white" aria-hidden>
+                            <Icons.Document size={20} />
+                        </span>
+                        <div className="min-w-0">
+                            <h2 className={dprTy.pageTitle}>DPR Review Dashboard</h2>
+                            <p className={`mt-1 flex items-center gap-2 ${dprTy.pageSubtitle}`}>
+                                <span className="pmc-se-live" aria-hidden />
+                                Daily progress reports — review and approval
+                            </p>
+                        </div>
                     </div>
-                    <div className="flex items-center gap-3">
+                    <div className="pmc-dpr-actions flex flex-wrap items-center gap-3">
                         <TutorialWatchButton section="dpr_review" variant="panel" isDark={isDarkTheme} />
                         <button
                             type="button"
                             onClick={() => void refreshDprSection()}
                             disabled={isRefreshingSection}
                             title="Reload this DPR section only"
-                            className={`flex items-center gap-2 px-4 py-2 border rounded-xl text-xs font-bold transition-all ${themeClasses.buttonSecondary} ${themeClasses.border} disabled:cursor-wait disabled:opacity-70`}
+                            className={`pmc-dpr-refresh flex items-center gap-2 px-4 py-2 border rounded-xl text-xs font-bold transition-all ${themeClasses.buttonSecondary} ${themeClasses.border} disabled:cursor-wait disabled:opacity-70`}
                         >
                             <Icons.History size={16} className={isRefreshingSection ? 'animate-spin' : ''} />
                             {isRefreshingSection ? 'Refreshing…' : 'Refresh'}
@@ -798,7 +805,7 @@ const DPRReviewDashboard: React.FC<DPRReviewDashboardProps> = ({
                         {user?.role === UserRole.SITE_ENGINEER && (
                             <button
                                 onClick={() => setShowSubmissionForm(true)}
-                                className="flex items-center gap-2 px-6 py-2 bg-emerald-600 hover:bg-emerald-500 border border-emerald-500/30 rounded-xl text-xs font-black text-white uppercase tracking-widest transition-all shadow-lg shadow-emerald-500/20"
+                                className="pmc-dpr-btn flex items-center gap-2 px-6 py-2 bg-emerald-600 hover:bg-emerald-500 border border-emerald-500/30 rounded-xl text-xs font-black text-white uppercase tracking-widest transition-all shadow-lg shadow-emerald-500/20"
                             >
                                 <Icons.Add size={16} />
                                 Create New DPR
@@ -823,7 +830,7 @@ const DPRReviewDashboard: React.FC<DPRReviewDashboardProps> = ({
                     </div>
                 </div>
                 {/* Filters + DPR selector — horizontal row below title */}
-                <div className={`mt-4 flex flex-wrap items-end gap-4 p-4 border-b ${themeClasses.bgSecondary} ${themeClasses.border}`}>
+                <div className={`pmc-dpr-filters mt-4 flex flex-wrap items-end gap-4 rounded-2xl border p-4 ${themeClasses.bgSecondary} ${themeClasses.border}`}>
                     <div className="flex min-w-[200px] max-w-[320px] flex-1 flex-col">
                         <label className={dprTy.filterLabel}>Project Name</label>
                         <select
@@ -895,11 +902,11 @@ const DPRReviewDashboard: React.FC<DPRReviewDashboardProps> = ({
                 }`}
             >
                 {/* DPR detail panel */}
-                <div className={`flex-1 rounded-2xl flex flex-col min-w-0 ${themeClasses.glassCard} ${themeClasses.border}`}>
+                <div className={`pmc-dpr-panel flex-1 rounded-2xl flex flex-col min-w-0 ${themeClasses.glassCard} ${themeClasses.border}`}>
                     {selectedReport ? (
                         <>
                             {/* DPR Header */}
-                            <div className={`flex-shrink-0 p-6 border-b ${themeClasses.border} ${themeClasses.bgSecondary}`}>
+                            <div key={reportIdKey(selectedReport.id)} className={`pmc-dpr-report-head flex-shrink-0 p-6 border-b ${themeClasses.border} ${themeClasses.bgSecondary}`}>
                                 <div className="flex items-start justify-between">
                                     <div className="flex-1 min-w-0">
                                         <div className="flex items-center gap-3 mb-2">
@@ -929,7 +936,7 @@ const DPRReviewDashboard: React.FC<DPRReviewDashboardProps> = ({
                             </div>
 
                             {/* DPR Content */}
-                            <div className="space-y-4 p-4 md:p-5">
+                            <div key={`body-${reportIdKey(selectedReport.id)}`} className="pmc-dpr-body space-y-4 p-4 md:p-5">
                                 {activityStats && (
                                     <DprReviewKpiCards
                                         total={activityStats.total}
@@ -939,7 +946,7 @@ const DPRReviewDashboard: React.FC<DPRReviewDashboardProps> = ({
                                     />
                                 )}
 
-                                <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+                                <div className="pmc-dpr-fields grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
                                     {(
                                         [
                                             { key: "quality_status", label: "Quality Status", value: selectedReport.quality_status },
@@ -975,7 +982,7 @@ const DPRReviewDashboard: React.FC<DPRReviewDashboardProps> = ({
                                                 ({selectedReport.activities.length})
                                             </span>
                                         </h4>
-                                        <div className={`overflow-x-auto rounded-xl border ${themeClasses.border}`}>
+                                        <div className={`pmc-dpr-table overflow-x-auto rounded-xl border ${themeClasses.border}`}>
                                             <table className="w-full border-collapse text-left">
                                                 <thead>
                                                     <tr className={`border-b ${themeClasses.border} ${themeClasses.bgSecondary}`}>
@@ -1014,7 +1021,7 @@ const DPRReviewDashboard: React.FC<DPRReviewDashboardProps> = ({
                                 {/* No Activities Message */}
                                 {(!selectedReport.activities || selectedReport.activities.length === 0) && (
                                     <div className="text-center py-12">
-                                        <Icons.Activity className={`mx-auto mb-4 ${dprTy.emptyStateIcon}`} size={48} />
+                                        <Icons.Activity className={`pmc-dpr-empty-icon mx-auto mb-4 ${dprTy.emptyStateIcon}`} size={48} />
                                         <p className={dprTy.cardHeading}>No activities recorded</p>
                                         <p className={`mt-2 ${dprTy.helperText}`}>
                                             This DPR does not have any activities logged yet.
@@ -1026,7 +1033,7 @@ const DPRReviewDashboard: React.FC<DPRReviewDashboardProps> = ({
                     ) : (
                         <div className="flex items-center justify-center py-16">
                             <div className="text-center">
-                                <Icons.Document className={`mx-auto mb-4 ${dprTy.emptyStateIcon}`} size={64} />
+                                <Icons.Document className={`pmc-dpr-empty-icon mx-auto mb-4 ${dprTy.emptyStateIcon}`} size={64} />
                                 <p className={dprTy.emptyStateTitle}>Select a DPR</p>
                                 <p className={`mt-2 ${dprTy.emptyStateHint}`}>
                                     Choose a report from the Select DPR dropdown above
@@ -1038,7 +1045,7 @@ const DPRReviewDashboard: React.FC<DPRReviewDashboardProps> = ({
 
                 {/* Approval panel — sticky on review */}
                 <div
-                    className={`dpr-approval-panel top-4 flex flex-col rounded-2xl lg:sticky ${themeClasses.glassCard} ${themeClasses.border}`}
+                    className={`dpr-approval-panel pmc-dpr-approval top-4 flex flex-col rounded-2xl lg:sticky ${themeClasses.glassCard} ${themeClasses.border}`}
                 >
                     {selectedReport ? (
                         <>
@@ -1069,7 +1076,7 @@ const DPRReviewDashboard: React.FC<DPRReviewDashboardProps> = ({
                                             onClick={handleApprove}
                                             disabled={Boolean(reviewActionBusy)}
                                             aria-busy={reviewActionBusy === 'approve'}
-                                            className="flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 py-2.5 text-xs font-semibold text-white transition-all hover:bg-emerald-500 disabled:cursor-wait disabled:opacity-80"
+                                            className="pmc-dpr-action flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 py-2.5 text-xs font-semibold text-white transition-all hover:bg-emerald-500 disabled:cursor-wait disabled:opacity-80"
                                         >
                                             {reviewActionBusy === 'approve' ? (
                                                 <>
@@ -1093,7 +1100,7 @@ const DPRReviewDashboard: React.FC<DPRReviewDashboardProps> = ({
                                             onClick={handleRequestRevision}
                                             disabled={Boolean(reviewActionBusy)}
                                             aria-busy={reviewActionBusy === 'revision'}
-                                            className="flex w-full items-center justify-center gap-2 rounded-xl bg-amber-600 py-2.5 text-xs font-semibold text-white transition-all hover:bg-amber-500 disabled:cursor-wait disabled:opacity-80"
+                                            className="pmc-dpr-action flex w-full items-center justify-center gap-2 rounded-xl bg-amber-600 py-2.5 text-xs font-semibold text-white transition-all hover:bg-amber-500 disabled:cursor-wait disabled:opacity-80"
                                         >
                                             {reviewActionBusy === 'revision' ? (
                                                 <>
@@ -1111,7 +1118,7 @@ const DPRReviewDashboard: React.FC<DPRReviewDashboardProps> = ({
                                             type="button"
                                             onClick={() => openRejectModal("reject")}
                                             disabled={Boolean(reviewActionBusy)}
-                                            className="flex w-full items-center justify-center gap-2 rounded-xl bg-rose-600 py-2.5 text-xs font-semibold text-white transition-all hover:bg-rose-500 disabled:cursor-wait disabled:opacity-80"
+                                            className="pmc-dpr-action flex w-full items-center justify-center gap-2 rounded-xl bg-rose-600 py-2.5 text-xs font-semibold text-white transition-all hover:bg-rose-500 disabled:cursor-wait disabled:opacity-80"
                                         >
                                             <Icons.Reject size={16} />
                                             Reject DPR
@@ -1123,7 +1130,7 @@ const DPRReviewDashboard: React.FC<DPRReviewDashboardProps> = ({
                                     <button
                                         type="button"
                                         onClick={() => setShowSubmissionForm(true)}
-                                        className="flex w-full items-center justify-center gap-2 rounded-xl bg-amber-600 py-2.5 text-xs font-semibold text-white"
+                                        className="pmc-dpr-action flex w-full items-center justify-center gap-2 rounded-xl bg-amber-600 py-2.5 text-xs font-semibold text-white"
                                     >
                                         <Icons.Document size={16} />
                                         Edit & Resubmit
@@ -1134,7 +1141,7 @@ const DPRReviewDashboard: React.FC<DPRReviewDashboardProps> = ({
                                         onClick={handleSubmitDraft}
                                         disabled={Boolean(reviewActionBusy)}
                                         aria-busy={reviewActionBusy === 'submit'}
-                                        className="flex w-full items-center justify-center gap-2 rounded-xl bg-indigo-600 py-2.5 text-xs font-semibold text-white disabled:cursor-wait disabled:opacity-80"
+                                        className="pmc-dpr-action flex w-full items-center justify-center gap-2 rounded-xl bg-indigo-600 py-2.5 text-xs font-semibold text-white disabled:cursor-wait disabled:opacity-80"
                                     >
                                         {reviewActionBusy === 'submit' ? (
                                             <>
@@ -1166,7 +1173,10 @@ const DPRReviewDashboard: React.FC<DPRReviewDashboardProps> = ({
                                                 <React.Fragment key={step.id}>
                                                     <div className="flex min-w-0 flex-1 flex-col items-center gap-1">
                                                         <span
-                                                            className={`flex h-6 w-6 items-center justify-center rounded-full text-[10px] font-bold ${active}`}
+                                                            className={`pmc-dpr-step flex h-6 w-6 items-center justify-center rounded-full text-[10px] font-bold ${active}${
+                                                                step.state === "current" ? " is-current" : ""
+                                                            }`}
+                                                            style={{ '--se-delay': `${index * 120}ms` } as React.CSSProperties}
                                                         >
                                                             {step.state === "done" ? "✓" : index + 1}
                                                         </span>
@@ -1279,7 +1289,7 @@ const DPRReviewDashboard: React.FC<DPRReviewDashboardProps> = ({
                     ) : (
                         <div className="flex items-center justify-center p-8 py-16">
                             <div className="text-center">
-                                <Icons.Approve className={`mx-auto mb-4 ${dprTy.emptyStateIcon}`} size={48} />
+                                <Icons.Approve className={`pmc-dpr-empty-icon mx-auto mb-4 ${dprTy.emptyStateIcon}`} size={48} />
                                 <p className={dprTy.cardHeading}>No Report Selected</p>
                                 <p className={`mt-2 ${dprTy.helperText}`}>Select a DPR to review</p>
                             </div>

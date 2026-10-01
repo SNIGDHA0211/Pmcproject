@@ -73,68 +73,64 @@ const QaqcScopeDashboardPanel: React.FC<QaqcScopeDashboardPanelProps> = ({
 
   const summary = useMemo(() => computeQaqcScopeSummary(scopes), [scopes]);
 
-  const cardCls = `rounded-2xl border ${
-    isDarkTheme
-      ? `${themeClasses.glassCard} ${themeClasses.border}`
-      : 'border-slate-200/90 bg-white shadow-sm'
-  }`;
+  const cardBase = isDarkTheme
+    ? 'pmc-ov-card rounded-2xl pmc360-glass-panel-dark'
+    : 'pmc-ov-card rounded-2xl pmc360-glass-panel-light';
 
   const kpis = [
     {
       label: 'Assigned',
       value: summary.total,
       icon: ClipboardList,
-      tone: isDarkTheme ? 'text-blue-300 bg-blue-500/15' : 'text-blue-700 bg-blue-50',
+      accent: '#3b82f6',
     },
     {
       label: 'Pending',
       value: summary.pending,
       icon: Clock,
-      tone: isDarkTheme ? 'text-amber-300 bg-amber-500/15' : 'text-amber-700 bg-amber-50',
+      accent: '#f59e0b',
     },
     {
       label: 'In Progress',
       value: summary.inProgress,
       icon: TrendingUp,
-      tone: isDarkTheme ? 'text-indigo-300 bg-indigo-500/15' : 'text-indigo-700 bg-indigo-50',
+      accent: '#8b5cf6',
     },
     {
       label: 'Completed',
       value: summary.completed,
       icon: CheckCircle2,
-      tone: isDarkTheme ? 'text-emerald-300 bg-emerald-500/15' : 'text-emerald-700 bg-emerald-50',
+      accent: '#10b981',
     },
   ];
 
   return (
-    <div className="space-y-4">
-      {/* Project strip + KPIs — one compact composition */}
+    <div className="space-y-5 sm:space-y-6">
+      {/* ── HEADER & WORKING PROJECT STRIP ── */}
       <section
-        className={`${cardCls} overflow-hidden ${
-          isDarkTheme
-            ? 'bg-gradient-to-br from-indigo-950/40 via-slate-900/40 to-slate-900/20'
-            : 'bg-gradient-to-br from-indigo-50/90 via-white to-sky-50/50'
-        }`}
+        className={`p-4 sm:p-5 ${cardBase}`}
+        style={{ '--ov-accent': '#f43f5e', '--ov-delay': '0ms' } as React.CSSProperties}
       >
-        <div
-          className={`flex flex-wrap items-center justify-between gap-3 border-b px-4 py-3 sm:px-5 ${
-            isDarkTheme ? 'border-white/10' : 'border-indigo-100/80'
-          }`}
-        >
+        <div className="flex flex-wrap items-center justify-between gap-4 border-b pb-4 dark:border-white/10 border-slate-200/80">
           <div className="flex min-w-0 items-center gap-3">
             <span
-              className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${
-                isDarkTheme ? 'bg-indigo-500/20 text-indigo-300' : 'bg-indigo-600 text-white'
-              }`}
+              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl text-white shadow-md"
+              style={{ background: 'linear-gradient(135deg, #f43f5e 0%, #1e3a5f 130%)' }}
             >
-              <FolderKanban size={18} strokeWidth={2.25} />
+              <FolderKanban size={22} strokeWidth={2.2} />
             </span>
             <div className="min-w-0">
-              <p className={`text-[10px] font-black uppercase tracking-widest ${themeClasses.textSecondary}`}>
-                Working Project
-              </p>
-              <p className={`truncate text-sm font-bold sm:text-base ${themeClasses.textPrimary}`}>
-                {projectName ?? assignedProjects[0]?.title ?? 'No project assigned'}
+              <div className="flex items-center gap-2">
+                <h2 className={`text-base font-black uppercase tracking-wider sm:text-lg ${themeClasses.textPrimary}`}>
+                  QAQC Scope &amp; Quality Workspace
+                </h2>
+                <span className="inline-flex items-center gap-1 rounded-full bg-rose-500/10 px-2 py-0.5 text-[9px] font-black uppercase text-rose-600 dark:text-rose-400">
+                  <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-rose-500" />
+                  Quality &amp; Testing
+                </span>
+              </div>
+              <p className={`text-[11px] font-medium ${themeClasses.textMuted}`}>
+                Project: <strong className={themeClasses.textPrimary}>{projectName ?? assignedProjects[0]?.title ?? 'No project assigned'}</strong>
               </p>
             </div>
           </div>
@@ -143,11 +139,7 @@ const QaqcScopeDashboardPanel: React.FC<QaqcScopeDashboardPanelProps> = ({
             <select
               value={projectName ?? ''}
               onChange={(e) => onProjectChange(e.target.value)}
-              className={`max-w-full rounded-xl border px-3 py-2 text-xs font-bold outline-none sm:min-w-[240px] ${
-                isDarkTheme
-                  ? `${themeClasses.input} ${themeClasses.border} ${themeClasses.textPrimary}`
-                  : 'border-slate-200 bg-white text-slate-900 shadow-sm'
-              }`}
+              className={`max-w-full rounded-xl border px-3.5 py-2 text-xs font-bold outline-none sm:min-w-[240px] shadow-sm transition-all ${themeClasses.input}`}
             >
               {assignedProjects.map((p) => (
                 <option key={p.id} value={p.title}>
@@ -158,23 +150,33 @@ const QaqcScopeDashboardPanel: React.FC<QaqcScopeDashboardPanelProps> = ({
           )}
         </div>
 
-        <div className="grid grid-cols-2 gap-px sm:grid-cols-4">
-          {kpis.map(({ label, value, icon: Icon, tone }, index) => (
+        {/* KPI TILE GRID */}
+        <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+          {kpis.map(({ label, value, icon: Icon, accent }, index) => (
             <div
               key={label}
-              className={`flex items-center justify-between gap-2 px-4 py-3.5 sm:px-5 ${
-                isDarkTheme ? 'bg-white/[0.02]' : 'bg-white/70'
-              } ${index > 0 && index % 2 === 0 ? '' : ''}`}
+              className={`p-3.5 sm:p-4 rounded-xl border pmc-ov-tile transition-all ${
+                isDarkTheme ? 'border-white/10 bg-white/[0.03]' : 'border-slate-200/80 bg-slate-50/70'
+              }`}
+              style={{
+                borderLeftWidth: 4,
+                borderLeftColor: accent,
+              }}
             >
-              <div>
-                <p className={`text-[10px] font-bold uppercase tracking-wider ${themeClasses.textSecondary}`}>
-                  {label}
-                </p>
-                <p className={`mt-0.5 text-2xl font-black tabular-nums ${themeClasses.textPrimary}`}>{value}</p>
+              <div className="flex items-start justify-between gap-2">
+                <div>
+                  <p className={`text-[10px] font-black uppercase tracking-wider ${themeClasses.textMuted}`}>
+                    {label}
+                  </p>
+                  <p className={`mt-0.5 text-2xl font-black tabular-nums ${themeClasses.textPrimary}`}>{value}</p>
+                </div>
+                <span
+                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-white shadow-sm"
+                  style={{ background: `linear-gradient(135deg, ${accent} 0%, #1e3a5f 130%)` }}
+                >
+                  <Icon size={16} strokeWidth={2.25} />
+                </span>
               </div>
-              <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${tone}`}>
-                <Icon size={16} strokeWidth={2.25} />
-              </span>
             </div>
           ))}
         </div>
@@ -231,7 +233,7 @@ const QaqcScopeDashboardPanel: React.FC<QaqcScopeDashboardPanelProps> = ({
               />
             </div>
           ) : (
-            <div className={`${cardCls} p-5`}>
+            <div className={`${cardBase} p-5`}>
               <EmptyHint
                 title="Select a project"
                 hint="Choose an assigned project above to open the Material Testing Frequency Chart."
@@ -244,7 +246,7 @@ const QaqcScopeDashboardPanel: React.FC<QaqcScopeDashboardPanelProps> = ({
       )}
 
       {!showFrequencyChart && !showHealthSafety && (
-        <section className={`${cardCls} p-4 sm:p-5`}>
+        <section className={`${cardBase} p-4 sm:p-5`}>
           <h3 className={`mb-3 text-xs font-black uppercase tracking-widest ${themeClasses.textPrimary}`}>
             Project Quality Snapshot
           </h3>

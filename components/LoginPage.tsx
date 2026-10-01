@@ -75,103 +75,111 @@ const LoginPage: React.FC<LoginPageProps> = ({
         </aside>
 
         <section className="pmc-login__panel" aria-labelledby="pmc-login-heading">
-          <div className="pmc-login__panel-head">
-            <img
-              src="/images/Shrikhande-logo-bgremove.png"
-              alt="Shrikhande Consultants Limited"
-              className="pmc-login__panel-logo"
-            />
-            <h2 id="pmc-login-heading" className="pmc-login__heading">
-              Sign in
-            </h2>
-            <p className="pmc-login__subhead">
-              Enter your PMC Portal credentials to continue.
-            </p>
+          <div className="pmc-login__panel-body">
+            <div className="pmc-login__panel-head">
+              <img
+                src="/images/Shrikhande-logo-bgremove.png"
+                alt="Shrikhande Consultants Limited"
+                className="pmc-login__panel-logo"
+              />
+              <span className="pmc-login__eyebrow">
+                <Icons.Lock size={12} strokeWidth={2.5} aria-hidden="true" />
+                Secure sign-in
+              </span>
+              <h2 id="pmc-login-heading" className="pmc-login__heading">
+                Sign in
+              </h2>
+              <p className="pmc-login__subhead">
+                Enter your PMC Portal credentials to continue.
+              </p>
+            </div>
+
+            <form onSubmit={onSubmit} className="pmc-login__form" noValidate>
+              {loginError ? (
+                <div className="pmc-login__error" role="alert">
+                  {loginError}
+                </div>
+              ) : null}
+
+              <label className="pmc-login__field">
+                <span className="pmc-login__label">Username</span>
+                <span className="pmc-login__control">
+                  <Icons.User size={17} className="pmc-login__field-icon" aria-hidden="true" />
+                  <input
+                    type="text"
+                    name="username"
+                    autoComplete="username"
+                    value={username}
+                    onChange={(e) => onUsernameChange(e.target.value)}
+                    disabled={isLoginSubmitting}
+                    placeholder="Enter username"
+                    required
+                  />
+                </span>
+              </label>
+
+              <label className="pmc-login__field">
+                <span className="pmc-login__label">Password</span>
+                <span className="pmc-login__control">
+                  <Icons.Lock size={17} className="pmc-login__field-icon" aria-hidden="true" />
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    name="password"
+                    autoComplete="current-password"
+                    value={password}
+                    onChange={(e) => onPasswordChange(e.target.value)}
+                    disabled={isLoginSubmitting}
+                    placeholder="Enter password"
+                    required
+                  />
+                  <button
+                    type="button"
+                    className="pmc-login__reveal"
+                    onClick={onTogglePassword}
+                    disabled={isLoginSubmitting}
+                    aria-label={showPassword ? 'Hide password' : 'Show password'}
+                  >
+                    {showPassword ? <Icons.EyeOff size={17} /> : <Icons.Eye size={17} />}
+                  </button>
+                </span>
+              </label>
+
+              <button type="submit" className="pmc-login__submit" disabled={isLoginSubmitting}>
+                {isLoginSubmitting ? (
+                  <>
+                    <Icons.History size={16} className="pmc-login__spin" />
+                    Signing in…
+                  </>
+                ) : (
+                  <>
+                    Sign in to portal
+                    <Icons.ArrowRight size={16} strokeWidth={2.5} className="pmc-login__submit-arrow" />
+                  </>
+                )}
+              </button>
+
+              <p className="pmc-login__legal">
+                By signing in, you agree to the{' '}
+                <button type="button" onClick={onOpenTerms} disabled={isLoginSubmitting}>
+                  Terms &amp; Conditions
+                </button>{' '}
+                of Shrikhande Consultants Limited.
+              </p>
+            </form>
           </div>
 
-          <form onSubmit={onSubmit} className="pmc-login__form" noValidate>
-            {loginError ? (
-              <div className="pmc-login__error" role="alert">
-                {loginError}
-              </div>
-            ) : null}
-
-            <label className="pmc-login__field">
-              <span className="pmc-login__label">Username</span>
-              <span className="pmc-login__control">
-                <Icons.User size={17} className="pmc-login__field-icon" aria-hidden="true" />
-                <input
-                  type="text"
-                  name="username"
-                  autoComplete="username"
-                  value={username}
-                  onChange={(e) => onUsernameChange(e.target.value)}
-                  disabled={isLoginSubmitting}
-                  placeholder="Enter username"
-                  required
-                />
-              </span>
-            </label>
-
-            <label className="pmc-login__field">
-              <span className="pmc-login__label">Password</span>
-              <span className="pmc-login__control">
-                <Icons.Lock size={17} className="pmc-login__field-icon" aria-hidden="true" />
-                <input
-                  type={showPassword ? 'text' : 'password'}
-                  name="password"
-                  autoComplete="current-password"
-                  value={password}
-                  onChange={(e) => onPasswordChange(e.target.value)}
-                  disabled={isLoginSubmitting}
-                  placeholder="Enter password"
-                  required
-                />
-                <button
-                  type="button"
-                  className="pmc-login__reveal"
-                  onClick={onTogglePassword}
-                  disabled={isLoginSubmitting}
-                  aria-label={showPassword ? 'Hide password' : 'Show password'}
-                >
-                  {showPassword ? <Icons.EyeOff size={17} /> : <Icons.Eye size={17} />}
-                </button>
-              </span>
-            </label>
-
-            <p className="pmc-login__legal">
-              By signing in, you agree to the{' '}
-              <button type="button" onClick={onOpenTerms} disabled={isLoginSubmitting}>
-                Terms &amp; Conditions
-              </button>{' '}
-              of Shrikhande Consultants Limited.
+          <div className="pmc-login__panel-foot">
+            <p className="pmc-login__footer-link">
+              New here?{' '}
+              <button type="button" onClick={onGoToLanding} disabled={isLoginSubmitting}>
+                Visit the landing page
+              </button>
             </p>
 
-            <button type="submit" className="pmc-login__submit" disabled={isLoginSubmitting}>
-              {isLoginSubmitting ? (
-                <>
-                  <Icons.History size={16} className="pmc-login__spin" />
-                  Signing in…
-                </>
-              ) : (
-                <>
-                  Sign in to portal
-                  <Icons.ArrowRight size={16} strokeWidth={2.5} />
-                </>
-              )}
-            </button>
-          </form>
-
-          <p className="pmc-login__footer-link">
-            New here?{' '}
-            <button type="button" onClick={onGoToLanding} disabled={isLoginSubmitting}>
-              Visit the landing page
-            </button>
-          </p>
-
-          <p className="pmc-login__copyright">
-            © {new Date().getFullYear()} Shrikhande Consultants Limited. All rights reserved.
-          </p>
+            <p className="pmc-login__copyright">
+              © {new Date().getFullYear()} Shrikhande Consultants Limited. All rights reserved.
+            </p>
+          </div>
         </section>
       </main>
 

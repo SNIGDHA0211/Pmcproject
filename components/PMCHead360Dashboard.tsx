@@ -64,6 +64,7 @@ import {
 } from '../hooks/useProjectStore';
 import { projectStore } from '../stores/projectStore';
 import SiteDeleteDialog, { type SiteDeleteDependency } from './SiteDeleteDialog';
+import './pmcHead/head360.css';
 import { parseSiteDeleteDependencies } from './ProjectSiteList';
 import axios from 'axios';
 
@@ -91,6 +92,25 @@ function healthTone(label: HealthLabel): string {
     case 'NO DATA':
     default:
       return SCORE_COLORS.unknown;
+  }
+}
+
+type HealthFilter = 'all' | 'critical' | 'atRisk' | 'onTrack';
+
+/** Mirrors the bucketing used for the portfolio health counts. */
+function healthFilterOf(label: HealthLabel): HealthFilter | null {
+  switch (label) {
+    case 'CRITICAL':
+      return 'critical';
+    case 'AT RISK':
+    case 'WATCH':
+      return 'atRisk';
+    case 'ON TRACK':
+    case 'COMPLETED':
+    case 'NO DATA':
+      return 'onTrack';
+    default:
+      return null;
   }
 }
 
@@ -231,7 +251,8 @@ const BriefingGauge: React.FC<{ score: number | null; isDark: boolean }> = ({ sc
           strokeDasharray={c}
           strokeDashoffset={offset}
           filter="url(#gaugeGlow)"
-          className="transition-[stroke-dashoffset] duration-1000 ease-out"
+          className="pmc-h360-gauge-arc transition-[stroke-dashoffset] duration-1000 ease-out"
+          style={{ '--g-c': c } as React.CSSProperties}
         />
       </svg>
       <div className="-mt-10 flex flex-col items-center">
@@ -252,6 +273,39 @@ const BriefingGauge: React.FC<{ score: number | null; isDark: boolean }> = ({ sc
   );
 };
 
+const AnimatedCount: React.FC<{ value: number; durationMs?: number }> = ({ value, durationMs = 900 }) => {
+  const [display, setDisplay] = useState(0);
+  const fromRef = useRef(0);
+
+  useEffect(() => {
+    const from = fromRef.current;
+    const reduce =
+      typeof window !== 'undefined' &&
+      window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    if (reduce || from === value) {
+      fromRef.current = value;
+      setDisplay(value);
+      return;
+    }
+    let frame = 0;
+    const start = performance.now();
+    const tick = (now: number) => {
+      const t = Math.min(1, (now - start) / durationMs);
+      const eased = 1 - Math.pow(1 - t, 3);
+      setDisplay(Math.round(from + (value - from) * eased));
+      if (t < 1) frame = requestAnimationFrame(tick);
+      else fromRef.current = value;
+    };
+    frame = requestAnimationFrame(tick);
+    return () => {
+      cancelAnimationFrame(frame);
+      fromRef.current = value;
+    };
+  }, [value, durationMs]);
+
+  return <>{display}</>;
+};
+
 const KpiStatCard: React.FC<{
   label: string;
   value: number | string;
@@ -259,28 +313,39 @@ const KpiStatCard: React.FC<{
   color: string;
   isDark: boolean;
   delayMs?: number;
-}> = ({ label, value, hint, color, isDark, delayMs = 0 }) => (
-  <div
-    className={`group flex min-h-[7rem] flex-col justify-between rounded-2xl p-4 transition-all duration-500 hover:-translate-y-1 animate-fade-in ${
+  active?: boolean;
+  onClick?: () => void;
+}> = ({ label, value, hint, color, isDark, delayMs = 0, active = false, onClick }) => (
+  <button
+    type="button"
+    onClick={onClick}
+    aria-pressed={active}
+    title={active ? `Showing ${label} projects — click to show all` : `Show only ${label} projects`}
+    className={`pmc-h360-kpi group flex min-h-[7rem] w-full cursor-pointer flex-col justify-between rounded-2xl p-4 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500/40 ${
       isDark ? 'pmc360-glass-dark' : 'pmc360-glass-light'
-    }`}
-    style={{ animationDelay: `${delayMs}ms` }}
+    }${active ? ' is-active' : ''}`}
+    style={{ '--h-accent': color, '--h-delay': `${delayMs}ms` } as React.CSSProperties}
   >
-    <p className={`text-[10px] font-black uppercase tracking-widest ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+    <p
+      className={`flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest ${
+        isDark ? 'text-slate-400' : 'text-slate-500'
+      }`}
+    >
+      <span className="pmc-h360-kpi-dot" aria-hidden />
       {label}
     </p>
     <p
-      className="text-3xl font-black tabular-nums leading-none transition-transform duration-300 group-hover:scale-105 sm:text-4xl"
+      className="pmc-h360-kpi-value text-3xl font-black tabular-nums leading-none sm:text-4xl"
       style={{ color }}
     >
-      {value}
+      {typeof value === 'number' ? <AnimatedCount value={value} /> : value}
     </p>
     <p
       className={`mt-1 text-[10px] font-semibold leading-snug ${isDark ? 'text-slate-400' : 'text-slate-500'}`}
     >
       {hint}
     </p>
-  </div>
+  </button>
 );
 
 function statusTone(status: VitalStatus): string {
@@ -343,7 +408,10 @@ const KpiStatusCell: React.FC<{
         {label}
       </p>
       <div className="mt-1 flex items-center justify-center gap-1">
-        <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: color }} />
+        <span
+          className={`h-1.5 w-1.5 shrink-0 rounded-full${status === 'critical' ? ' pmc-h360-dot-alert' : ''}`}
+          style={{ backgroundColor: color, '--h-accent': color } as React.CSSProperties}
+        />
         <span className="truncate text-[10px] font-bold" style={{ color }}>
           {word}
         </span>
@@ -364,6 +432,7 @@ const ProjectGridCard: React.FC<{
   compareDisabled: boolean;
   canDelete?: boolean;
   onDelete?: () => void;
+  order?: number;
 }> = ({
   card,
   selected,
@@ -373,6 +442,7 @@ const ProjectGridCard: React.FC<{
   compareDisabled,
   canDelete = false,
   onDelete,
+  order = 0,
 }) => {
   const tone = healthTone(card.healthLabel);
   const TypeIcon = projectTypeIcon(card.title);
@@ -393,19 +463,23 @@ const ProjectGridCard: React.FC<{
 
   return (
     <article
-      className={`group relative flex h-full flex-col overflow-hidden rounded-2xl transition-transform duration-300 hover:-translate-y-0.5 ${
+      className={`pmc-h360-card group relative flex h-full flex-col overflow-hidden rounded-2xl ${
         isDark ? 'pmc360-glass-dark' : 'pmc360-glass-light'
-      } ${selected ? (isDark ? 'ring-2 ring-cyan-400/50' : 'ring-2 ring-cyan-500/35 ring-offset-1 ring-offset-transparent') : ''}`}
-      style={{
-        borderTopWidth: 3,
-        borderTopColor: tone,
-      }}
+      }${selected ? ' is-selected' : ''}${card.healthLabel === 'CRITICAL' ? ' is-critical' : ''}${
+        order >= 8 ? ' is-deferred' : ''
+      }`}
+      style={
+        {
+          '--h-accent': tone,
+          '--h-delay': `${Math.min(order, 11) * 55}ms`,
+        } as React.CSSProperties
+      }
     >
       <div className="flex flex-1 flex-col gap-3 p-4">
         {/* Header: icon + title/client + score ring */}
         <div className="flex items-start gap-3">
           <div
-            className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${
+            className={`pmc-h360-card-icon flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${
               isDark
                 ? 'bg-cyan-500/15 text-cyan-300 ring-1 ring-cyan-400/25'
                 : 'bg-cyan-50/80 text-cyan-800 ring-1 ring-cyan-200/70'
@@ -487,6 +561,7 @@ const ProjectGridCard: React.FC<{
                 stroke={tone}
                 strokeLinecap="round"
                 strokeDasharray={`${scoreDash} ${circumference}`}
+                className="pmc-h360-ring"
               />
             </svg>
             <div className="absolute inset-0 flex flex-col items-center justify-center">
@@ -515,18 +590,19 @@ const ProjectGridCard: React.FC<{
           </div>
           <div className={`h-1.5 overflow-hidden rounded-full ${isDark ? 'bg-white/10' : 'bg-slate-100'}`}>
             <div
-              className="h-full rounded-full transition-all duration-700"
+              className="pmc-h360-bar h-full rounded-full transition-all duration-700"
               style={{
                 width: `${progress == null ? 0 : Math.min(100, Math.max(0, progress))}%`,
                 backgroundColor: progress == null ? 'transparent' : progressTone,
-              }}
+                '--h-bar': progress == null ? 'transparent' : progressTone,
+              } as React.CSSProperties}
             />
           </div>
         </div>
 
         {/* KPI status row */}
         <div
-          className={`grid grid-cols-4 gap-1 rounded-xl px-1 py-2 ${
+          className={`pmc-h360-vitals grid grid-cols-4 gap-1 rounded-xl px-1 py-2 ${
             isDark ? 'bg-white/[0.03]' : 'bg-slate-50/80'
           }`}
         >
@@ -626,7 +702,7 @@ const ProjectGridCard: React.FC<{
             <button
               type="button"
               onClick={onOpen}
-              className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-[9px] font-black uppercase tracking-wide transition-all ${
+              className={`pmc-h360-view inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-[9px] font-black uppercase tracking-wide transition-all ${
                 isDark
                   ? 'bg-cyan-500/15 text-cyan-300 hover:bg-cyan-500/25'
                   : 'bg-slate-900 text-white hover:bg-slate-800'
@@ -650,7 +726,7 @@ const InitializeProjectGridCard: React.FC<{
   <button
     type="button"
     onClick={onClick}
-    className={`group flex h-full min-h-[14rem] w-full flex-col items-center justify-center gap-3 rounded-2xl border border-dashed p-6 text-center transition-all duration-300 hover:-translate-y-0.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500/40 ${
+    className={`pmc-h360-init group flex h-full min-h-[14rem] w-full flex-col items-center justify-center gap-3 rounded-2xl border border-dashed p-6 text-center transition-all duration-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500/40 ${
       isDark
         ? 'border-cyan-400/45 bg-cyan-500/10 backdrop-blur-md hover:border-cyan-300/60 hover:bg-cyan-500/15'
         : 'border-cyan-400/50 bg-cyan-50/45 backdrop-blur-md hover:border-cyan-500/70 hover:bg-cyan-50/70'
@@ -658,7 +734,7 @@ const InitializeProjectGridCard: React.FC<{
     aria-label="Initialize Project — create a new project"
   >
     <span
-      className={`flex h-14 w-14 items-center justify-center rounded-2xl border transition-transform duration-300 group-hover:scale-105 ${
+      className={`pmc-h360-init-icon flex h-14 w-14 items-center justify-center rounded-2xl border ${
         isDark
           ? 'border-cyan-400/40 bg-cyan-500/15 text-cyan-200'
           : 'border-cyan-300/70 bg-white/50 text-cyan-800'
@@ -743,6 +819,7 @@ const PMCHead360Dashboard: React.FC<PMCHead360DashboardProps> = ({
   /** all | pending | completed — completed projects by billing_status */
   const [billingFilter, setBillingFilter] = useState<'all' | 'pending' | 'completed'>('all');
   const [ordering, setOrdering] = useState('name');
+  const [healthFilter, setHealthFilter] = useState<HealthFilter>('all');
   const [compareIds, setCompareIds] = useState<string[]>([]);
   const [isExportingCompare, setIsExportingCompare] = useState(false);
   const [isExportingList, setIsExportingList] = useState(false);
@@ -948,6 +1025,17 @@ const PMCHead360Dashboard: React.FC<PMCHead360DashboardProps> = ({
     return { critical, atRisk, onTrack, newOrNoData };
   }, [filteredCards]);
 
+  const visibleCards = useMemo(
+    () =>
+      healthFilter === 'all'
+        ? filteredCards
+        : filteredCards.filter((c) => healthFilterOf(c.healthLabel) === healthFilter),
+    [filteredCards, healthFilter],
+  );
+
+  const toggleHealthFilter = (next: HealthFilter) =>
+    setHealthFilter((prev) => (prev === next ? 'all' : next));
+
   const todayLabel = useMemo(
     () =>
       new Date().toLocaleDateString('en-GB', {
@@ -986,11 +1074,11 @@ const PMCHead360Dashboard: React.FC<PMCHead360DashboardProps> = ({
   };
 
   const handleExportProjectList = async () => {
-    if (filteredCards.length === 0) return;
+    if (visibleCards.length === 0) return;
     setIsExportingList(true);
     try {
       await downloadPortfolioProjectListExcel(
-        filteredCards,
+        visibleCards,
         projects,
         portfolioProjectListFilename(),
       );
@@ -1027,47 +1115,47 @@ const PMCHead360Dashboard: React.FC<PMCHead360DashboardProps> = ({
   return (
     <div className="animate-in fade-in space-y-4 pb-36 duration-500 sm:pb-40">
       {/* Header — construction hero */}
-      <div className="pmc360-hero">
-        <div
-          className="pmc360-hero-photo"
-          style={{
-            backgroundImage: isDarkTheme
-              ? 'url(/images/construction-bg.jpg)'
-              : 'url(/images/construction-cranes-bg.jpg)',
-          }}
-          aria-hidden
-        />
-        <div
-          className={`pointer-events-none absolute inset-0 ${
-            isDarkTheme ? 'pmc360-hero-wash-dark' : 'pmc360-hero-wash-light'
-          }`}
-          aria-hidden
-        />
-        <div
-          className={`pointer-events-none absolute inset-0 bg-cover bg-center mix-blend-soft-light ${
-            isDarkTheme ? 'opacity-[0.16]' : 'opacity-[0.08]'
-          }`}
-          style={{
-            backgroundImage: isDarkTheme
-              ? 'url(/images/blueprint-dark.png)'
-              : 'url(/images/blueprint-light.png)',
-          }}
-          aria-hidden
-        />
+      <div className={`pmc360-hero pmc-h360-hero ${isDarkTheme ? 'is-dark' : 'is-light'}`}>
+        <div className="pmc-h360-hero-bg" aria-hidden>
+          <div
+            className="pmc360-hero-photo"
+            style={{
+              backgroundImage: isDarkTheme
+                ? 'url(/images/construction-bg.jpg)'
+                : 'url(/images/construction-cranes-bg.jpg)',
+            }}
+          />
+          <div
+            className={`pointer-events-none absolute inset-0 ${
+              isDarkTheme ? 'pmc360-hero-wash-dark' : 'pmc360-hero-wash-light'
+            }`}
+          />
+          <div
+            className={`pointer-events-none absolute inset-0 bg-cover bg-center mix-blend-soft-light ${
+              isDarkTheme ? 'opacity-[0.16]' : 'opacity-[0.08]'
+            }`}
+            style={{
+              backgroundImage: isDarkTheme
+                ? 'url(/images/blueprint-dark.png)'
+                : 'url(/images/blueprint-light.png)',
+            }}
+          />
+          <div className="pmc-h360-hero-aurora" />
+        </div>
         <div className="relative space-y-3 p-4 sm:p-5">
         <div className="absolute right-4 top-4 z-10 sm:right-5 sm:top-5">
           <TutorialWatchButton section="overview" variant="hero" isDark={isDarkTheme} />
         </div>
-        <div className="min-w-0 pr-[8.5rem] sm:pr-44">
+        <div className="pmc-h360-hero-head min-w-0 pr-[8.5rem] sm:pr-44">
           <p className={`pmc-type-eyebrow ${ex.isDark ? 'text-slate-400' : 'text-slate-500'}`}>
             {ROLE_LABELS[user.role] || 'PMC Head'}
           </p>
           <div className="mt-1 flex flex-wrap items-center gap-2">
-            <h1 className={`pmc-type-h1 ${ex.headingStrong}`}>
+            <h1 className={`pmc-type-h1 pmc-h360-title ${ex.headingStrong}`}>
               Project 360° Overview
             </h1>
             <span
-              className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-bold backdrop-blur-sm ${
+              className={`pmc-h360-live inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-bold backdrop-blur-sm ${
                 isLoadingVitals
                   ? isDarkTheme
                     ? 'border-amber-500/30 bg-amber-500/10 text-amber-300'
@@ -1078,8 +1166,8 @@ const PMCHead360Dashboard: React.FC<PMCHead360DashboardProps> = ({
               }`}
             >
               <span
-                className={`h-1.5 w-1.5 rounded-full ${
-                  isLoadingVitals ? 'animate-pulse bg-amber-500' : 'animate-pulse bg-emerald-500'
+                className={`pmc-h360-live-dot h-1.5 w-1.5 rounded-full ${
+                  isLoadingVitals ? 'bg-amber-500' : 'bg-emerald-500'
                 }`}
               />
               {liveBadgeLabel}
@@ -1090,7 +1178,7 @@ const PMCHead360Dashboard: React.FC<PMCHead360DashboardProps> = ({
               disabled={isLoadingVitals}
               title="Refresh live data from server"
               aria-label="Refresh live data from server"
-              className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-bold transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
+              className={`pmc-h360-refresh inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-bold transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
                 isDarkTheme
                   ? 'pmc360-glass-input-dark text-slate-200 hover:border-cyan-400/35'
                   : 'pmc360-glass-input-light text-slate-600 hover:border-slate-400'
@@ -1105,7 +1193,7 @@ const PMCHead360Dashboard: React.FC<PMCHead360DashboardProps> = ({
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="pmc-h360-filters flex flex-wrap items-center gap-2">
           <div className="relative min-w-[12rem] flex-1 basis-[14rem] sm:max-w-[18rem]">
             <Search size={14} className={`pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 ${ex.muted}`} />
             <input
@@ -1226,7 +1314,7 @@ const PMCHead360Dashboard: React.FC<PMCHead360DashboardProps> = ({
 
       {/* Portfolio summary strip */}
       <section
-        className={`relative overflow-hidden rounded-3xl p-4 sm:p-5 ${
+        className={`pmc-h360-summary relative overflow-hidden rounded-3xl p-4 sm:p-5 ${
           isDarkTheme ? 'pmc360-glass-panel-dark' : 'pmc360-glass-panel-light'
         }`}
       >
@@ -1258,7 +1346,7 @@ const PMCHead360Dashboard: React.FC<PMCHead360DashboardProps> = ({
           }}
           aria-hidden
         />
-        <h2 className={`relative mb-3 text-[10px] font-black uppercase tracking-widest ${ex.muted}`}>
+        <h2 className={`pmc-h360-section-label relative mb-3 text-[10px] font-black uppercase tracking-widest ${ex.muted}`}>
           Portfolio health at a glance
         </h2>
 
@@ -1270,6 +1358,8 @@ const PMCHead360Dashboard: React.FC<PMCHead360DashboardProps> = ({
             color={SCORE_COLORS.critical}
             isDark={isDarkTheme}
             delayMs={40}
+            active={healthFilter === 'critical'}
+            onClick={() => toggleHealthFilter('critical')}
           />
           <KpiStatCard
             label="At Risk"
@@ -1278,11 +1368,14 @@ const PMCHead360Dashboard: React.FC<PMCHead360DashboardProps> = ({
             color={SCORE_COLORS.watch}
             isDark={isDarkTheme}
             delayMs={80}
+            active={healthFilter === 'atRisk'}
+            onClick={() => toggleHealthFilter('atRisk')}
           />
           <div
-            className={`col-span-2 flex flex-col justify-center rounded-2xl px-3 py-4 lg:col-span-1 ${
+            className={`pmc-h360-gauge-card col-span-2 flex flex-col justify-center rounded-2xl px-3 py-4 lg:col-span-1 ${
               isDarkTheme ? 'pmc360-glass-dark' : 'pmc360-glass-light'
             }`}
+            style={{ '--h-accent': scoreToAccent(portfolio.portfolioScore), '--h-delay': '100ms' } as React.CSSProperties}
           >
             <BriefingGauge score={portfolio.portfolioScore} isDark={isDarkTheme} />
             <button
@@ -1306,6 +1399,8 @@ const PMCHead360Dashboard: React.FC<PMCHead360DashboardProps> = ({
             color={SCORE_COLORS.healthy}
             isDark={isDarkTheme}
             delayMs={120}
+            active={healthFilter === 'onTrack'}
+            onClick={() => toggleHealthFilter('onTrack')}
           />
           <KpiStatCard
             label="Total Projects"
@@ -1314,6 +1409,8 @@ const PMCHead360Dashboard: React.FC<PMCHead360DashboardProps> = ({
             color={isDarkTheme ? '#93c5fd' : '#2563eb'}
             isDark={isDarkTheme}
             delayMs={160}
+            active={healthFilter === 'all'}
+            onClick={() => setHealthFilter('all')}
           />
         </div>
 
@@ -1374,13 +1471,28 @@ const PMCHead360Dashboard: React.FC<PMCHead360DashboardProps> = ({
 
       {/* Uniform project grid */}
       <section>
-        <div className="mb-3 flex flex-wrap items-end justify-between gap-2 px-0.5">
+        <div className="pmc-h360-grid-head mb-3 flex flex-wrap items-end justify-between gap-2 px-0.5">
           <div>
-            <p className={`text-[10px] font-black uppercase tracking-widest ${ex.muted}`}>
+            <p className={`pmc-h360-section-label text-[10px] font-black uppercase tracking-widest ${ex.muted}`}>
               Project portfolio
             </p>
             <p className={`text-sm font-black ${ex.heading}`}>
-              {filteredCards.length} project{filteredCards.length === 1 ? '' : 's'}
+              {visibleCards.length} project{visibleCards.length === 1 ? '' : 's'}
+              {healthFilter !== 'all' && (
+                <button
+                  type="button"
+                  onClick={() => setHealthFilter('all')}
+                  className={`ml-2 inline-flex items-center gap-1 rounded-full px-2 py-0.5 align-middle text-[9px] font-black uppercase tracking-wide ${
+                    isDarkTheme
+                      ? 'bg-cyan-500/15 text-cyan-200 hover:bg-cyan-500/25'
+                      : 'bg-cyan-50 text-cyan-800 hover:bg-cyan-100'
+                  }`}
+                  title="Clear health filter"
+                >
+                  {healthFilter === 'critical' ? 'Critical' : healthFilter === 'atRisk' ? 'At Risk' : 'On Track'}
+                  <X size={10} strokeWidth={2.6} />
+                </button>
+              )}
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -1390,7 +1502,7 @@ const PMCHead360Dashboard: React.FC<PMCHead360DashboardProps> = ({
             <button
               type="button"
               onClick={() => void handleExportProjectList()}
-              disabled={filteredCards.length === 0 || isExportingList}
+              disabled={visibleCards.length === 0 || isExportingList}
               className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-2 text-[10px] font-black uppercase tracking-wide transition-all disabled:cursor-not-allowed disabled:opacity-40 ${
                 isDarkTheme
                   ? 'border border-emerald-400/35 bg-emerald-500/15 text-emerald-200 hover:bg-emerald-500/25'
@@ -1487,12 +1599,13 @@ const PMCHead360Dashboard: React.FC<PMCHead360DashboardProps> = ({
                   title: 'Compare · View',
                   body: 'Add up to 4 projects to the compare tray, or open the full project dashboard.',
                 },
-              ].map((item) => (
+              ].map((item, index) => (
                 <li
                   key={item.title}
-                  className={`rounded-xl px-3 py-2.5 ${
+                  className={`pmc-h360-guide-item rounded-xl px-3 py-2.5 ${
                     isDarkTheme ? 'pmc360-glass-dark' : 'pmc360-glass-light'
                   }`}
+                  style={{ '--h-delay': `${index * 40}ms` } as React.CSSProperties}
                 >
                   <p className={`text-[11px] font-black ${ex.heading}`}>{item.title}</p>
                   <p className={`mt-1 text-[11px] font-medium leading-relaxed ${ex.muted}`}>{item.body}</p>
@@ -1502,7 +1615,7 @@ const PMCHead360Dashboard: React.FC<PMCHead360DashboardProps> = ({
           </div>
         )}
 
-        {isLoadingVitals && filteredCards.length === 0 ? (
+        {isLoadingVitals && visibleCards.length === 0 ? (
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
             {Array.from({ length: 8 }).map((_, i) => (
               <div
@@ -1517,7 +1630,7 @@ const PMCHead360Dashboard: React.FC<PMCHead360DashboardProps> = ({
           </div>
         ) : (
           <>
-            {filteredCards.length === 0 && (
+            {visibleCards.length === 0 && (
               <p
                 className={`mb-3 text-center text-xs font-semibold ${
                   isDarkTheme ? 'text-slate-500' : 'text-slate-400'
@@ -1527,9 +1640,10 @@ const PMCHead360Dashboard: React.FC<PMCHead360DashboardProps> = ({
               </p>
             )}
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
-              {filteredCards.map((card) => (
+              {visibleCards.map((card, index) => (
                 <ProjectGridCard
                   key={card.projectId}
+                  order={index}
                   card={card}
                   isDark={isDarkTheme}
                   selected={compareIds.includes(card.projectId)}
@@ -1574,7 +1688,7 @@ const PMCHead360Dashboard: React.FC<PMCHead360DashboardProps> = ({
 
       {/* Sticky compare tray */}
       <div
-        className={`fixed inset-x-3 bottom-3 z-30 mx-auto max-w-[1600px] rounded-2xl p-3 md:inset-x-4 md:bottom-4 md:left-[calc(var(--app-sidebar-width,15.5rem)+1rem)] md:p-4 ${
+        className={`pmc-h360-tray fixed inset-x-3 bottom-3 z-30 mx-auto max-w-[1600px] rounded-2xl p-3 md:inset-x-4 md:bottom-4 md:left-[calc(var(--app-sidebar-width,15.5rem)+1rem)] md:p-4 ${
           isDarkTheme ? 'pmc360-glass-panel-dark' : 'pmc360-glass-panel-light'
         }`}
       >
@@ -1623,9 +1737,10 @@ const PMCHead360Dashboard: React.FC<PMCHead360DashboardProps> = ({
               return (
                 <div
                   key={card.projectId}
-                  className={`rounded-xl p-2.5 transition-all duration-300 ${
+                  className={`pmc-h360-tray-item rounded-xl p-2.5 transition-all duration-300 ${
                     isDarkTheme ? 'pmc360-glass-dark' : 'pmc360-glass-light'
                   }`}
+                  style={{ '--h-accent': color } as React.CSSProperties}
                 >
                   <div className="mb-2 flex items-start gap-2">
                     <div
@@ -1663,7 +1778,7 @@ const PMCHead360Dashboard: React.FC<PMCHead360DashboardProps> = ({
             {Array.from({ length: Math.max(0, 4 - compareCards.length) }).map((_, i) => (
               <div
                 key={`empty-${i}`}
-                className={`flex min-h-[7.5rem] items-center justify-center rounded-xl border border-dashed text-[10px] font-bold uppercase tracking-wide ${
+                className={`pmc-h360-slot flex min-h-[7.5rem] items-center justify-center rounded-xl border border-dashed text-[10px] font-bold uppercase tracking-wide ${
                   isDarkTheme ? 'border-white/10 text-slate-600' : 'border-slate-200 text-slate-300'
                 }`}
               >

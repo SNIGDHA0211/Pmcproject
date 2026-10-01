@@ -43,13 +43,13 @@ const DprReviewKpiCards: React.FC<DprReviewKpiCardsProps> = ({
 
   const cards = [
 
-    { label: 'Activities', value: total, valueColor: valueColors.activities },
+    { label: 'Activities', value: total, valueColor: valueColors.activities, accent: '#6366f1' },
 
-    { label: 'Completed', value: completed, valueColor: valueColors.completed },
+    { label: 'Completed', value: completed, valueColor: valueColors.completed, accent: '#10b981' },
 
-    { label: 'In Progress', value: inProgress, valueColor: valueColors.inProgress },
+    { label: 'In Progress', value: inProgress, valueColor: valueColors.inProgress, accent: '#f59e0b' },
 
-    { label: fourthLabel, value: delayed, valueColor: valueColors.delayed },
+    { label: fourthLabel, value: delayed, valueColor: valueColors.delayed, accent: '#f43f5e' },
 
   ];
 
@@ -59,17 +59,19 @@ const DprReviewKpiCards: React.FC<DprReviewKpiCardsProps> = ({
 
     <div className="dpr-kpi-summary grid grid-cols-2 gap-2 md:grid-cols-4 md:gap-3">
 
-      {cards.map((card) => (
+      {cards.map((card, index) => (
 
         <div
 
           key={card.label}
 
-          className={`rounded-xl border px-3 py-2.5 ${themeClasses.border} ${
+          className={`pmc-dpr-kpi rounded-xl border px-3 py-2.5 ${themeClasses.border} ${
 
             isDarkTheme ? themeClasses.glassCard : 'bg-white shadow-sm'
 
           }`}
+
+          style={{ '--se-accent': card.accent, '--se-delay': `${index * 70}ms` } as React.CSSProperties}
 
         >
 

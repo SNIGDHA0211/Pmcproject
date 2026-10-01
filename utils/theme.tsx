@@ -65,53 +65,55 @@ export const useEffectiveTheme = () => {
   };
 };
 
-// Theme utility functions — palette from night construction site (navy + amber glow)
+// Theme utility functions — enterprise dashboard (light & dark mode supported)
 export const getThemeClasses = (isDark: boolean) => ({
-  glassCard: isDark ? 'glass-card' : 'glass-card-light',
-  textPrimary: isDark ? 'text-contrast' : 'text-[#1a2332]',
-  textSecondary: isDark ? 'muted' : 'text-[#4a5563]',
-  textMuted: isDark ? 'text-white/55' : 'text-[#6b7280]',
-  textInverse: isDark ? 'text-[#1a2332]' : 'text-white',
-  bgPrimary: isDark ? 'bg-[#121a24]' : 'bg-white',
-  bgSecondary: isDark ? 'bg-white/5' : 'bg-[#eef6fb]',
-  bgHover: isDark ? 'hover:bg-white/10' : 'hover:bg-[#e0f0fa]',
-  border: isDark ? 'border-white/12' : 'border-[#b8cfe0]',
+  glassCard: isDark
+    ? 'bg-slate-900/90 border border-slate-800 rounded-2xl shadow-lg text-slate-100 backdrop-blur-sm'
+    : 'bg-white border border-slate-200 rounded-2xl shadow-sm text-slate-900',
+  textPrimary: isDark ? 'text-slate-100' : 'text-slate-900',
+  textSecondary: isDark ? 'text-slate-300' : 'text-slate-600',
+  textMuted: isDark ? 'text-slate-400' : 'text-slate-500',
+  textInverse: isDark ? 'text-slate-900' : 'text-white',
+  bgPrimary: isDark ? 'bg-[#0b1329]' : 'bg-white',
+  bgSecondary: isDark ? 'bg-slate-900' : 'bg-slate-50',
+  bgHover: isDark ? 'hover:bg-slate-800/80' : 'hover:bg-slate-50',
+  border: isDark ? 'border-slate-800' : 'border-slate-200',
   input: isDark
-    ? 'glass-input'
-    : 'bg-white border border-[#b8cfe0] focus:border-amber-500 shadow-sm',
+    ? 'bg-slate-900 border border-slate-700 text-slate-100 placeholder-slate-500 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/20 shadow-sm'
+    : 'bg-white border border-slate-200 text-slate-900 placeholder-slate-400 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/18 shadow-sm',
   buttonSecondary: isDark
-    ? 'text-white/75 hover:bg-white/10'
-    : 'text-[#334155] hover:bg-[#e0f0fa]',
-  buttonPrimary: isDark
-    ? 'bg-gradient-to-r from-[#e68a00] to-[#f59e0b] hover:from-[#d97706] hover:to-[#e68a00] text-white'
-    : 'bg-gradient-to-r from-[#1e3a5f] to-[#2563a8] hover:from-[#16304f] hover:to-[#1e88e5] text-white',
-  accent: isDark ? 'text-amber-300' : 'text-[#c2410c]',
+    ? 'text-slate-200 hover:bg-slate-800 hover:text-white'
+    : 'text-slate-700 hover:bg-slate-50 hover:text-blue-600',
+  buttonPrimary: 'bg-blue-600 hover:bg-blue-500 text-white shadow-sm',
+  accent: isDark ? 'text-blue-400' : 'text-blue-600',
   warning: isDark ? 'text-amber-400' : 'text-amber-600',
   danger: isDark ? 'text-rose-400' : 'text-rose-600',
   success: isDark ? 'text-emerald-400' : 'text-emerald-600',
-  placeholder: isDark ? 'placeholder-white/40' : 'placeholder-slate-500',
+  placeholder: isDark ? 'placeholder-slate-500' : 'placeholder-slate-400',
 });
 
-/** Primary title on dashboard summary / KPI cards (Project Dates style) */
+/** Primary title on dashboard summary / KPI cards */
 export const DASHBOARD_CARD_TITLE_CLASS =
-  'pmc-type-card-title truncate text-[#1e3a5f]';
+  'pmc-type-card-title truncate text-blue-600 dark:text-blue-400';
 
 /** Correspondence card title — same scale, tighter professional tracking */
 export const DASHBOARD_CORRESPONDENCE_TITLE_CLASS =
-  'pmc-type-card-title truncate text-blue-600';
+  'pmc-type-card-title truncate text-blue-600 dark:text-blue-400';
 
 /** Internal padding for correspondence dashboard card */
 export const DASHBOARD_CORRESPONDENCE_CARD_PADDING = 'px-3 py-4 sm:px-5 sm:py-[18px]';
 
 /** Group card titles (contract values, invoicing, planned vs earned) */
-export const DASHBOARD_GROUP_CARD_TITLE_CLASS = (_isDark?: boolean) => DASHBOARD_CARD_TITLE_CLASS;
+export const DASHBOARD_GROUP_CARD_TITLE_CLASS = (isDark?: boolean) =>
+  `pmc-type-card-title truncate ${isDark ? 'text-blue-400' : 'text-blue-600'}`;
 
 /** In-card section titles (FullScreenCard bodies, analytics charts) */
-export const DASHBOARD_SECTION_TITLE_CLASS = (_isDark?: boolean) => DASHBOARD_CARD_TITLE_CLASS;
+export const DASHBOARD_SECTION_TITLE_CLASS = (isDark?: boolean) =>
+  `pmc-type-card-title truncate ${isDark ? 'text-slate-100' : 'text-[#1e3a5f]'}`;
 
 /** Financial group card titles */
 export const DASHBOARD_FINANCIAL_GROUP_TITLE_CLASS =
-  'pmc-type-card-title truncate text-blue-600';
+  'pmc-type-card-title truncate text-blue-600 dark:text-blue-400';
 
 /** Tertiary subtitle under financial group titles */
 export const DASHBOARD_FINANCIAL_GROUP_SUBTITLE_CLASS = (isDark: boolean) =>
@@ -126,7 +128,7 @@ export const DASHBOARD_FINANCIAL_CARD_PADDING = 'px-5 py-[18px]';
 
 /** Status card titles (HSE, Quality, Drawings) */
 export const DASHBOARD_STATUS_CARD_TITLE_CLASS =
-  'pmc-type-card-title truncate text-blue-600';
+  'pmc-type-card-title truncate text-blue-600 dark:text-blue-400';
 
 /** Internal padding for status / analytics dashboard cards */
 export const DASHBOARD_STATUS_CARD_PADDING = 'px-5 py-[18px]';
@@ -137,7 +139,7 @@ export const DASHBOARD_METRIC_KPI_LABEL_CLASS =
 
 /** Labels on HSE / Quality / Drawings metric KPI cards */
 export const DASHBOARD_STATUS_METRIC_LABEL_CLASS = (isDark: boolean) =>
-  isDark ? 'text-slate-400' : 'text-[#475569]';
+  isDark ? 'text-slate-300' : 'text-[#475569]';
 
 /** Secondary supporting metric values (percentages, ratios) */
 export const DASHBOARD_METRIC_SECONDARY_VALUE_CLASS = (isDark: boolean) =>
@@ -145,7 +147,7 @@ export const DASHBOARD_METRIC_SECONDARY_VALUE_CLASS = (isDark: boolean) =>
 
 /** Client / Contractor party titles within correspondence dashboards */
 export const DASHBOARD_CORRESPONDENCE_PARTY_TITLE_CLASS =
-  'pmc-type-card-title text-blue-600';
+  'pmc-type-card-title text-blue-600 dark:text-blue-400';
 
 /** Correspondence documents table column headers — improved contrast */
 export const DASHBOARD_CORRESPONDENCE_TABLE_HEADER_CLASS = (isDark: boolean) =>
@@ -157,4 +159,4 @@ export const DASHBOARD_CARD_HEADER_ROW_CLASS = (borderClass: string) =>
 
 /** Neutral tone for informational KPI values where status color is not required */
 export const DASHBOARD_NEUTRAL_VALUE_CLASS = (isDark: boolean) =>
-  isDark ? 'text-slate-200' : 'text-[#1E293B]';
+  isDark ? 'text-slate-100' : 'text-[#1E293B]';

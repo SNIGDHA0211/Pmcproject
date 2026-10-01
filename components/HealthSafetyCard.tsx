@@ -331,7 +331,10 @@ const HealthSafetyCard: React.FC<HealthSafetyCardProps> = ({
     }
     if (!monthlyRecord) {
       return (
-        <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3 rounded-xl border border-dashed px-4 py-8 text-center">
+        <div className="pmc-pm-empty flex min-h-0 flex-1 flex-col items-center justify-center gap-3 rounded-xl border border-dashed px-4 py-8 text-center">
+          <span className="pmc-pm-empty-icon flex h-11 w-11 items-center justify-center rounded-2xl" aria-hidden>
+            <Icons.Safety size={20} />
+          </span>
           <p className={`text-sm font-black uppercase tracking-widest ${themeClasses.textMuted}`}>
             No Health & Safety records for selected month.
           </p>
@@ -340,7 +343,7 @@ const HealthSafetyCard: React.FC<HealthSafetyCardProps> = ({
               type="button"
               onClick={openCreate}
               disabled={!projectName}
-              className="inline-flex items-center gap-1 rounded-lg bg-blue-600 px-3 py-2 text-[10px] font-black uppercase tracking-widest text-white hover:bg-blue-700 disabled:opacity-60"
+              className="pmc-pm-cta inline-flex items-center gap-1 rounded-lg bg-blue-600 px-3 py-2 text-[10px] font-black uppercase tracking-widest text-white hover:bg-blue-700 disabled:opacity-60"
             >
               <Icons.Add size={12} />
               Add Record
