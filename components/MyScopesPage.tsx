@@ -708,51 +708,44 @@ const MyScopesPage: React.FC<MyScopesPageProps> = ({
   return (
     <div className={`space-y-5 animate-in fade-in duration-500 ${isQaqcEngineer ? 'max-w-[1600px]' : ''}`}>
       {/* Header */}
-      <div
-        className={`flex flex-wrap items-end justify-between gap-3 rounded-2xl border px-4 py-3.5 sm:px-5 ${
-          isQaqcEngineer
-            ? isDarkTheme
-              ? 'border-indigo-500/20 bg-indigo-500/10'
-              : 'border-indigo-100 bg-white shadow-sm'
-            : ''
-        } ${!isQaqcEngineer ? themeClasses.border : ''}`}
-      >
-        <div>
-          <h2 className={`text-xl font-black tracking-tight sm:text-2xl ${themeClasses.textPrimary}`}>
-            {pageTitle}
-          </h2>
-          <p className={`mt-0.5 text-[11px] font-semibold ${themeClasses.textSecondary}`}>
-            {pageSubtitle}
-          </p>
-        </div>
-        <div className="flex items-center gap-3">
-          {showAssignedScopesSection && (
-            <>
-              <button
-                onClick={() => fetchMyScopes(true)}
-                disabled={isRefreshing}
-                className={`flex items-center gap-2 rounded-xl border px-3 py-2 text-xs font-bold transition-all ${isRefreshing
+      {showAssignedScopesSection && (
+        <div
+          className={`flex flex-wrap items-end justify-between gap-3 rounded-2xl border px-4 py-3.5 sm:px-5 ${themeClasses.border}`}
+        >
+          <div>
+            <h2 className={`text-xl font-black tracking-tight sm:text-2xl ${themeClasses.textPrimary}`}>
+              {pageTitle}
+            </h2>
+            <p className={`mt-0.5 text-[11px] font-semibold ${themeClasses.textSecondary}`}>
+              {pageSubtitle}
+            </p>
+          </div>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => fetchMyScopes(true)}
+              disabled={isRefreshing}
+              className={`flex items-center gap-2 rounded-xl border px-3 py-2 text-xs font-bold transition-all ${
+                isRefreshing
                   ? 'opacity-50 cursor-not-allowed'
                   : themeClasses.buttonSecondary
-                  } ${themeClasses.border}`}
-                title="Refresh data (Real-time updates enabled)"
-              >
-                <Icons.Clock size={14} className={isRefreshing ? 'animate-spin' : ''} />
-                Refresh
-              </button>
-              {lastUpdated && (
-                <div className={`text-[11px] font-medium ${themeClasses.textSecondary}`}>
-                  Updated {lastUpdated.toLocaleTimeString('en-US', {
-                    hour: 'numeric',
-                    minute: '2-digit',
-                    hour12: true
-                  })}
-                </div>
-              )}
-            </>
-          )}
+              } ${themeClasses.border}`}
+              title="Refresh data (Real-time updates enabled)"
+            >
+              <Icons.Clock size={14} className={isRefreshing ? 'animate-spin' : ''} />
+              Refresh
+            </button>
+            {lastUpdated && (
+              <div className={`text-[11px] font-medium ${themeClasses.textSecondary}`}>
+                Updated {lastUpdated.toLocaleTimeString('en-US', {
+                  hour: 'numeric',
+                  minute: '2-digit',
+                  hour12: true,
+                })}
+              </div>
+            )}
+          </div>
         </div>
-      </div>
+      )}
 
       {(isQaqcEngineer || isHseEngineer) && (
         <QaqcScopeDashboardPanel

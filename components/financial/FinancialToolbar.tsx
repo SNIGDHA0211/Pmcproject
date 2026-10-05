@@ -1,5 +1,6 @@
 import React from 'react';
 import { Icons } from '../Icons';
+import { DollarSign, RefreshCw, Sparkles } from 'lucide-react';
 import { MONTH_OPTIONS, buildHealthSafetyYearOptions } from '../../utils/healthSafety';
 
 interface FinancialToolbarProps {
@@ -37,98 +38,122 @@ const FinancialToolbar: React.FC<FinancialToolbarProps> = ({
   isDarkTheme,
   themeClasses,
 }) => {
-  const selectClass = isDarkTheme
-    ? `h-11 min-w-0 rounded-lg border px-3 text-sm font-medium outline-none focus:ring-2 focus:ring-[#4F46E5]/30 ${themeClasses.input} ${themeClasses.border}`
-    : 'h-11 min-w-0 rounded-lg border border-[#E2E8F0] bg-white px-3 text-sm font-medium text-[#0F172A] outline-none focus:border-[#4F46E5] focus:ring-2 focus:ring-[#4F46E5]/20';
+  const cardBase = isDarkTheme
+    ? 'pmc-ov-card rounded-2xl pmc360-glass-panel-dark'
+    : 'pmc-ov-card rounded-2xl pmc360-glass-panel-light';
 
-  const pillClass = isDarkTheme
-    ? `flex h-11 max-w-[140px] items-center truncate rounded-lg border px-3 text-sm font-medium ${themeClasses.input} ${themeClasses.border}`
-    : 'flex h-11 max-w-[140px] items-center truncate rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] px-3 text-sm font-medium text-[#475569]';
+  const selectClass = isDarkTheme
+    ? `h-10 min-w-0 rounded-xl border px-3 text-xs font-bold outline-none transition-all shadow-sm ${themeClasses.input}`
+    : 'h-10 min-w-0 rounded-xl border border-slate-200 bg-white px-3 text-xs font-bold text-slate-800 outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/15 shadow-sm';
 
   return (
     <div
-      className={`financial-top-controls flex flex-wrap items-center gap-2 rounded-2xl border p-3 sm:min-h-[72px] sm:gap-3 sm:px-4 ${
-        isDarkTheme
-          ? `${themeClasses.glassCard} ${themeClasses.border}`
-          : 'border-[#E2E8F0] bg-white shadow-[0_1px_3px_rgba(15,23,42,0.04)]'
-      }`}
+      className={`financial-top-controls p-4 sm:p-5 ${cardBase}`}
+      style={{ '--ov-accent': '#10b981', '--ov-delay': '0ms' } as React.CSSProperties}
     >
-      <div className="financial-project-select fin-project-dropdown w-full min-w-0 sm:w-[min(200px,32vw)] sm:max-w-[220px] sm:shrink-0">
-        <select
-          value={selectedProject}
-          onChange={(e) => onProjectChange(e.target.value)}
-          className={`${selectClass} w-full`}
-          aria-label="Project"
-        >
-          <option value="">Project…</option>
-          {projects.map((p) => (
-            <option key={p.id} value={p.id}>
-              {p.title}
-            </option>
-          ))}
-        </select>
-      </div>
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        {/* Title block */}
+        <div className="flex min-w-0 items-center gap-3">
+          <span
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl text-white shadow-md"
+            style={{ background: 'linear-gradient(135deg, #10b981 0%, #1e3a5f 130%)' }}
+          >
+            <DollarSign size={22} strokeWidth={2.2} />
+          </span>
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              <h2 className={`text-base font-black uppercase tracking-wider sm:text-lg ${themeClasses.textPrimary}`}>
+                Financial Management
+              </h2>
+              <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[9px] font-black uppercase text-emerald-600 dark:text-emerald-400">
+                <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-500" />
+                Live Commercial Data
+              </span>
+            </div>
+            <p className={`text-[11px] font-medium ${themeClasses.textMuted}`}>
+              Project commercial tracking, cashflow forecasting, EVM &amp; invoicing
+            </p>
+          </div>
+        </div>
 
-      <div className="financial-period-controls flex w-full min-w-0 items-center gap-2 sm:w-auto sm:shrink-0">
-        <select
-          value={month}
-          onChange={(e) => onMonthChange(Number(e.target.value))}
-          className={`fin-month-dropdown ${selectClass} min-w-0 flex-1 sm:w-[108px] sm:flex-none`}
-          aria-label="Month"
-        >
-          {MONTH_OPTIONS.map((option) => (
-            <option key={option.value} value={option.value}>
-              {option.label}
-            </option>
-          ))}
-        </select>
-        <select
-          value={year}
-          onChange={(e) => onYearChange(Number(e.target.value))}
-          className={`fin-year-field ${selectClass} min-w-0 w-[88px] shrink-0`}
-          aria-label="Year"
-        >
-          {buildHealthSafetyYearOptions(year).map((y) => (
-            <option key={y} value={y}>
-              {y}
-            </option>
-          ))}
-        </select>
-      </div>
+        {/* Controls block */}
+        <div className="flex flex-wrap items-center gap-2.5">
+          {/* Project dropdown */}
+          <div className="financial-project-select fin-project-dropdown min-w-[180px] sm:min-w-[220px]">
+            <select
+              value={selectedProject}
+              onChange={(e) => onProjectChange(e.target.value)}
+              className={`${selectClass} w-full`}
+              aria-label="Project"
+            >
+              <option value="">Select Project…</option>
+              {projects.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.title}
+                </option>
+              ))}
+            </select>
+          </div>
 
-      <div className="financial-role-display fin-logged-user hidden shrink-0 lg:block" title={roleForSubmission}>
-        <div className={`${pillClass} text-[#059669]`}>{roleForSubmission || '—'}</div>
-      </div>
+          {/* Month / Year */}
+          <div className="financial-period-controls flex items-center gap-1.5">
+            <select
+              value={month}
+              onChange={(e) => onMonthChange(Number(e.target.value))}
+              className={`fin-month-dropdown ${selectClass} w-[100px]`}
+              aria-label="Month"
+            >
+              {MONTH_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+            <select
+              value={year}
+              onChange={(e) => onYearChange(Number(e.target.value))}
+              className={`fin-year-field ${selectClass} w-[84px]`}
+              aria-label="Year"
+            >
+              {buildHealthSafetyYearOptions(year).map((y) => (
+                <option key={y} value={y}>
+                  {y}
+                </option>
+              ))}
+            </select>
+          </div>
 
-      <div className="financial-submitted-by fin-submitted-user hidden shrink-0 xl:block" title={createdBy}>
-        <div className={pillClass}>{createdBy}</div>
-      </div>
+          {/* Role badge */}
+          {roleForSubmission && (
+            <div className="hidden shrink-0 lg:flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1 text-[10px] font-black uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+              {roleForSubmission}
+            </div>
+          )}
 
-      <div className="ml-auto flex w-full shrink-0 items-center justify-end gap-2 sm:w-auto">
-        <button
-          type="button"
-          onClick={onRefresh}
-          disabled={isRefreshing || isLoading}
-          className={`financial-refresh-btn fin-refresh-btn flex h-11 items-center gap-2 rounded-lg px-4 text-xs font-semibold uppercase tracking-wide transition-colors disabled:opacity-60 ${
-            isDarkTheme ? themeClasses.buttonPrimary : 'bg-[#4F46E5] text-white hover:bg-[#4338CA]'
-          }`}
-        >
-          <Icons.History size={16} className={isRefreshing ? 'animate-spin' : ''} />
-          <span className="hidden sm:inline">{isRefreshing ? 'Loading…' : 'Refresh'}</span>
-        </button>
-        <button
-          type="button"
-          onClick={onStartTour}
-          className={`restart-tour-btn fm-start-tour-btn hidden h-11 items-center gap-1.5 rounded-lg border px-3 text-xs font-semibold transition-colors lg:flex ${
-            isDarkTheme
-              ? `${themeClasses.border} text-indigo-300 hover:bg-white/10`
-              : 'border-[#E2E8F0] bg-white text-[#4F46E5] hover:bg-[#EEF2FF]'
-          }`}
-          title="Start guided tour"
-        >
-          <Icons.Help size={14} />
-          Tour
-        </button>
+          {/* Refresh button */}
+          <button
+            type="button"
+            onClick={onRefresh}
+            disabled={isLoading || isRefreshing}
+            className={`inline-flex items-center gap-1.5 rounded-xl border px-3.5 py-2 text-xs font-bold uppercase tracking-wider shadow-sm transition-all ${themeClasses.buttonSecondary}`}
+            title="Refresh data"
+          >
+            <RefreshCw size={14} className={isRefreshing ? 'animate-spin text-emerald-500' : ''} />
+            <span className="hidden sm:inline">{isRefreshing ? 'Refreshing…' : 'Refresh'}</span>
+          </button>
+
+          {/* Tour button */}
+          <button
+            type="button"
+            onClick={onStartTour}
+            className="inline-flex items-center gap-1.5 rounded-xl border border-blue-500/30 bg-blue-500/10 px-3.5 py-2 text-xs font-bold uppercase tracking-wider text-blue-600 dark:text-blue-400 hover:bg-blue-500/20 transition-all"
+            title="Start interactive guided tour"
+          >
+            <Sparkles size={14} />
+            <span>Tour</span>
+          </button>
+        </div>
       </div>
     </div>
   );

@@ -1,4 +1,14 @@
+import React from "react";
+import {
+  AlertTriangle,
+  BadgeCheck,
+  CheckCircle2,
+  ClipboardList,
+  FlaskConical,
+  XCircle,
+} from "lucide-react";
 import type { FrequencyChartSummary as T } from "../types";
+import "./qaqcWorkspace.css";
 
 interface Props {
   summary: T;
@@ -29,74 +39,70 @@ export default function FrequencyChartSummary({ summary, isDarkTheme, compact = 
     raw.failed ?? raw.testsFailed ?? raw.tests_failed,
   );
 
-  const cards = [
+  const pct = (part: number, whole: number) =>
+    whole > 0 ? Math.min(100, Math.max(0, Math.round((part / whole) * 100))) : 0;
+  const conductedPct = pct(testsConducted, testsRequired);
+  const passRate = pct(testsPassed, testsConducted);
+  const failRate = pct(testsFailed, testsConducted);
+  const shortfallPct = pct(shortfall, testsRequired);
+  const muted = "#94a3b8";
+
+  const cards: {
+    label: string;
+    fullLabel: string;
+    value: number;
+    icon: React.ElementType;
+    color: string;
+    barPct: number;
+    note: string;
+    alert?: boolean;
+  }[] = [
     {
       label: "Required",
       fullLabel: "Tests Required",
       value: testsRequired,
-      icon: "📋",
-      accent: isDarkTheme ? "text-blue-400" : "text-blue-600",
-      bg: isDarkTheme ? "bg-blue-950/40 border-blue-800/50" : "bg-blue-50 border-blue-100",
+      icon: ClipboardList,
+      color: "#3b82f6",
+      barPct: testsRequired > 0 ? 100 : 0,
+      note: "Planned for this period",
     },
     {
       label: "Conducted",
       fullLabel: "Tests Conducted",
       value: testsConducted,
-      icon: "✅",
-      accent: isDarkTheme ? "text-emerald-400" : "text-emerald-600",
-      bg: isDarkTheme ? "bg-emerald-950/40 border-emerald-800/50" : "bg-emerald-50 border-emerald-100",
+      icon: FlaskConical,
+      color: "#10b981",
+      barPct: conductedPct,
+      note: `${conductedPct}% of required`,
     },
     {
       label: "Passed",
       fullLabel: "Tests Passed",
       value: testsPassed,
-      icon: "🎯",
-      accent: isDarkTheme ? "text-green-400" : "text-green-600",
-      bg: isDarkTheme ? "bg-green-950/40 border-green-800/50" : "bg-green-50 border-green-100",
+      icon: BadgeCheck,
+      color: "#22c55e",
+      barPct: passRate,
+      note: `${passRate}% pass rate`,
     },
     {
       label: "Failed",
       fullLabel: "Tests Failed",
       value: testsFailed,
-      icon: testsFailed > 0 ? "❌" : "—",
-      accent:
-        testsFailed > 0
-          ? isDarkTheme
-            ? "text-rose-400"
-            : "text-rose-600"
-          : isDarkTheme
-            ? "text-slate-400"
-            : "text-slate-500",
-      bg:
-        testsFailed > 0
-          ? isDarkTheme
-            ? "bg-rose-950/40 border-rose-800/50"
-            : "bg-rose-50 border-rose-100"
-          : isDarkTheme
-            ? "bg-white/5 border-white/10"
-            : "bg-slate-50 border-slate-100",
+      icon: XCircle,
+      color: testsFailed > 0 ? "#f43f5e" : muted,
+      barPct: failRate,
+      note: testsFailed > 0 ? `${failRate}% of conducted` : "No failures",
+      alert: testsFailed > 0,
     },
     {
       label: "Shortfall",
       fullLabel: "Shortfall",
       value: shortfall,
-      icon: shortfall > 0 ? "⚠️" : "✔️",
-      accent:
-        shortfall > 0
-          ? isDarkTheme
-            ? "text-amber-400"
-            : "text-amber-600"
-          : isDarkTheme
-            ? "text-slate-400"
-            : "text-slate-500",
-      bg:
-        shortfall > 0
-          ? isDarkTheme
-            ? "bg-amber-950/40 border-amber-800/50"
-            : "bg-amber-50 border-amber-100"
-          : isDarkTheme
-            ? "bg-white/5 border-white/10"
-            : "bg-slate-50 border-slate-100",
+      icon: shortfall > 0 ? AlertTriangle : CheckCircle2,
+      color: shortfall > 0 ? "#f59e0b" : "#8b5cf6",
+      barPct: shortfall > 0 ? shortfallPct : 0,
+      note: shortfall > 0 ? `${shortfallPct}% still pending` : "On target",
+      alert: shortfall > 0,
     },
   ];
 
@@ -108,36 +114,61 @@ export default function FrequencyChartSummary({ summary, isDarkTheme, compact = 
           : "grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 sm:gap-3"
       }`}
     >
-      {cards.map((card) => (
-        <div
-          key={card.fullLabel}
-          className={`rounded-xl border ${compact ? "p-2.5" : "rounded-2xl p-3 sm:p-4"} ${card.bg}`}
-        >
-          <div className="flex flex-col gap-1">
-            <div className="flex items-start justify-between gap-1">
+      {cards.map((card, index) => {
+        const Icon = card.icon;
+        return (
+          <div
+            key={card.fullLabel}
+            className={`pmc-qa-sum ${card.alert ? "is-alert" : ""} rounded-xl border ${
+              compact ? "p-2.5" : "rounded-2xl p-3 sm:p-4"
+            } ${isDarkTheme ? "border-white/10" : "border-slate-200/80"}`}
+            style={
+              {
+                "--qa-tile": card.color,
+                "--qa-i": index,
+                background: isDarkTheme
+                  ? `linear-gradient(150deg, color-mix(in srgb, ${card.color} 12%, rgba(255,255,255,0.03)), rgba(255,255,255,0.015))`
+                  : `linear-gradient(150deg, color-mix(in srgb, ${card.color} 8%, #fff), #fff)`,
+              } as React.CSSProperties
+            }
+            title={card.fullLabel}
+          >
+            <div className="flex flex-col gap-1">
+              <div className="flex items-start justify-between gap-1">
+                <p
+                  className={`${
+                    compact ? "text-[8px] leading-tight" : "text-[9px] sm:text-[10px] mb-1"
+                  } font-black uppercase tracking-wide ${isDarkTheme ? "text-slate-400" : "text-slate-500"}`}
+                >
+                  {compact ? card.label : card.fullLabel}
+                </p>
+                <span
+                  className={`pmc-qa-sum-icon ${compact ? "h-5 w-5" : "h-7 w-7"}`}
+                  aria-hidden="true"
+                >
+                  <Icon size={compact ? 11 : 15} strokeWidth={2.3} />
+                </span>
+              </div>
               <p
                 className={`${
-                  compact ? "text-[8px] leading-tight" : "text-[9px] sm:text-[10px] mb-1"
-                } font-black uppercase tracking-wide ${isDarkTheme ? "text-slate-400" : "text-slate-500"}`}
+                  compact ? "text-base sm:text-lg" : "text-xl sm:text-2xl"
+                } font-black leading-none tabular-nums`}
+                style={{ color: card.color }}
               >
-                {compact ? card.label : card.fullLabel}
+                {(card.value ?? 0).toLocaleString()}
               </p>
-              <span
-                className={`${compact ? "text-sm" : "text-lg sm:text-xl"} shrink-0 leading-none`}
-              >
-                {card.icon}
-              </span>
             </div>
-            <p
-              className={`${
-                compact ? "text-base sm:text-lg" : "text-xl sm:text-2xl"
-              } font-black leading-none ${card.accent}`}
-            >
-              {(card.value ?? 0).toLocaleString()}
-            </p>
+            <div className="pmc-qa-sum-track" aria-hidden="true">
+              <div className="pmc-qa-sum-fill" style={{ width: `${card.barPct}%` }} />
+            </div>
+            {!compact && (
+              <p className={`pmc-qa-sum-note ${isDarkTheme ? "text-slate-300" : "text-slate-600"}`}>
+                {card.note}
+              </p>
+            )}
           </div>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }

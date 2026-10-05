@@ -90,6 +90,12 @@
 .pmc-motion-page .cost-performance-card {
   --pm-accent: #6366f1;
 }
+.pmc-motion-page .cashflow-card {
+  --pm-accent: #10b981;
+}
+.pmc-motion-page .internal-cost-card {
+  --pm-accent: #0ea5e9;
+}
 .pmc-motion-page .exec-section-hse,
 .pmc-motion-page #tl-section-hse {
   --pm-accent: #10b981;
@@ -141,6 +147,8 @@
     .planned-earned-group,
     .contract-performance-card > *,
     .cost-performance-card > *,
+    .cashflow-card > *,
+    .internal-cost-card > *,
     .exec-section-hse > :not(#tl-section-hse),
     #tl-section-hse > *,
     #tl-section-quality > *,
@@ -167,6 +175,8 @@
       .planned-earned-group,
       .contract-performance-card > *,
     .cost-performance-card > *,
+    .cashflow-card > *,
+    .internal-cost-card > *,
     .exec-section-hse > :not(#tl-section-hse),
       #tl-section-hse > *,
       #tl-section-quality > *,
@@ -192,6 +202,8 @@
     .planned-earned-group,
     .contract-performance-card > *,
     .cost-performance-card > *,
+    .cashflow-card > *,
+    .internal-cost-card > *,
     .exec-section-hse > :not(#tl-section-hse),
     #tl-section-hse > *,
     #tl-section-quality > *,
@@ -238,6 +250,8 @@
     .planned-earned-group,
     .contract-performance-card > *,
     .cost-performance-card > *,
+    .cashflow-card > *,
+    .internal-cost-card > *,
     .exec-section-hse > :not(#tl-section-hse),
     #tl-section-hse > *,
     #tl-section-quality > *,
@@ -266,6 +280,8 @@
       .planned-earned-group,
       .contract-performance-card > *,
     .cost-performance-card > *,
+    .cashflow-card > *,
+    .internal-cost-card > *,
     .exec-section-hse > :not(#tl-section-hse),
       #tl-section-hse > *,
       #tl-section-quality > *,
@@ -291,6 +307,8 @@
     .planned-earned-group,
     .contract-performance-card > *,
     .cost-performance-card > *,
+    .cashflow-card > *,
+    .internal-cost-card > *,
     .exec-section-hse > :not(#tl-section-hse),
     #tl-section-hse > *,
     #tl-section-quality > *,
@@ -494,6 +512,8 @@
     .planned-earned-group,
     .contract-performance-card > *,
     .cost-performance-card > *,
+    .cashflow-card > *,
+    .internal-cost-card > *,
     .exec-section-hse > :not(#tl-section-hse),
     #tl-section-hse > *,
     #tl-section-quality > *,
@@ -527,6 +547,8 @@
       .planned-earned-group,
       .contract-performance-card > *,
       .cost-performance-card > *,
+    .cashflow-card > *,
+    .internal-cost-card > *,
       .exec-section-hse > :not(#tl-section-hse),
       #tl-section-hse > *,
       #tl-section-quality > *,
@@ -552,6 +574,8 @@
     .planned-earned-group,
     .contract-performance-card > *,
     .cost-performance-card > *,
+    .cashflow-card > *,
+    .internal-cost-card > *,
     .exec-section-hse > :not(#tl-section-hse),
     #tl-section-hse > *,
     #tl-section-quality > *,
@@ -777,6 +801,8 @@
       .planned-earned-group,
       .contract-performance-card > *,
       .cost-performance-card > *,
+    .cashflow-card > *,
+    .internal-cost-card > *,
       .exec-section-hse > :not(#tl-section-hse),
       #tl-section-hse > *,
       #tl-section-quality > *,
@@ -808,6 +834,8 @@
       .planned-earned-group,
       .contract-performance-card > *,
     .cost-performance-card > *,
+    .cashflow-card > *,
+    .internal-cost-card > *,
     .exec-section-hse > :not(#tl-section-hse),
       #tl-section-hse > *,
       #tl-section-quality > *,

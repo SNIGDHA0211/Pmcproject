@@ -1,84 +1,166 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Icons } from './Icons';
 import { getThemeClasses, useTheme } from '../utils/theme';
+import './workspaceLoader.css';
 
 const shimmerBar = (isDark: boolean) =>
   isDark
     ? 'bg-gradient-to-r from-white/5 via-white/15 to-white/5'
     : 'bg-gradient-to-r from-slate-100 via-slate-200 to-slate-100';
 
+const DEFAULT_LOADER_STEPS = ['Connecting to server', 'Fetching latest data', 'Preparing your view'];
+const STEP_ADVANCE_MS = [900, 2200];
+const SLOW_HINT_MS = 10000;
+
+export type LoaderStep = string | { label: string; detail?: string };
+
+export const FullScreenLoader: React.FC<{
+  title: string;
+  subtitle: string;
+  isDark: boolean;
+  steps?: LoaderStep[];
+  standalone?: boolean;
+  /** Small uppercase label above the title. */
+  eyebrow?: string;
+  /** Drive steps from outside; `steps.length` means every step is done. Omit for timed steps. */
+  activeStep?: number;
+  /** Show "Step x of n" with a determinate percentage bar instead of the sliding bar. */
+  showProgress?: boolean;
+  tone?: 'sky' | 'amber';
+  icon?: React.ElementType;
+}> = ({
+  title,
+  subtitle,
+  isDark,
+  steps = DEFAULT_LOADER_STEPS,
+  standalone = false,
+  eyebrow,
+  activeStep: controlledStep,
+  showProgress = false,
+  tone = 'sky',
+  icon: CoreIcon = Icons.Project,
+}) => {
+  const [timedStep, setTimedStep] = useState(0);
+  const [showSlowHint, setShowSlowHint] = useState(false);
+  const isControlled = controlledStep != null;
+  const activeStep = isControlled ? controlledStep : timedStep;
+  const allDone = activeStep >= steps.length;
+
+  useEffect(() => {
+    const timers = isControlled
+      ? []
+      : STEP_ADVANCE_MS.slice(0, Math.max(steps.length - 1, 0)).map((ms, i) =>
+          window.setTimeout(() => setTimedStep(i + 1), ms),
+        );
+    timers.push(window.setTimeout(() => setShowSlowHint(true), SLOW_HINT_MS));
+    return () => timers.forEach((t) => window.clearTimeout(t));
+  }, [steps.length, isControlled]);
+
+  const progressPct = allDone
+    ? 100
+    : Math.round(((Math.max(activeStep, 0) + 0.5) / steps.length) * 100);
+  const currentLabel = (() => {
+    const step = steps[Math.min(activeStep, steps.length - 1)];
+    return typeof step === 'string' ? step : step?.label;
+  })();
+
+  const overlay = (
+    <div
+      className={`pmc-wl-overlay ${isDark ? 'is-dark' : 'is-light'} tone-${tone} ${standalone ? 'is-standalone' : ''}`}
+      role="status"
+      aria-live="polite"
+      aria-busy={!allDone}
+    >
+      <div className="pmc-wl-card">
+        <div className={`pmc-wl-orbit ${allDone ? 'is-done' : ''}`} aria-hidden="true">
+          <div className="pmc-wl-orbit-glow" />
+          <div className="pmc-wl-ring" />
+          <div className="pmc-wl-ring-inner" />
+          <div className="pmc-wl-orbit-dot" />
+          <div className="pmc-wl-core">
+            {allDone ? <Icons.Approve size={28} /> : <CoreIcon size={26} />}
+          </div>
+        </div>
+
+        {eyebrow && <p className="pmc-wl-eyebrow">{eyebrow}</p>}
+        <h3 className="pmc-wl-title" title={title}>{title}</h3>
+        <p className="pmc-wl-subtitle">{subtitle}</p>
+
+        {showProgress ? (
+          <div className="pmc-wl-progress">
+            <div className="pmc-wl-progress-meta">
+              <span>
+                {allDone ? 'Ready' : `Step ${activeStep + 1} of ${steps.length}`}
+              </span>
+              <span className="pmc-wl-progress-pct">{progressPct}%</span>
+            </div>
+            <div
+              className="pmc-wl-bar is-determinate"
+              style={{ '--wl-pct': `${progressPct}%` } as React.CSSProperties}
+              aria-hidden="true"
+            />
+          </div>
+        ) : (
+          <div className="pmc-wl-bar" aria-hidden="true" />
+        )}
+
+        <ol className="pmc-wl-steps">
+          {steps.map((step, i) => {
+            const label = typeof step === 'string' ? step : step.label;
+            const detail = typeof step === 'string' ? undefined : step.detail;
+            const state = i < activeStep ? 'done' : i === activeStep ? 'active' : 'pending';
+            return (
+              <li
+                key={label}
+                className={`pmc-wl-step is-${state}`}
+                style={{ '--wl-i': i } as React.CSSProperties}
+              >
+                <span className="pmc-wl-step-icon">
+                  {state === 'done' ? <Icons.Approve size={14} /> : state === 'pending' ? i + 1 : null}
+                </span>
+                <span className="pmc-wl-step-label">
+                  {label}
+                  {detail && <span className="pmc-wl-step-detail">{detail}</span>}
+                </span>
+                <span className="pmc-wl-step-state">
+                  {state === 'done' ? 'Done' : state === 'active' ? 'In progress' : 'Waiting'}
+                </span>
+              </li>
+            );
+          })}
+        </ol>
+
+        {showSlowHint && !allDone && (
+          <p className="pmc-wl-hint">
+            This is taking longer than usual. Please keep this tab open — if it doesn&apos;t finish soon,
+            check your internet connection and refresh.
+          </p>
+        )}
+        <span className="sr-only">
+          {title}. {allDone ? 'Ready.' : `${currentLabel}.`}
+        </span>
+      </div>
+    </div>
+  );
+
+  return typeof document === 'undefined' ? overlay : createPortal(overlay, document.body);
+};
+
 export const WorkspaceLoadingPanel: React.FC<{
   title?: string;
   subtitle?: string;
+  steps?: LoaderStep[];
 }> = ({
   title = 'Loading your workspace',
   subtitle = 'Fetching your projects and preparing the dashboard. This only takes a moment.',
+  steps,
 }) => {
   const { isDarkTheme } = useTheme();
-  const themeClasses = getThemeClasses(isDarkTheme);
 
   return (
-    <div className="flex min-h-[62vh] w-full items-center justify-center px-3 py-8 sm:px-6">
-      <div
-        className={`w-full max-w-xl overflow-hidden rounded-3xl border px-6 py-8 sm:px-10 sm:py-10 ${themeClasses.glassCard} ${themeClasses.border}`}
-        role="status"
-        aria-live="polite"
-        aria-busy="true"
-      >
-        <div className="flex flex-col items-center text-center">
-          <div className="relative mb-6 h-24 w-24">
-            <div
-              className={`absolute inset-0 rounded-full ${
-                isDarkTheme ? 'bg-sky-400/10' : 'bg-sky-100'
-              }`}
-            />
-            <div className="absolute inset-0 rounded-full border-2 border-sky-400/25" />
-            <div className="absolute inset-0 animate-spin rounded-full border-[3px] border-transparent border-t-sky-500 border-r-indigo-400" />
-            <div className="absolute inset-3 animate-pulse rounded-full border border-sky-400/20" />
-            <div className="absolute inset-0 flex items-center justify-center">
-              <Icons.Project
-                size={28}
-                className={isDarkTheme ? 'text-sky-300' : 'text-sky-600'}
-              />
-            </div>
-          </div>
-
-          <h3 className={`text-xl font-bold tracking-tight sm:text-2xl ${themeClasses.textPrimary}`}>
-            {title}
-          </h3>
-          <p className={`mt-2 max-w-md text-sm leading-relaxed ${themeClasses.textSecondary}`}>
-            {subtitle}
-          </p>
-
-          <div
-            className={`mt-6 h-1.5 w-full max-w-xs overflow-hidden rounded-full ${
-              isDarkTheme ? 'bg-white/10' : 'bg-slate-200'
-            }`}
-          >
-            <div className="h-full w-2/5 animate-[workspaceBar_1.4s_ease-in-out_infinite] rounded-full bg-gradient-to-r from-sky-400 via-indigo-500 to-sky-400" />
-          </div>
-        </div>
-
-        <div className="mt-8 grid grid-cols-3 gap-3">
-          {[0, 1, 2].map((i) => (
-            <div
-              key={i}
-              className={`h-16 rounded-2xl ${shimmerBar(isDarkTheme)} animate-pulse`}
-              style={{ animationDelay: `${i * 120}ms` }}
-            />
-          ))}
-        </div>
-        <div
-          className={`mt-3 h-36 rounded-2xl ${shimmerBar(isDarkTheme)} animate-pulse`}
-        />
-        <span className="sr-only">Loading projects</span>
-      </div>
-      <style>{`
-        @keyframes workspaceBar {
-          0% { transform: translateX(-120%); }
-          100% { transform: translateX(280%); }
-        }
-      `}</style>
+    <div className="min-h-[62vh] w-full" aria-hidden="true">
+      <FullScreenLoader title={title} subtitle={subtitle} steps={steps} isDark={isDarkTheme} />
     </div>
   );
 };

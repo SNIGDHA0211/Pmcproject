@@ -31,8 +31,10 @@ const FinancialSegmentedTabs: React.FC<FinancialSegmentedTabsProps> = ({
       </p>
     )}
     <div
-      className={`flex flex-wrap gap-1 rounded-xl p-1 ${
-        isDarkTheme ? 'bg-white/5' : 'bg-[#F1F5F9]'
+      className={`flex flex-wrap gap-1.5 rounded-2xl p-1.5 border transition-all ${
+        isDarkTheme
+          ? 'bg-slate-900/80 border-slate-800 shadow-inner'
+          : 'bg-slate-100/80 border-slate-200/80 shadow-inner'
       }`}
       role="tablist"
     >
@@ -63,14 +65,14 @@ const FinancialSegmentedTabs: React.FC<FinancialSegmentedTabsProps> = ({
             disabled={isDisabled}
             onClick={() => !isDisabled && onChange(tab.key)}
             title={isDisabled ? 'Use Financial Management in the menu to switch sections' : undefined}
-            className={`financial-tab-${tab.key} ${tourClass} ${tab.className ?? ''} h-11 shrink-0 rounded-xl px-4 text-sm font-semibold transition-all duration-200 ${
+            className={`financial-tab-${tab.key} ${tourClass} ${tab.className ?? ''} h-10 shrink-0 rounded-xl px-4 text-xs font-black uppercase tracking-wider transition-all duration-200 ${
               isActive
-                ? 'bg-[#4F46E5] text-white shadow-sm'
+                ? 'bg-blue-600 text-white shadow-md shadow-blue-500/25 border border-blue-500/50 scale-[1.02]'
                 : isDisabled
-                  ? 'cursor-not-allowed opacity-40 text-[#94A3B8]'
+                  ? 'cursor-not-allowed opacity-40 text-slate-400'
                   : isDarkTheme
-                    ? 'text-slate-400 hover:bg-white/10 hover:text-white'
-                    : 'bg-transparent text-[#64748B] hover:bg-white hover:text-[#0F172A]'
+                    ? 'text-slate-400 hover:bg-white/10 hover:text-slate-100'
+                    : 'bg-transparent text-slate-600 hover:bg-white hover:text-slate-900 hover:shadow-sm'
             }`}
           >
             {tab.label}

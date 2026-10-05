@@ -17,6 +17,7 @@ import { dashboardChartShellBorder } from "../utils/dashboardCharts";
 import { downloadFrequencyChartExcel, triggerExcelBlobDownload } from "../utils/frequencyChartExport";
 import { ModalPortal } from "./ModalPortal";
 import FrequencyChartSummaryPanel from "./FrequencyChartSummary";
+import "./qaqcWorkspace.css";
 import FrequencyChartTable from "./FrequencyChartTable";
 import FrequencyChartFilters from "./FrequencyChartFilters";
 import FrequencyChartRegisterModal from "./FrequencyChartRegisterModal";
@@ -348,7 +349,7 @@ export default function FrequencyChartDashboard({
                   <button
                     type="button"
                     onClick={onOpenTestingPhotos}
-                    className={`${actionBtnBase} bg-violet-600 text-white hover:bg-violet-700`}
+                    className={`${actionBtnBase} pmc-qa-btn is-violet bg-violet-600 text-white`}
                     title="Open Testing Photos for this project"
                   >
                     <Icons.Upload size={isEmbedded ? 12 : 14} />
@@ -362,7 +363,7 @@ export default function FrequencyChartDashboard({
                     setEditRow(null);
                     setModalOpen(true);
                   }}
-                  className={`${actionBtnBase} bg-indigo-600 text-white hover:bg-indigo-700`}
+                  className={`${actionBtnBase} pmc-qa-btn is-indigo bg-indigo-600 text-white`}
                   title="Add test record"
                 >
                   <Icons.Add size={isEmbedded ? 12 : 14} />
@@ -373,7 +374,7 @@ export default function FrequencyChartDashboard({
                   type="button"
                   onClick={handleExportExcel}
                   disabled={loading || !reportData || reportData.rows.length === 0}
-                  className={`${actionBtnBase} bg-emerald-600 text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-40`}
+                  className={`${actionBtnBase} pmc-qa-btn is-emerald bg-emerald-600 text-white disabled:cursor-not-allowed disabled:opacity-40`}
                   title="Download Excel workbook"
                 >
                   <Icons.Download size={isEmbedded ? 12 : 14} />

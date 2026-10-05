@@ -6,6 +6,8 @@ import type { BgManageScope } from '../ProjectDatesCard';
 import { ProjectDatesGroupCard } from '../ProjectDatesCard';
 import { usePmcExecutiveTheme } from '../../utils/pmcExecutiveTheme';
 import { getProjectDatesSectionAccess } from '../../utils/pmcRoleAccess';
+import { Icons } from '../Icons';
+import '../projectEot/projectEot.css';
 
 export const PMCExecutivePanel: React.FC<{
   title: string;
@@ -79,14 +81,21 @@ const PMCHeadScheduleSection: React.FC<PMCHeadScheduleSectionProps> = ({
   return (
     <div className="space-y-3 sm:space-y-4">
       {projectName ? (
-        <div className="min-w-0 px-0.5">
-          <h2
-            className={`truncate text-lg font-black tracking-tight sm:text-xl ${ex.heading}`}
-            title={projectName}
-          >
-            {projectName}
-          </h2>
-          <p className={`mt-0.5 text-xs font-semibold ${ex.muted}`}>Schedule & Dates</p>
+        <div className="pmc-sch-head px-0.5">
+          <span className="pmc-sch-head-icon" aria-hidden="true">
+            <Icons.Calendar size={19} />
+          </span>
+          <div className="min-w-0">
+            <h2
+              className={`pmc-sch-title ${ex.isDark ? 'is-dark' : 'is-light'} truncate text-lg font-black tracking-tight sm:text-xl ${ex.heading}`}
+              title={projectName}
+            >
+              {projectName}
+            </h2>
+            <span className={`pmc-sch-pill ${ex.isDark ? 'is-dark' : 'is-light'}`}>
+              Schedule & Dates
+            </span>
+          </div>
         </div>
       ) : null}
 

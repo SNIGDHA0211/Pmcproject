@@ -45,32 +45,30 @@ const QaqcHealthSafetyPanel: React.FC<QaqcHealthSafetyPanelProps> = ({
     [record],
   );
 
-  const cardCls = `rounded-2xl border p-4 sm:p-5 ${
-    isDarkTheme
-      ? `${themeClasses.glassCard} ${themeClasses.border}`
-      : 'border-slate-200 bg-white shadow-sm'
-  }`;
+  const cardBase = isDarkTheme
+    ? 'pmc-ov-card rounded-2xl pmc360-glass-panel-dark'
+    : 'pmc-ov-card rounded-2xl pmc360-glass-panel-light';
 
   return (
-    <div className={cardCls}>
+    <div className={`p-4 sm:p-5 ${cardBase}`} style={{ '--ov-accent': '#f59e0b', '--ov-delay': '120ms' } as React.CSSProperties}>
       <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
         <div className="flex min-w-0 items-center gap-3">
           <span
-            className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${
-              isDarkTheme
-                ? 'bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-500/25'
-                : 'bg-emerald-50 text-emerald-600 ring-1 ring-emerald-100'
-            }`}
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl text-white shadow-md"
+            style={{ background: 'linear-gradient(135deg, #f59e0b 0%, #1e3a5f 130%)' }}
           >
             <Shield size={20} strokeWidth={2.25} />
           </span>
           <div className="min-w-0">
-            <h3 className={`text-xs font-black uppercase tracking-widest sm:text-sm ${themeClasses.textPrimary}`}>
-              Health &amp; Safety Status
-            </h3>
+            <div className="flex items-center gap-2">
+              <h3 className={`text-xs font-black uppercase tracking-wider sm:text-sm ${themeClasses.textPrimary}`}>
+                Health &amp; Safety Status &amp; Scorecard
+              </h3>
+              <span className="pmc-ov-live" aria-hidden />
+            </div>
             <p className={`mt-0.5 truncate text-[11px] font-semibold sm:text-xs ${themeClasses.textSecondary}`}>
               {projectName ? `${projectName} · ` : ''}
-              {monthYearLabel(month, year)}
+              Reporting Period: <span className="font-bold text-amber-600 dark:text-amber-400">{monthYearLabel(month, year)}</span>
             </p>
           </div>
         </div>
@@ -79,16 +77,17 @@ const QaqcHealthSafetyPanel: React.FC<QaqcHealthSafetyPanelProps> = ({
             <button
               type="button"
               onClick={onEdit}
-              className="rounded-lg bg-emerald-600 px-3 py-1.5 text-[10px] font-black uppercase tracking-wider text-white transition-colors hover:bg-emerald-500"
+              className="inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 px-3.5 py-2 text-[10px] font-black uppercase tracking-wider text-white shadow-md shadow-emerald-500/20 transition-all hover:scale-[1.02] active:scale-[0.98]"
             >
-              {record ? 'Edit H&S' : 'Add H&S'}
+              <Shield size={13} />
+              {record ? 'Edit H&S Record' : 'Add H&S Record'}
             </button>
           )}
           {canDelete && onDelete && (
             <button
               type="button"
               onClick={onDelete}
-              className={`rounded-lg border px-3 py-1.5 text-[10px] font-black uppercase tracking-wider transition-colors ${
+              className={`rounded-xl border px-3 py-2 text-[10px] font-black uppercase tracking-wider transition-all ${
                 isDarkTheme
                   ? 'border-rose-500/30 text-rose-300 hover:bg-rose-500/10'
                   : 'border-rose-200 text-rose-600 hover:bg-rose-50'
@@ -99,7 +98,7 @@ const QaqcHealthSafetyPanel: React.FC<QaqcHealthSafetyPanelProps> = ({
           )}
           {status && (
             <span
-              className={`inline-flex items-center rounded-full border px-2.5 py-1 text-[10px] font-black uppercase tracking-wider ${statusBadgeClasses[status.level]}`}
+              className={`inline-flex items-center rounded-full border px-3 py-1 text-[10px] font-black uppercase tracking-wider shadow-sm ${statusBadgeClasses[status.level]}`}
             >
               {status.label}
             </span>
@@ -110,21 +109,23 @@ const QaqcHealthSafetyPanel: React.FC<QaqcHealthSafetyPanelProps> = ({
       {loading ? (
         <SectionLoadingPanel label="Loading health and safety" minHeight={200} />
       ) : !record ? (
-        <div
-          className={`flex min-h-[160px] flex-col items-center justify-center rounded-xl border border-dashed px-4 py-8 text-center ${
-            isDarkTheme ? 'border-white/15 bg-white/[0.02]' : 'border-slate-200 bg-slate-50/80'
-          }`}
-        >
-          <Shield size={28} className={isDarkTheme ? 'text-slate-500' : 'text-slate-400'} />
-          <p className={`mt-2 text-sm font-semibold ${themeClasses.textSecondary}`}>
-            No health &amp; safety data for this project yet.
+        <div className="pmc-ov-empty flex flex-col items-center justify-center gap-2.5 rounded-2xl border border-dashed border-slate-300 dark:border-white/15 px-4 py-10 text-center" style={{ minHeight: 160 }}>
+          <span className="pmc-ov-empty-icon flex h-11 w-11 items-center justify-center rounded-full bg-amber-500/15 text-amber-500">
+            <Shield size={24} />
+          </span>
+          <p className={`text-xs font-black uppercase tracking-wide ${themeClasses.textPrimary}`}>
+            No health &amp; safety data recorded for this period yet
+          </p>
+          <p className={`max-w-xs text-[11px] font-medium leading-relaxed ${themeClasses.textMuted}`}>
+            Click below to record monthly site manhours, incident metrics, and safety compliance.
           </p>
           {onEdit && (
             <button
               type="button"
               onClick={onEdit}
-              className="mt-4 rounded-lg bg-emerald-600 px-4 py-2 text-[10px] font-black uppercase tracking-wider text-white hover:bg-emerald-500"
+              className="mt-2 inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 px-4 py-2 text-[10px] font-black uppercase tracking-wider text-white shadow-md shadow-emerald-500/20 transition-all hover:scale-[1.02]"
             >
+              <Shield size={13} />
               Add H&amp;S Record
             </button>
           )}

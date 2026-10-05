@@ -35,73 +35,71 @@ const FinancialExecutiveKpis: React.FC<FinancialExecutiveKpisProps> = ({
   isDarkTheme,
   themeClasses,
 }) => {
-  const cardShell = (className = '') =>
-    isDarkTheme
-      ? `rounded-xl border ${themeClasses.glassCard} ${themeClasses.border} ${className}`
-      : `rounded-xl border border-[#E2E8F0] bg-white shadow-sm ${className}`;
+  const cardShell = (accentHex: string, className = '') =>
+    `pmc-ov-tile rounded-xl border p-3.5 transition-all ${
+      isDarkTheme
+        ? `${themeClasses.glassCard} ${themeClasses.border}`
+        : 'border-slate-200/80 bg-white shadow-sm'
+    } ${className}`;
 
-  const labelClass = `text-xs font-semibold uppercase tracking-wide ${
-    isDarkTheme ? themeClasses.textSecondary : 'text-[#64748B]'
+  const labelClass = `text-[10px] font-black uppercase tracking-wider ${
+    isDarkTheme ? themeClasses.textMuted : 'text-slate-500'
   }`;
 
   const renderPrimary = (
     label: string,
     value: string,
     tone: KpiTone,
-    hint?: string
+    hint?: string,
+    accentHex = '#3b82f6'
   ) => {
-    const t = TONE_CLASS[tone];
     return (
-      <div className={`${cardShell()} p-3`}>
+      <div
+        className={cardShell(accentHex)}
+        style={{ borderLeftWidth: 4, borderLeftColor: accentHex }}
+      >
         <p className={labelClass}>{label}</p>
         {hint && (
-          <p className={`mt-0.5 text-[10px] font-medium leading-tight ${themeClasses.textMuted}`}>
+          <p className={`mt-0.5 text-[9.5px] font-medium leading-tight ${themeClasses.textMuted}`}>
             {hint}
           </p>
         )}
-        <p
-          className={`mt-1.5 text-[28px] font-bold leading-tight tabular-nums ${
-            isDarkTheme ? themeClasses.textPrimary : t.value
-          }`}
-        >
+        <p className={`mt-1.5 text-2xl font-black leading-tight tabular-nums sm:text-3xl ${themeClasses.textPrimary}`}>
           {value}
         </p>
-        {!isDarkTheme && <div className={`mt-1.5 h-0.5 w-10 rounded-full ${t.accent}`} aria-hidden />}
       </div>
     );
   };
 
-  const renderSecondary = (label: string, value: string, tone: KpiTone) => {
-    const t = TONE_CLASS[tone];
+  const renderSecondary = (label: string, value: string, tone: KpiTone, accentHex = '#6366f1') => {
     return (
-      <div className={`${cardShell()} p-3`}>
+      <div
+        className={cardShell(accentHex)}
+        style={{ borderLeftWidth: 4, borderLeftColor: accentHex }}
+      >
         <p className={labelClass}>{label}</p>
-        <p
-          className={`mt-1 text-[22px] font-bold leading-tight tabular-nums ${
-            isDarkTheme ? themeClasses.textPrimary : t.value
-          }`}
-        >
+        <p className={`mt-1 text-xl font-black leading-tight tabular-nums sm:text-2xl ${themeClasses.textPrimary}`}>
           {value}
         </p>
       </div>
     );
   };
 
-  const renderEvm = (label: string, value: string, abbrev: string) => (
+  const renderEvm = (label: string, value: string, abbrev: string, accentHex = '#10b981') => (
     <div
-      className={`rounded-lg border p-2 ${
-        isDarkTheme ? `${themeClasses.border} bg-white/[0.04]` : 'border-[#E2E8F0] bg-[#FAFBFC]'
+      className={`rounded-xl border p-2.5 transition-all ${
+        isDarkTheme ? `${themeClasses.border} bg-white/[0.04]` : 'border-slate-200/80 bg-slate-50/70'
       } ${abbrev === 'CPI' ? 'cpi-card' : ''} ${abbrev === 'SPI' ? 'spi-card' : ''}`}
+      style={{ borderLeftWidth: 3, borderLeftColor: accentHex }}
     >
-      <p className="text-[10px] font-semibold uppercase tracking-wide text-[#64748B]">{abbrev}</p>
-      <p className={`mt-0.5 text-[10px] font-medium leading-tight ${themeClasses.textMuted}`}>
+      <div className="flex items-center justify-between">
+        <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">{abbrev}</p>
+        <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: accentHex }} />
+      </div>
+      <p className={`mt-0.5 text-[9.5px] font-medium leading-tight ${themeClasses.textMuted}`}>
         {label}
       </p>
-      <p
-        className={`mt-1 text-[20px] font-semibold leading-tight tabular-nums ${
-          isDarkTheme ? themeClasses.textPrimary : 'text-[#0F172A]'
-        }`}
-      >
+      <p className={`mt-1 text-lg font-black tabular-nums ${themeClasses.textPrimary}`}>
         {value}
       </p>
     </div>
@@ -115,29 +113,36 @@ const FinancialExecutiveKpis: React.FC<FinancialExecutiveKpisProps> = ({
         {renderPrimary(
           'Physical Progress',
           `${Math.round(metrics.physicalProgressPct)}%`,
-          'green'
+          'green',
+          undefined,
+          '#10b981'
         )}
         {renderPrimary(
           'Financial Progress',
           `${Math.round(metrics.financialProgressPct)}%`,
-          'green'
+          'green',
+          undefined,
+          '#3b82f6'
         )}
         {renderPrimary(
           'Cost Variance',
           formatCostVarianceDisplay(metrics.costVariance),
           cvTone,
-          'BCWP − ACWP'
+          'BCWP − ACWP',
+          metrics.costVariance == null ? '#64748b' : metrics.costVariance >= 0 ? '#10b981' : '#f43f5e'
         )}
         {renderPrimary(
           'Pending Invoice',
           formatFinancialAmount(metrics.pendingInvoice),
-          'red'
+          'red',
+          undefined,
+          '#f43f5e'
         )}
       </div>
 
       <div className="grid grid-cols-3 gap-2 sm:gap-3">
-        {renderSecondary('Contract Value', formatFinancialAmount(metrics.contractValue), 'blue')}
-        {renderSecondary('Budget', formatFinancialAmount(metrics.budget), 'indigo')}
+        {renderSecondary('Contract Value', formatFinancialAmount(metrics.contractValue), 'blue', '#3b82f6')}
+        {renderSecondary('Budget', formatFinancialAmount(metrics.budget), 'indigo', '#6366f1')}
         {renderSecondary('Actual Cost', formatFinancialAmount(metrics.actualCost), 'orange')}
       </div>
 

@@ -1,12 +1,9 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowUpRight,
-  Building2,
-  Check,
   Download,
   FileText,
   HardHat,
-  Loader2,
 } from 'lucide-react';
 import { Project } from '../../types';
 import type { ProjectDatesRecord } from '../../services/api';
@@ -27,16 +24,19 @@ import { usePmcExecutiveTheme } from '../../utils/pmcExecutiveTheme';
 import TutorialWatchButton from '../tutorialVideos/TutorialWatchButton';
 import type { TutorialSectionKey } from '../../utils/tutorialVideosSections';
 import ExecutiveProjectPicker from './ExecutiveProjectPicker';
+import { FullScreenLoader, type LoaderStep } from '../WorkspaceStatusPanels';
 import './executiveShell.css';
 
-const PROJECT_SWITCH_LOGS = [
+const PROJECT_SWITCH_LOGS: LoaderStep[] = [
   { label: 'Open site workspace', detail: 'Linking project registry & access' },
   { label: 'Load programme & progress', detail: 'Schedule, dates & site progress' },
   { label: 'Sync cost & compliance', detail: 'Financial, drawings & HSE posture' },
   { label: 'Build executive view', detail: 'Time · Cost · Quality · Safety' },
-] as const;
+];
 
 const PROJECT_SWITCH_STEP_MS = 650;
+/** Pause after the last step before marking everything done. */
+const PROJECT_SWITCH_SETTLE_MS = 500;
 const PROJECT_SWITCH_HOLD_MS = 450;
 
 export type PMCExecutiveTab =
@@ -166,8 +166,17 @@ const PMCHeadExecutiveShell: React.FC<PMCHeadExecutiveShellProps> = ({
         switchTimersRef.current.push(timer);
       });
 
-      const doneAt =
-        (PROJECT_SWITCH_LOGS.length - 1) * PROJECT_SWITCH_STEP_MS + PROJECT_SWITCH_HOLD_MS;
+      const settleAt =
+        (PROJECT_SWITCH_LOGS.length - 1) * PROJECT_SWITCH_STEP_MS + PROJECT_SWITCH_SETTLE_MS;
+      switchTimersRef.current.push(
+        window.setTimeout(() => {
+          setProjectSwitch((prev) =>
+            prev ? { ...prev, visibleLogCount: PROJECT_SWITCH_LOGS.length + 1 } : prev,
+          );
+        }, settleAt),
+      );
+
+      const doneAt = settleAt + PROJECT_SWITCH_HOLD_MS;
       const doneTimer = window.setTimeout(() => {
         setProjectSwitch(null);
         switchTimersRef.current = [];
@@ -343,140 +352,21 @@ const PMCHeadExecutiveShell: React.FC<PMCHeadExecutiveShellProps> = ({
   return (
     <div className="relative space-y-2 sm:space-y-3">
       {projectSwitch && (
-        <div
-          className="absolute inset-0 z-40 flex items-start justify-center overflow-hidden rounded-2xl px-3 py-8 sm:items-center sm:px-4 sm:py-6"
-          role="status"
-          aria-live="polite"
-          aria-busy="true"
-        >
-          {/* Solid dim so dashboard behind does not wash out the loader */}
-          <div
-            className="pointer-events-none absolute inset-0 bg-[#060d16]/82"
-            aria-hidden
-          />
-          <div
-            className="pointer-events-none absolute inset-0 bg-cover bg-center opacity-[0.18]"
-            style={{ backgroundImage: 'url(/images/construction-cranes-bg.jpg)' }}
-            aria-hidden
-          />
-          <div
-            className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_50%_30%,rgba(245,158,11,0.12),transparent_55%)]"
-            aria-hidden
-          />
-
-          <div className="relative w-full max-w-[27rem] overflow-hidden rounded-xl border border-amber-500/25 bg-[#0c1624] shadow-[0_28px_70px_rgba(0,0,0,0.65)] ring-1 ring-white/10">
-            <div className="h-1.5 w-full bg-gradient-to-r from-amber-500 via-amber-400 to-orange-500" />
-
-            <div className="border-b border-white/10 bg-[#101c2c] px-4 py-4 sm:px-5">
-              <div className="flex items-start gap-3">
-                <div className="relative mt-0.5 flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-amber-400/40 bg-amber-500/15 text-amber-300 shadow-[0_0_20px_rgba(245,158,11,0.15)]">
-                  <HardHat size={22} strokeWidth={2} />
-                  <span className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-[#0c1624] ring-1 ring-amber-300/50">
-                    <Loader2 size={11} className="animate-spin text-amber-300" />
-                  </span>
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className="text-[10px] font-extrabold uppercase tracking-[0.18em] text-amber-300">
-                    Switching site
-                  </p>
-                  <p className="mt-1 truncate text-base font-bold leading-snug text-white sm:text-[17px]">
-                    {projectSwitch.title}
-                  </p>
-                  <p className="mt-1.5 flex items-center gap-1.5 text-[12px] font-medium text-slate-300">
-                    <Building2 size={13} className="shrink-0 text-amber-400/80" />
-                    Civil PMC · loading project command view
-                  </p>
-                </div>
-              </div>
-
-              <div className="mt-4">
-                <div className="mb-2 flex items-center justify-between text-[11px] font-extrabold uppercase tracking-wider">
-                  <span className="text-slate-300">
-                    Step {Math.min(projectSwitch.visibleLogCount, PROJECT_SWITCH_LOGS.length)} of{' '}
-                    {PROJECT_SWITCH_LOGS.length}
-                  </span>
-                  <span className="tabular-nums text-amber-300">
-                    {Math.min(
-                      100,
-                      Math.round(
-                        (projectSwitch.visibleLogCount / PROJECT_SWITCH_LOGS.length) * 100,
-                      ),
-                    )}
-                    %
-                  </span>
-                </div>
-                <div className="h-2.5 overflow-hidden rounded-full bg-slate-800 ring-1 ring-white/10">
-                  <div
-                    className="h-full rounded-full bg-gradient-to-r from-amber-500 via-amber-400 to-sky-400 shadow-[0_0_12px_rgba(245,158,11,0.45)] transition-[width] duration-500 ease-out"
-                    style={{
-                      width: `${Math.min(
-                        100,
-                        (projectSwitch.visibleLogCount / PROJECT_SWITCH_LOGS.length) * 100,
-                      )}%`,
-                    }}
-                  />
-                </div>
-              </div>
-            </div>
-
-            <ul className="space-y-1 bg-[#0c1624] px-3 py-3 sm:px-4">
-              {PROJECT_SWITCH_LOGS.slice(0, projectSwitch.visibleLogCount).map((step, index) => {
-                const isLatest = index === projectSwitch.visibleLogCount - 1;
-                const isDone = index < projectSwitch.visibleLogCount - 1;
-                return (
-                  <li
-                    key={step.label}
-                    className={`flex items-start gap-2.5 rounded-lg px-2.5 py-2.5 ${
-                      isLatest
-                        ? 'bg-amber-500/10 ring-1 ring-amber-400/25'
-                        : 'bg-white/[0.03]'
-                    }`}
-                  >
-                    <span
-                      className={`mt-0.5 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full ${
-                        isDone
-                          ? 'bg-emerald-500/20 text-emerald-400 ring-1 ring-emerald-400/30'
-                          : 'bg-amber-500/20 text-amber-300 ring-1 ring-amber-400/35'
-                      }`}
-                    >
-                      {isDone ? (
-                        <Check size={13} strokeWidth={2.5} />
-                      ) : (
-                        <Loader2 size={13} className="animate-spin" />
-                      )}
-                    </span>
-                    <span className="min-w-0 flex-1">
-                      <span
-                        className={`block text-[13px] font-bold leading-snug ${
-                          isLatest ? 'text-white' : 'text-slate-200'
-                        }`}
-                      >
-                        {step.label}
-                      </span>
-                      <span className="mt-0.5 block text-[12px] leading-snug text-slate-400">
-                        {step.detail}
-                      </span>
-                    </span>
-                    <span
-                      className={`mt-0.5 shrink-0 font-mono text-[11px] font-bold ${
-                        isLatest ? 'text-amber-300/90' : 'text-slate-500'
-                      }`}
-                    >
-                      {String(index + 1).padStart(2, '0')}
-                    </span>
-                  </li>
-                );
-              })}
-            </ul>
-
-            <div className="flex items-center justify-between gap-3 border-t border-white/10 bg-[#101c2c] px-4 py-3 sm:px-5">
-              <p className="text-[12px] font-semibold text-slate-300">
-                Preparing site command for leadership review
-              </p>
-              <span className="inline-flex h-2 w-2 shrink-0 animate-pulse rounded-full bg-amber-400 shadow-[0_0_8px_rgba(245,158,11,0.8)]" />
-            </div>
-          </div>
-        </div>
+        <FullScreenLoader
+          isDark={ex.isDark}
+          tone="amber"
+          icon={HardHat}
+          eyebrow="Switching site"
+          title={projectSwitch.title}
+          subtitle={
+            projectSwitch.visibleLogCount > PROJECT_SWITCH_LOGS.length
+              ? 'All set — opening the project command view.'
+              : 'Loading the project command view for leadership review.'
+          }
+          steps={PROJECT_SWITCH_LOGS}
+          activeStep={projectSwitch.visibleLogCount - 1}
+          showProgress
+        />
       )}
 
       <header className={`pmc-xs-shell ${ex.isDark ? 'is-dark' : 'is-light'} ${ex.shellHeader}`}>

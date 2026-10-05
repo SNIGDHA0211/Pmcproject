@@ -48,6 +48,8 @@ import {
 import { getThemeClasses, useTheme } from '../../utils/theme';
 import { toNum } from '../../services/api';
 import BillingFinancialPortfolioRow from './BillingFinancialPortfolioRow';
+import '../projectsMotion.css';
+import './billingDashboard.css';
 
 export type BillingFinancialSection = SubTab;
 
@@ -115,15 +117,19 @@ const BillingFinanceDashboardCardsInner: React.FC<BillingFinanceDashboardCardsPr
     formatIndianCurrencyCompact(value, options);
 
   return (
-    <section className="space-y-4" aria-label="Financial overview">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div>
+    <section className="pmc-motion-page space-y-4" aria-label="Financial overview">
+      <div className="pmc-bf-section-head">
+        <span className="pmc-bf-section-icon" aria-hidden="true">
+          <Icons.Performance size={17} />
+        </span>
+        <div className="min-w-0">
           <h3 className={`text-sm font-black uppercase tracking-widest ${themeClasses.textPrimary}`}>
             Financial Overview
           </h3>
           <p className={`text-xs font-semibold ${themeClasses.textSecondary}`}>
             Same finance cards as Team Leader dashboard · tap edit to update in Financial Management
           </p>
+          <span className="pmc-bf-section-bar" aria-hidden="true" />
         </div>
       </div>
 
@@ -212,22 +218,48 @@ const BillingFinanceDashboardCardsInner: React.FC<BillingFinanceDashboardCardsPr
               <>
                 <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
                   {[
-                    { label: 'Cash In (Actual)', value: formatInr(data.cashflowSummary.cashInActual), tone: 'text-emerald-500' },
-                    { label: 'Cash Out (Actual)', value: formatInr(data.cashflowSummary.cashOutActual), tone: 'text-rose-500' },
+                    {
+                      label: 'Cash In (Actual)',
+                      value: formatInr(data.cashflowSummary.cashInActual),
+                      tone: 'text-emerald-500',
+                      accent: '#10b981',
+                      icon: Icons.Download,
+                    },
+                    {
+                      label: 'Cash Out (Actual)',
+                      value: formatInr(data.cashflowSummary.cashOutActual),
+                      tone: 'text-rose-500',
+                      accent: '#f43f5e',
+                      icon: Icons.Upload,
+                    },
                     {
                       label: 'Net Cash Flow',
                       value: formatInr(data.cashflowSummary.netActual),
                       tone: data.cashflowSummary.netActual >= 0 ? 'text-emerald-500' : 'text-rose-500',
+                      accent: data.cashflowSummary.netActual >= 0 ? '#10b981' : '#f43f5e',
+                      icon: Icons.Finance,
                     },
-                    { label: 'Records', value: String(data.cashflowSummary.recordCount), tone: themeClasses.textPrimary },
-                  ].map((item) => (
+                    {
+                      label: 'Records',
+                      value: String(data.cashflowSummary.recordCount),
+                      tone: themeClasses.textPrimary,
+                      accent: '#6366f1',
+                      icon: Icons.ClipboardList,
+                    },
+                  ].map((item, index) => (
                     <div
                       key={item.label}
-                      className={`rounded-xl border px-3 py-2.5 ${themeClasses.border} ${themeClasses.bgSecondary}`}
+                      className={`pmc-pm-metric rounded-xl border px-3 py-2.5 ${themeClasses.border} ${themeClasses.bgSecondary}`}
+                      style={{ '--pm-accent': item.accent, '--pm-delay': `${index * 70}ms` } as React.CSSProperties}
                     >
-                      <p className={`text-[9px] font-bold uppercase tracking-wide ${themeClasses.textSecondary}`}>
-                        {item.label}
-                      </p>
+                      <div className="flex items-center gap-2">
+                        <span className="pmc-bf-tile-icon" aria-hidden="true">
+                          <item.icon size={13} />
+                        </span>
+                        <p className={`text-[9px] font-bold uppercase tracking-wide ${themeClasses.textSecondary}`}>
+                          {item.label}
+                        </p>
+                      </div>
                       <p className={`mt-1 text-sm font-black tabular-nums sm:text-base ${item.tone}`}>{item.value}</p>
                     </div>
                   ))}
@@ -292,12 +324,13 @@ const BillingFinanceDashboardCardsInner: React.FC<BillingFinanceDashboardCardsPr
                     color: toNum(data.budgetPerformanceData.cv) >= 0 ? themeClasses.success : themeClasses.danger,
                     icon: Icons.Clock,
                   },
-                ].map((metric) => {
+                ].map((metric, index) => {
                   const MetricIcon = metric.icon;
                   return (
                     <div
                       key={metric.label}
-                      className={`flex flex-col gap-1.5 rounded-xl border px-3 py-2.5 sm:flex-row sm:items-center sm:gap-2.5 ${themeClasses.border} ${themeClasses.bgSecondary}`}
+                      className={`pmc-pm-metric flex flex-col gap-1.5 rounded-xl border px-3 py-2.5 sm:flex-row sm:items-center sm:gap-2.5 ${themeClasses.border} ${themeClasses.bgSecondary}`}
+                      style={{ '--pm-delay': `${index * 70}ms` } as React.CSSProperties}
                     >
                       <div className="flex min-w-0 items-center gap-2">
                         <MetricIcon size={16} className={`shrink-0 ${isDarkTheme ? 'text-blue-300' : 'text-blue-600'}`} />
@@ -318,18 +351,19 @@ const BillingFinanceDashboardCardsInner: React.FC<BillingFinanceDashboardCardsPr
                   const isHealthy = cpi <= 1 && cpi > 0;
                   return (
                     <div
-                      className={`mt-3 rounded-xl border px-3.5 py-3 ${themeClasses.border} ${isHealthy ? 'bg-emerald-500/10' : 'bg-amber-500/10'}`}
+                      className={`pmc-bf-cpi ${isHealthy ? '' : 'is-watch'} mt-3 rounded-xl border px-3.5 py-3 ${themeClasses.border} ${isHealthy ? 'bg-emerald-500/10' : 'bg-amber-500/10'}`}
+                      style={{ '--pm-accent': isHealthy ? '#10b981' : '#f59e0b' } as React.CSSProperties}
                     >
                       <div className="flex items-center justify-between">
                         <span className={`${typo.labelBold} ${themeClasses.textSecondary}`}>Cost Performance Index</span>
                         <span
-                          className={`rounded-full px-2.5 py-0.5 ${typo.badge} ${isHealthy ? 'bg-emerald-500/15 text-emerald-500' : 'bg-amber-500/15 text-amber-500'}`}
+                          className={`pmc-bf-cpi-badge rounded-full px-2.5 py-0.5 ${typo.badge} ${isHealthy ? 'bg-emerald-500/15 text-emerald-500' : 'bg-amber-500/15 text-amber-500'}`}
                         >
                           {isHealthy ? 'Healthy' : 'Watch'}
                         </span>
                       </div>
                       <p className={`mt-1.5 ${typo.compactValue} ${isHealthy ? 'text-emerald-500' : 'text-amber-500'}`}>
-                        {cpi ? cpi.toFixed(2) : '-'}
+                        <span className="pmc-bf-cpi-value">{cpi ? cpi.toFixed(2) : '-'}</span>
                       </p>
                     </div>
                   );

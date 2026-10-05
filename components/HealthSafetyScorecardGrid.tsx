@@ -38,17 +38,22 @@ const HealthSafetyScorecardGrid: React.FC<HealthSafetyScorecardGridProps> = ({
             : 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6'
         }`}
       >
-        {HSE_CLIENT_SCORECARD.map((item) => {
+        {HSE_CLIENT_SCORECARD.map((item, index) => {
           const value = item.getValue(record);
+          const accentColor = index % 3 === 0 ? '#10b981' : index % 3 === 1 ? '#3b82f6' : '#f59e0b';
           return (
             <div
               key={`${item.srNo}-${item.shortLabel}`}
-              className={`rounded-lg border px-2.5 py-2 ${
-                isDarkTheme ? 'border-white/10 bg-white/[0.04]' : 'border-slate-100 bg-white shadow-sm'
+              className={`pmc-ov-tile rounded-xl border p-2.5 transition-all ${
+                isDarkTheme ? 'border-white/10 bg-white/[0.04]' : 'border-slate-200/80 bg-white shadow-sm'
               }`}
+              style={{
+                borderLeftWidth: 3,
+                borderLeftColor: accentColor,
+              }}
             >
               <p
-                className={`text-[8px] font-bold uppercase leading-tight tracking-wide ${DASHBOARD_STATUS_METRIC_LABEL_CLASS(isDarkTheme)}`}
+                className={`text-[8.5px] font-black uppercase leading-tight tracking-wider ${DASHBOARD_STATUS_METRIC_LABEL_CLASS(isDarkTheme)}`}
               >
                 {item.shortLabel}
               </p>
@@ -58,7 +63,7 @@ const HealthSafetyScorecardGrid: React.FC<HealthSafetyScorecardGridProps> = ({
                 {formatHseScorecardValue(value, item.decimals ?? 0)}
               </p>
               {!compact && (
-                <p className={`mt-1 text-[8px] leading-tight ${themeClasses.textMuted}`}>
+                <p className={`mt-1 line-clamp-1 text-[8.5px] font-medium leading-tight ${themeClasses.textMuted}`}>
                   {item.label}
                 </p>
               )}

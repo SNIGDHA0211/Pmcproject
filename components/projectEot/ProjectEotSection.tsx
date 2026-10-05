@@ -4,6 +4,8 @@ import { useTheme, getThemeClasses } from '../../utils/theme';
 import { getProjectDatesSectionAccess } from '../../utils/pmcRoleAccess';
 import { formatIsoDateLabel } from '../../utils/format';
 import { ModalPortal } from '../ModalPortal';
+import { Icons } from '../Icons';
+import './projectEot.css';
 import {
   projectEotApi,
   getProjectEotErrorMessage,
@@ -256,6 +258,23 @@ function statusBadgeClass(status: string, isDark: boolean): string {
   return isDark
     ? 'bg-slate-500/20 text-slate-300 border-slate-500/30'
     : 'bg-slate-100 text-slate-700 border-slate-200';
+}
+
+function statusAccent(status: string | null | undefined): string {
+  const s = String(status || '').toLowerCase();
+  if (s === 'approved') return '#10b981';
+  if (s === 'rejected') return '#f43f5e';
+  if (s === 'submitted' || s === 'pending' || s === 'draft') return '#f59e0b';
+  return '#64748b';
+}
+
+/** Whole days from `from` to `to` (ISO dates); null when either is missing/invalid. */
+function daysBetween(from: string | null | undefined, to: string | null | undefined): number | null {
+  const a = toInputDate(from);
+  const b = toInputDate(to);
+  if (!a || !b) return null;
+  const diff = Date.parse(`${b}T00:00:00Z`) - Date.parse(`${a}T00:00:00Z`);
+  return Number.isNaN(diff) ? null : Math.round(diff / 86400000);
 }
 
 function emptyForm(seed?: ProjectEotSeedDates | null): FormState {
@@ -552,28 +571,86 @@ const ProjectEotSection: React.FC<ProjectEotSectionProps> = ({
   const currentEotDate = summary?.current_eot?.eot_date ?? null;
   const currentStatus = summary?.current_eot?.status ?? null;
   const history = summary?.eot_history ?? [];
+  const daysBeyondContract = daysBetween(seedDates?.contract_finish, currentEotDate);
+  const statusColor = statusAccent(currentStatus ? String(currentStatus) : null);
+
+  const tiles: {
+    label: string;
+    accent: string;
+    icon: React.ElementType;
+    value: React.ReactNode;
+    note?: string;
+  }[] = [
+    {
+      label: 'Current EOT Date',
+      accent: '#f59e0b',
+      icon: Icons.Calendar,
+      value: displayDate(currentEotDate),
+      note:
+        daysBeyondContract != null && daysBeyondContract > 0
+          ? `+${daysBeyondContract} days vs contract finish`
+          : undefined,
+    },
+    {
+      label: 'Latest Completion Date',
+      accent: '#0ea5e9',
+      icon: Icons.Approve,
+      value: displayDate(summary?.latest_completion_date),
+    },
+    {
+      label: 'Total EOTs',
+      accent: '#6366f1',
+      icon: Icons.History,
+      value: summary?.total_eot_count ?? 0,
+      note:
+        (summary?.total_eot_count ?? 0) > 0
+          ? `${history.length} record${history.length === 1 ? '' : 's'} on file`
+          : undefined,
+    },
+    {
+      label: 'Status',
+      accent: statusColor,
+      icon: Icons.Pending,
+      value: currentStatus ? (
+        <span
+          className={`pmc-eot-status rounded-lg border px-2.5 py-1 text-[10px] font-black uppercase tracking-wide ${statusBadgeClass(String(currentStatus), isDarkTheme)}`}
+        >
+          <span className="pmc-eot-status-dot" aria-hidden="true" />
+          {statusLabel(String(currentStatus))}
+        </span>
+      ) : (
+        '—'
+      ),
+    },
+  ];
 
   return (
     <div
-      className={`${themeClasses.glassCard} rounded-2xl border ${themeClasses.border} shadow-sm ${compact ? 'p-4' : 'p-5 sm:p-6'} ${className}`}
+      className={`pmc-eot ${isDarkTheme ? 'is-dark' : 'is-light'} ${themeClasses.glassCard} rounded-2xl border ${themeClasses.border} shadow-sm ${compact ? 'p-4' : 'p-5 sm:p-6'} ${className}`}
     >
-      <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0">
-          <h3
-            className={`text-sm font-black uppercase tracking-widest ${themeClasses.textPrimary}`}
-          >
-            Extension of Time (EOT)
-          </h3>
-          <p className={`mt-1 text-[11px] font-semibold ${themeClasses.textSecondary}`}>
-            Current EOT summary and history for this project
-          </p>
+      <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+        <div className="pmc-eot-head">
+          <span className="pmc-eot-head-icon" aria-hidden="true">
+            <Icons.Clock size={20} />
+          </span>
+          <div className="min-w-0">
+            <h3
+              className={`text-sm font-black uppercase tracking-widest ${themeClasses.textPrimary}`}
+            >
+              Extension of Time (EOT)
+            </h3>
+            <p className={`mt-1 text-[11px] font-semibold ${themeClasses.textSecondary}`}>
+              Current EOT summary and history for this project
+            </p>
+          </div>
         </div>
         {canManage && (
           <button
             type="button"
             onClick={openCreate}
-            className="rounded-xl bg-blue-600 px-3 py-2 text-xs font-black uppercase tracking-wide text-white transition-colors hover:bg-blue-500"
+            className="pmc-eot-add text-xs font-black uppercase tracking-wide"
           >
+            <Icons.Add size={14} className="pmc-eot-add-icon" />
             Add New EOT
           </button>
         )}
@@ -589,9 +666,14 @@ const ProjectEotSection: React.FC<ProjectEotSectionProps> = ({
       )}
 
       {isLoading && !summary ? (
-        <p className={`text-sm font-bold ${themeClasses.textSecondary}`}>
-          Loading EOT…
-        </p>
+        <div role="status" aria-live="polite">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            {[0, 1, 2, 3].map((i) => (
+              <div key={i} className="pmc-eot-skeleton" style={{ animationDelay: `${i * 90}ms` }} />
+            ))}
+          </div>
+          <span className="sr-only">Loading extension of time details</span>
+        </div>
       ) : loadError ? (
         <div className="space-y-2">
           <p className="text-sm font-bold text-rose-500">{loadError}</p>
@@ -606,64 +688,28 @@ const ProjectEotSection: React.FC<ProjectEotSectionProps> = ({
       ) : (
         <>
           <div className="mb-5 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            <div
-              className={`rounded-xl border p-3 ${themeClasses.bgSecondary} ${themeClasses.border}`}
-            >
-              <p
-                className={`text-[10px] font-black uppercase tracking-widest ${themeClasses.textSecondary}`}
+            {tiles.map(({ label, accent, icon: TileIcon, value, note }, i) => (
+              <div
+                key={label}
+                className="pmc-eot-tile"
+                style={{ '--tile-accent': accent, '--eot-i': i } as React.CSSProperties}
               >
-                Current EOT Date
-              </p>
-              <p className={`mt-1 text-lg font-black ${themeClasses.textPrimary}`}>
-                {displayDate(currentEotDate)}
-              </p>
-            </div>
-            <div
-              className={`rounded-xl border p-3 ${themeClasses.bgSecondary} ${themeClasses.border}`}
-            >
-              <p
-                className={`text-[10px] font-black uppercase tracking-widest ${themeClasses.textSecondary}`}
-              >
-                Latest Completion Date
-              </p>
-              <p className={`mt-1 text-lg font-black ${themeClasses.textPrimary}`}>
-                {displayDate(summary?.latest_completion_date)}
-              </p>
-            </div>
-            <div
-              className={`rounded-xl border p-3 ${themeClasses.bgSecondary} ${themeClasses.border}`}
-            >
-              <p
-                className={`text-[10px] font-black uppercase tracking-widest ${themeClasses.textSecondary}`}
-              >
-                Total EOTs
-              </p>
-              <p className={`mt-1 text-lg font-black ${themeClasses.textPrimary}`}>
-                {summary?.total_eot_count ?? 0}
-              </p>
-            </div>
-            <div
-              className={`rounded-xl border p-3 ${themeClasses.bgSecondary} ${themeClasses.border}`}
-            >
-              <p
-                className={`text-[10px] font-black uppercase tracking-widest ${themeClasses.textSecondary}`}
-              >
-                Status
-              </p>
-              <div className="mt-2">
-                {currentStatus ? (
-                  <span
-                    className={`inline-flex rounded-lg border px-2.5 py-1 text-[10px] font-black uppercase tracking-wide ${statusBadgeClass(String(currentStatus), isDarkTheme)}`}
+                <div className="flex items-start justify-between gap-2">
+                  <p
+                    className={`text-[10px] font-black uppercase tracking-widest ${themeClasses.textSecondary}`}
                   >
-                    {statusLabel(String(currentStatus))}
-                  </span>
-                ) : (
-                  <p className={`text-lg font-black ${themeClasses.textPrimary}`}>
-                    —
+                    {label}
                   </p>
-                )}
+                  <span className="pmc-eot-tile-icon" aria-hidden="true">
+                    <TileIcon size={15} />
+                  </span>
+                </div>
+                <div className={`mt-1 text-lg font-black tabular-nums ${themeClasses.textPrimary}`}>
+                  {value}
+                </div>
+                {note && <span className="pmc-eot-tile-note">{note}</span>}
               </div>
-            </div>
+            ))}
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
@@ -671,16 +717,16 @@ const ProjectEotSection: React.FC<ProjectEotSectionProps> = ({
               type="button"
               onClick={() => setHistoryOpen((open) => !open)}
               aria-expanded={historyOpen}
-              className={`inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-[11px] font-black uppercase tracking-wide transition ${
+              className={`pmc-eot-toggle inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-[11px] font-black uppercase tracking-wide ${
                 isDarkTheme
                   ? 'border-cyan-400/25 bg-cyan-500/10 text-cyan-200 hover:bg-cyan-500/15'
                   : 'border-cyan-200 bg-cyan-50 text-cyan-900 hover:bg-cyan-100'
               }`}
             >
+              <Icons.History size={14} />
               {historyOpen ? 'Hide EOT History' : 'Show EOT History'}
-              <span className={`tabular-nums opacity-80`}>
-                ({history.length})
-              </span>
+              <span className="pmc-eot-count">{history.length}</span>
+              <Icons.ChevronDown size={14} className="pmc-eot-toggle-chevron" />
             </button>
             {historyOpen && (
               <button
@@ -695,13 +741,18 @@ const ProjectEotSection: React.FC<ProjectEotSectionProps> = ({
 
           {historyOpen &&
             (history.length === 0 ? (
-              <p className={`mt-3 text-sm font-semibold ${themeClasses.textSecondary}`}>
-                No extension of time records yet. Click “Add New EOT” to create
-                one.
-              </p>
+              <div className="pmc-eot-empty">
+                <span className="pmc-eot-tile-icon" style={{ '--tile-accent': '#f59e0b' } as React.CSSProperties}>
+                  <Icons.History size={15} />
+                </span>
+                <p className={`text-sm font-semibold ${themeClasses.textSecondary}`}>
+                  No extension of time records yet.
+                  {canManage ? ' Click “Add New EOT” to create one.' : ''}
+                </p>
+              </div>
             ) : (
               <div
-                className={`mt-3 overflow-x-auto rounded-xl border ${themeClasses.border}`}
+                className={`pmc-eot-history mt-3 overflow-x-auto rounded-xl border ${themeClasses.border}`}
               >
                 <table className="min-w-full text-left text-sm">
                   <thead>
@@ -721,15 +772,14 @@ const ProjectEotSection: React.FC<ProjectEotSectionProps> = ({
                     </tr>
                   </thead>
                   <tbody>
-                    {history.map((row) => (
+                    {history.map((row, rowIndex) => (
                       <tr
                         key={row.id}
                         className={`border-b last:border-0 ${themeClasses.border}`}
+                        style={{ '--eot-r': Math.min(rowIndex, 12) } as React.CSSProperties}
                       >
-                        <td
-                          className={`px-3 py-2.5 font-bold ${themeClasses.textPrimary}`}
-                        >
-                          {row.eot_no ?? row.id}
+                        <td className="px-3 py-2.5">
+                          <span className="pmc-eot-no">{row.eot_no ?? row.id}</span>
                         </td>
                         <td className={`px-3 py-2.5 ${themeClasses.textPrimary}`}>
                           {displayDate(row.eot_date)}

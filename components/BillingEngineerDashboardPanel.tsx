@@ -5,6 +5,7 @@ import { getThemeClasses, useTheme } from '../utils/theme';
 import BillingFinanceDashboardCards, {
   type BillingFinancialSection,
 } from './billing/BillingFinanceDashboardCards';
+import './billing/billingDashboard.css';
 
 export interface BillingProjectOption {
   id: string;
@@ -48,20 +49,21 @@ const BillingEngineerDashboardPanel: React.FC<BillingEngineerDashboardPanelProps
   return (
     <div className="space-y-5 sm:space-y-6">
       <header
-        className={`p-4 sm:p-5 ${cardBase}`}
-        style={{ '--ov-accent': '#10b981', '--ov-delay': '0ms' } as React.CSSProperties}
+        className={`pmc-bf-hero ${isDarkTheme ? 'is-dark pmc360-glass-panel-dark' : 'is-light pmc360-glass-panel-light'} rounded-2xl p-4 sm:p-5`}
       >
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div className="flex min-w-0 items-center gap-3">
             <span
-              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl text-white shadow-md"
-              style={{ background: 'linear-gradient(135deg, #10b981 0%, #1e3a5f 130%)' }}
+              className="pmc-bf-hero-icon flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl text-white"
+              style={{ background: 'linear-gradient(135deg, #10b981 0%, #0ea5e9 130%)' }}
             >
               <DollarSign size={22} strokeWidth={2.2} />
             </span>
             <div className="min-w-0">
-              <div className="flex items-center gap-2">
-                <h2 className={`text-base font-black uppercase tracking-wider sm:text-lg ${themeClasses.textPrimary}`}>
+              <div className="flex flex-wrap items-center gap-2">
+                <h2
+                  className={`pmc-bf-title ${isDarkTheme ? 'is-dark' : 'is-light'} text-base font-black uppercase tracking-wider sm:text-lg ${themeClasses.textPrimary}`}
+                >
                   Billing Engineer Dashboard
                 </h2>
                 <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[9px] font-black uppercase text-emerald-600 dark:text-emerald-400">
@@ -75,13 +77,19 @@ const BillingEngineerDashboardPanel: React.FC<BillingEngineerDashboardPanelProps
             </div>
           </div>
 
-          <div className="flex w-full flex-col gap-1.5 sm:w-auto sm:items-end">
-            <label className={`text-[10px] font-black uppercase tracking-wider ${themeClasses.textMuted}`}>Active Project</label>
+          <div className="pmc-bf-hero-side flex w-full flex-col gap-1.5 sm:w-auto sm:items-end">
+            <label
+              htmlFor="billing-active-project"
+              className={`text-[10px] font-black uppercase tracking-wider ${themeClasses.textMuted}`}
+            >
+              Active Project
+            </label>
             {projectOptions.length > 0 ? (
               <select
+                id="billing-active-project"
                 value={projectName ?? ''}
                 onChange={(e) => onProjectChange(e.target.value)}
-                className={`w-full sm:min-w-[240px] rounded-xl border px-3.5 py-2 text-xs font-bold outline-none shadow-sm transition-all ${themeClasses.input}`}
+                className={`pmc-bf-select w-full sm:min-w-[240px] rounded-xl border px-3.5 py-2 text-xs font-bold outline-none shadow-sm ${themeClasses.input}`}
               >
                 {projectOptions.map((p) => (
                   <option key={p.id} value={p.title}>
