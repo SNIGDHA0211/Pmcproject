@@ -16,6 +16,7 @@ import UserAvatar from './UserAvatar';
 import HeaderSearch from './HeaderSearch';
 import type { HeaderSearchNavItem } from './HeaderSearch';
 import AlertNotificationItem from './alerts/AlertNotificationItem';
+import PaymentDueNotice from './PaymentDueNotice';
 import { InlineLoader } from './WorkspaceStatusPanels';
 import { isTabAllowedForRole } from '../utils/roleRouting';
 import { isPmcHeadEquivalent } from '../utils/pmcRoleAccess';
@@ -1170,6 +1171,8 @@ const Layout: React.FC<LayoutProps> = ({
               )}
             </div>
           </header>
+
+          <PaymentDueNotice user={user} isDark={isDarkTheme} />
 
           <div
             key={activeTab}

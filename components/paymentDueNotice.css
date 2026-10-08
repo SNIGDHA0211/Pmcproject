@@ -1,0 +1,109 @@
+/* Payment-due notice bar under the app header (PMC Head / Head Office / PMC Manager) */
+
+.pmc-pay-notice {
+  --pay-accent: #f59e0b;
+  position: relative;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.6rem 1rem;
+  border-bottom: 1px solid color-mix(in srgb, var(--pay-accent) 35%, transparent);
+  overflow: hidden;
+  animation: pmc-pay-in 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@media (min-width: 768px) {
+  .pmc-pay-notice { padding: 0.6rem 2rem; }
+}
+
+.pmc-pay-notice.is-urgent { --pay-accent: #ef4444; }
+
+.pmc-pay-notice::before {
+  content: '';
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 4px;
+  background: var(--pay-accent);
+}
+
+.pmc-pay-notice.is-dark {
+  background: linear-gradient(90deg, color-mix(in srgb, var(--pay-accent) 18%, #0f1724), color-mix(in srgb, var(--pay-accent) 8%, #0f1724));
+  color: #fde68a;
+}
+
+.pmc-pay-notice.is-dark.is-urgent { color: #fecaca; }
+
+.pmc-pay-notice.is-light {
+  background: linear-gradient(90deg, color-mix(in srgb, var(--pay-accent) 14%, #fff), color-mix(in srgb, var(--pay-accent) 5%, #fff));
+  color: #78350f;
+}
+
+.pmc-pay-notice.is-light.is-urgent { color: #7f1d1d; }
+
+.pmc-pay-notice-icon {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.9rem;
+  height: 1.9rem;
+  border-radius: 9999px;
+  color: #fff;
+  background: var(--pay-accent);
+  box-shadow: 0 0 0 0 color-mix(in srgb, var(--pay-accent) 55%, transparent);
+  animation: pmc-pay-pulse 2.2s ease-out infinite;
+}
+
+.pmc-pay-notice-text {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  font-size: 0.78rem;
+  line-height: 1.45;
+}
+
+.pmc-pay-notice-title {
+  display: block;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.pmc-pay-notice-body strong { font-weight: 800; }
+
+.pmc-pay-notice-chip {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.3rem 0.65rem;
+  border-radius: 9999px;
+  font-size: 0.7rem;
+  font-weight: 800;
+  white-space: nowrap;
+  color: #fff;
+  background: var(--pay-accent);
+}
+
+@media (max-width: 639px) {
+  .pmc-pay-notice-chip { display: none; }
+}
+
+@keyframes pmc-pay-in {
+  from { opacity: 0; transform: translateY(-6px); }
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes pmc-pay-pulse {
+  0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--pay-accent) 55%, transparent); }
+  70%, 100% { box-shadow: 0 0 0 9px transparent; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pmc-pay-notice,
+  .pmc-pay-notice-icon {
+    animation: none;
+  }
+}
